@@ -4,14 +4,14 @@
 
 const CACHE_VERSION = 'autorep-v1';
 const APP_SHELL = [
-  '/',
   '/manifest.webmanifest',
   '/css/site.css',
   '/js/site.js',
   '/js/pwa-register.js',
   '/lib/bootstrap/dist/css/bootstrap.min.css',
   '/lib/jquery/dist/jquery.min.js',
-  '/lib/bootstrap/dist/js/bootstrap.bundle.min.js'
+  '/lib/bootstrap/dist/js/bootstrap.bundle.min.js',
+  '/icons/icon.svg'
 ];
 
 self.addEventListener('install', (event) => {
@@ -32,15 +32,28 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  // Network-first for navigation requests, fall back to cached shell.
+
+  const url = new URL(event.request.url);
+
+  // Don't intercept API or Account/auth flows — they need fresh server responses.
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/Account/')) {
+    return;
+  }
+
+  // Navigation requests: network-first, fall back to cached homepage on offline.
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('/'))
+      fetch(event.request).catch(() => caches.match('/') || new Response('Offline', { status: 503 }))
     );
     return;
   }
-  // Cache-first for static assets.
-  event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
-  );
+
+  // Same-origin static assets: cache-first.
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(event.request).then((cached) =>
+        cached || fetch(event.request).catch(() => new Response('', { status: 504 }))
+      )
+    );
+  }
 });
