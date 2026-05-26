@@ -1,0 +1,55 @@
+@page
+@model Autorep.Web.Pages.Admin.Companies.IndexModel
+@{
+    ViewData["Title"] = "Testing companies";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Testing companies</h1>
+        <p>Companies whose testers use AutoRep.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn" asp-page="/Admin/Companies/New">+ New company</a>
+    </div>
+</div>
+
+@if (!Model.Companies.Any())
+{
+    <div class="empty">
+        <div class="empty__title">No companies yet</div>
+        <p class="empty__text">Add your first testing company to start onboarding testers.</p>
+        <a class="btn" asp-page="/Admin/Companies/New">Add a company</a>
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Testers</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in Model.Companies)
+                {
+                    <tr>
+                        <td>@c.Name</td>
+                        <td>
+                            @if (c.IsActive) { <span class="badge badge--success">Active</span> }
+                            else { <span class="badge">Deactivated</span> }
+                        </td>
+                        <td>@c.TesterCount</td>
+                        <td class="td-muted">@c.CreatedAt.ToString("dd MMM yyyy")</td>
+                        <td><a class="btn btn--secondary" asp-page="/Admin/Companies/Edit" asp-route-id="@c.Id">Edit</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

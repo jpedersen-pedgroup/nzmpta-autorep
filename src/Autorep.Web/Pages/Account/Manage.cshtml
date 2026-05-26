@@ -1,0 +1,49 @@
+@page
+@model Autorep.Web.Pages.Account.ManageModel
+@{
+    ViewData["Title"] = "Account settings";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Account settings</h1>
+        <p>@Model.Account?.Email</p>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="alert alert--success">@Model.Message</div>
+}
+
+<div class="card" style="max-width:640px">
+    <h2 class="card__title">Two-factor authentication</h2>
+    @if (Model.TwoFactorEnabled)
+    {
+        <p style="color:var(--text-muted)">Two-factor is <strong>enabled</strong> for your account.</p>
+        <form method="post" asp-page-handler="DisableTwoFactor">
+            <div class="form-actions">
+                <button type="submit" class="btn btn--danger">Disable two-factor</button>
+                <a class="btn btn--secondary" asp-page="/Account/RecoveryCodes">Regenerate recovery codes</a>
+            </div>
+        </form>
+    }
+    else
+    {
+        <p style="color:var(--text-muted)">Add a second step to your sign-in with an authenticator app.</p>
+        <div class="form-actions">
+            <a class="btn" asp-page="/Account/SetupAuthenticator">Set up two-factor</a>
+        </div>
+    }
+</div>
+
+<div class="card" style="max-width:640px">
+    <h2 class="card__title">Password</h2>
+    <p style="color:var(--text-muted)">Send yourself a password-reset link.</p>
+    <form method="post" asp-page="/Account/ForgotPassword">
+        <input type="hidden" name="Input.Email" value="@Model.Account?.Email" />
+        <div class="form-actions">
+            <button type="submit" class="btn btn--secondary">Send reset email</button>
+        </div>
+    </form>
+</div>

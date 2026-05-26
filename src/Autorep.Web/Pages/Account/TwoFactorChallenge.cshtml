@@ -1,0 +1,42 @@
+@page
+@model Autorep.Web.Pages.Account.TwoFactorChallengeModel
+@{
+    ViewData["Title"] = "Two-factor verification";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Two-factor verification · NZMPTA AutoRep</title>
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <link rel="icon" href="~/icons/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="auth-layout">
+    <div class="auth-card">
+        <div class="auth-card__logo"><span class="auth-card__logo-mark">AR</span></div>
+        <h1 class="auth-card__title">Verification code</h1>
+        <p class="auth-card__subtitle">Open your authenticator app and enter the 6-digit code.</p>
+        <form method="post">
+            <div class="form-field">
+                <label asp-for="Input.Code">Code</label>
+                <input asp-for="Input.Code" required autofocus inputmode="numeric" pattern="[0-9 -]*" autocomplete="one-time-code" />
+            </div>
+            <div class="form-check">
+                <input type="checkbox" asp-for="Input.RememberThisDevice" id="remember-device" />
+                <label for="remember-device">Trust this device for 30 days</label>
+            </div>
+            @if (Model.ErrorMessage is not null)
+            {
+                <div class="alert alert--danger">@Model.ErrorMessage</div>
+            }
+            <button type="submit" class="btn btn--full">Verify</button>
+        </form>
+    </div>
+</body>
+</html>

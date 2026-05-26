@@ -1,0 +1,58 @@
+@page
+@model Autorep.Web.Pages.Admin.Testers.NewModel
+@using Autorep.Web.Domain
+@{
+    ViewData["Title"] = "New tester";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>New tester</h1>
+        <p>The user receives an email with a password-reset link to set their own password.</p>
+    </div>
+</div>
+
+<div class="card" style="max-width:640px">
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Input.Email">Email</label>
+            <input asp-for="Input.Email" type="email" required autofocus />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.DisplayName">Display name</label>
+            <input asp-for="Input.DisplayName" required />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.Role">Role</label>
+            <select asp-for="Input.Role">
+                <option value="@Roles.Tester">Tester</option>
+                <option value="@Roles.CompanyAdministrator">Company Administrator</option>
+                <option value="@Roles.SuperAdministrator">Super Administrator</option>
+            </select>
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.TestingCompanyId">Testing company</label>
+            <select asp-for="Input.TestingCompanyId" asp-items="Model.Companies">
+                <option value="">— None —</option>
+            </select>
+            <p class="form-field__hint">Testers must belong to a Testing Company; admins may be unassigned.</p>
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.LicenceExpiryDate">Licence expiry date</label>
+            <input asp-for="Input.LicenceExpiryDate" type="date" />
+            <p class="form-field__hint">Required for Testers — they can't sign in if expired. Leave blank for admins.</p>
+        </div>
+
+        @if (Model.Errors.Any())
+        {
+            <div class="alert alert--danger">
+                <ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul>
+            </div>
+        }
+
+        <div class="form-actions">
+            <button type="submit" class="btn">Create tester</button>
+            <a class="btn btn--secondary" asp-page="/Admin/Testers/Index">Cancel</a>
+        </div>
+    </form>
+</div>
