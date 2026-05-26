@@ -1,0 +1,86 @@
+# Infra CI/CD — validate on PR, auto-deploy to staging on merge to main.
+# Auth: federated OIDC (no client secrets). See infra/CICD.md for one-time setup.
+
+name: Infra (validate + staging deploy)
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write    # required for federated OIDC
+  contents: read
+  pull-requests: write  # for what-if PR comments (future)
+
+concurrency:
+  group: infra-staging-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Bicep build + what-if (staging)
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Bicep build (syntax check)
+        run: az bicep build --file infra/main.bicep
+
+      - name: What-if (staging)
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+        run: |
+          az deployment group what-if \
+            --resource-group rg-nzmpta-autorep-staging \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/staging.bicepparam
+
+  deploy-staging:
+    name: Deploy to staging
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy staging
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+        run: |
+          az deployment group create \
+            --resource-group rg-nzmpta-autorep-staging \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/staging.bicepparam \
+            --name "infra-staging-${{ github.run_number }}"
+
+      - name: Show outputs
+        run: |
+          az deployment group show \
+            --resource-group rg-nzmpta-autorep-staging \
+            --name "infra-staging-${{ github.run_number }}" \
+            --query properties.outputs \
+            -o table
