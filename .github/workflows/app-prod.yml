@@ -1,0 +1,109 @@
+# App prod deploy — manual only, gated by the 'prod' GitHub Environment.
+# Builds from the current main branch; you can run from workflow_dispatch
+# whenever you're ready to promote. Configure the prod Environment with
+# required reviewers in repo Settings → Environments → prod.
+
+name: App (prod deploy)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy to production" to confirm'
+        required: true
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: app-prod
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  guard:
+    name: Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation input
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy to production" ]; then
+            echo "::error::Confirmation input did not match. Aborting."
+            exit 1
+          fi
+
+  build:
+    name: Build + test
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Autorep.sln
+
+      - name: Build
+        run: dotnet build Autorep.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test Autorep.sln --no-build --configuration Release --verbosity normal
+
+      - name: Publish
+        run: dotnet publish src/Autorep.Web/Autorep.Web.csproj --no-build --configuration Release --output ./publish
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-publish-prod
+          path: ./publish
+          retention-days: 30
+
+  deploy:
+    name: Deploy to prod
+    needs: build
+    runs-on: ubuntu-latest
+    environment: prod   # second gate — reviewers approve again before deploy
+    steps:
+      - name: Download publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-publish-prod
+          path: ./publish
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to App Service (prod)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: app-nzmpta-autorep-prod
+          package: ./publish
+
+      - name: Health check
+        run: |
+          sleep 30
+          URL="https://app-nzmpta-autorep-prod.azurewebsites.net/health"
+          for i in 1 2 3 4 5 6; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            echo "Attempt $i: $URL → $STATUS"
+            if [ "$STATUS" = "200" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::Health check failed after 6 attempts"
+          exit 1

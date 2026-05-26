@@ -1,6 +1,6 @@
-# CI/CD setup — Infra workflows
+# CI/CD setup — Infra + App workflows
 
-One-time setup to wire `.github/workflows/infra.yml` and `infra-prod.yml` so they can deploy on your behalf.
+One-time setup to wire the GitHub Actions workflows so they can deploy on your behalf.
 
 **Auth model**: GitHub Actions exchanges an OIDC token for an Azure access token via a federated credential on an Entra ID App Registration. No long-lived client secrets stored in GitHub.
 
@@ -9,7 +9,11 @@ One-time setup to wire `.github/workflows/infra.yml` and `infra-prod.yml` so the
 | File | When it runs | What it does |
 |---|---|---|
 | `.github/workflows/infra.yml` | PR touching `infra/**`, push to `main`, manual | Bicep build + `what-if` against staging. On main push, also deploys staging. |
-| `.github/workflows/infra-prod.yml` | Manual only (workflow_dispatch) | `what-if` then deploy against prod, gated by the `prod` GitHub Environment (require reviewers). |
+| `.github/workflows/infra-prod.yml` | Manual only (`workflow_dispatch`) | `what-if` then deploy against prod, gated by the `prod` GitHub Environment (require reviewers). |
+| `.github/workflows/app.yml` | PR touching `src/**`/`tests/**`, push to `main`, manual | `dotnet build` + `dotnet test` + `dotnet publish`. On main push, deploys to App Service `app-nzmpta-autorep-staging` and runs a health check against `/health`. |
+| `.github/workflows/app-prod.yml` | Manual only (`workflow_dispatch`) | Builds from `main`, deploys to App Service `app-nzmpta-autorep-prod`, gated by the `prod` GitHub Environment. Requires typing "deploy to production" as a confirmation input. |
+
+The same federated identity covers all four workflows — no additional setup needed if the infra one-time setup (below) is already done.
 
 ## One-time setup
 
