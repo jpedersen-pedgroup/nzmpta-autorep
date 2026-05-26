@@ -3,32 +3,53 @@
 @{
     ViewData["Title"] = "All tests";
 }
-<h1>All tests</h1>
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>All tests</h1>
+        <p>Every machine test synced from the field.</p>
+    </div>
+</div>
+
 @if (!Model.Tests.Any())
 {
-    <p>No tests synced yet.</p>
+    <div class="empty">
+        <div class="empty__title">No tests synced yet</div>
+        <p class="empty__text">Tests will appear here as Testers complete and sync them.</p>
+    </div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Tester</th>
-                <th>Farm</th>
-                <th>Created</th>
-                <th>Completed</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var t in Model.Tests)
-            {
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
                 <tr>
-                    <td>@t.Tester?.UserName</td>
-                    <td>@t.Farm?.Name</td>
-                    <td>@t.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>@(t.MarkedCompleteAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                    <th>Tester</th>
+                    <th>Farm</th>
+                    <th>Created</th>
+                    <th>Status</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var t in Model.Tests)
+                {
+                    <tr>
+                        <td>@t.Tester?.UserName</td>
+                        <td>@t.Farm?.Name</td>
+                        <td class="td-muted">@t.CreatedAt.ToString("dd MMM yyyy, HH:mm")</td>
+                        <td>
+                            @if (t.MarkedCompleteAt is null)
+                            {
+                                <span class="badge">In progress</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--success">Complete</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }

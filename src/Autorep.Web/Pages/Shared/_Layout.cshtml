@@ -1,10 +1,18 @@
-@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    var userInitials = "";
+    if (User.Identity?.Name is { } name && name.Length > 0)
+    {
+        userInitials = name.Substring(0, 1).ToUpperInvariant();
+    }
+    var isTester = User.IsInRole("Tester");
+    var isAdmin = User.IsInRole("SuperAdministrator") || User.IsInRole("CompanyAdministrator");
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - NZMPTA AutoRep</title>
+    <title>@(ViewData["Title"] ?? "AutoRep") · NZMPTA AutoRep</title>
 
     <!-- PWA -->
     <link rel="manifest" href="~/manifest.webmanifest" />
@@ -16,35 +24,53 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="AutoRep" />
 
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/Autorep.Web.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">NZMPTA AutoRep</a>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <header class="app-header">
+            <a class="app-header__brand" asp-page="/Index">
+                <span class="app-header__brand-mark">AR</span>
+                <span>NZMPTA AutoRep</span>
+            </a>
+            <nav class="app-header__nav">
+                @if (isTester)
+                {
+                    <a asp-page="/App/Index">Home</a>
+                    <a asp-page="/App/Tests/Index">My tests</a>
+                    <a asp-page="/App/Tests/New">New test</a>
+                }
+                @if (isAdmin)
+                {
+                    <a asp-page="/Admin/Index">Home</a>
+                    <a asp-page="/Admin/Tests/Index">All tests</a>
+                }
+            </nav>
+            <div class="app-header__user">
+                <div class="app-header__user-name">
+                    <span class="app-header__user-avatar">@userInitials</span>
+                    <span>@User.Identity?.Name</span>
+                </div>
+                <form method="post" asp-page="/Account/Logout" style="margin:0">
+                    <button type="submit" class="btn btn--ghost">Sign out</button>
+                </form>
             </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
-
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 NZMPTA
-        </div>
+        </header>
+    }
+    <main>
+        @RenderBody()
+    </main>
+    <footer class="app-footer">
+        &copy; 2026 NZMPTA · Built by Pedersen Group
     </footer>
 
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/pwa-register.js" asp-append-version="true"></script>
-
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

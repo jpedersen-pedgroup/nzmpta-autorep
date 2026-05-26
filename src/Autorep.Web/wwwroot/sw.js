@@ -2,15 +2,11 @@
 // PWA loads when offline. Phase 2 will expand this to a proper offline-first
 // strategy with IndexedDB for Machine Test data and a sync queue.
 
-const CACHE_VERSION = 'autorep-v1';
+const CACHE_VERSION = 'autorep-v2';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/css/site.css',
-  '/js/site.js',
   '/js/pwa-register.js',
-  '/lib/bootstrap/dist/css/bootstrap.min.css',
-  '/lib/jquery/dist/jquery.min.js',
-  '/lib/bootstrap/dist/js/bootstrap.bundle.min.js',
   '/icons/icon.svg'
 ];
 

@@ -3,33 +3,57 @@
 @{
     ViewData["Title"] = "My tests";
 }
-<h1>My tests</h1>
-<p><a asp-page="/App/Tests/New" class="btn btn-primary">+ New test</a></p>
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>My tests</h1>
+        <p>Machine tests you've created.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn" asp-page="/App/Tests/New">+ New test</a>
+    </div>
+</div>
+
 @if (!Model.Tests.Any())
 {
-    <p>No tests yet.</p>
+    <div class="empty">
+        <div class="empty__title">No tests yet</div>
+        <p class="empty__text">Start your first machine test to begin building your testing history.</p>
+        <a class="btn" asp-page="/App/Tests/New">Start a new test</a>
+    </div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Farm</th>
-                <th>Created</th>
-                <th>Completed</th>
-                <th>Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var t in Model.Tests)
-            {
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
                 <tr>
-                    <td>@t.Farm?.Name</td>
-                    <td>@t.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>@(t.MarkedCompleteAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
-                    <td>@t.Notes</td>
+                    <th>Farm</th>
+                    <th>Created</th>
+                    <th>Completed</th>
+                    <th>Notes</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var t in Model.Tests)
+                {
+                    <tr>
+                        <td>@t.Farm?.Name</td>
+                        <td class="td-muted">@t.CreatedAt.ToString("dd MMM yyyy, HH:mm")</td>
+                        <td>
+                            @if (t.MarkedCompleteAt is null)
+                            {
+                                <span class="badge">In progress</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--success">Complete</span>
+                            }
+                        </td>
+                        <td class="td-muted">@t.Notes</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }

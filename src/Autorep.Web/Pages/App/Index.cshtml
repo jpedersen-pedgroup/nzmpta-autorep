@@ -1,14 +1,23 @@
 @page
 @model Autorep.Web.Pages.App.IndexModel
 @{
-    ViewData["Title"] = "Tester home";
+    ViewData["Title"] = "Home";
 }
-<h1>Welcome, @User.Identity?.Name</h1>
-<p>You're signed in to the Tester app.</p>
-<ul>
-    <li><a asp-page="/App/Tests/Index">My tests</a></li>
-    <li><a asp-page="/App/Tests/New">Start a new test</a></li>
-</ul>
-<form method="post" asp-page="/Account/Logout">
-    <button type="submit" class="btn btn-outline-secondary">Sign out</button>
-</form>
+
+<section class="welcome">
+    <h1>Welcome back</h1>
+    <p>Pick up where you left off, or start a fresh test on a new farm.</p>
+</section>
+
+<div class="tile-grid">
+    <a class="tile" asp-page="/App/Tests/New">
+        <div class="tile__icon">+</div>
+        <div class="tile__title">Start a new test</div>
+        <div class="tile__desc">Begin a fresh machine test at a farm.</div>
+    </a>
+    <a class="tile" asp-page="/App/Tests/Index">
+        <div class="tile__icon">≡</div>
+        <div class="tile__title">My tests</div>
+        <div class="tile__desc">View tests you've created and synced.</div>
+    </a>
+</div>

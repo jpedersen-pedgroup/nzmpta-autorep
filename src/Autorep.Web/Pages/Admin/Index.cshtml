@@ -3,11 +3,16 @@
 @{
     ViewData["Title"] = "Admin home";
 }
-<h1>Welcome, @User.Identity?.Name</h1>
-<p>You're signed in to the Admin Portal.</p>
-<ul>
-    <li><a asp-page="/Admin/Tests/Index">All tests</a></li>
-</ul>
-<form method="post" asp-page="/Account/Logout">
-    <button type="submit" class="btn btn-outline-secondary">Sign out</button>
-</form>
+
+<section class="welcome">
+    <h1>Admin Portal</h1>
+    <p>Browse synced tests across all Testing Companies.</p>
+</section>
+
+<div class="tile-grid">
+    <a class="tile" asp-page="/Admin/Tests/Index">
+        <div class="tile__icon">≡</div>
+        <div class="tile__title">All tests</div>
+        <div class="tile__desc">View every machine test synced to the platform.</div>
+    </a>
+</div>
