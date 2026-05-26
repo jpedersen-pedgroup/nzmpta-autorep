@@ -70,6 +70,10 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
     await db.Database.MigrateAsync();
     await Seed.RolesAsync(scope.ServiceProvider);
+    if (app.Environment.IsDevelopment())
+    {
+        await Seed.DevUsersAsync(scope.ServiceProvider);
+    }
 }
 
 if (!app.Environment.IsDevelopment())
