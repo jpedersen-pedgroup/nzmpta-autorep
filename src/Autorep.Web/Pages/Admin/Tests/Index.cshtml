@@ -1,0 +1,55 @@
+@page
+@model Autorep.Web.Pages.Admin.Tests.IndexModel
+@{
+    ViewData["Title"] = "All tests";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>All tests</h1>
+        <p>Every machine test synced from the field.</p>
+    </div>
+</div>
+
+@if (!Model.Tests.Any())
+{
+    <div class="empty">
+        <div class="empty__title">No tests synced yet</div>
+        <p class="empty__text">Tests will appear here as Testers complete and sync them.</p>
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Tester</th>
+                    <th>Farm</th>
+                    <th>Created</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in Model.Tests)
+                {
+                    <tr>
+                        <td>@t.Tester?.UserName</td>
+                        <td>@t.Farm?.Name</td>
+                        <td class="td-muted">@t.CreatedAt.ToString("dd MMM yyyy, HH:mm")</td>
+                        <td>
+                            @if (t.MarkedCompleteAt is null)
+                            {
+                                <span class="badge">In progress</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--success">Complete</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

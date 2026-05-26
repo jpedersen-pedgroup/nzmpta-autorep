@@ -1,0 +1,43 @@
+@page
+@model Autorep.Web.Pages.App.Tests.NewModel
+@{
+    ViewData["Title"] = "New test";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Start a new test</h1>
+        <p>Phase 1 walking-skeleton form. Full wizard lands in Phase 2.</p>
+    </div>
+</div>
+
+<div class="card" style="max-width:640px">
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Input.FarmName">Farm name</label>
+            <input asp-for="Input.FarmName" required autofocus />
+            <p class="form-field__hint">If this is a repeat visit, type the same name as before to link tests to the same farm.</p>
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.Notes">Notes</label>
+            <textarea asp-for="Input.Notes" placeholder="Any context you want to record up front…"></textarea>
+        </div>
+        <div class="form-check">
+            <input type="checkbox" asp-for="Input.MarkComplete" id="mark-complete" />
+            <label for="mark-complete">Mark as complete now</label>
+        </div>
+        @if (Model.Errors.Any())
+        {
+            <div class="alert alert--danger">
+                <strong>Couldn't save:</strong>
+                <ul style="margin-top:0.25rem">
+                    @foreach (var e in Model.Errors) { <li>@e</li> }
+                </ul>
+            </div>
+        }
+        <div class="form-actions">
+            <button type="submit" class="btn">Save test</button>
+            <a class="btn btn--secondary" asp-page="/App/Tests/Index">Cancel</a>
+        </div>
+    </form>
+</div>

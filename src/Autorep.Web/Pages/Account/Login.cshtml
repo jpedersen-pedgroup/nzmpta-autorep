@@ -1,0 +1,51 @@
+@page
+@model Autorep.Web.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in · NZMPTA AutoRep</title>
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <link rel="icon" href="~/icons/icon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0a2540" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="auth-layout">
+    <div class="auth-card">
+        <div class="auth-card__logo">
+            <span class="auth-card__logo-mark">AR</span>
+        </div>
+        <h1 class="auth-card__title">Sign in to AutoRep</h1>
+        <p class="auth-card__subtitle">NZMPTA milking machine testing</p>
+
+        <form method="post">
+            <div class="form-field">
+                <label asp-for="Input.Email">Email</label>
+                <input asp-for="Input.Email" type="email" required autocomplete="username" autofocus />
+            </div>
+            <div class="form-field">
+                <label asp-for="Input.Password">Password</label>
+                <input asp-for="Input.Password" type="password" required autocomplete="current-password" />
+            </div>
+            <div class="form-check">
+                <input type="checkbox" asp-for="Input.RememberMe" id="remember-me" />
+                <label for="remember-me">Keep me signed in on this device</label>
+            </div>
+            @if (Model.ErrorMessage is not null)
+            {
+                <div class="alert alert--danger">@Model.ErrorMessage</div>
+            }
+            <button type="submit" class="btn btn--full">Sign in</button>
+        </form>
+    </div>
+    <script src="~/js/pwa-register.js" asp-append-version="true"></script>
+</body>
+</html>

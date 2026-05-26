@@ -1,0 +1,76 @@
+@{
+    var userInitials = "";
+    if (User.Identity?.Name is { } name && name.Length > 0)
+    {
+        userInitials = name.Substring(0, 1).ToUpperInvariant();
+    }
+    var isTester = User.IsInRole("Tester");
+    var isAdmin = User.IsInRole("SuperAdministrator") || User.IsInRole("CompanyAdministrator");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] ?? "AutoRep") · NZMPTA AutoRep</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <link rel="icon" href="~/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="~/icons/icon.svg" />
+    <meta name="theme-color" content="#0a2540" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="AutoRep" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <header class="app-header">
+            <a class="app-header__brand" asp-page="/Index">
+                <span class="app-header__brand-mark">AR</span>
+                <span>NZMPTA AutoRep</span>
+            </a>
+            <nav class="app-header__nav">
+                @if (isTester)
+                {
+                    <a asp-page="/App/Index">Home</a>
+                    <a asp-page="/App/Tests/Index">My tests</a>
+                    <a asp-page="/App/Tests/New">New test</a>
+                }
+                @if (isAdmin)
+                {
+                    <a asp-page="/Admin/Index">Home</a>
+                    <a asp-page="/Admin/Tests/Index">All tests</a>
+                }
+            </nav>
+            <div class="app-header__user">
+                <div class="app-header__user-name">
+                    <span class="app-header__user-avatar">@userInitials</span>
+                    <span>@User.Identity?.Name</span>
+                </div>
+                <form method="post" asp-page="/Account/Logout" style="margin:0">
+                    <button type="submit" class="btn btn--ghost">Sign out</button>
+                </form>
+            </div>
+        </header>
+    }
+    <main>
+        @RenderBody()
+    </main>
+    <footer class="app-footer">
+        &copy; 2026 NZMPTA · Built by Pedersen Group
+    </footer>
+
+    <script src="~/js/pwa-register.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
