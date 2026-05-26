@@ -1,0 +1,14 @@
+@page
+@model Autorep.Web.Pages.App.IndexModel
+@{
+    ViewData["Title"] = "Tester home";
+}
+<h1>Welcome, @User.Identity?.Name</h1>
+<p>You're signed in to the Tester app.</p>
+<ul>
+    <li><a asp-page="/App/Tests/Index">My tests</a></li>
+    <li><a asp-page="/App/Tests/New">Start a new test</a></li>
+</ul>
+<form method="post" asp-page="/Account/Logout">
+    <button type="submit" class="btn btn-outline-secondary">Sign out</button>
+</form>

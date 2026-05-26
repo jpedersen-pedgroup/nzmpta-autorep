@@ -55,3 +55,19 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# EF Core
+*.db
+*.db-shm
+*.db-wal
+
+# Local dev secrets
+appsettings.Development.local.json
+.env.local

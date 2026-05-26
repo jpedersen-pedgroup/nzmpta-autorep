@@ -1,0 +1,9 @@
+@page
+@{
+    ViewData["Title"] = "Access denied";
+}
+<h1>Access denied</h1>
+<p>Your account doesn't have permission to view that page.</p>
+<form method="post" asp-page="/Account/Logout">
+    <button type="submit" class="btn btn-outline-secondary">Sign out</button>
+</form>

@@ -1,0 +1,11 @@
+{
+  "name": "NZMPTA AutoRep",
+  "short_name": "AutoRep",
+  "description": "NZMPTA milking machine testing platform",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0a2540",
+  "orientation": "any"
+}

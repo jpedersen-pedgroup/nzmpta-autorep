@@ -1,0 +1,26 @@
+@page
+@model Autorep.Web.Pages.App.Tests.NewModel
+@{
+    ViewData["Title"] = "New test";
+}
+<h1>Start a new test</h1>
+<form method="post">
+    <div class="mb-3">
+        <label class="form-label">Farm name</label>
+        <input asp-for="Input.FarmName" class="form-control" required />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Notes</label>
+        <textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea>
+    </div>
+    <div class="form-check mb-3">
+        <input type="checkbox" asp-for="Input.MarkComplete" class="form-check-input" />
+        <label class="form-check-label">Mark as complete now</label>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a asp-page="/App/Tests/Index" class="btn btn-outline-secondary">Cancel</a>
+</form>
+@if (Model.Errors.Any())
+{
+    <ul class="text-danger mt-3">@foreach (var e in Model.Errors) { <li>@e</li> }</ul>
+}

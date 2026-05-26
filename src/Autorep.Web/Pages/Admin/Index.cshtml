@@ -1,0 +1,13 @@
+@page
+@model Autorep.Web.Pages.Admin.IndexModel
+@{
+    ViewData["Title"] = "Admin home";
+}
+<h1>Welcome, @User.Identity?.Name</h1>
+<p>You're signed in to the Admin Portal.</p>
+<ul>
+    <li><a asp-page="/Admin/Tests/Index">All tests</a></li>
+</ul>
+<form method="post" asp-page="/Account/Logout">
+    <button type="submit" class="btn btn-outline-secondary">Sign out</button>
+</form>

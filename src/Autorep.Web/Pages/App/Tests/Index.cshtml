@@ -1,0 +1,35 @@
+@page
+@model Autorep.Web.Pages.App.Tests.IndexModel
+@{
+    ViewData["Title"] = "My tests";
+}
+<h1>My tests</h1>
+<p><a asp-page="/App/Tests/New" class="btn btn-primary">+ New test</a></p>
+@if (!Model.Tests.Any())
+{
+    <p>No tests yet.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Farm</th>
+                <th>Created</th>
+                <th>Completed</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in Model.Tests)
+            {
+                <tr>
+                    <td>@t.Farm?.Name</td>
+                    <td>@t.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@(t.MarkedCompleteAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                    <td>@t.Notes</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
