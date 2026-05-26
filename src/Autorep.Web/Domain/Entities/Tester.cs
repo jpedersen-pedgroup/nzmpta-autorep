@@ -12,5 +12,13 @@ public class Tester : IdentityUser
     public Guid? TestingCompanyId { get; set; }
     public TestingCompany? TestingCompany { get; set; }
 
-    // Phase 8 will add TesterLicence + LicenceExpiryDate.
+    // Tester Licence (Phase 8). Nullable so newly-created Testers start with
+    // no licence until a Super-Administrator sets one. Login pipeline refuses
+    // sign-in if expired.
+    public DateOnly? LicenceExpiryDate { get; set; }
+
+    // Set on migrated accounts so first sign-in forces a password change. Set
+    // back to false after the reset. The Migration Tool (Phase 11) sets this
+    // true on every migrated row so legacy passwords are never trusted.
+    public bool ForcedPasswordResetRequired { get; set; }
 }

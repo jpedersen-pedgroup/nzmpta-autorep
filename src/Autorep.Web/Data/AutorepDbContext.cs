@@ -13,6 +13,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<Farm> Farms => Set<Farm>();
     public DbSet<MachineTest> MachineTests => Set<MachineTest>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -35,5 +36,21 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
         builder.Entity<TestingCompany>()
             .HasIndex(c => c.Name)
             .IsUnique();
+
+        builder.Entity<RefreshToken>()
+            .HasIndex(t => t.TokenHash)
+            .IsUnique();
+
+        builder.Entity<RefreshToken>()
+            .HasIndex(t => new { t.TesterId, t.RevokedAt });
+
+        builder.Entity<RefreshToken>()
+            .HasOne(t => t.Tester)
+            .WithMany()
+            .HasForeignKey(t => t.TesterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Tester>()
+            .HasIndex(u => u.TestingCompanyId);
     }
 }
