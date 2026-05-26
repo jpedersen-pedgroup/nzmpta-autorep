@@ -1,0 +1,89 @@
+# Infra prod deploy — manual only, gated by the 'prod' GitHub Environment.
+# Configure the prod Environment with required reviewers in repo Settings → Environments → prod.
+
+name: Infra (prod deploy)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy to production" to confirm'
+        required: true
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: infra-prod
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation input
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy to production" ]; then
+            echo "::error::Confirmation input did not match. Aborting."
+            exit 1
+          fi
+
+  what-if:
+    name: What-if (prod)
+    needs: guard
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: What-if
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+        run: |
+          az deployment group what-if \
+            --resource-group rg-nzmpta-autorep-prod \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/prod.bicepparam
+
+  deploy:
+    name: Deploy to prod
+    needs: what-if
+    runs-on: ubuntu-latest
+    environment: prod   # second gate — reviewers approve again before deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy prod
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+        run: |
+          az deployment group create \
+            --resource-group rg-nzmpta-autorep-prod \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/prod.bicepparam \
+            --name "infra-prod-${{ github.run_number }}"
+
+      - name: Show outputs
+        run: |
+          az deployment group show \
+            --resource-group rg-nzmpta-autorep-prod \
+            --name "infra-prod-${{ github.run_number }}" \
+            --query properties.outputs \
+            -o table
