@@ -1,0 +1,31 @@
+@page
+@model Autorep.Web.Pages.Account.RecoveryCodesModel
+@{
+    ViewData["Title"] = "Recovery codes";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Recovery codes</h1>
+        <p>Save these now — each code can be used once if you lose your authenticator app.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn btn--secondary" asp-page="/Account/Manage">Done</a>
+    </div>
+</div>
+
+<div class="alert alert--danger" style="max-width:640px">
+    <strong>Save these codes immediately.</strong> They aren't shown again. If you lose access to your authenticator app and don't have a recovery code, you'll need an admin to reset your 2FA.
+</div>
+
+<div class="card" style="max-width:640px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;font-family:var(--font-mono);font-size:1rem">
+        @foreach (var code in Model.Codes)
+        {
+            <div style="background:var(--surface-alt);padding:0.75rem 1rem;border-radius:var(--radius)">@code</div>
+        }
+    </div>
+    <div class="form-actions">
+        <button type="button" class="btn btn--secondary" onclick="window.print()">Print</button>
+    </div>
+</div>

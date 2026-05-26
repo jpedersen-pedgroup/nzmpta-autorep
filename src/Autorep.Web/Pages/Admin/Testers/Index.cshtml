@@ -1,0 +1,65 @@
+@page
+@model Autorep.Web.Pages.Admin.Testers.IndexModel
+@{
+    ViewData["Title"] = "Testers";
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Testers</h1>
+        <p>Every user account on the platform.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn" asp-page="/Admin/Testers/New">+ New tester</a>
+    </div>
+</div>
+
+@if (!Model.Testers.Any())
+{
+    <div class="empty">
+        <div class="empty__title">No testers yet</div>
+        <p class="empty__text">Create your first tester account to start.</p>
+        <a class="btn" asp-page="/Admin/Testers/New">Add a tester</a>
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Company</th>
+                    <th>Role</th>
+                    <th>Licence</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in Model.Testers)
+                {
+                    <tr>
+                        <td>@t.Email</td>
+                        <td>@t.DisplayName</td>
+                        <td>@(t.CompanyName ?? "—")</td>
+                        <td>@t.PrimaryRole</td>
+                        <td>
+                            @if (t.LicenceExpiryDate is null) { <span class="badge">—</span> }
+                            else if (t.LicenceExpiryDate < today) { <span class="badge badge--danger">Expired @t.LicenceExpiryDate</span> }
+                            else if (t.LicenceExpiryDate < today.AddMonths(2)) { <span class="badge badge--warning">Expires @t.LicenceExpiryDate</span> }
+                            else { <span class="badge badge--success">@t.LicenceExpiryDate</span> }
+                        </td>
+                        <td>
+                            @if (t.IsActive) { <span class="badge badge--success">Active</span> }
+                            else { <span class="badge">Deactivated</span> }
+                        </td>
+                        <td><a class="btn btn--secondary" asp-page="/Admin/Testers/Edit" asp-route-id="@t.Id">Edit</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

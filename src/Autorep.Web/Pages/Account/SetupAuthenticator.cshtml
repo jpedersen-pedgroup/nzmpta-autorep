@@ -1,0 +1,52 @@
+@page
+@model Autorep.Web.Pages.Account.SetupAuthenticatorModel
+@{
+    ViewData["Title"] = "Set up two-factor authentication";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Set up two-factor authentication</h1>
+        <p>Add an extra step to your sign-in with an authenticator app.</p>
+    </div>
+</div>
+
+<div class="card" style="max-width:640px">
+    <h2 class="card__title">1. Install an authenticator app</h2>
+    <p style="color:var(--text-muted)">
+        Microsoft Authenticator, Google Authenticator, 1Password, Authy or any TOTP-compatible app works.
+    </p>
+</div>
+
+<div class="card" style="max-width:640px">
+    <h2 class="card__title">2. Add this account</h2>
+    <p style="color:var(--text-muted)">Either scan the URI in the app, or enter the shared key manually:</p>
+    <div style="background:var(--surface-alt);padding:1rem;border-radius:var(--radius);font-family:var(--font-mono);word-break:break-all;margin-bottom:0.5rem">
+        @Model.SharedKey
+    </div>
+    <details>
+        <summary style="cursor:pointer;color:var(--text-muted);font-size:0.875rem">Show otpauth URI</summary>
+        <div style="background:var(--surface-alt);padding:1rem;border-radius:var(--radius);font-family:var(--font-mono);word-break:break-all;margin-top:0.5rem;font-size:0.8125rem">
+            @Model.AuthenticatorUri
+        </div>
+    </details>
+</div>
+
+<div class="card" style="max-width:640px">
+    <h2 class="card__title">3. Verify</h2>
+    <p style="color:var(--text-muted)">Enter the 6-digit code your app shows for this account.</p>
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Code">Verification code</label>
+            <input asp-for="Code" required autofocus inputmode="numeric" pattern="[0-9 -]*" autocomplete="one-time-code" />
+        </div>
+        @if (Model.Errors.Any())
+        {
+            <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+        }
+        <div class="form-actions">
+            <button type="submit" class="btn">Verify and enable</button>
+            <a class="btn btn--secondary" asp-page="/Account/Manage">Cancel</a>
+        </div>
+    </form>
+</div>

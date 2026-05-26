@@ -1,3 +1,4 @@
+@inject Microsoft.AspNetCore.Identity.UserManager<Autorep.Web.Domain.Entities.Tester> UserManager
 @{
     var userInitials = "";
     if (User.Identity?.Name is { } name && name.Length > 0)
@@ -6,6 +7,18 @@
     }
     var isTester = User.IsInRole("Tester");
     var isAdmin = User.IsInRole("SuperAdministrator") || User.IsInRole("CompanyAdministrator");
+
+    // Licence reminder banner: Testers within 180 days of expiry, prominent inside 60 days.
+    DateOnly? expiry = null;
+    if (User.Identity?.IsAuthenticated == true && isTester)
+    {
+        var u = await UserManager.GetUserAsync(User);
+        expiry = u?.LicenceExpiryDate;
+    }
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    int? daysToExpiry = expiry.HasValue
+        ? expiry.Value.DayNumber - today.DayNumber
+        : (int?)null;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -50,18 +63,44 @@
                 {
                     <a asp-page="/Admin/Index">Home</a>
                     <a asp-page="/Admin/Tests/Index">All tests</a>
+                    <a asp-page="/Admin/Testers/Index">Testers</a>
+                    <a asp-page="/Admin/Companies/Index">Companies</a>
                 }
             </nav>
             <div class="app-header__user">
-                <div class="app-header__user-name">
+                <a class="app-header__user-name" asp-page="/Account/Manage" style="text-decoration:none">
                     <span class="app-header__user-avatar">@userInitials</span>
                     <span>@User.Identity?.Name</span>
-                </div>
+                </a>
                 <form method="post" asp-page="/Account/Logout" style="margin:0">
                     <button type="submit" class="btn btn--ghost">Sign out</button>
                 </form>
             </div>
         </header>
+
+        @if (daysToExpiry.HasValue)
+        {
+            if (daysToExpiry <= 0)
+            {
+                <div class="licence-banner licence-banner--urgent">
+                    <strong>Your tester licence has expired.</strong>
+                    You can finish syncing existing tests but won't be able to sign in again until renewed. Contact NZMPTA.
+                </div>
+            }
+            else if (daysToExpiry <= 60)
+            {
+                <div class="licence-banner licence-banner--urgent">
+                    <strong>Your tester licence expires in @daysToExpiry day@(daysToExpiry == 1 ? "" : "s")</strong>
+                    (@expiry?.ToString("dd MMM yyyy")). Contact NZMPTA to renew.
+                </div>
+            }
+            else if (daysToExpiry <= 180)
+            {
+                <div class="licence-banner">
+                    Your tester licence expires on @expiry?.ToString("dd MMM yyyy") (in @daysToExpiry days). Plan your renewal.
+                </div>
+            }
+        }
     }
     <main>
         @RenderBody()

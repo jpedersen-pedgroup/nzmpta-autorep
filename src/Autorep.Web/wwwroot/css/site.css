@@ -538,6 +538,21 @@ main {
   color: var(--text-muted);
 }
 
+/* ----- Licence banner ------------------------------------------------------- */
+.licence-banner {
+  padding: var(--space-3) var(--space-6);
+  background: #fef3c7;
+  color: #92400e;
+  border-bottom: 1px solid #fde68a;
+  font-size: 0.9375rem;
+  text-align: center;
+}
+.licence-banner--urgent {
+  background: var(--danger-bg);
+  color: #991b1b;
+  border-bottom-color: var(--danger-border);
+}
+
 /* ----- Responsive ---------------------------------------------------------- */
 @media (max-width: 720px) {
   .app-header { padding: var(--space-3) var(--space-4); flex-wrap: wrap; }

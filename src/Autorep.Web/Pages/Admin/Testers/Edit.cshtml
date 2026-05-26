@@ -1,0 +1,106 @@
+@page "{id}"
+@model Autorep.Web.Pages.Admin.Testers.EditModel
+@using Autorep.Web.Domain
+@{
+    ViewData["Title"] = $"Edit {Model.EditingUser?.Email}";
+    var isActive = !Model.EditingUser!.LockoutEnd.HasValue || Model.EditingUser.LockoutEnd < DateTimeOffset.UtcNow;
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>@Model.EditingUser?.Email</h1>
+        <p>@Model.EditingUser?.DisplayName · @Model.PrimaryRole · @(Model.CompanyName ?? "No company")</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn btn--secondary" asp-page="/Admin/Testers/Index">Back</a>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="alert alert--success">@Model.Message</div>
+}
+@if (Model.Errors.Any())
+{
+    <div class="alert alert--danger">
+        <ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul>
+    </div>
+}
+
+<div class="card" style="max-width:720px">
+    <h2 class="card__title">Details</h2>
+    <form method="post" asp-page-handler="Details">
+        <div class="form-field">
+            <label asp-for="Details.DisplayName">Display name</label>
+            <input asp-for="Details.DisplayName" required />
+        </div>
+        <div class="form-field">
+            <label asp-for="Details.Role">Role</label>
+            <select asp-for="Details.Role">
+                <option value="@Roles.Tester">Tester</option>
+                <option value="@Roles.CompanyAdministrator">Company Administrator</option>
+                <option value="@Roles.SuperAdministrator">Super Administrator</option>
+            </select>
+        </div>
+        <div class="form-field">
+            <label asp-for="Details.TestingCompanyId">Testing company</label>
+            <select asp-for="Details.TestingCompanyId" asp-items="Model.Companies">
+                <option value="">— None —</option>
+            </select>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">Save details</button>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="max-width:720px">
+    <h2 class="card__title">Licence</h2>
+    <form method="post" asp-page-handler="Licence">
+        <div class="form-field">
+            <label asp-for="LicenceExpiryDate">Licence expiry date</label>
+            <input asp-for="LicenceExpiryDate" type="date" />
+            <p class="form-field__hint">Leave blank to clear. Testers can't sign in once expired (admins still can).</p>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">Save licence</button>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="max-width:720px">
+    <h2 class="card__title">Password reset</h2>
+    <p style="color:var(--text-muted)">Send the user a link to set a new password. Link expires in 1 hour.</p>
+    <form method="post" asp-page-handler="ResetPassword">
+        <div class="form-actions">
+            <button type="submit" class="btn btn--secondary">Send reset email</button>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="max-width:720px">
+    <h2 class="card__title">Force sign out</h2>
+    <p style="color:var(--text-muted)">Invalidates all browser sessions and refresh tokens. The user will have to sign in again.</p>
+    <form method="post" asp-page-handler="ForceLogout">
+        <div class="form-actions">
+            <button type="submit" class="btn btn--secondary">Force sign out</button>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="max-width:720px">
+    <h2 class="card__title">@(isActive ? "Deactivate account" : "Reactivate account")</h2>
+    <p style="color:var(--text-muted)">
+        @if (isActive)
+        { <span>Prevents sign-in and revokes all sessions. Data is preserved.</span> }
+        else
+        { <span>Allows this user to sign in again.</span> }
+    </p>
+    <form method="post" asp-page-handler="ToggleActive">
+        <div class="form-actions">
+            <button type="submit" class="btn @(isActive ? "btn--danger" : "")">
+                @(isActive ? "Deactivate" : "Reactivate")
+            </button>
+        </div>
+    </form>
+</div>
