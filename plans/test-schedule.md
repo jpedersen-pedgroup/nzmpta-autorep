@@ -9,6 +9,43 @@
 ## 1. Current state
 The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicationFactory` integration fixture on an InMemory store (`tests/Autorep.Web.Tests`), **10 tests green** — address parsing (T1), `/health`, anonymous auth-gating on `/Admin/Farms` and the address proxy, and reference-data seeding (T3). `Program` skips the SQL Server provider in the `Testing` environment so tests run on InMemory. Still to build out: golden-file PDF (T4), Playwright (T5), and broader coverage as features land.
 
+## Test execution record — evidence of completed testing
+
+> A dated record of test runs, kept as evidence for NZMPTA that testing is performed throughout the build. Reproducible any time with `dotnet test`; a machine-readable TRX is produced via `dotnet test --logger trx` (`tests/Autorep.Web.Tests/TestResults/`). This record grows as coverage is added each phase.
+
+**Latest run**
+
+| | |
+|---|---|
+| Date / time | Fri 5 Jun 2026, 21:11 NZST |
+| Build under test | commit `fd82a44` (branch `claude/distracted-johnson-b224ac`) |
+| Framework / tooling | .NET 9 · xUnit 2.9 · WebApplicationFactory (InMemory) |
+| Command | `dotnet test` |
+| **Result** | ✅ **PASS — 10 / 10 automated tests** |
+
+**Automated tests**
+
+| # | Test | Type | Result |
+|---|---|---|---|
+| 1 | Address parsing — strip postcode from the NZ Post city line (6 cases: Wellington, Auckland, Palmerston North, Christchurch, null, blank) | Unit | ✅ Pass |
+| 2 | Health endpoint returns 200 | Integration | ✅ Pass |
+| 3 | `/Admin/Farms` redirects an unauthenticated user to login (access control enforced) | Integration | ✅ Pass |
+| 4 | Address autocomplete proxy rejects unauthenticated requests (admin-only) | Integration | ✅ Pass |
+| 5 | Reference data seeded on startup (16 NZ regions + dairy processors) | Integration | ✅ Pass |
+
+**Manual / exploratory verification** (local, against LocalDB + live NZ Post, 5 Jun 2026)
+
+| # | Check | Result |
+|---|---|---|
+| 1 | App boots; database migrations apply; reference data seeds; `/health` = Healthy | ✅ Pass |
+| 2 | Administrator sign-in (cookie authentication) | ✅ Pass |
+| 3 | NZ Post address suggestions returned for a query (authenticated) | ✅ Pass |
+| 4 | NZ Post details parse to Address / Town / Post code (e.g. "Wellington 6011" → town "Wellington", post code "6011") | ✅ Pass |
+| 5 | `/Admin/Farms` list renders; Company-Administrator scoping query executes on SQL Server | ✅ Pass |
+| 6 | Farm Details edit page renders with Region & Milk-company pickers and address autocomplete | ✅ Pass |
+
+**Coverage note.** This is the test harness plus the first automated tests (foundation, access control, reference data, address handling). Coverage expands each phase per the gates below — notably the golden-file PDF report tests, the wizard Pass/Fail and Step-Resolver unit suites, and Playwright happy-paths. Out-of-automated-scope items (PWA offline lifecycle, browser matrix) are verified during UAT.
+
 ## 2. Test types & tooling
 
 | # | Test type | What it covers | Tool | Runs in CI? |
