@@ -49,6 +49,7 @@
 - [x] ✅ Service worker caches **app shell** for offline UI (`sw.js`)
 - [x] ✅ Sync upload endpoint `POST /api/sync/tests` (upsert by ClientId, idempotent) (`Api/SyncController.cs`)
 - [ ] ⬜ IndexedDB local storage for tests / reference data
+- [ ] 🟡 Reference-data **logos offline** — service worker now runtime-caches `/api/milk-companies/{id}/logo` (viewed logos available offline). M2 still needs: **pre-cache all active logos on sync** (so unseen ones work too) + render tester pages offline so cached logos actually display
 - [ ] ⬜ Offline-first **test creation** on-device (currently server-side Razor form only)
 - [ ] ⬜ `syncState` state machine (`local-only` → `uploading` → `uploaded` / `merge-conflict`)
 - [ ] ⬜ Vendor-specification caching for offline pass/fail
