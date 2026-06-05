@@ -11,7 +11,7 @@ The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicat
 
 ## Test execution record — evidence of completed testing
 
-> A dated record of test runs, kept as evidence for NZMPTA that testing is performed throughout the build. Reproducible any time with `dotnet test`; a machine-readable TRX is produced via `dotnet test --logger trx` (`tests/Autorep.Web.Tests/TestResults/`). This record grows as coverage is added each phase.
+> A dated record of test runs, kept as evidence for NZMPTA that testing is performed throughout the build. Grouped by **delivery phase** and tagged with the **test type** (T-numbers from §2). Reproducible with `dotnet test`; CI publishes a results summary (job summary) and a machine-readable TRX artifact on every run. This record grows as coverage is added each phase.
 
 **Latest run**
 
@@ -20,31 +20,35 @@ The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicat
 | Date / time | Fri 5 Jun 2026, 21:11 NZST |
 | Build under test | commit `fd82a44` (branch `claude/distracted-johnson-b224ac`) |
 | Framework / tooling | .NET 9 · xUnit 2.9 · WebApplicationFactory (InMemory) |
-| Command | `dotnet test` |
-| **Result** | ✅ **PASS — 10 / 10 automated tests** |
+| Command | `dotnet test` (CI: GitHub Actions → TRX artifact + job-summary table) |
+| **Result** | ✅ **PASS — 10 / 10 automated tests** (plus 6 manual checks, all pass) |
 
-**Automated tests**
+### Phase 1 — Foundation (M1)
 
-| # | Test | Type | Result |
+| Test ID | Type | Test | Result |
 |---|---|---|---|
-| 1 | Address parsing — strip postcode from the NZ Post city line (6 cases: Wellington, Auckland, Palmerston North, Christchurch, null, blank) | Unit | ✅ Pass |
-| 2 | Health endpoint returns 200 | Integration | ✅ Pass |
-| 3 | `/Admin/Farms` redirects an unauthenticated user to login (access control enforced) | Integration | ✅ Pass |
-| 4 | Address autocomplete proxy rejects unauthenticated requests (admin-only) | Integration | ✅ Pass |
-| 5 | Reference data seeded on startup (16 NZ regions + dairy processors) | Integration | ✅ Pass |
+| P1-01 | T3 Integration | Health endpoint returns 200 | ✅ Pass |
+| P1-02 | T3 Integration | Admin area enforces authentication (`/Admin/Farms` → login) | ✅ Pass |
+| P1-03 | Manual | App boots; migrations apply; reference data seeds; `/health` = Healthy | ✅ Pass |
+| P1-04 | Manual | Administrator sign-in (cookie authentication) | ✅ Pass |
 
-**Manual / exploratory verification** (local, against LocalDB + live NZ Post, 5 Jun 2026)
+### Phase 3 — Reporting & admin (M4 · M5 · O2)
 
-| # | Check | Result |
-|---|---|---|
-| 1 | App boots; database migrations apply; reference data seeds; `/health` = Healthy | ✅ Pass |
-| 2 | Administrator sign-in (cookie authentication) | ✅ Pass |
-| 3 | NZ Post address suggestions returned for a query (authenticated) | ✅ Pass |
-| 4 | NZ Post details parse to Address / Town / Post code (e.g. "Wellington 6011" → town "Wellington", post code "6011") | ✅ Pass |
-| 5 | `/Admin/Farms` list renders; Company-Administrator scoping query executes on SQL Server | ✅ Pass |
-| 6 | Farm Details edit page renders with Region & Milk-company pickers and address autocomplete | ✅ Pass |
+| Test ID | Type | Test | Result |
+|---|---|---|---|
+| P3-01 | T1 Unit | Address parsing — strip postcode from the NZ Post city line (6 cases: Wellington, Auckland, Palmerston North, Christchurch, null, blank) | ✅ Pass |
+| P3-02 | T3 Integration | Reference data seeded on startup (16 NZ regions + dairy processors) | ✅ Pass |
+| P3-03 | T3 Integration | Address autocomplete proxy rejects unauthenticated requests (admin-only) | ✅ Pass |
+| P3-04 | Manual | NZ Post address suggestions returned for a query (authenticated) | ✅ Pass |
+| P3-05 | Manual | NZ Post details parse to Address / Town / Post code ("Wellington 6011" → town "Wellington", post code "6011") | ✅ Pass |
+| P3-06 | Manual | `/Admin/Farms` list renders; Company-Administrator scoping query executes on SQL Server | ✅ Pass |
+| P3-07 | Manual | Farm Details edit page renders with Region & Milk-company pickers and address autocomplete | ✅ Pass |
 
-**Coverage note.** This is the test harness plus the first automated tests (foundation, access control, reference data, address handling). Coverage expands each phase per the gates below — notably the golden-file PDF report tests, the wizard Pass/Fail and Step-Resolver unit suites, and Playwright happy-paths. Out-of-automated-scope items (PWA offline lifecycle, browser matrix) are verified during UAT.
+### Phases not yet exercised
+- **Phase 2** — Tester core (M2) & Wizard (M3): pending build. To come: T1/T2 Pass/Fail Calculator & Wizard Step Resolver (.NET + TS parity), T5 wizard happy-path.
+- **Phase 4** — Hardening (M6) & migration (O1): pending. To come: T4 golden-file PDF, T7 migration validation, T8 security review, T9 performance, T10 UAT.
+
+*Test ID = phase-scoped reference; Type = test category from §2 (T1–T10) or a manual/exploratory check.*
 
 ## 2. Test types & tooling
 
