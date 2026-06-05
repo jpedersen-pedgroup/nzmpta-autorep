@@ -110,7 +110,7 @@
 - [ ] ❌ Admin portal CRUD Playwright tests
 
 ### O2 — Admin test view & edit + audit
-- [x] ✅ Super-admin test **list** view `/admin/tests` (`Pages/Admin/Tests/Index`)
+- [x] ✅ Test **list** view `/admin/tests` — Super-Admin sees all; Company-Admin scoped to their own company's tests (5 Jun 2026) (`Pages/Admin/Tests/Index`)
 - [ ] 🟡 Test **detail** view (read-only; not the full wizard-style render)
 - [ ] ⬜ Filter chips (Tester, Company, Farm, date range, status, has-conflicts)
 - [ ] ⬜ Edit any field → new Test Version (Test Versioning Engine)
@@ -160,4 +160,5 @@
 - **Biggest risks to "done":** (1) grow the partial domain model to the full schema; (2) **establish the test suite** — it's near-zero today and M1/M4/etc. prices include testing. *(Infra confirmed deployed; prod region corrected — see M1.)*
 - **Resolved (5 Jun 2026):** report engine is **client-side** (pdfmake/pdf-lib) for offline on-site printing; proposal §4.1 (QuestPDF/server-side) is superseded. No price change (offline print was always required) — worth noting to NZMPTA as a clarification, ideally in a Requirements v1.2.
 - **Farm details schema built (5 Jun 2026):** `Farm` expanded (identity, location, farmer contact, `IsActive`, `UpdatedAt`) + `Region` and `MilkSupplyCompany` reference tables (nullable FKs, seeded 16 regions / 10 processors, cached offline). Migration `FarmDetailsAndReferenceData`; builds clean. **Edit authorization:** Company Administrator edits Farm Details for farms tied to completed tests by *their* testers (scoped); Super-Administrator edits any — both are online admin screens, so **NZ Post address autocomplete is viable there** (online-only; still a paid integration outside the $41,250 → variation). Tester on-farm farm creation stays manual (offline). **Open design Q (still open):** the edit UI implements the **propagate** model — editing the shared Farm updates it for all that farm's tests, with `UpdatedAt` + the audit interceptor recording the change. If NZMPTA needs per-test snapshots of farm details as-at test time, that's a future change.
+- **Admin test list scoped to company (5 Jun 2026):** `/admin/tests` now filters by the viewer's Testing Company — a Company Administrator sees only Machine Tests performed by Testers in their own company; Super-Administrator sees all (`Pages/Admin/Tests/Index`, mirrors the `/Admin/Farms` in-page scoping). **Open design Q (still open):** scoping follows the Tester's *current* `TestingCompanyId` because `MachineTest` carries no company of its own — if a Tester moves companies, their historical tests move with them. If NZMPTA needs point-in-time company ownership (a Test attributed to the company as-at test time), denormalise a `CompanyId`/snapshot onto `MachineTest` — a future schema change, the direct analog of the Farm-details snapshot question above.
 - **NZMPTA dependencies blocking work:** legacy SQL access (O1), brand assets (M4/M5), wizard validation workshop (M3), §14 confirmations.
