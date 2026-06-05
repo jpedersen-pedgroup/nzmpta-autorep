@@ -133,11 +133,15 @@ using (var scope = app.Services.CreateScope())
         await db.Database.MigrateAsync();
     else
         await db.Database.EnsureCreatedAsync();
-    await Seed.RolesAsync(scope.ServiceProvider);
-    await Seed.ReferenceDataAsync(scope.ServiceProvider);
-    if (app.Environment.IsDevelopment())
+    // E2E tests seed their own data once (SeedOnStartup=false); everything else seeds here.
+    if (builder.Configuration.GetValue("SeedOnStartup", true))
     {
-        await Seed.DevUsersAsync(scope.ServiceProvider);
+        await Seed.RolesAsync(scope.ServiceProvider);
+        await Seed.ReferenceDataAsync(scope.ServiceProvider);
+        if (app.Environment.IsDevelopment())
+        {
+            await Seed.DevUsersAsync(scope.ServiceProvider);
+        }
     }
 }
 

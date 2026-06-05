@@ -20,8 +20,8 @@ The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicat
 | Date / time | Fri 5 Jun 2026, 21:11 NZST |
 | Build under test | commit `fd82a44` (branch `claude/distracted-johnson-b224ac`) |
 | Framework / tooling | .NET 9 · xUnit 2.9 · WebApplicationFactory (InMemory) |
-| Command | `dotnet test` (CI: GitHub Actions → TRX artifact + job-summary table) |
-| **Result** | ✅ **PASS — 10 / 10 automated tests** (plus 6 manual checks, all pass) |
+| Command | `dotnet test` (CI: a unit/integration job + a separate Playwright E2E job, each → TRX artifact + job-summary table) |
+| **Result** | ✅ **PASS — 11 / 11 automated tests** (incl. 1 Playwright E2E; plus 6 manual checks, all pass) |
 
 ### Phase 1 — Foundation (M1)
 
@@ -43,6 +43,7 @@ The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicat
 | P3-05 | Manual | NZ Post details parse to Address / Town / Post code ("Wellington 6011" → town "Wellington", post code "6011") | ✅ Pass |
 | P3-06 | Manual | `/Admin/Farms` list renders; Company-Administrator scoping query executes on SQL Server | ✅ Pass |
 | P3-07 | Manual | Farm Details edit page renders with Region & Milk-company pickers and address autocomplete | ✅ Pass |
+| P3-08 | T5 E2E | (Playwright, real browser) Admin signs in → opens a farm → NZ Post autocomplete (stubbed) fills Address/Town/PostCode → saves successfully | ✅ Pass |
 
 ### Phases not yet exercised
 - **Phase 2** — Tester core (M2) & Wizard (M3): pending build. To come: T1/T2 Pass/Fail Calculator & Wizard Step Resolver (.NET + TS parity), T5 wizard happy-path.

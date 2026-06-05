@@ -151,7 +151,7 @@
 - [ ] ⛔ **O5** Vendor self-service portal (Phase 2 candidate) — $3,500
 
 ## Cross-cutting / carried through every phase
-- [ ] 🟡 Automated test suite — **harness stood up (5 Jun)**: xUnit unit + `WebApplicationFactory` (InMemory) integration, 10 green (`tests/Autorep.Web.Tests`). Still need golden-file PDF + Playwright + broader coverage. See `plans/test-schedule.md`
+- [ ] 🟡 Automated test suite — **harness + first Playwright E2E (5 Jun)**: xUnit unit + `WebApplicationFactory` integration + a Playwright happy-path (admin farm edit + NZ Post autocomplete), **11 green**; CI runs E2E as its own job. Still need golden-file PDF + wizard/broader coverage. See `plans/test-schedule.md`
 - [x] ✅ Audit logging of admin actions (interceptor in place; 7-yr retention is an Azure backup/config item)
 - [ ] ⬜ Brand assets applied (logo, colours, typography) — NZMPTA dependency, before Phase 3
 - [ ] ⬜ Accessibility baseline (semantic HTML, ARIA, keyboard, contrast)
