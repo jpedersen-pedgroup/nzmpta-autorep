@@ -112,6 +112,9 @@ builder.Services.AddRazorPages(opts =>
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
 
+// NZ Post keyless address autocomplete (admin Farm Details screens; online only).
+builder.Services.AddHttpClient<NzPostAddressClient>();
+
 var app = builder.Build();
 
 // Apply pending migrations + seed roles on startup. Single-instance fine;

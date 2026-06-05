@@ -104,7 +104,8 @@
 - [ ] ⬜ Standard Recommendation Wording CRUD
 - [ ] ⬜ Test Standard Manual upload (versioned, retained, downloadable)
 - [x] ✅ Region & Milk Supply Company catalogues — schema, seed **and admin CRUD built (5 Jun)** (list / create / edit / deactivate; Super-Admin only)
-- [x] ✅ Farm Details edit — **built (5 Jun)**: `/Admin/Farms` Index + Edit; Super-Admin edits any, Company-Admin scoped to farms with completed tests by their testers. NZ Post autocomplete = next (online-only)
+- [x] ✅ Farm Details edit — **built (5 Jun)**: `/Admin/Farms` Index + Edit; Super-Admin edits any, Company-Admin scoped to farms with completed tests by their testers.
+- [x] ✅ NZ Post address autocomplete on Farm Edit — **built (5 Jun)**: keyless legacy suggest+details via server-side proxy (`/api/address/*`); fills Address/Town/PostCode. Online-only; manual entry always available.
 - [ ] ⬜ Company-level reporting for Company Administrators
 - [ ] ❌ Admin portal CRUD Playwright tests
 
