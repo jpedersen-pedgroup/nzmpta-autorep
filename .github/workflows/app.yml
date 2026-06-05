@@ -14,7 +14,7 @@ on:
       - 'Autorep.sln'
       - '.github/workflows/app.yml'
   push:
-    branches: [main]
+    # All branches — build + test + publish results on every push (deploy still gated to main below).
     paths:
       - 'src/**'
       - 'tests/**'
@@ -54,8 +54,43 @@ jobs:
       - name: Build
         run: dotnet build Autorep.sln --no-restore --configuration Release
 
-      - name: Test
-        run: dotnet test Autorep.sln --no-build --configuration Release --verbosity normal
+      - name: Test (unit + integration)
+        run: >
+          dotnet test Autorep.sln --no-build --configuration Release
+          --filter "Category!=E2E"
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ${{ github.workspace }}/TestResults
+
+      - name: Publish test results to job summary
+        if: always()
+        shell: pwsh
+        run: |
+          $trx = Get-ChildItem "${{ github.workspace }}/TestResults" -Filter *.trx -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $trx) { "No test results (.trx) found." | Out-File $env:GITHUB_STEP_SUMMARY -Append; exit 0 }
+          [xml]$doc = Get-Content $trx.FullName
+          $c = $doc.TestRun.ResultSummary.Counters
+          $total = [int]$c.total; $passed = [int]$c.passed; $failed = [int]$c.failed
+          $icon = if ($failed -eq 0) { "✅" } else { "❌" }
+          $lines = @()
+          $lines += "## $icon Test results: $passed/$total passed"
+          $lines += ""
+          $lines += "Finished $($doc.TestRun.Times.finish) - commit ${{ github.sha }}"
+          $lines += ""
+          $lines += "| Test | Result |"
+          $lines += "|---|---|"
+          foreach ($r in $doc.TestRun.Results.UnitTestResult) {
+            $mark = switch ($r.outcome) { "Passed" { "✅ Pass" } "Failed" { "❌ Fail" } default { "$($r.outcome)" } }
+            $lines += "| $($r.testName) | $mark |"
+          }
+          $lines | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload test results (TRX)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ github.workspace }}/TestResults/**/*.trx
+          retention-days: 90
 
       - name: Publish
         run: dotnet publish src/Autorep.Web/Autorep.Web.csproj --no-build --configuration Release --output ./publish
@@ -66,6 +101,61 @@ jobs:
           name: app-publish
           path: ./publish
           retention-days: 7
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build test project
+        run: dotnet build tests/Autorep.Web.Tests/Autorep.Web.Tests.csproj --configuration Release
+
+      - name: Install Playwright browsers
+        run: pwsh tests/Autorep.Web.Tests/bin/Release/net9.0/playwright.ps1 install --with-deps chromium
+
+      - name: Run E2E tests
+        run: >
+          dotnet test tests/Autorep.Web.Tests/Autorep.Web.Tests.csproj --no-build --configuration Release
+          --filter "Category=E2E"
+          --logger "trx;LogFileName=e2e-results.trx"
+          --results-directory ${{ github.workspace }}/TestResults
+
+      - name: Publish E2E results to job summary
+        if: always()
+        shell: pwsh
+        run: |
+          $trx = Get-ChildItem "${{ github.workspace }}/TestResults" -Filter *.trx -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $trx) { "No E2E results (.trx) found." | Out-File $env:GITHUB_STEP_SUMMARY -Append; exit 0 }
+          [xml]$doc = Get-Content $trx.FullName
+          $c = $doc.TestRun.ResultSummary.Counters
+          $total = [int]$c.total; $passed = [int]$c.passed; $failed = [int]$c.failed
+          $icon = if ($failed -eq 0) { "✅" } else { "❌" }
+          $lines = @()
+          $lines += "## $icon E2E (Playwright): $passed/$total passed"
+          $lines += ""
+          $lines += "Finished $($doc.TestRun.Times.finish) - commit ${{ github.sha }}"
+          $lines += ""
+          $lines += "| Test | Result |"
+          $lines += "|---|---|"
+          foreach ($r in $doc.TestRun.Results.UnitTestResult) {
+            $mark = switch ($r.outcome) { "Passed" { "✅ Pass" } "Failed" { "❌ Fail" } default { "$($r.outcome)" } }
+            $lines += "| $($r.testName) | $mark |"
+          }
+          $lines | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload E2E results (TRX)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: ${{ github.workspace }}/TestResults/**/*.trx
+          retention-days: 90
 
   deploy-staging:
     name: Deploy to staging

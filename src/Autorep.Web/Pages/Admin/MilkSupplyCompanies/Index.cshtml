@@ -1,0 +1,48 @@
+@page
+@model Autorep.Web.Pages.Admin.MilkSupplyCompanies.IndexModel
+@{
+    ViewData["Title"] = "Milk supply companies";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Milk supply companies</h1>
+        <p>Dairy processors that farms supply. Used on Farm details.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn" asp-page="/Admin/MilkSupplyCompanies/New">+ New processor</a>
+    </div>
+</div>
+
+@if (!Model.Companies.Any())
+{
+    <div class="empty">
+        <div class="empty__title">No processors yet</div>
+        <a class="btn" asp-page="/Admin/MilkSupplyCompanies/New">Add a processor</a>
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr><th>Name</th><th>Status</th><th>Farms</th><th>Created</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var c in Model.Companies)
+                {
+                    <tr>
+                        <td>@c.Name</td>
+                        <td>
+                            @if (c.IsActive) { <span class="badge badge--success">Active</span> }
+                            else { <span class="badge">Deactivated</span> }
+                        </td>
+                        <td>@c.FarmCount</td>
+                        <td class="td-muted">@c.CreatedAt.ToString("dd MMM yyyy")</td>
+                        <td><a class="btn btn--secondary" asp-page="/Admin/MilkSupplyCompanies/Edit" asp-route-id="@c.Id">Edit</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

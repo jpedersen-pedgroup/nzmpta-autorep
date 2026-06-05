@@ -1,0 +1,177 @@
+@page "{id:guid}"
+@model Autorep.Web.Pages.Admin.Farms.EditModel
+@{
+    ViewData["Title"] = $"Edit {Model.FarmName}";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>@Model.FarmName</h1>
+        <p>
+            @Model.TestCount test(s)
+            @if (Model.UpdatedAt is not null) { <span>· last edited @Model.UpdatedAt.Value.ToString("dd MMM yyyy")</span> }
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn btn--secondary" asp-page="/Admin/Farms/Index">Back</a>
+    </div>
+</div>
+
+@if (Model.Message is not null) { <div class="alert alert--success">@Model.Message</div> }
+@if (Model.Errors.Any())
+{
+    <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+}
+
+<form method="post">
+    <div class="card" style="max-width:760px">
+        <h2 class="card__title">Identity</h2>
+        <div class="form-field">
+            <label asp-for="Input.Name">Farm name</label>
+            <input asp-for="Input.Name" required />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.SupplyNumber">Supply number</label>
+            <input asp-for="Input.SupplyNumber" />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.MilkSupplyCompanyId">Milk supply company</label>
+            <select asp-for="Input.MilkSupplyCompanyId" asp-items="Model.MilkCompanyOptions">
+                <option value="">— Not set —</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card" style="max-width:760px">
+        <h2 class="card__title">Location</h2>
+        <div class="form-field" style="position:relative">
+            <label asp-for="Input.AddressLine1">Address line 1 <span style="color:var(--text-muted);font-weight:400">— type to search NZ Post</span></label>
+            <input asp-for="Input.AddressLine1" autocomplete="off" data-nzpost-search />
+            <div id="nzpost-suggestions" class="nzpost-suggestions" hidden></div>
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.AddressLine2">Address line 2</label>
+            <input asp-for="Input.AddressLine2" />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.Town">Town / locality</label>
+            <input asp-for="Input.Town" />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.RegionId">Region</label>
+            <select asp-for="Input.RegionId" asp-items="Model.RegionOptions">
+                <option value="">— Not set —</option>
+            </select>
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.PostCode">Post code</label>
+            <input asp-for="Input.PostCode" />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.RapidNumber">RAPID number</label>
+            <input asp-for="Input.RapidNumber" />
+        </div>
+    </div>
+
+    <div class="card" style="max-width:760px">
+        <h2 class="card__title">Farmer contact</h2>
+        <div class="form-field">
+            <label asp-for="Input.FarmerName">Farmer name</label>
+            <input asp-for="Input.FarmerName" />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.ContactPhone">Phone</label>
+            <input asp-for="Input.ContactPhone" />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.ContactEmail">Email</label>
+            <input asp-for="Input.ContactEmail" type="email" />
+        </div>
+    </div>
+
+    <div class="card" style="max-width:760px">
+        <h2 class="card__title">Notes &amp; status</h2>
+        <div class="form-field">
+            <label asp-for="Input.Notes">Notes</label>
+            <textarea asp-for="Input.Notes" rows="3"></textarea>
+        </div>
+        <div class="form-field form-field--inline">
+            <label><input asp-for="Input.IsActive" type="checkbox" /> Active</label>
+        </div>
+        <div class="form-actions"><button type="submit" class="btn">Save farm details</button></div>
+    </div>
+</form>
+
+@section Scripts {
+<style>
+    .nzpost-suggestions { position:absolute; left:0; right:0; top:100%; z-index:30; background:#fff;
+        border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,.10); max-height:260px; overflow:auto; }
+    .nzpost-suggestions button { display:block; width:100%; text-align:left; padding:8px 12px; background:none;
+        border:0; border-bottom:1px solid #f1f5f9; cursor:pointer; font:inherit; }
+    .nzpost-suggestions button:last-child { border-bottom:0; }
+    .nzpost-suggestions button:hover, .nzpost-suggestions button.active { background:#eff6ff; }
+</style>
+<script>
+    (function () {
+        var input = document.querySelector('[data-nzpost-search]');
+        var box = document.getElementById('nzpost-suggestions');
+        if (!input || !box) return;
+        var byId = function (n) { return document.getElementById(n); };
+        var timer = null, items = [], active = -1;
+
+        function hide() { box.hidden = true; box.innerHTML = ''; items = []; active = -1; }
+
+        function fill(d) {
+            if (!d) return;
+            if (d.addressLine1 != null) input.value = d.addressLine1;
+            if (byId('Input_AddressLine2')) byId('Input_AddressLine2').value = d.addressLine2 || '';
+            if (byId('Input_Town')) byId('Input_Town').value = d.town || '';
+            if (byId('Input_PostCode')) byId('Input_PostCode').value = d.postCode || '';
+        }
+
+        function pick(dpid) {
+            hide();
+            fetch('/api/address/details?dpid=' + encodeURIComponent(dpid), { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(fill)
+                .catch(function () { });
+        }
+
+        function render() {
+            if (!items.length) { hide(); return; }
+            box.innerHTML = '';
+            items.forEach(function (it, i) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.textContent = it.fullAddress;
+                if (i === active) b.className = 'active';
+                b.addEventListener('mousedown', function (e) { e.preventDefault(); pick(it.dpid); });
+                box.appendChild(b);
+            });
+            box.hidden = false;
+        }
+
+        function search(q) {
+            fetch('/api/address/suggest?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (list) { items = list || []; active = -1; render(); })
+                .catch(function () { hide(); });
+        }
+
+        input.addEventListener('input', function () {
+            var q = input.value.trim();
+            if (timer) clearTimeout(timer);
+            if (q.length < 3) { hide(); return; }
+            timer = setTimeout(function () { search(q); }, 250);
+        });
+        input.addEventListener('keydown', function (e) {
+            if (box.hidden) return;
+            if (e.key === 'ArrowDown') { active = Math.min(active + 1, items.length - 1); render(); e.preventDefault(); }
+            else if (e.key === 'ArrowUp') { active = Math.max(active - 1, 0); render(); e.preventDefault(); }
+            else if (e.key === 'Enter' && active >= 0) { pick(items[active].dpid); e.preventDefault(); }
+            else if (e.key === 'Escape') { hide(); }
+        });
+        document.addEventListener('click', function (e) { if (!box.contains(e.target) && e.target !== input) hide(); });
+    })();
+</script>
+}

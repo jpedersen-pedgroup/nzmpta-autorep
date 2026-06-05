@@ -18,9 +18,14 @@ builder.Services.AddScoped<AuditInterceptor>();
 
 builder.Services.AddDbContext<AutorepDbContext>((sp, options) =>
 {
-    var connection = builder.Configuration.GetConnectionString("SqlDatabase")
-        ?? throw new InvalidOperationException("ConnectionStrings:SqlDatabase is not configured.");
-    options.UseSqlServer(connection);
+    // In the Testing environment the integration-test factory supplies the provider
+    // (InMemory); everywhere else use SQL Server.
+    if (!builder.Environment.IsEnvironment("Testing"))
+    {
+        var connection = builder.Configuration.GetConnectionString("SqlDatabase")
+            ?? throw new InvalidOperationException("ConnectionStrings:SqlDatabase is not configured.");
+        options.UseSqlServer(connection);
+    }
     options.AddInterceptors(sp.GetRequiredService<AuditInterceptor>());
 });
 
@@ -101,13 +106,19 @@ builder.Services.AddRazorPages(opts =>
 {
     opts.Conventions.AuthorizeFolder("/App", "TesterArea");
     opts.Conventions.AuthorizeFolder("/Admin", "AdminArea");
-    // /Admin/Testers and /Admin/Companies — Super-Admin only.
+    // /Admin/Testers, /Admin/Companies and reference-data management — Super-Admin only.
+    // /Admin/Farms stays AdminArea so Company Administrators can edit their own farms (scoped in-page).
     opts.Conventions.AuthorizeFolder("/Admin/Testers", "SuperAdminOnly");
     opts.Conventions.AuthorizeFolder("/Admin/Companies", "SuperAdminOnly");
+    opts.Conventions.AuthorizeFolder("/Admin/Regions", "SuperAdminOnly");
+    opts.Conventions.AuthorizeFolder("/Admin/MilkSupplyCompanies", "SuperAdminOnly");
 });
 
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
+
+// NZ Post keyless address autocomplete (admin Farm Details screens; online only).
+builder.Services.AddHttpClient<NzPostAddressClient>();
 
 var app = builder.Build();
 
@@ -116,11 +127,21 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
-    await db.Database.MigrateAsync();
-    await Seed.RolesAsync(scope.ServiceProvider);
-    if (app.Environment.IsDevelopment())
+    // Relational providers (SQL Server) apply migrations; the InMemory provider used in
+    // integration tests can't migrate, so create the store directly.
+    if (db.Database.IsRelational())
+        await db.Database.MigrateAsync();
+    else
+        await db.Database.EnsureCreatedAsync();
+    // E2E tests seed their own data once (SeedOnStartup=false); everything else seeds here.
+    if (builder.Configuration.GetValue("SeedOnStartup", true))
     {
-        await Seed.DevUsersAsync(scope.ServiceProvider);
+        await Seed.RolesAsync(scope.ServiceProvider);
+        await Seed.ReferenceDataAsync(scope.ServiceProvider);
+        if (app.Environment.IsDevelopment())
+        {
+            await Seed.DevUsersAsync(scope.ServiceProvider);
+        }
     }
 }
 

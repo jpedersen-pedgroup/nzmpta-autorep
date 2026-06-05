@@ -1,0 +1,26 @@
+@page
+@model Autorep.Web.Pages.Admin.MilkSupplyCompanies.NewModel
+@{
+    ViewData["Title"] = "New milk supply company";
+}
+
+<div class="page-header">
+    <div class="page-header__heading"><h1>New milk supply company</h1></div>
+    <div class="page-header__actions">
+        <a class="btn btn--secondary" asp-page="/Admin/MilkSupplyCompanies/Index">Back</a>
+    </div>
+</div>
+
+<div class="card" style="max-width:640px">
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Input.Name">Name</label>
+            <input asp-for="Input.Name" required autofocus />
+        </div>
+        @if (Model.Errors.Any())
+        {
+            <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+        }
+        <div class="form-actions"><button type="submit" class="btn">Create</button></div>
+    </form>
+</div>
