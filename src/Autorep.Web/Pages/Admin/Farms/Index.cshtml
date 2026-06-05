@@ -1,0 +1,52 @@
+@page
+@model Autorep.Web.Pages.Admin.Farms.IndexModel
+@{
+    ViewData["Title"] = "Farms";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Farms</h1>
+        <p>
+            @if (Model.ScopedView)
+            { <span>Farms with a completed test by one of your company's testers.</span> }
+            else
+            { <span>All farms across every testing company.</span> }
+        </p>
+    </div>
+</div>
+
+@if (!Model.Farms.Any())
+{
+    <div class="empty">
+        <div class="empty__title">No farms yet</div>
+        <p class="empty__text">Farms appear here once tests have been created against them.</p>
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr><th>Name</th><th>Region</th><th>Milk company</th><th>Town</th><th>Status</th><th>Tests</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var f in Model.Farms)
+                {
+                    <tr>
+                        <td>@f.Name</td>
+                        <td class="td-muted">@(f.Region ?? "—")</td>
+                        <td class="td-muted">@(f.MilkCompany ?? "—")</td>
+                        <td class="td-muted">@(f.Town ?? "—")</td>
+                        <td>
+                            @if (f.IsActive) { <span class="badge badge--success">Active</span> }
+                            else { <span class="badge">Inactive</span> }
+                        </td>
+                        <td>@f.TestCount</td>
+                        <td><a class="btn btn--secondary" asp-page="/Admin/Farms/Edit" asp-route-id="@f.Id">Edit</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

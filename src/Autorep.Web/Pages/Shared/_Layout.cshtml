@@ -7,6 +7,7 @@
     }
     var isTester = User.IsInRole("Tester");
     var isAdmin = User.IsInRole("SuperAdministrator") || User.IsInRole("CompanyAdministrator");
+    var isSuperAdmin = User.IsInRole("SuperAdministrator");
 
     // Licence reminder banner: Testers within 180 days of expiry, prominent inside 60 days.
     DateOnly? expiry = null;
@@ -63,8 +64,14 @@
                 {
                     <a asp-page="/Admin/Index">Home</a>
                     <a asp-page="/Admin/Tests/Index">All tests</a>
-                    <a asp-page="/Admin/Testers/Index">Testers</a>
-                    <a asp-page="/Admin/Companies/Index">Companies</a>
+                    <a asp-page="/Admin/Farms/Index">Farms</a>
+                    @if (isSuperAdmin)
+                    {
+                        <a asp-page="/Admin/Testers/Index">Testers</a>
+                        <a asp-page="/Admin/Companies/Index">Companies</a>
+                        <a asp-page="/Admin/Regions/Index">Regions</a>
+                        <a asp-page="/Admin/MilkSupplyCompanies/Index">Milk companies</a>
+                    }
                 }
             </nav>
             <div class="app-header__user">

@@ -101,9 +101,12 @@ builder.Services.AddRazorPages(opts =>
 {
     opts.Conventions.AuthorizeFolder("/App", "TesterArea");
     opts.Conventions.AuthorizeFolder("/Admin", "AdminArea");
-    // /Admin/Testers and /Admin/Companies — Super-Admin only.
+    // /Admin/Testers, /Admin/Companies and reference-data management — Super-Admin only.
+    // /Admin/Farms stays AdminArea so Company Administrators can edit their own farms (scoped in-page).
     opts.Conventions.AuthorizeFolder("/Admin/Testers", "SuperAdminOnly");
     opts.Conventions.AuthorizeFolder("/Admin/Companies", "SuperAdminOnly");
+    opts.Conventions.AuthorizeFolder("/Admin/Regions", "SuperAdminOnly");
+    opts.Conventions.AuthorizeFolder("/Admin/MilkSupplyCompanies", "SuperAdminOnly");
 });
 
 builder.Services.AddControllers();

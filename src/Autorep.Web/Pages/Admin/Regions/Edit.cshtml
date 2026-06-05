@@ -1,0 +1,49 @@
+@page "{id:guid}"
+@model Autorep.Web.Pages.Admin.Regions.EditModel
+@{
+    ViewData["Title"] = $"Edit {Model.Input.Name}";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>@Model.Input.Name</h1>
+        <p>@Model.FarmCount farm(s) in this region</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn btn--secondary" asp-page="/Admin/Regions/Index">Back</a>
+    </div>
+</div>
+
+@if (Model.Message is not null) { <div class="alert alert--success">@Model.Message</div> }
+
+<div class="card" style="max-width:640px">
+    <h2 class="card__title">Details</h2>
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Input.Name">Name</label>
+            <input asp-for="Input.Name" required />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.SortOrder">Display order</label>
+            <input asp-for="Input.SortOrder" type="number" min="0" />
+        </div>
+        @if (Model.Errors.Any())
+        {
+            <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+        }
+        <div class="form-actions"><button type="submit" class="btn">Save</button></div>
+    </form>
+</div>
+
+<div class="card" style="max-width:640px">
+    <h2 class="card__title">@(Model.IsActive ? "Deactivate" : "Reactivate")</h2>
+    <p style="color:var(--text-muted)">
+        @if (Model.IsActive) { <span>Hides this region from new Farm pickers. Farms already in it keep it.</span> }
+        else { <span>Restores this region to the picker.</span> }
+    </p>
+    <form method="post" asp-page-handler="ToggleActive">
+        <div class="form-actions">
+            <button type="submit" class="btn @(Model.IsActive ? "btn--danger" : "")">@(Model.IsActive ? "Deactivate" : "Reactivate")</button>
+        </div>
+    </form>
+</div>

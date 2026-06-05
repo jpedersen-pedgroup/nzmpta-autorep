@@ -103,8 +103,8 @@
 - [ ] ⬜ Vendor Specification editor (with Effective Date picker)
 - [ ] ⬜ Standard Recommendation Wording CRUD
 - [ ] ⬜ Test Standard Manual upload (versioned, retained, downloadable)
-- [ ] 🟡 Region & Milk Supply Company catalogues — **schema + seed built (5 Jun)**; admin CRUD pending
-- [ ] ⬜ Farm Details edit — Company Admin (scoped to their testers' tests) & Super Admin (any); online → NZ Post autocomplete option
+- [x] ✅ Region & Milk Supply Company catalogues — schema, seed **and admin CRUD built (5 Jun)** (list / create / edit / deactivate; Super-Admin only)
+- [x] ✅ Farm Details edit — **built (5 Jun)**: `/Admin/Farms` Index + Edit; Super-Admin edits any, Company-Admin scoped to farms with completed tests by their testers. NZ Post autocomplete = next (online-only)
 - [ ] ⬜ Company-level reporting for Company Administrators
 - [ ] ❌ Admin portal CRUD Playwright tests
 
@@ -158,5 +158,5 @@
 ## Notes & open items
 - **Biggest risks to "done":** (1) grow the partial domain model to the full schema; (2) **establish the test suite** — it's near-zero today and M1/M4/etc. prices include testing. *(Infra confirmed deployed; prod region corrected — see M1.)*
 - **Resolved (5 Jun 2026):** report engine is **client-side** (pdfmake/pdf-lib) for offline on-site printing; proposal §4.1 (QuestPDF/server-side) is superseded. No price change (offline print was always required) — worth noting to NZMPTA as a clarification, ideally in a Requirements v1.2.
-- **Farm details schema built (5 Jun 2026):** `Farm` expanded (identity, location, farmer contact, `IsActive`, `UpdatedAt`) + `Region` and `MilkSupplyCompany` reference tables (nullable FKs, seeded 16 regions / 10 processors, cached offline). Migration `FarmDetailsAndReferenceData`; builds clean. **Edit authorization:** Company Administrator edits Farm Details for farms tied to completed tests by *their* testers (scoped); Super-Administrator edits any — both are online admin screens, so **NZ Post address autocomplete is viable there** (online-only; still a paid integration outside the $41,250 → variation). Tester on-farm farm creation stays manual (offline). **Open design Q:** does a Farm Details edit propagate to all tests on that farm (shared entity — current model) or snapshot per test? Resolve when building the edit UI.
+- **Farm details schema built (5 Jun 2026):** `Farm` expanded (identity, location, farmer contact, `IsActive`, `UpdatedAt`) + `Region` and `MilkSupplyCompany` reference tables (nullable FKs, seeded 16 regions / 10 processors, cached offline). Migration `FarmDetailsAndReferenceData`; builds clean. **Edit authorization:** Company Administrator edits Farm Details for farms tied to completed tests by *their* testers (scoped); Super-Administrator edits any — both are online admin screens, so **NZ Post address autocomplete is viable there** (online-only; still a paid integration outside the $41,250 → variation). Tester on-farm farm creation stays manual (offline). **Open design Q (still open):** the edit UI implements the **propagate** model — editing the shared Farm updates it for all that farm's tests, with `UpdatedAt` + the audit interceptor recording the change. If NZMPTA needs per-test snapshots of farm details as-at test time, that's a future change.
 - **NZMPTA dependencies blocking work:** legacy SQL access (O1), brand assets (M4/M5), wizard validation workshop (M3), §14 confirmations.

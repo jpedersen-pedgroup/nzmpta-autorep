@@ -1,0 +1,38 @@
+@page
+@model Autorep.Web.Pages.Admin.Regions.IndexModel
+@{
+    ViewData["Title"] = "Regions";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Regions</h1>
+        <p>NZ regions used on Farm details. Seeded with the 16 official regions.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn" asp-page="/Admin/Regions/New">+ New region</a>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr><th>Order</th><th>Name</th><th>Status</th><th>Farms</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Model.Regions)
+            {
+                <tr>
+                    <td class="td-muted">@r.SortOrder</td>
+                    <td>@r.Name</td>
+                    <td>
+                        @if (r.IsActive) { <span class="badge badge--success">Active</span> }
+                        else { <span class="badge">Deactivated</span> }
+                    </td>
+                    <td>@r.FarmCount</td>
+                    <td><a class="btn btn--secondary" asp-page="/Admin/Regions/Edit" asp-route-id="@r.Id">Edit</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

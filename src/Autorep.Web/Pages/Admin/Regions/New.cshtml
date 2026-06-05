@@ -1,0 +1,30 @@
+@page
+@model Autorep.Web.Pages.Admin.Regions.NewModel
+@{
+    ViewData["Title"] = "New region";
+}
+
+<div class="page-header">
+    <div class="page-header__heading"><h1>New region</h1></div>
+    <div class="page-header__actions">
+        <a class="btn btn--secondary" asp-page="/Admin/Regions/Index">Back</a>
+    </div>
+</div>
+
+<div class="card" style="max-width:640px">
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Input.Name">Name</label>
+            <input asp-for="Input.Name" required autofocus />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.SortOrder">Display order</label>
+            <input asp-for="Input.SortOrder" type="number" min="0" />
+        </div>
+        @if (Model.Errors.Any())
+        {
+            <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+        }
+        <div class="form-actions"><button type="submit" class="btn">Create</button></div>
+    </form>
+</div>
