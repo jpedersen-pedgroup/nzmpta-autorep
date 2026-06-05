@@ -14,7 +14,7 @@ on:
       - 'Autorep.sln'
       - '.github/workflows/app.yml'
   push:
-    branches: [main]
+    # All branches — build + test + publish results on every push (deploy still gated to main below).
     paths:
       - 'src/**'
       - 'tests/**'
