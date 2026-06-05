@@ -96,13 +96,31 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
         builder.Entity<Region>(region =>
         {
             region.Property(r => r.Name).HasMaxLength(100).IsRequired();
+            region.Property(r => r.Island).HasMaxLength(20);
             region.HasIndex(r => r.Name).IsUnique();
         });
 
         builder.Entity<MilkSupplyCompany>(company =>
         {
             company.Property(c => c.Name).HasMaxLength(100).IsRequired();
+            company.Property(c => c.AddressLine1).HasMaxLength(200);
+            company.Property(c => c.AddressLine2).HasMaxLength(200);
+            company.Property(c => c.Town).HasMaxLength(100);
+            company.Property(c => c.PostCode).HasMaxLength(10);
+            company.Property(c => c.Phone).HasMaxLength(50);
+            company.Property(c => c.Email).HasMaxLength(256);
+            company.Property(c => c.LogoContentType).HasMaxLength(100);
             company.HasIndex(c => c.Name).IsUnique();
+        });
+
+        builder.Entity<TestingCompany>(company =>
+        {
+            company.Property(c => c.AddressLine1).HasMaxLength(200);
+            company.Property(c => c.AddressLine2).HasMaxLength(200);
+            company.Property(c => c.Town).HasMaxLength(100);
+            company.Property(c => c.PostCode).HasMaxLength(10);
+            company.Property(c => c.Phone).HasMaxLength(50);
+            company.Property(c => c.Email).HasMaxLength(256);
         });
     }
 }

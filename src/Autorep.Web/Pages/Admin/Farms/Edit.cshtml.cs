@@ -25,7 +25,7 @@ public class EditModel : PageModel
     public string FarmName { get; private set; } = "";
     public int TestCount { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
-    public SelectList RegionOptions { get; private set; } = default!;
+    public List<SelectListItem> RegionOptions { get; private set; } = new();
     public SelectList MilkCompanyOptions { get; private set; } = default!;
     public List<string> Errors { get; } = new();
     public string? Message { get; set; }
@@ -136,9 +136,25 @@ public class EditModel : PageModel
         FarmName = farm.Name;
         UpdatedAt = farm.UpdatedAt;
         TestCount = await _db.MachineTests.CountAsync(t => t.FarmId == farm.Id);
-        RegionOptions = new SelectList(
-            await _db.Regions.Where(r => r.IsActive).OrderBy(r => r.SortOrder).ThenBy(r => r.Name).ToListAsync(),
-            "Id", "Name", Input.RegionId);
+        var regions = await _db.Regions.Where(r => r.IsActive)
+            .OrderBy(r => r.Island).ThenBy(r => r.SortOrder).ThenBy(r => r.Name).ToListAsync();
+        var islandGroups = new Dictionary<string, SelectListGroup>();
+        RegionOptions = regions.Select(r =>
+        {
+            var island = string.IsNullOrWhiteSpace(r.Island) ? "Other" : r.Island;
+            if (!islandGroups.TryGetValue(island, out var group))
+            {
+                group = new SelectListGroup { Name = island };
+                islandGroups[island] = group;
+            }
+            return new SelectListItem
+            {
+                Value = r.Id.ToString(),
+                Text = r.Name,
+                Group = group,
+                Selected = r.Id == Input.RegionId,
+            };
+        }).ToList();
         MilkCompanyOptions = new SelectList(
             await _db.MilkSupplyCompanies.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync(),
             "Id", "Name", Input.MilkSupplyCompanyId);

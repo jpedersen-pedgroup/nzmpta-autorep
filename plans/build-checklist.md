@@ -49,6 +49,7 @@
 - [x] ✅ Service worker caches **app shell** for offline UI (`sw.js`)
 - [x] ✅ Sync upload endpoint `POST /api/sync/tests` (upsert by ClientId, idempotent) (`Api/SyncController.cs`)
 - [ ] ⬜ IndexedDB local storage for tests / reference data
+- [ ] 🟡 Reference-data **logos offline** — service worker now runtime-caches `/api/milk-companies/{id}/logo` (viewed logos available offline). M2 still needs: **pre-cache all active logos on sync** (so unseen ones work too) + render tester pages offline so cached logos actually display
 - [ ] ⬜ Offline-first **test creation** on-device (currently server-side Razor form only)
 - [ ] ⬜ `syncState` state machine (`local-only` → `uploading` → `uploaded` / `merge-conflict`)
 - [ ] ⬜ Vendor-specification caching for offline pass/fail
@@ -157,6 +158,7 @@
 - [ ] ⬜ Accessibility baseline (semantic HTML, ARIA, keyboard, contrast)
 
 ## Notes & open items
+- **❓ Open item for NZMPTA (farms):** Are Farms created/loaded by NZMPTA or admins **before** a tester visits, or do testers create them **on-farm**? This drives the farm-picker UX and whether **offline** farm creation (M2) is essential. Current tester new-test flow: pick an existing farm, or add one via an in-page modal (online only for now).
 - **Biggest risks to "done":** (1) grow the partial domain model to the full schema; (2) **establish the test suite** — it's near-zero today and M1/M4/etc. prices include testing. *(Infra confirmed deployed; prod region corrected — see M1.)*
 - **Resolved (5 Jun 2026):** report engine is **client-side** (pdfmake/pdf-lib) for offline on-site printing; proposal §4.1 (QuestPDF/server-side) is superseded. No price change (offline print was always required) — worth noting to NZMPTA as a clarification, ideally in a Requirements v1.2.
 - **Farm details schema built (5 Jun 2026):** `Farm` expanded (identity, location, farmer contact, `IsActive`, `UpdatedAt`) + `Region` and `MilkSupplyCompany` reference tables (nullable FKs, seeded 16 regions / 10 processors, cached offline). Migration `FarmDetailsAndReferenceData`; builds clean. **Edit authorization:** Company Administrator edits Farm Details for farms tied to completed tests by *their* testers (scoped); Super-Administrator edits any — both are online admin screens, so **NZ Post address autocomplete is viable there** (online-only; still a paid integration outside the $41,250 → variation). Tester on-farm farm creation stays manual (offline). **Open design Q (still open):** the edit UI implements the **propagate** model — editing the shared Farm updates it for all that farm's tests, with `UpdatedAt` + the audit interceptor recording the change. If NZMPTA needs per-test snapshots of farm details as-at test time, that's a future change.

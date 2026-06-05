@@ -27,20 +27,30 @@ public static class Seed
     {
         var db = services.GetRequiredService<AutorepDbContext>();
 
-        // 16 official NZ regions, north to south.
-        string[] regions =
+        // 16 official NZ regions, north to south, grouped by island.
+        (string Name, string Island)[] regions =
         [
-            "Northland", "Auckland", "Waikato", "Bay of Plenty", "Gisborne",
-            "Hawke's Bay", "Taranaki", "Manawatū-Whanganui", "Wellington",
-            "Tasman", "Nelson", "Marlborough", "West Coast", "Canterbury",
-            "Otago", "Southland",
+            ("Northland", "North Island"), ("Auckland", "North Island"),
+            ("Waikato", "North Island"), ("Bay of Plenty", "North Island"),
+            ("Gisborne", "North Island"), ("Hawke's Bay", "North Island"),
+            ("Taranaki", "North Island"), ("Manawatū-Whanganui", "North Island"),
+            ("Wellington", "North Island"),
+            ("Tasman", "South Island"), ("Nelson", "South Island"),
+            ("Marlborough", "South Island"), ("West Coast", "South Island"),
+            ("Canterbury", "South Island"), ("Otago", "South Island"),
+            ("Southland", "South Island"),
         ];
         for (var i = 0; i < regions.Length; i++)
         {
-            var name = regions[i];
-            if (!await db.Regions.AnyAsync(r => r.Name == name))
+            var (name, island) = regions[i];
+            var existing = await db.Regions.FirstOrDefaultAsync(r => r.Name == name);
+            if (existing is null)
             {
-                db.Regions.Add(new Region { Name = name, SortOrder = i + 1 });
+                db.Regions.Add(new Region { Name = name, Island = island, SortOrder = i + 1 });
+            }
+            else if (string.IsNullOrEmpty(existing.Island))
+            {
+                existing.Island = island; // backfill island on pre-split rows
             }
         }
 

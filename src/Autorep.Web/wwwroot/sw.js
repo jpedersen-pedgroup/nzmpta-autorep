@@ -1,8 +1,12 @@
-// Phase 1: minimal service worker that caches the application shell so the
-// PWA loads when offline. Phase 2 will expand this to a proper offline-first
-// strategy with IndexedDB for Machine Test data and a sync queue.
+// Service worker: caches the application shell so the PWA loads offline, and runtime-caches
+// milk-supply company logos (reference data) so testers can see them offline once viewed.
+//
+// Phase 2 (M2) will expand this with IndexedDB for Machine Test data + a sync queue, and
+// should PROACTIVELY pre-cache all active milk-company logos on reference-data sync (not just
+// ones already viewed) and render the tester pages offline so cached logos actually display.
 
-const CACHE_VERSION = 'autorep-v2';
+const CACHE_VERSION = 'autorep-v3';
+const LOGO_CACHE = 'autorep-logos-v1';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/css/site.css',
@@ -20,7 +24,9 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(
+        keys.filter((k) => k !== CACHE_VERSION && k !== LOGO_CACHE).map((k) => caches.delete(k))
+      )
     )
   );
   self.clients.claim();
@@ -31,7 +37,26 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Don't intercept API or Account/auth flows — they need fresh server responses.
+  // Milk-supply company logos: reference data — cache for offline use
+  // (stale-while-revalidate: serve cached immediately, refresh in the background).
+  if (url.pathname.startsWith('/api/milk-companies/') && url.pathname.endsWith('/logo')) {
+    event.respondWith(
+      caches.open(LOGO_CACHE).then((cache) =>
+        cache.match(event.request).then((cached) => {
+          const network = fetch(event.request)
+            .then((resp) => {
+              if (resp && resp.ok) cache.put(event.request, resp.clone());
+              return resp;
+            })
+            .catch(() => cached);
+          return cached || network;
+        })
+      )
+    );
+    return;
+  }
+
+  // Other API + Account/auth flows: always go to the network.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/Account/')) {
     return;
   }

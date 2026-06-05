@@ -88,15 +88,19 @@ body {
 .app-header {
   background: var(--brand);
   color: white;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.app-header__inner {
+  max-width: 1200px;
+  margin: 0 auto;
   padding: var(--space-3) var(--space-6);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 0;
-  z-index: 10;
 }
 .app-header__brand {
   display: flex;
@@ -553,10 +557,52 @@ main {
   border-bottom-color: var(--danger-border);
 }
 
+/* ----- Burger (mobile nav toggle) ------------------------------------------ */
+.app-header__burger {
+  display: none;
+  color: white;
+  padding: var(--space-2);
+  border-radius: var(--radius);
+}
+.app-header__burger:hover { background: rgba(255,255,255,0.1); }
+
+/* ----- Modal --------------------------------------------------------------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(17,24,39,0.5);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  overflow-y: auto;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  width: 100%;
+  max-width: 560px;
+  box-shadow: var(--shadow-lg);
+}
+.modal__title { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-4); }
+
 /* ----- Responsive ---------------------------------------------------------- */
 @media (max-width: 720px) {
-  .app-header { padding: var(--space-3) var(--space-4); flex-wrap: wrap; }
-  .app-header__nav { order: 3; width: 100%; margin-left: 0; margin-top: var(--space-2); overflow-x: auto; }
+  .app-header__inner { padding: var(--space-3) var(--space-4); flex-wrap: wrap; }
+  .app-header__burger { display: inline-flex; }
+  .app-header__nav {
+    display: none;
+    order: 4;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin: var(--space-2) 0 0;
+  }
+  .app-header__nav.open { display: flex; }
   .app-header__user-name span { display: none; }
   main { padding: var(--space-5) var(--space-4); }
   .page-header { flex-direction: column; align-items: stretch; }

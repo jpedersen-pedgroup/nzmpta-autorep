@@ -10,12 +10,18 @@
     </div>
 </div>
 
-<div class="card" style="max-width:560px">
+<div class="card" style="max-width:640px">
     <form method="post">
         <div class="form-field">
             <label asp-for="Input.Name">Name</label>
             <input asp-for="Input.Name" required autofocus />
         </div>
+        <div class="form-field"><label asp-for="Input.AddressLine1">Address line 1</label><input asp-for="Input.AddressLine1" /></div>
+        <div class="form-field"><label asp-for="Input.AddressLine2">Address line 2</label><input asp-for="Input.AddressLine2" /></div>
+        <div class="form-field"><label asp-for="Input.Town">Town / city</label><input asp-for="Input.Town" /></div>
+        <div class="form-field"><label asp-for="Input.PostCode">Post code</label><input asp-for="Input.PostCode" /></div>
+        <div class="form-field"><label asp-for="Input.Phone">Phone</label><input asp-for="Input.Phone" /></div>
+        <div class="form-field"><label asp-for="Input.Email">Email</label><input asp-for="Input.Email" type="email" /></div>
         @if (Model.Errors.Any())
         {
             <div class="alert alert--danger">

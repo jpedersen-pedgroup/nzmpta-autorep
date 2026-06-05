@@ -17,7 +17,7 @@
 <div class="table-wrap">
     <table class="table">
         <thead>
-            <tr><th>Order</th><th>Name</th><th>Status</th><th>Farms</th><th></th></tr>
+            <tr><th>Order</th><th>Name</th><th>Island</th><th>Status</th><th>Farms</th><th></th></tr>
         </thead>
         <tbody>
             @foreach (var r in Model.Regions)
@@ -25,6 +25,7 @@
                 <tr>
                     <td class="td-muted">@r.SortOrder</td>
                     <td>@r.Name</td>
+                    <td class="td-muted">@r.Island</td>
                     <td>
                         @if (r.IsActive) { <span class="badge badge--success">Active</span> }
                         else { <span class="badge">Deactivated</span> }

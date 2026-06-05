@@ -24,6 +24,13 @@
             <input asp-for="Input.Name" required />
         </div>
         <div class="form-field">
+            <label asp-for="Input.Island">Island</label>
+            <select asp-for="Input.Island">
+                <option value="North Island">North Island</option>
+                <option value="South Island">South Island</option>
+            </select>
+        </div>
+        <div class="form-field">
             <label asp-for="Input.SortOrder">Display order</label>
             <input asp-for="Input.SortOrder" type="number" min="0" />
         </div>
