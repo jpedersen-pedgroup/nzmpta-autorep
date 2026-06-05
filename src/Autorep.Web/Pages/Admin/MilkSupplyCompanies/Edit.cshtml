@@ -26,7 +26,7 @@
             @if (Model.HasLogo)
             {
                 <div style="margin-bottom:var(--space-2)">
-                    <img src="/Admin/MilkSupplyCompanies/Logo/@Model.Id" alt="@Model.Input.Name logo"
+                    <img src="/api/milk-companies/@Model.Id/logo" alt="@Model.Input.Name logo"
                          style="max-height:64px;max-width:220px;border:1px solid var(--border);border-radius:var(--radius);padding:4px;background:#fff" />
                 </div>
                 <label class="form-check" style="margin-bottom:var(--space-2)">

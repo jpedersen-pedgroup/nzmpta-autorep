@@ -32,7 +32,7 @@ else
                 @foreach (var c in Model.Companies)
                 {
                     <tr>
-                        <td>@if (c.HasLogo) { <img src="/Admin/MilkSupplyCompanies/Logo/@c.Id" alt="" style="max-height:28px;max-width:84px" /> }</td>
+                        <td>@if (c.HasLogo) { <img src="/api/milk-companies/@c.Id/logo" alt="" style="max-height:28px;max-width:84px" /> }</td>
                         <td>@c.Name</td>
                         <td>
                             @if (c.IsActive) { <span class="badge badge--success">Active</span> }
