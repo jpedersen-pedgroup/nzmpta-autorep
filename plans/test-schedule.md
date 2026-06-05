@@ -7,7 +7,7 @@
 > Source of truth for *what* to test: `PRD.md` (§Testing Decisions) and `plans/build-checklist.md`. This schedule maps testing to the **4 contract delivery phases** and defines the **test gate** each must pass before NZMPTA Acceptance.
 
 ## 1. Current state
-Automated testing is effectively **not yet started** — `tests/Autorep.Web.Tests` contains a single empty placeholder. Establishing the suites below is the first testing task and is bundled into each milestone's price.
+The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicationFactory` integration fixture on an InMemory store (`tests/Autorep.Web.Tests`), **10 tests green** — address parsing (T1), `/health`, anonymous auth-gating on `/Admin/Farms` and the address proxy, and reference-data seeding (T3). `Program` skips the SQL Server provider in the `Testing` environment so tests run on InMemory. Still to build out: golden-file PDF (T4), Playwright (T5), and broader coverage as features land.
 
 ## 2. Test types & tooling
 

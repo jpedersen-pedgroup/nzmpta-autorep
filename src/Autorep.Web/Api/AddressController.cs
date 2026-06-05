@@ -36,17 +36,12 @@ public class AddressController : ControllerBase
         var d = res.Details.FirstOrDefault();
         if (d is null) return NotFound();
 
-        // AddressLine3 is "City Postcode" (e.g. "Wellington 6011"); strip the trailing
-        // postcode to get the town. Region (one of the 16 NZ regions) is not returned by
-        // NZ Post, so it stays a manual selection on the form.
-        var town = d.AddressLine3;
-        if (!string.IsNullOrWhiteSpace(town) && !string.IsNullOrWhiteSpace(d.Postcode))
-            town = town.Replace(d.Postcode, "").Trim();
-
+        // AddressLine3 is "City Postcode" (e.g. "Wellington 6011"). Region (one of the 16
+        // NZ regions) is not returned by NZ Post, so it stays a manual selection on the form.
         return Ok(new AddressDetail(
             d.AddressLine1,
             d.AddressLine2,
-            string.IsNullOrWhiteSpace(town) ? null : town,
+            AddressFormatting.TownFromCityLine(d.AddressLine3, d.Postcode),
             d.Postcode));
     }
 }

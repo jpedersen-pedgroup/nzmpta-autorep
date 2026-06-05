@@ -18,9 +18,14 @@ builder.Services.AddScoped<AuditInterceptor>();
 
 builder.Services.AddDbContext<AutorepDbContext>((sp, options) =>
 {
-    var connection = builder.Configuration.GetConnectionString("SqlDatabase")
-        ?? throw new InvalidOperationException("ConnectionStrings:SqlDatabase is not configured.");
-    options.UseSqlServer(connection);
+    // In the Testing environment the integration-test factory supplies the provider
+    // (InMemory); everywhere else use SQL Server.
+    if (!builder.Environment.IsEnvironment("Testing"))
+    {
+        var connection = builder.Configuration.GetConnectionString("SqlDatabase")
+            ?? throw new InvalidOperationException("ConnectionStrings:SqlDatabase is not configured.");
+        options.UseSqlServer(connection);
+    }
     options.AddInterceptors(sp.GetRequiredService<AuditInterceptor>());
 });
 
@@ -122,7 +127,12 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
-    await db.Database.MigrateAsync();
+    // Relational providers (SQL Server) apply migrations; the InMemory provider used in
+    // integration tests can't migrate, so create the store directly.
+    if (db.Database.IsRelational())
+        await db.Database.MigrateAsync();
+    else
+        await db.Database.EnsureCreatedAsync();
     await Seed.RolesAsync(scope.ServiceProvider);
     await Seed.ReferenceDataAsync(scope.ServiceProvider);
     if (app.Environment.IsDevelopment())
