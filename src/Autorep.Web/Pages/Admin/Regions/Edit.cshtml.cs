@@ -21,6 +21,7 @@ public class EditModel : PageModel
     public class InputModel
     {
         public string Name { get; set; } = string.Empty;
+        public string Island { get; set; } = "North Island";
         public int SortOrder { get; set; }
     }
 
@@ -29,6 +30,7 @@ public class EditModel : PageModel
         var r = await _db.Regions.FindAsync(Id);
         if (r is null) return NotFound();
         Input.Name = r.Name;
+        Input.Island = string.IsNullOrEmpty(r.Island) ? "North Island" : r.Island;
         Input.SortOrder = r.SortOrder;
         await PopulateAsync(r);
         return Page();
@@ -52,6 +54,7 @@ public class EditModel : PageModel
             return Page();
         }
         r.Name = trimmed;
+        r.Island = Input.Island;
         r.SortOrder = Input.SortOrder;
         await _db.SaveChangesAsync();
         Message = "Saved.";

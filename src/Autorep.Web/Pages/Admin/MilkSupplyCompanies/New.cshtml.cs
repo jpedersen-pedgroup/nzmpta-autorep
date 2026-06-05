@@ -14,7 +14,17 @@ public class NewModel : PageModel
     [BindProperty] public InputModel Input { get; set; } = new();
     public List<string> Errors { get; } = new();
 
-    public class InputModel { public string Name { get; set; } = string.Empty; }
+    public class InputModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? AddressLine1 { get; set; }
+        public string? AddressLine2 { get; set; }
+        public string? Town { get; set; }
+        public string? PostCode { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public IFormFile? Logo { get; set; }
+    }
 
     public void OnGet() { }
 
@@ -31,8 +41,23 @@ public class NewModel : PageModel
             Errors.Add($"A processor named '{trimmed}' already exists.");
             return Page();
         }
-        _db.MilkSupplyCompanies.Add(new MilkSupplyCompany { Name = trimmed });
+
+        var company = new MilkSupplyCompany
+        {
+            Name = trimmed,
+            AddressLine1 = Clean(Input.AddressLine1),
+            AddressLine2 = Clean(Input.AddressLine2),
+            Town = Clean(Input.Town),
+            PostCode = Clean(Input.PostCode),
+            Phone = Clean(Input.Phone),
+            Email = Clean(Input.Email),
+        };
+        if (!await LogoUpload.ApplyAsync(Input.Logo, company, Errors)) return Page();
+
+        _db.MilkSupplyCompanies.Add(company);
         await _db.SaveChangesAsync();
         return RedirectToPage("/Admin/MilkSupplyCompanies/Index");
     }
+
+    private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 }

@@ -26,12 +26,13 @@ else
     <div class="table-wrap">
         <table class="table">
             <thead>
-                <tr><th>Name</th><th>Status</th><th>Farms</th><th>Created</th><th></th></tr>
+                <tr><th>Logo</th><th>Name</th><th>Status</th><th>Farms</th><th>Created</th><th></th></tr>
             </thead>
             <tbody>
                 @foreach (var c in Model.Companies)
                 {
                     <tr>
+                        <td>@if (c.HasLogo) { <img src="/Admin/MilkSupplyCompanies/Logo/@c.Id" alt="" style="max-height:28px;max-width:84px" /> }</td>
                         <td>@c.Name</td>
                         <td>
                             @if (c.IsActive) { <span class="badge badge--success">Active</span> }

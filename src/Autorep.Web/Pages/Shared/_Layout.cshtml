@@ -49,6 +49,7 @@
     @if (User.Identity?.IsAuthenticated == true)
     {
         <header class="app-header">
+            <div class="app-header__inner">
             <a class="app-header__brand" asp-page="/Index">
                 <span class="app-header__brand-mark">AR</span>
                 <span>NZMPTA AutoRep</span>
@@ -82,6 +83,7 @@
                 <form method="post" asp-page="/Account/Logout" style="margin:0">
                     <button type="submit" class="btn btn--ghost">Sign out</button>
                 </form>
+            </div>
             </div>
         </header>
 

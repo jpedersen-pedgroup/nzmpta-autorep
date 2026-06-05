@@ -17,6 +17,7 @@ public class NewModel : PageModel
     public class InputModel
     {
         public string Name { get; set; } = string.Empty;
+        public string Island { get; set; } = "North Island";
         public int SortOrder { get; set; }
     }
 
@@ -35,7 +36,7 @@ public class NewModel : PageModel
             Errors.Add($"A region named '{trimmed}' already exists.");
             return Page();
         }
-        _db.Regions.Add(new Region { Name = trimmed, SortOrder = Input.SortOrder });
+        _db.Regions.Add(new Region { Name = trimmed, Island = Input.Island, SortOrder = Input.SortOrder });
         await _db.SaveChangesAsync();
         return RedirectToPage("/Admin/Regions/Index");
     }

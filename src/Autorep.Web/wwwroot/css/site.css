@@ -88,15 +88,19 @@ body {
 .app-header {
   background: var(--brand);
   color: white;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.app-header__inner {
+  max-width: 1200px;
+  margin: 0 auto;
   padding: var(--space-3) var(--space-6);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 0;
-  z-index: 10;
 }
 .app-header__brand {
   display: flex;
@@ -555,7 +559,7 @@ main {
 
 /* ----- Responsive ---------------------------------------------------------- */
 @media (max-width: 720px) {
-  .app-header { padding: var(--space-3) var(--space-4); flex-wrap: wrap; }
+  .app-header__inner { padding: var(--space-3) var(--space-4); flex-wrap: wrap; }
   .app-header__nav { order: 3; width: 100%; margin-left: 0; margin-top: var(--space-2); overflow-x: auto; }
   .app-header__user-name span { display: none; }
   main { padding: var(--space-5) var(--space-4); }
