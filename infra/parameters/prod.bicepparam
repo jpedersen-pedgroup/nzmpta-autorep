@@ -2,9 +2,9 @@ using '../main.bicep'
 
 param environment = 'prod'
 
-// Region. Change to 'newzealandnorth' once you confirm GA availability in your subscription.
+// Region. NZ data residency is a CONTRACTUAL requirement (all data stays in NZ); staging already runs here.
 // PRD §Hosting requires NZ data residency for prod; this is the deciding parameter.
-param location = 'australiaeast'
+param location = 'newzealandnorth'
 
 param namingPrefix = 'nzmpta-autorep'
 
