@@ -136,7 +136,9 @@ public class EditModel : PageModel
         FarmName = farm.Name;
         UpdatedAt = farm.UpdatedAt;
         TestCount = await _db.MachineTests.CountAsync(t => t.FarmId == farm.Id);
-        var regions = await _db.Regions.Where(r => r.IsActive)
+        // Include the farm's current region even if it's since been deactivated, so an
+        // unrelated edit doesn't silently drop the existing association.
+        var regions = await _db.Regions.Where(r => r.IsActive || r.Id == Input.RegionId)
             .OrderBy(r => r.Island).ThenBy(r => r.SortOrder).ThenBy(r => r.Name).ToListAsync();
         var islandGroups = new Dictionary<string, SelectListGroup>();
         RegionOptions = regions.Select(r =>
@@ -155,8 +157,11 @@ public class EditModel : PageModel
                 Selected = r.Id == Input.RegionId,
             };
         }).ToList();
+        // Likewise keep the farm's current milk-supply company even if deactivated.
         MilkCompanyOptions = new SelectList(
-            await _db.MilkSupplyCompanies.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync(),
+            await _db.MilkSupplyCompanies
+                .Where(c => c.IsActive || c.Id == Input.MilkSupplyCompanyId)
+                .OrderBy(c => c.Name).ToListAsync(),
             "Id", "Name", Input.MilkSupplyCompanyId);
     }
 }
