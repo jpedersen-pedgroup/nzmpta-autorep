@@ -21,7 +21,7 @@ The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicat
 | Build under test | commit `fd82a44` (branch `claude/distracted-johnson-b224ac`) |
 | Framework / tooling | .NET 9 · xUnit 2.9 · WebApplicationFactory (InMemory) |
 | Command | `dotnet test` (CI: a unit/integration job + a separate Playwright E2E job, each → TRX artifact + job-summary table) |
-| **Result** | ✅ **PASS — 11 / 11 automated tests** (incl. 1 Playwright E2E; plus 6 manual checks, all pass) |
+| **Result** | ✅ **PASS — 16 / 16 automated tests** (incl. 1 Playwright E2E; plus 6 manual checks, all pass) |
 
 ### Phase 1 — Foundation (M1)
 
@@ -48,6 +48,16 @@ The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicat
 ### Phases not yet exercised
 - **Phase 2** — Tester core (M2) & Wizard (M3): pending build. To come: T1/T2 Pass/Fail Calculator & Wizard Step Resolver (.NET + TS parity), T5 wizard happy-path.
 - **Phase 4** — Hardening (M6) & migration (O1): pending. To come: T4 golden-file PDF, T7 migration validation, T8 security review, T9 performance, T10 UAT.
+
+### Regression & authorization tests (added 5 Jun 2026)
+A reusable **test-auth harness** (`TestAuthHandler` + `AuthedWebAppFactory`) now drives authenticated admin/tester page tests.
+
+| Test ID | Type | Test | Result |
+|---|---|---|---|
+| P1-05 | T3 Integration | Admin Farm area is forbidden for a Tester | ✅ Pass |
+| P2-01 | T1 Unit | New-test rejects an inactive farm, and creates a test for an active farm | ✅ Pass |
+| P3-09 | T3 Integration | Farm edit keeps a since-deactivated region / processor selected (no silent FK loss — PR #19) | ✅ Pass |
+| P3-10 | T3 Integration | Farm list scopes a Company Administrator to their own company's farms | ✅ Pass |
 
 *Test ID = phase-scoped reference; Type = test category from §2 (T1–T10) or a manual/exploratory check.*
 
