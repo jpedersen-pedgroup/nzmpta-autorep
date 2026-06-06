@@ -138,6 +138,7 @@ using (var scope = app.Services.CreateScope())
     {
         await Seed.RolesAsync(scope.ServiceProvider);
         await Seed.ReferenceDataAsync(scope.ServiceProvider);
+        await Seed.BootstrapAdminAsync(scope.ServiceProvider);
         if (app.Environment.IsDevelopment())
         {
             await Seed.DevUsersAsync(scope.ServiceProvider);
