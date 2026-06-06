@@ -50,7 +50,9 @@ public class NewModel : PageModel
     public async Task<IActionResult> OnPostAsync()
     {
         await LoadListsAsync();
-        if (Input.FarmId is null || !await _db.Farms.AnyAsync(f => f.Id == Input.FarmId))
+        // Only active farms appear in the picker; reject an inactive (or unknown) farm id
+        // from a stale page or crafted POST so deactivated farms can't get new tests.
+        if (Input.FarmId is null || !await _db.Farms.AnyAsync(f => f.Id == Input.FarmId && f.IsActive))
         {
             Errors.Add("Select an existing farm, or add a new one.");
             return Page();
