@@ -75,6 +75,42 @@ public static class Seed
         await db.SaveChangesAsync();
     }
 
+    // Creates the initial NZMPTA Super-Administrator from configuration, when no account with
+    // that email exists yet. No password lives in source: set Bootstrap:AdminEmail and
+    // Bootstrap:AdminPassword (the password via Key Vault / an App Service secret). The
+    // account is flagged for a forced password change on first login, so the bootstrap
+    // password is single-use. Safe to leave configured — it's a no-op once the user exists.
+    public static async Task BootstrapAdminAsync(IServiceProvider services)
+    {
+        var config = services.GetRequiredService<IConfiguration>();
+        var email = config["Bootstrap:AdminEmail"];
+        var password = config["Bootstrap:AdminPassword"];
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            return; // not configured — no insecure default
+
+        var userManager = services.GetRequiredService<UserManager<Tester>>();
+        if (await userManager.FindByEmailAsync(email) is not null)
+            return; // never overwrite or reset an existing account
+
+        var user = new Tester
+        {
+            UserName = email,
+            Email = email,
+            EmailConfirmed = true,
+            DisplayName = "NZMPTA Administrator",
+            ForcedPasswordResetRequired = true,
+        };
+        var result = await userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+        {
+            services.GetRequiredService<ILoggerFactory>().CreateLogger("Bootstrap")
+                .LogError("Failed to create bootstrap admin {Email}: {Errors}",
+                    email, string.Join("; ", result.Errors.Select(e => e.Description)));
+            return;
+        }
+        await userManager.AddToRoleAsync(user, Roles.SuperAdministrator);
+    }
+
     // Development-only: creates a default Super-Administrator and Tester
     // so you can sign in immediately after first run. NEVER call this in
     // staging or prod.
