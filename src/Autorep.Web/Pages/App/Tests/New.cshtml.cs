@@ -52,26 +52,18 @@ public class NewModel : PageModel
         await LoadListsAsync();
         // Only active farms appear in the picker; reject an inactive (or unknown) farm id
         // from a stale page or crafted POST so deactivated farms can't get new tests.
-        if (Input.FarmId is null || !await _db.Farms.AnyAsync(f => f.Id == Input.FarmId && f.IsActive))
+        var farm = Input.FarmId is null
+            ? null
+            : await _db.Farms.FirstOrDefaultAsync(f => f.Id == Input.FarmId && f.IsActive);
+        if (farm is null)
         {
             Errors.Add("Select an existing farm, or add a new one.");
             return Page();
         }
 
-        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? throw new InvalidOperationException("Missing NameIdentifier claim.");
-
-        var test = new MachineTest
-        {
-            TesterId = testerId,
-            FarmId = Input.FarmId.Value,
-            Notes = string.IsNullOrWhiteSpace(Input.Notes) ? null : Input.Notes.Trim(),
-        };
-        _db.MachineTests.Add(test);
-        await _db.SaveChangesAsync();
-
-        // Creating a test drops the tester straight into the wizard, not the list.
-        return RedirectToPage("/App/Tests/Wizard", new { id = test.Id });
+        // Offline-first: the Machine Test is created on-device in the wizard (IndexedDB) and
+        // synced to the server later. Here we just hand the chosen farm to the wizard.
+        return RedirectToPage("/App/Tests/Wizard", new { farmId = farm.Id, farmName = farm.Name });
     }
 
     // AJAX from the modal: create a farm and return it for the picker (no navigation).

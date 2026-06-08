@@ -59,10 +59,11 @@ jobs:
         run: npm ci
         working-directory: src/Autorep.Web
 
-      - name: Client typecheck + tests (Vitest)
+      - name: Client typecheck + tests + bundle
         run: |
           npm run typecheck
           npm test
+          npm run build:prod
         working-directory: src/Autorep.Web
 
       - name: Restore

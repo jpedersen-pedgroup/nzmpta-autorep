@@ -1,7 +1,17 @@
 // Entry point for the AutoRep PWA client bundle (output: wwwroot/js/dist/autorep.js).
-// Grows in later phases: IndexedDB store, the Preact offline wizard, and the sync client.
-// For now it just wires up the shared modules so the bundle builds end-to-end.
-import { resolveWizard } from "./wizard/wizardStepResolver";
+// Mounts the offline Preact wizard and the "My tests" list when their roots are present.
+import { mountWizard } from "./wizard/WizardApp";
+import { mountTestList } from "./ui/TestListApp";
 
-// Exposed on window for quick manual checks during development.
-(globalThis as unknown as { autorep?: unknown }).autorep = { resolveWizard };
+const wizardRoot = document.getElementById("wizard-root");
+if (wizardRoot) {
+  const params = new URLSearchParams(location.search);
+  mountWizard(wizardRoot, {
+    id: params.get("id") ?? undefined,
+    farmId: params.get("farmId") ?? undefined,
+    farmName: params.get("farmName") ?? undefined,
+  });
+}
+
+const listRoot = document.getElementById("test-list-root");
+if (listRoot) mountTestList(listRoot);

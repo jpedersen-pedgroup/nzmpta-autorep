@@ -61,6 +61,22 @@ export interface WizardPlan {
   isShortTest: boolean;
 }
 
+export type FaultSeverity = "Critical" | "Major" | "Minor";
+
+/** A visual-checklist item outcome: OK or a logged fault. Blank items are simply absent. */
+export interface VisualFaultEntry {
+  status: "ok" | "fault";
+  severity?: FaultSeverity;
+  note?: string;
+}
+
+/** Records a use of "Check all as verified" on a wizard step (the PRD attestation trail). */
+export interface ChecklistAttestation {
+  step: WizardStep;
+  attestedAt: string;
+  text: string;
+}
+
 /** Mirrors the .NET entity defaults so partial fixtures resolve identically. */
 export function defaultMachineConfiguration(): MachineConfiguration {
   return {

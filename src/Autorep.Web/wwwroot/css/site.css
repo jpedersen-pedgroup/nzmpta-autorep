@@ -736,3 +736,16 @@ main {
 .btn--sm { padding: 0.35rem 0.7rem; min-height: 32px; font-size: 0.8125rem; }
 .td-actions { text-align: right; white-space: nowrap; }
 .td-actions .btn + .btn { margin-left: var(--space-2); }
+
+/* ----- Visual-faults checklist --------------------------------------------- */
+.section-title { font-weight: 600; font-size: 0.95rem; margin: var(--space-5) 0 var(--space-2); color: var(--text); }
+.checkitem { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+.checkitem__name { flex: 1; font-size: 0.9375rem; }
+.checkitem__actions { display: flex; gap: var(--space-2); flex: none; }
+.checkitem__actions button { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--radius-sm); padding: 0.35rem 0.8rem; font-size: 0.8125rem; cursor: pointer; }
+.checkitem__actions button.ok.on { background: var(--success-bg); border-color: var(--success-border); color: #166534; }
+.checkitem__actions button.bad.on { background: var(--danger-bg); border-color: var(--danger-border); color: #991b1b; }
+.fault-detail { display: flex; gap: var(--space-2); padding: var(--space-2) 0 var(--space-3); }
+.fault-detail select, .fault-detail input { padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--surface); }
+.fault-detail select { width: 130px; flex: none; }
+.fault-detail input { flex: 1; }

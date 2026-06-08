@@ -1,138 +1,14 @@
-@page "{id:guid}"
-@using Autorep.Web.Domain.Entities
-@using Autorep.Web.Domain.Wizard
-@model Autorep.Web.Pages.App.Tests.WizardModel
+@page
 @{
-    ViewData["Title"] = "Test wizard";
-    var current = Model.Plan.Steps.FirstOrDefault(s => s.Step == Model.Current);
-    var prev = Model.Prev();
-    var next = Model.Next();
+    ViewData["Title"] = "Machine test";
 }
 
-<div class="page-header page-header--wizard">
-    <div class="page-header__heading">
-        <h1>@(Model.Test.Farm?.Name ?? "Machine test")</h1>
-        <p>Test wizard @(Model.Test.MarkedCompleteAt is null ? "· in progress" : "· complete")</p>
-    </div>
-    <div class="page-header__actions">
-        <a class="btn btn--secondary btn--sm" asp-page="/App/Tests/Index">Save &amp; exit</a>
-    </div>
-</div>
+@* The Tester wizard is the offline Preact app (wwwroot/js/dist/autorep.js). It runs entirely
+   client-side over IndexedDB and syncs to the server when online. The bundle is produced by
+   `npm run build` in src/Autorep.Web (CI runs build:prod). Reads ?id to resume a test, or
+   ?farmId/?farmName to start a new one. *@
+<div id="wizard-root"></div>
 
-@if (Model.Plan.IsShortTest)
-{
-    <div class="alert alert--warning">⚠️ <strong>Short test</strong> — ISO ports unavailable, so only the essential tests are required.</div>
+@section Scripts {
+    <script type="module" src="~/js/dist/autorep.js" asp-append-version="true"></script>
 }
-
-<div class="wizard">
-    <nav class="wizard__rail">
-        @{ var n = 0; }
-        @foreach (var s in Model.Plan.Steps)
-        {
-            n++;
-            <a class="wizard__step @(s.Step == Model.Current ? "is-current" : "") @(Model.Completed.Contains(s.Step) ? "is-complete" : "")"
-               asp-page="/App/Tests/Wizard" asp-route-id="@Model.Id" asp-route-step="@s.Step.ToString()">
-                <span class="wizard__num">@n</span>
-                <span class="wizard__step-labels">
-                    <span class="wizard__step-title">@s.Title</span>
-                    @if (s.IsOptional) { <span class="wizard__opt">optional</span> }
-                </span>
-            </a>
-        }
-    </nav>
-
-    <div class="wizard__content">
-        @if (Model.Current == WizardStep.Setup)
-        {
-            <div class="card">
-                <div class="card__title">Farm &amp; details</div>
-                <p style="color:var(--text-muted);margin-bottom:var(--space-4)">Chosen when the test was created.</p>
-                <div class="form-grid">
-                    <div><span style="color:var(--text-muted);font-size:0.8125rem">Farm</span><div>@(Model.Test.Farm?.Name ?? "—")</div></div>
-                    <div><span style="color:var(--text-muted);font-size:0.8125rem">Supply number</span><div>@(Model.Test.Farm?.SupplyNumber ?? "—")</div></div>
-                    <div><span style="color:var(--text-muted);font-size:0.8125rem">Town</span><div>@(Model.Test.Farm?.Town ?? "—")</div></div>
-                    <div><span style="color:var(--text-muted);font-size:0.8125rem">Farmer</span><div>@(Model.Test.Farm?.FarmerName ?? "—")</div></div>
-                </div>
-            </div>
-        }
-        else if (Model.Current == WizardStep.MachineConfiguration)
-        {
-            <form method="post" asp-page-handler="Config" asp-route-id="@Model.Id">
-                <div class="card">
-                    <div class="card__title">Machine configuration</div>
-                    <p style="color:var(--text-muted);margin-bottom:var(--space-5)">These answers determine which steps and sections you'll complete. Saving updates the steps on the left.</p>
-                    <div class="form-grid">
-                        <div class="form-field">
-                            <label asp-for="Config.PlantType">Plant type</label>
-                            <select asp-for="Config.PlantType" asp-items="Html.GetEnumSelectList<PlantType>()"></select>
-                        </div>
-                        <div class="form-field"><label asp-for="Config.ClusterCount">Cluster count (plant size)</label><input asp-for="Config.ClusterCount" type="number" min="0" /></div>
-                        <div class="form-field"><label asp-for="Config.HerdSize">Herd size</label><input asp-for="Config.HerdSize" type="number" min="0" /></div>
-                        <div class="form-field"><label asp-for="Config.MilklineSize">Milkline size</label><input asp-for="Config.MilklineSize" type="text" placeholder="e.g. 100mm" /></div>
-                        <div class="form-field"><label asp-for="Config.PulsatorModel">Pulsator model</label><input asp-for="Config.PulsatorModel" type="text" /></div>
-                        <div class="form-field"><label asp-for="Config.PulsatorCount">Pulsator count</label><input asp-for="Config.PulsatorCount" type="number" min="0" /></div>
-                        <div class="form-field"><label asp-for="Config.ClawModel">Claw model</label><input asp-for="Config.ClawModel" type="text" /></div>
-                        <div class="form-field"><label asp-for="Config.ShellModel">Shell model</label><input asp-for="Config.ShellModel" type="text" /></div>
-                        <div class="form-field"><label asp-for="Config.LinerModel">Liner model</label><input asp-for="Config.LinerModel" type="text" /></div>
-                        <div class="form-field"><label asp-for="Config.NumberOfVacuumPumps">Vacuum pumps</label><input asp-for="Config.NumberOfVacuumPumps" type="number" min="1" /></div>
-                        <div class="form-field">
-                            <label asp-for="Config.PumpLubrication">Pump lubrication</label>
-                            <select asp-for="Config.PumpLubrication" asp-items="Html.GetEnumSelectList<PumpLubrication>()"></select>
-                        </div>
-                    </div>
-
-                    <div class="card__title" style="margin-top:var(--space-6)">Options &amp; ancillary equipment</div>
-                    <div class="form-grid">
-                        <label class="form-check"><input asp-for="Config.VsdFitted" type="checkbox" /> <span>Variable speed drive (VSD)</span></label>
-                        <label class="form-check"><input asp-for="Config.IsoPortsAvailable" type="checkbox" /> <span>ISO test ports available</span></label>
-                        <label class="form-check"><input asp-for="Config.HasPulsatorStopSystem" type="checkbox" /> <span>Pulsator stop system</span></label>
-                        <label class="form-check"><input asp-for="Config.FlushingPulsationSystem" type="checkbox" /> <span>Flushing pulsation system</span></label>
-                        <label class="form-check"><input asp-for="Config.LinerVented" type="checkbox" /> <span>Vented liners</span></label>
-                        <label class="form-check"><input asp-for="Config.HasAcr" type="checkbox" /> <span>Automatic cluster removers (ACRs)</span></label>
-                        <label class="form-check"><input asp-for="Config.HasBailGates" type="checkbox" /> <span>Bail gates</span></label>
-                        <label class="form-check"><input asp-for="Config.HasMilkMeters" type="checkbox" /> <span>Milk meters</span></label>
-                        <label class="form-check"><input asp-for="Config.HasTeatSprayer" type="checkbox" /> <span>Teat sprayer</span></label>
-                        <label class="form-check"><input asp-for="Config.HasBackingGate" type="checkbox" /> <span>Backing gate</span></label>
-                        <label class="form-check"><input asp-for="Config.HasReleaserPump" type="checkbox" /> <span>Releaser pump</span></label>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="submit" class="btn">Save &amp; continue</button>
-                    </div>
-                </div>
-            </form>
-        }
-        else
-        {
-            <div class="card">
-                <div class="card__title">@current?.Title</div>
-                <p style="color:var(--text-muted)">This step is coming next — full offline data entry with live pass/fail.</p>
-                @if (current is not null && current.Sections.Any())
-                {
-                    <p style="margin-top:var(--space-4);font-size:0.875rem;color:var(--text-muted)">Sections for this machine (from the step resolver):</p>
-                    <ul style="margin-top:var(--space-2)">
-                        @foreach (var sec in current.Sections)
-                        {
-                            <li style="padding:2px 0;font-size:0.9rem">• @sec</li>
-                        }
-                    </ul>
-                }
-            </div>
-        }
-
-        <div class="wizard__nav">
-            <div>
-                @if (prev is not null)
-                {
-                    <a class="btn btn--secondary" asp-page="/App/Tests/Wizard" asp-route-id="@Model.Id" asp-route-step="@prev.ToString()">‹ Back</a>
-                }
-            </div>
-            <div>
-                @if (next is not null && Model.Current != WizardStep.MachineConfiguration)
-                {
-                    <a class="btn" asp-page="/App/Tests/Wizard" asp-route-id="@Model.Id" asp-route-step="@next.ToString()">Next ›</a>
-                }
-            </div>
-        </div>
-    </div>
-</div>
