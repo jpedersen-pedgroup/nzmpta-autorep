@@ -26,4 +26,9 @@
     <ProjectReference Include="..\..\src\Autorep.Web\Autorep.Web.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Shared wizard fixtures, also consumed by the future TypeScript (Vitest) mirror. -->
+    <None Include="..\fixtures\wizard\*.json" Link="Fixtures\Wizard\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

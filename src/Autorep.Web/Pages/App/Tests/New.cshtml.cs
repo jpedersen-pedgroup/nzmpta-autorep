@@ -61,15 +61,17 @@ public class NewModel : PageModel
         var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new InvalidOperationException("Missing NameIdentifier claim.");
 
-        _db.MachineTests.Add(new MachineTest
+        var test = new MachineTest
         {
             TesterId = testerId,
             FarmId = Input.FarmId.Value,
             Notes = string.IsNullOrWhiteSpace(Input.Notes) ? null : Input.Notes.Trim(),
-            MarkedCompleteAt = Input.MarkComplete ? DateTimeOffset.UtcNow : null,
-        });
+        };
+        _db.MachineTests.Add(test);
         await _db.SaveChangesAsync();
-        return RedirectToPage("/App/Tests/Index");
+
+        // Creating a test drops the tester straight into the wizard, not the list.
+        return RedirectToPage("/App/Tests/Wizard", new { id = test.Id });
     }
 
     // AJAX from the modal: create a farm and return it for the picker (no navigation).

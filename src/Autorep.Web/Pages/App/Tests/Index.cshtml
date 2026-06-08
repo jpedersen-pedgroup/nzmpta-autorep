@@ -30,8 +30,9 @@ else
                 <tr>
                     <th>Farm</th>
                     <th>Created</th>
-                    <th>Completed</th>
+                    <th>Status</th>
                     <th>Notes</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -43,7 +44,7 @@ else
                         <td>
                             @if (t.MarkedCompleteAt is null)
                             {
-                                <span class="badge">In progress</span>
+                                <span class="badge badge--warning">In progress</span>
                             }
                             else
                             {
@@ -51,6 +52,17 @@ else
                             }
                         </td>
                         <td class="td-muted">@t.Notes</td>
+                        <td class="td-actions">
+                            @if (t.MarkedCompleteAt is null)
+                            {
+                                <a class="btn btn--secondary btn--sm" asp-page="/App/Tests/Wizard" asp-route-id="@t.Id">Continue</a>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn--secondary btn--sm" disabled
+                                        title="Downloads the Final Report — the report generator (M4) will regenerate it on-device from the test data. Coming soon.">⬇ PDF</button>
+                            }
+                        </td>
                     </tr>
                 }
             </tbody>

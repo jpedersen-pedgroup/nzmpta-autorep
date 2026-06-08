@@ -1,0 +1,36 @@
+{
+  "name": "loaded-rotary-vsd",
+  "description": "Large rotary with ACR, milk meters, teat sprayer, releaser pump, VSD, liquid-ring pump.",
+  "config": {
+    "plantType": "Rotary",
+    "clusterCount": 54,
+    "vsdFitted": true,
+    "isoPortsAvailable": true,
+    "pumpLubrication": "LiquidRing",
+    "hasAcr": true,
+    "hasBailGates": true,
+    "hasMilkMeters": true,
+    "hasTeatSprayer": true,
+    "hasBackingGate": false,
+    "hasReleaserPump": true
+  },
+  "expectedSteps": [
+    "Setup", "MachineConfiguration", "VisualFaultsPreStart", "VisualFaultsRunning",
+    "TestRecord", "AdditionalTests", "PulsatorTest", "IndividualClusterTest",
+    "FaultSummary", "ReviewSignOff"
+  ],
+  "optionalSteps": ["IndividualClusterTest"],
+  "shortTest": false,
+  "expectedSections": {
+    "VisualFaultsRunning": ["Rotaries", "MainAirline", "Inlets", "Clusters"],
+    "TestRecord": [
+      "SystemVacuumLevels", "MinPumpSpeedVacuum", "ReserveCharacteristics",
+      "RegulationCharacteristics", "VacuumDropAirline", "RegulatorSensitivity",
+      "ReserveVacuumOffCluster", "VacuumGaugeAccuracy", "VacuumPumpTest", "PumpExhaustPressure"
+    ],
+    "AdditionalTests": [
+      "AirlineMilkSystemLeakage", "AcrConsumption", "ClusterAirAdmission", "MilkMeter",
+      "TeatSpray", "GateCylinder", "ReleaserPumpHeads", "RegulatorLoad"
+    ]
+  }
+}

@@ -60,7 +60,8 @@ public class NewTestPageTests
 
         var result = await model.OnPostAsync();
 
-        result.Should().BeOfType<RedirectToPageResult>();
+        result.Should().BeOfType<RedirectToPageResult>()
+            .Which.PageName.Should().Be("/App/Tests/Wizard");
         (await db.MachineTests.CountAsync()).Should().Be(1);
     }
 }

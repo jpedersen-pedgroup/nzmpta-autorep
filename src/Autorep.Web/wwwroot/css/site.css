@@ -164,6 +164,9 @@ body {
   font-size: 0.75rem;
   color: white;
 }
+/* Wraps nav + user. On desktop it's transparent (display:contents) so they lay out
+   directly in the header; on mobile it becomes the dropdown card (see media query). */
+.app-header__menu { display: contents; }
 
 main {
   flex: 1;
@@ -591,21 +594,45 @@ main {
 
 /* ----- Responsive ---------------------------------------------------------- */
 @media (max-width: 720px) {
-  .app-header__inner { padding: var(--space-3) var(--space-4); flex-wrap: wrap; }
-  .app-header__burger { display: inline-flex; }
-  .app-header__nav {
+  .app-header__inner { padding: var(--space-3) var(--space-4); }
+  /* Brand top-left, burger top-right; nav + user collapse into a floating dropdown card. */
+  .app-header__burger { display: inline-flex; margin-left: auto; }
+  .app-header__menu {
     display: none;
-    order: 4;
-    width: 100%;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: var(--space-4);
+    min-width: 230px;
     flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
-    margin: var(--space-2) 0 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-2);
+    z-index: 50;
   }
-  .app-header__nav.open { display: flex; }
-  .app-header__user-name span { display: none; }
+  .app-header--open .app-header__menu { display: flex; }
+  .app-header__nav { flex: none; flex-direction: column; align-items: stretch; gap: 2px; margin: 0; }
+  .app-header__nav a { color: var(--text); padding: var(--space-3); }
+  .app-header__nav a:hover { background: var(--surface-alt); color: var(--text); }
+  .app-header__user {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    padding: var(--space-3) var(--space-2) var(--space-1);
+    border-top: 1px solid var(--border);
+  }
+  .app-header__user-name { color: var(--text); }
+  .app-header__user-avatar { background: var(--brand); color: #fff; }
+  .app-header__menu .btn--ghost { color: var(--text); border-color: var(--border-strong); }
+  .app-header__menu .btn--ghost:hover { background: var(--surface-alt); border-color: var(--text-subtle); }
   main { padding: var(--space-5) var(--space-4); }
   .page-header { flex-direction: column; align-items: stretch; }
+  /* Wizard header keeps the heading left and a compact Save & exit top-right. */
+  .page-header--wizard { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+  .page-header--wizard .page-header__heading { min-width: 0; }
   .page-header__heading h1 { font-size: 1.5rem; }
   .auth-card { padding: var(--space-6) var(--space-5); }
 }
@@ -613,3 +640,99 @@ main {
 @media print {
   .app-header, .app-footer, .btn { display: none !important; }
 }
+
+/* ----- Add-affordance button (stands out from primary/secondary) ----------- */
+.btn--add {
+  width: 100%;
+  background: var(--success-bg);
+  color: #166534;
+  border: 1.5px dashed var(--accent);
+  font-weight: 600;
+}
+.btn--add:hover { background: #e7f9f0; border-color: #0ea371; }
+
+/* ----- Two-column form grid (modal + wizard config) ------------------------ */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 var(--space-5);
+}
+.form-grid .form-field--full { grid-column: 1 / -1; }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+.modal--wide { max-width: 780px; }
+
+.alert--warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+/* ----- Wizard -------------------------------------------------------------- */
+.wizard { display: grid; grid-template-columns: 280px 1fr; gap: var(--space-6); align-items: start; }
+.wizard__rail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+  position: sticky;
+  top: var(--space-6);
+}
+.wizard__step {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+.wizard__step:hover { background: var(--surface-alt); }
+.wizard__step.is-current { background: rgba(10,37,64,0.06); }
+.wizard__step.is-complete .wizard__num { background: var(--success); color: #fff; }
+.wizard__step.is-current .wizard__num { background: var(--brand); color: #fff; }
+.wizard__num {
+  width: 24px; height: 24px; flex: none;
+  border-radius: 50%;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  display: grid; place-items: center;
+  font-size: 0.8125rem; font-weight: 600;
+}
+.wizard__step-title { font-size: 0.9rem; font-weight: 500; display: block; }
+.wizard__opt { font-size: 0.7rem; color: var(--warning); text-transform: uppercase; letter-spacing: 0.04em; }
+.wizard__nav { display: flex; justify-content: space-between; margin-top: var(--space-5); }
+@media (max-width: 720px) {
+  .wizard { grid-template-columns: 1fr; }
+  /* Steps become a horizontal progress stepper: numbered circles joined by a line that
+     fills green as steps complete; the current one is highlighted. Tap a number to jump. */
+  .wizard__rail {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 0;
+    padding: var(--space-3) var(--space-2);
+    -webkit-overflow-scrolling: touch;
+  }
+  .wizard__step { position: relative; flex: 0 0 auto; min-width: 60px; flex-direction: column; align-items: center; padding: var(--space-2) 0; }
+  .wizard__step:hover { background: transparent; }
+  .wizard__step::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    right: 50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border-strong);
+    z-index: 0;
+  }
+  .wizard__step:first-child::before { display: none; }
+  .wizard__step.is-complete + .wizard__step::before { background: var(--success); }
+  .wizard__num { position: relative; z-index: 1; }
+  .wizard__step-labels { display: none; }
+}
+
+/* ----- Small button + table actions ---------------------------------------- */
+.btn--sm { padding: 0.35rem 0.7rem; min-height: 32px; font-size: 0.8125rem; }
+.td-actions { text-align: right; white-space: nowrap; }
+.td-actions .btn + .btn { margin-left: var(--space-2); }

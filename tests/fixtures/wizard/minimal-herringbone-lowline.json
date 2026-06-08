@@ -1,0 +1,33 @@
+{
+  "name": "minimal-herringbone-lowline",
+  "description": "Small herringbone, no ancillaries, no VSD, oil pump, ISO ports available.",
+  "config": {
+    "plantType": "HerringboneLowline",
+    "clusterCount": 20,
+    "vsdFitted": false,
+    "isoPortsAvailable": true,
+    "pumpLubrication": "OilLubricated",
+    "hasAcr": false,
+    "hasBailGates": false,
+    "hasMilkMeters": false,
+    "hasTeatSprayer": false,
+    "hasBackingGate": false,
+    "hasReleaserPump": false
+  },
+  "expectedSteps": [
+    "Setup", "MachineConfiguration", "VisualFaultsPreStart", "VisualFaultsRunning",
+    "TestRecord", "AdditionalTests", "PulsatorTest", "IndividualClusterTest",
+    "FaultSummary", "ReviewSignOff"
+  ],
+  "optionalSteps": ["IndividualClusterTest"],
+  "shortTest": false,
+  "expectedSections": {
+    "VisualFaultsRunning": ["BailArea", "MainAirline", "Inlets", "Clusters"],
+    "TestRecord": [
+      "SystemVacuumLevels", "ReserveCharacteristics", "RegulationCharacteristics",
+      "VacuumDropAirline", "RegulatorSensitivity", "ReserveVacuumOffCluster",
+      "VacuumGaugeAccuracy", "VacuumPumpTest", "PumpExhaustPressure"
+    ],
+    "AdditionalTests": ["AirlineMilkSystemLeakage", "ClusterAirAdmission", "RegulatorLoad"]
+  }
+}

@@ -14,6 +14,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<Region> Regions => Set<Region>();
     public DbSet<MilkSupplyCompany> MilkSupplyCompanies => Set<MilkSupplyCompany>();
     public DbSet<MachineTest> MachineTests => Set<MachineTest>();
+    public DbSet<MachineConfiguration> MachineConfigurations => Set<MachineConfiguration>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
@@ -28,6 +29,23 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             .HasIndex(t => t.ClientId)
             .IsUnique()
             .HasFilter("[ClientId] IS NOT NULL");
+
+        builder.Entity<MachineConfiguration>(cfg =>
+        {
+            cfg.HasIndex(c => c.MachineTestId).IsUnique();
+            cfg.HasOne(c => c.MachineTest)
+                .WithOne(t => t.Configuration!)
+                .HasForeignKey<MachineConfiguration>(c => c.MachineTestId)
+                .OnDelete(DeleteBehavior.Cascade);
+            cfg.Property(c => c.PlantType).HasConversion<string>().HasMaxLength(40);
+            cfg.Property(c => c.PumpLubrication).HasConversion<string>().HasMaxLength(40);
+            cfg.Property(c => c.PulsatorModel).HasMaxLength(150);
+            cfg.Property(c => c.ClawModel).HasMaxLength(150);
+            cfg.Property(c => c.ShellModel).HasMaxLength(150);
+            cfg.Property(c => c.LinerModel).HasMaxLength(150);
+            cfg.Property(c => c.MilklineSize).HasMaxLength(50);
+            cfg.Property(c => c.LastBmcc).HasMaxLength(100);
+        });
 
         builder.Entity<AuditEntry>()
             .HasIndex(a => a.Timestamp);
