@@ -65,7 +65,7 @@
 - [ ] 🟡 Test setup step (select/create farm) — basic `Pages/App/Tests/New` exists; not the full wizard
 - [ ] 🟡 Machine configuration step — **`MachineConfiguration` entity + EF migration done (8 Jun)** (plant type, cluster count, pulsator, claw/shell/liner, milkline, VSD, pump lubrication, ancillary flags, ISO ports, pulsator-stop); **UI step pending**
 - [ ] ⬜ Ancillary equipment step (+ "Other" on every lookup)
-- [ ] 🟡 Wizard Step Resolver — **.NET done (8 Jun)**: legacy-aligned steps + branch rules (rotary/herringbone, VSD min-speed, ACR/ancillary sections, optional cluster step, short-test flag), shared JSON fixtures in `tests/fixtures/wizard`, 6 xUnit tests green. **TS mirror pending** (with toolchain)
+- [x] ✅ Wizard Step Resolver — **.NET + TS mirror done (8 Jun)**: legacy-aligned steps + branch rules (rotary/herringbone, VSD min-speed, ACR/ancillary sections, optional cluster step, short-test flag); shared JSON fixtures in `tests/fixtures/wizard` drive **both** (6 xUnit + 6 Vitest green). TS toolchain stood up: npm + esbuild + Vitest under `src/Autorep.Web` (`Client/`), CI runs typecheck + Vitest. *(esbuild pinned ≥0.25 via override; remaining npm-audit items are dev-server-only vite advisories — prod deps 0 vulns.)*
 - [ ] ⬜ Visual faults — pre-start (checklist + "Check all as verified" + attestation)
 - [ ] ⬜ Visual faults — running (+ Guards-Installed-on-Pulsators boolean)
 - [ ] ⬜ Vacuum & reserve tests (sections 1–7) with live pass/fail

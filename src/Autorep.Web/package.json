@@ -1,0 +1,23 @@
+{
+  "name": "autorep-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AutoRep PWA client: shared TypeScript modules (Wizard Step Resolver, Pass/Fail Calculator, Sync Client) + offline wizard. Bundled with esbuild, tested with Vitest.",
+  "scripts": {
+    "build": "esbuild Client/main.ts --bundle --format=esm --outfile=wwwroot/js/dist/autorep.js",
+    "build:prod": "esbuild Client/main.ts --bundle --minify --format=esm --outfile=wwwroot/js/dist/autorep.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0"
+  }
+}

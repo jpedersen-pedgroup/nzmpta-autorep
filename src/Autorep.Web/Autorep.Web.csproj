@@ -4,6 +4,10 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The TypeScript client (Client/**) is built by npm/esbuild, and node_modules is a
+         dependency cache — keep both out of the .NET build/publish globs. The compiled
+         bundle lands in wwwroot/js/dist and is served as a normal static asset. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;Client\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

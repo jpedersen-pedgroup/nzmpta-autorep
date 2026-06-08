@@ -71,3 +71,8 @@ obj/
 # Local dev secrets
 appsettings.Development.local.json
 .env.local
+
+# Node / client build
+node_modules/
+src/Autorep.Web/wwwroot/js/dist/
+npm-debug.log*
