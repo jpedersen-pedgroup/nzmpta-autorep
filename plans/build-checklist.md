@@ -68,11 +68,11 @@
 - [x] ✅ Wizard Step Resolver — **.NET + TS mirror done (8 Jun)**: legacy-aligned steps + branch rules (rotary/herringbone, VSD min-speed, ACR/ancillary sections, optional cluster step, short-test flag); shared JSON fixtures in `tests/fixtures/wizard` drive **both** (6 xUnit + 6 Vitest green). TS toolchain stood up: npm + esbuild + Vitest under `src/Autorep.Web` (`Client/`), CI runs typecheck + Vitest. *(esbuild pinned ≥0.25 via override; remaining npm-audit items are dev-server-only vite advisories — prod deps 0 vulns.)*
 - [ ] ⬜ Visual faults — pre-start (checklist + "Check all as verified" + attestation)
 - [ ] ⬜ Visual faults — running (+ Guards-Installed-on-Pulsators boolean)
-- [ ] ⬜ Vacuum & reserve tests (sections 1–7) with live pass/fail
+- [ ] 🟡 Vacuum & reserve / **Test Record** — **first cut (9 Jun)**: tabbed System-vacuum / Reserve / Gauge-accuracy readings with **live pass/fail** (config-driven effective-reserve threshold from cluster count); full ISO 1–9 reading set + remaining standards still to come
 - [ ] ⬜ Additional tests (sections 8–16), auto-hidden when equipment absent
 - [ ] ⬜ Pulsator tests (per-pulsator rates/ratios; "faulty rows only" / "enter all")
 - [ ] ⬜ Individual cluster tests (optional / skippable)
-- [ ] ⬜ Pass/Fail Calculator (.NET + TS mirror, shared fixtures)
+- [x] ✅ Pass/Fail Calculator — **.NET + TS mirror done (9 Jun)**: pure evaluator (atMost/atLeast/between/tolerance/none), shared fixtures in `tests/fixtures/passfail` drive both (xUnit + Vitest). Standards: EffectiveArea reserve-by-cluster lookup embedded
 - [ ] ⬜ Fault Aggregator (.NET) + Fault Summary step with per-fault severity
 - [ ] ⬜ Recommendations step (Standard Recommendation Wording dropdown + freeform)
 - [ ] ⬜ Next Test Date (pre-populated +12 months) + compliance disclaimer

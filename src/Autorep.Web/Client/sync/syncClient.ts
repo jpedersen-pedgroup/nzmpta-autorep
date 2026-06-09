@@ -50,6 +50,7 @@ async function pullTests(): Promise<number> {
       currentStep: "Setup",
       visualFaults: {},
       attestations: [],
+      readings: {},
       createdAt: r.createdAt,
       updatedAt: now,
       markedCompleteAt: r.markedCompleteAt,

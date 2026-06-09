@@ -38,6 +38,8 @@ export interface LocalTest {
   visualFaults: Record<string, VisualFaultEntry>;
   /** "Check all as verified" attestations recorded against steps. */
   attestations: ChecklistAttestation[];
+  /** Test Record numerical readings, keyed by reading key. */
+  readings: Record<string, number>;
   /** Visual Faults — Running: guards installed on pulsators. */
   guardsOnPulsators?: boolean;
   notes?: string;

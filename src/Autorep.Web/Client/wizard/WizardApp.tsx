@@ -17,6 +17,8 @@ import { getTest, putTest, type FarmSnapshot, type LocalTest } from "../db/testS
 import { fetchFarm } from "../farms";
 import { Tabs } from "../ui/Tabs";
 import { useServerOnline } from "../connectivity";
+import { TestRecordStep } from "./TestRecordStep";
+import { testRecordSections } from "../passfail/standards";
 import { VisualFaultsStep } from "./VisualFaultsStep";
 import {
   applyCheckAll,
@@ -49,6 +51,7 @@ function newLocalTest(farmId?: string, farmName?: string): LocalTest {
     currentStep: "Setup",
     visualFaults: {},
     attestations: [],
+    readings: {},
     createdAt: now,
     updatedAt: now,
     markedCompleteAt: null,
@@ -66,6 +69,9 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
   const runningKeys = resolveWizard(t.config).steps.find((s) => s.step === "VisualFaultsRunning")?.sections ?? [];
   if (checklistComplete(runningSectionsFor(runningKeys), t.visualFaults)) {
     done.add("VisualFaultsRunning");
+  }
+  if (testRecordSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
+    done.add("TestRecord");
   }
   return done;
 }
@@ -117,6 +123,12 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     if (entry) visualFaults[key] = entry;
     else delete visualFaults[key];
     return persist({ visualFaults });
+  };
+  const setReading = (key: string, value: number | null) => {
+    const readings = { ...test.readings };
+    if (value === null || Number.isNaN(value)) delete readings[key];
+    else readings[key] = value;
+    return persist({ readings });
   };
   const checkAllSection = (step: WizardStep, section: ChecklistSection) => {
     const attestation: ChecklistAttestation = {
@@ -321,10 +333,19 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             />
           )}
 
+          {current === "TestRecord" && (
+            <TestRecordStep
+              config={test.config}
+              readings={test.readings}
+              onSetReading={(k, v) => void setReading(k, v)}
+            />
+          )}
+
           {current !== "Setup" &&
             current !== "MachineConfiguration" &&
             current !== "VisualFaultsPreStart" &&
-            current !== "VisualFaultsRunning" && (
+            current !== "VisualFaultsRunning" &&
+            current !== "TestRecord" && (
               <div class="card">
                 <div class="card__title">
                   {currentStep.title} <small class="card__hint">Offline data entry for this step is coming next.</small>

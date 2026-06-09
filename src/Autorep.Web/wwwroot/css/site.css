@@ -810,3 +810,14 @@ main {
 @media (max-width: 720px) {
   .toast-container { left: var(--space-4); right: var(--space-4); bottom: var(--space-4); max-width: none; }
 }
+
+/* ----- Test Record readings + pass/fail badges ----------------------------- */
+.reading { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
+.reading__label { flex: 1; font-size: 0.9375rem; }
+.reading__hint { display: block; font-size: 0.75rem; color: var(--text-muted); }
+.reading input { width: 110px; flex: none; padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.9rem; background: var(--surface); }
+.reading__unit { width: 46px; font-size: 0.8125rem; color: var(--text-muted); }
+.pf { min-width: 52px; text-align: center; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; padding: 3px 8px; border-radius: var(--radius-sm); }
+.pf--pass { background: var(--success-bg); color: #166534; }
+.pf--fail { background: var(--danger-bg); color: #991b1b; }
+.pf--noStandard { background: var(--surface-alt); color: var(--text-subtle); }

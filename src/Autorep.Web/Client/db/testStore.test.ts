@@ -12,6 +12,7 @@ function sample(id: string, farmName = "Sunny Acres"): LocalTest {
     currentStep: "Setup",
     visualFaults: {},
     attestations: [],
+    readings: {},
     createdAt: now,
     updatedAt: now,
     markedCompleteAt: null,
