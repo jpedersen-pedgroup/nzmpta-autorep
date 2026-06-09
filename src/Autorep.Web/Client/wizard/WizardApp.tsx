@@ -8,15 +8,13 @@ import {
   defaultMachineConfiguration,
   type ChecklistAttestation,
   type MachineConfiguration,
-  type PlantType,
-  type PumpLubrication,
   type VisualFaultEntry,
   type WizardStep,
 } from "./types";
 import { getTest, putTest, type FarmSnapshot, type LocalTest } from "../db/testStore";
 import { fetchFarm } from "../farms";
-import { Tabs } from "../ui/Tabs";
 import { useServerOnline } from "../connectivity";
+import { MachineConfigStep } from "./MachineConfigStep";
 import { ReadingsStep } from "./ReadingsStep";
 import {
   additionalTestSections,
@@ -256,86 +254,21 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               <p style="color:var(--text-muted);font-size:0.8125rem;margin-top:var(--space-4)">
                 Farm details are managed in the admin area.
               </p>
+
+              <div class="card__title" style="margin-top:var(--space-5)">
+                Calibration expiry dates{" "}
+                <small class="card__hint">Your test equipment — air-flow meters, pulsator testers, vacuum gauges.</small>
+              </div>
+              <div class="form-grid">
+                {calDateField("Air-flow meters", test.calAirFlowMeters, (v) => void persist({ calAirFlowMeters: v }))}
+                {calDateField("Pulsator testers", test.calPulsatorTesters, (v) => void persist({ calPulsatorTesters: v }))}
+                {calDateField("Vacuum gauges", test.calVacuumGauges, (v) => void persist({ calVacuumGauges: v }))}
+              </div>
             </div>
           )}
 
           {current === "MachineConfiguration" && (
-            <div class="card">
-              <div class="card__title">
-                Machine configuration{" "}
-                <small class="card__hint">Changes save to this device immediately and re-resolve the steps on the left.</small>
-              </div>
-              <Tabs
-                tabs={[
-                  {
-                    key: "machine",
-                    label: "Machine",
-                    content: (
-                      <div class="form-grid">
-                        <div class="form-field">
-                          <label>Plant type</label>
-                          <select
-                            value={test.config.plantType}
-                            onChange={(e) =>
-                              void setConfig({ plantType: (e.currentTarget as HTMLSelectElement).value as PlantType })
-                            }
-                          >
-                            <option value="HerringboneLowline">Herringbone (lowline)</option>
-                            <option value="HerringboneHighline">Herringbone (highline)</option>
-                            <option value="Rotary">Rotary</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        </div>
-                        <div class="form-field">
-                          <label>Cluster count</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={test.config.clusterCount}
-                            onInput={(e) =>
-                              void setConfig({ clusterCount: Number((e.currentTarget as HTMLInputElement).value) || 0 })
-                            }
-                          />
-                        </div>
-                        <div class="form-field">
-                          <label>Pump lubrication</label>
-                          <select
-                            value={test.config.pumpLubrication}
-                            onChange={(e) =>
-                              void setConfig({
-                                pumpLubrication: (e.currentTarget as HTMLSelectElement).value as PumpLubrication,
-                              })
-                            }
-                          >
-                            <option value="OilLubricated">Oil lubricated</option>
-                            <option value="LiquidRing">Liquid ring</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        </div>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: "ancillary",
-                    label: "Ancillary equipment",
-                    content: (
-                      <div class="form-grid">
-                        {confToggle("Variable speed drive (VSD)", test.config.vsdFitted, (v) => void setConfig({ vsdFitted: v }))}
-                        {confToggle("ISO test ports available", test.config.isoPortsAvailable, (v) => void setConfig({ isoPortsAvailable: v }))}
-                        {confToggle("Flushing pulsation system", test.config.flushingPulsationSystem, (v) => void setConfig({ flushingPulsationSystem: v }))}
-                        {confToggle("Vented liners", test.config.linerVented, (v) => void setConfig({ linerVented: v }))}
-                        {confToggle("Automatic cluster removers (ACRs)", test.config.hasAcr, (v) => void setConfig({ hasAcr: v }))}
-                        {confToggle("Bail gates", test.config.hasBailGates, (v) => void setConfig({ hasBailGates: v }))}
-                        {confToggle("Milk meters", test.config.hasMilkMeters, (v) => void setConfig({ hasMilkMeters: v }))}
-                        {confToggle("Teat sprayer", test.config.hasTeatSprayer, (v) => void setConfig({ hasTeatSprayer: v }))}
-                        {confToggle("Backing gate", test.config.hasBackingGate, (v) => void setConfig({ hasBackingGate: v }))}
-                        {confToggle("Releaser pump", test.config.hasReleaserPump, (v) => void setConfig({ hasReleaserPump: v }))}
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </div>
+            <MachineConfigStep config={test.config} onChange={(patch) => void setConfig(patch)} />
           )}
 
           {current === "VisualFaultsPreStart" && (
@@ -458,21 +391,21 @@ function farmField(label: string, value?: string | null) {
   );
 }
 
+function calDateField(label: string, value: string | null | undefined, onChange: (v: string | null) => void) {
+  return (
+    <div class="form-field">
+      <label>{label}</label>
+      <input
+        type="date"
+        value={value ?? ""}
+        onInput={(e) => onChange((e.currentTarget as HTMLInputElement).value || null)}
+      />
+    </div>
+  );
+}
+
 function farmAddress(f?: FarmSnapshot): string | null {
   if (!f) return null;
   const parts = [f.addressLine1, f.addressLine2, f.town, f.postCode].filter((p): p is string => Boolean(p));
   return parts.length > 0 ? parts.join(", ") : null;
-}
-
-function confToggle(label: string, checked: boolean, onChange: (v: boolean) => void) {
-  return (
-    <label class="form-check">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange((e.currentTarget as HTMLInputElement).checked)}
-      />
-      <span>{label}</span>
-    </label>
-  );
 }

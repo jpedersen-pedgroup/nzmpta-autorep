@@ -46,6 +46,10 @@ export interface LocalTest {
   dataFields: Record<string, string>;
   /** Visual Faults — Running: guards installed on pulsators. */
   guardsOnPulsators?: boolean;
+  /** Tester equipment calibration expiry dates (ISO date strings), shown with the farm details. */
+  calAirFlowMeters?: string | null;
+  calPulsatorTesters?: string | null;
+  calVacuumGauges?: string | null;
   notes?: string;
   createdAt: string;
   updatedAt: string;

@@ -25,16 +25,26 @@ export type WizardStep =
 
 export interface MachineConfiguration {
   plantType: PlantType;
+  /** Free-text plant size descriptor (legacy PlantSize, e.g. "30 a-side"). */
+  plantSize?: string | null;
   clusterCount: number;
   herdSize?: number | null;
   lastBmcc?: string | null;
   milklineSize?: string | null;
+  /** Atmospheric pressure at sea level (kPa) — selects the airflow correction factor. */
+  atmosPressureSeaLevel?: number | null;
   flushingPulsationSystem: boolean;
+  pulsatorBrand?: string | null;
   pulsatorModel?: string | null;
+  /** Pulsator configuration (legacy PulsatorSize, e.g. "2 X 2", "4 + 0"). */
+  pulsatorConfiguration?: string | null;
   pulsatorCount: number;
   clawModel?: string | null;
   shellModel?: string | null;
+  /** Front liner (legacy Liner). */
   linerModel?: string | null;
+  /** Back liner (legacy BackLiner). */
+  backLiner?: string | null;
   linerVented: boolean;
   numberOfVacuumPumps: number;
   pumpLubrication: PumpLubrication;
@@ -83,16 +93,21 @@ export interface ChecklistAttestation {
 export function defaultMachineConfiguration(): MachineConfiguration {
   return {
     plantType: "HerringboneLowline",
+    plantSize: null,
     clusterCount: 0,
     herdSize: null,
     lastBmcc: null,
     milklineSize: null,
+    atmosPressureSeaLevel: null,
     flushingPulsationSystem: false,
+    pulsatorBrand: null,
     pulsatorModel: null,
+    pulsatorConfiguration: null,
     pulsatorCount: 0,
     clawModel: null,
     shellModel: null,
     linerModel: null,
+    backLiner: null,
     linerVented: false,
     numberOfVacuumPumps: 1,
     pumpLubrication: "OilLubricated",
