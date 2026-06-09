@@ -4,6 +4,7 @@
 import type { ComponentChildren } from "preact";
 import type { MachineConfiguration, PlantType, PumpLubrication } from "./types";
 import { Tabs } from "../ui/Tabs";
+import { Combobox } from "../ui/Combobox";
 import {
   ATMOS_PRESSURES,
   LINERS,
@@ -72,33 +73,6 @@ function NumberInput({
   );
 }
 
-function StringSelect({
-  value,
-  onChange,
-  options,
-}: {
-  value?: string | null;
-  onChange: (v: string | null) => void;
-  options: readonly string[];
-}) {
-  return (
-    <select
-      value={value ?? ""}
-      onChange={(e) => {
-        const v = (e.currentTarget as HTMLSelectElement).value;
-        onChange(v === "" ? null : v);
-      }}
-    >
-      <option value="">— select —</option>
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 function Toggle({
   label,
   checked,
@@ -152,7 +126,12 @@ export function MachineConfigStep({ config, onChange }: Props) {
             <NumberInput value={config.herdSize} min={0} onInput={(v) => onChange({ herdSize: v })} />
           </Field>
           <Field label="Milkline size (mm)">
-            <StringSelect value={config.milklineSize} onChange={(v) => onChange({ milklineSize: v })} options={MILKLINE_SIZES} />
+            <Combobox
+              value={config.milklineSize}
+              onChange={(v) => onChange({ milklineSize: v })}
+              options={MILKLINE_SIZES}
+              listId="cfg-milkline"
+            />
           </Field>
           <Field label="Atmos. pressure at sea level (kPa)">
             <select
@@ -201,27 +180,34 @@ export function MachineConfigStep({ config, onChange }: Props) {
       content: (
         <div class="form-grid">
           <Field label="Pulsator brand">
-            <StringSelect
+            <Combobox
               value={config.pulsatorBrand}
-              onChange={(v) => onChange({ pulsatorBrand: v, pulsatorModel: null })}
+              onChange={(v) => {
+                // Auto-select the type when the chosen brand has only one model.
+                const models = pulsatorModelsForBrand(v);
+                onChange({ pulsatorBrand: v, pulsatorModel: models.length === 1 ? models[0] : null });
+              }}
               options={PULSATOR_BRANDS}
+              listId="cfg-pulsator-brand"
             />
           </Field>
           <Field label="Pulsator type">
-            <StringSelect
+            <Combobox
               value={config.pulsatorModel}
               onChange={(v) => onChange({ pulsatorModel: v })}
               options={pulsatorModelsForBrand(config.pulsatorBrand)}
+              listId="cfg-pulsator-type"
             />
           </Field>
           <Field label="No. of pulsators">
             <NumberInput value={config.pulsatorCount} min={0} onInput={(v) => onChange({ pulsatorCount: v ?? 0 })} />
           </Field>
           <Field label="Pulsator configuration">
-            <StringSelect
+            <Combobox
               value={config.pulsatorConfiguration}
               onChange={(v) => onChange({ pulsatorConfiguration: v })}
               options={PULSATOR_CONFIGS}
+              listId="cfg-pulsator-config"
             />
           </Field>
           <Toggle
@@ -246,13 +232,13 @@ export function MachineConfigStep({ config, onChange }: Props) {
             <TextInput value={config.clawModel} onInput={(v) => onChange({ clawModel: v })} placeholder="Enter claw" />
           </Field>
           <Field label="Shell">
-            <StringSelect value={config.shellModel} onChange={(v) => onChange({ shellModel: v })} options={SHELLS} />
+            <Combobox value={config.shellModel} onChange={(v) => onChange({ shellModel: v })} options={SHELLS} listId="cfg-shell" />
           </Field>
           <Field label="Front liner">
-            <StringSelect value={config.linerModel} onChange={(v) => onChange({ linerModel: v })} options={LINERS} />
+            <Combobox value={config.linerModel} onChange={(v) => onChange({ linerModel: v })} options={LINERS} listId="cfg-front-liner" />
           </Field>
           <Field label="Back liner">
-            <StringSelect value={config.backLiner} onChange={(v) => onChange({ backLiner: v })} options={LINERS} />
+            <Combobox value={config.backLiner} onChange={(v) => onChange({ backLiner: v })} options={LINERS} listId="cfg-back-liner" />
           </Field>
           <Toggle label="Vented liners" checked={config.linerVented} onChange={(v) => onChange({ linerVented: v })} />
         </div>

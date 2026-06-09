@@ -7,6 +7,7 @@ import { type ChecklistItem, type ChecklistSection, checklistComplete } from "./
 import { Tabs } from "../ui/Tabs";
 import { faultObservationsFor } from "../reference/lookups";
 import { severityForObservation } from "../reference/faultRatings";
+import { Combobox } from "../ui/Combobox";
 
 interface Props {
   title: string;
@@ -66,9 +67,17 @@ function ItemRow({
           </button>
           <button
             class={"bad" + (entry?.status === "fault" ? " on" : "")}
-            onClick={() =>
-              onSetEntry(item.key, entry?.status === "fault" ? null : { status: "fault", severity: "Major" })
-            }
+            onClick={() => {
+              if (entry?.status === "fault") return onSetEntry(item.key, null);
+              // If the check has exactly one standard fault, select it automatically.
+              const obs = faultObservationsFor(item.lookup);
+              onSetEntry(
+                item.key,
+                obs.length === 1
+                  ? { status: "fault", observation: obs[0], severity: severityForObservation(obs[0]) }
+                  : { status: "fault", severity: "Major" },
+              );
+            }}
           >
             Fault
           </button>
@@ -77,21 +86,16 @@ function ItemRow({
       {entry?.status === "fault" && (
         <div class="fault-detail">
           {faultObservationsFor(item.lookup).length > 0 && (
-            <select
+            <Combobox
               class="fault-detail__obs"
-              value={entry.observation ?? ""}
-              onChange={(e) => {
-                const obs = (e.currentTarget as HTMLSelectElement).value || undefined;
-                onSetEntry(item.key, { ...entry, observation: obs, severity: severityForObservation(obs) });
-              }}
-            >
-              <option value="">— select fault —</option>
-              {faultObservationsFor(item.lookup).map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
+              listId={`obs-${item.key}`}
+              placeholder="— select or type fault —"
+              value={entry.observation ?? null}
+              options={faultObservationsFor(item.lookup)}
+              onChange={(obs) =>
+                onSetEntry(item.key, { ...entry, observation: obs ?? undefined, severity: severityForObservation(obs) })
+              }
+            />
           )}
           <select
             value={entry.severity ?? "Major"}
