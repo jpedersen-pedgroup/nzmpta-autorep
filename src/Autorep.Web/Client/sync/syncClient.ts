@@ -52,6 +52,7 @@ async function pullTests(): Promise<number> {
       attestations: [],
       readings: {},
       recommendations: {},
+      dataFields: {},
       createdAt: r.createdAt,
       updatedAt: now,
       markedCompleteAt: r.markedCompleteAt,

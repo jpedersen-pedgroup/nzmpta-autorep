@@ -14,6 +14,7 @@ function sample(id: string, farmName = "Sunny Acres"): LocalTest {
     attestations: [],
     readings: {},
     recommendations: {},
+    dataFields: {},
     createdAt: now,
     updatedAt: now,
     markedCompleteAt: null,

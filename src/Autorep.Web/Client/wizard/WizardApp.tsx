@@ -60,6 +60,7 @@ function newLocalTest(farmId?: string, farmName?: string): LocalTest {
     attestations: [],
     readings: {},
     recommendations: {},
+    dataFields: {},
     createdAt: now,
     updatedAt: now,
     markedCompleteAt: null,
@@ -156,6 +157,12 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     if (value.trim() === "") delete recommendations[key];
     else recommendations[key] = value;
     return persist({ recommendations });
+  };
+  const setDataField = (key: string, value: string) => {
+    const dataFields = { ...(test.dataFields ?? {}) };
+    if (value.trim() === "") delete dataFields[key];
+    else dataFields[key] = value;
+    return persist({ dataFields });
   };
   const checkAllSection = (step: WizardStep, section: ChecklistSection) => {
     const attestation: ChecklistAttestation = {
@@ -342,6 +349,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
                 if (sec) void checkAllSection("VisualFaultsPreStart", sec);
               }}
               attestedSections={attestedSectionsFor("VisualFaultsPreStart")}
+              dataValues={test.dataFields ?? {}}
+              onSetData={(k, v) => void setDataField(k, v)}
             />
           )}
 
@@ -356,6 +365,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
                 if (sec) void checkAllSection("VisualFaultsRunning", sec);
               }}
               attestedSections={attestedSectionsFor("VisualFaultsRunning")}
+              dataValues={test.dataFields ?? {}}
+              onSetData={(k, v) => void setDataField(k, v)}
               guards={{ value: test.guardsOnPulsators ?? false, onChange: (v) => void persist({ guardsOnPulsators: v }) }}
             />
           )}

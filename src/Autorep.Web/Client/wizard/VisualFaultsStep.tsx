@@ -15,6 +15,9 @@ interface Props {
   onCheckAll: (sectionKey: string) => void;
   /** Section keys already attested. */
   attestedSections: string[];
+  /** Data-capture field values (sizes/diameters), keyed by item key. */
+  dataValues: Record<string, string>;
+  onSetData: (key: string, value: string) => void;
   guards?: { value: boolean; onChange: (v: boolean) => void };
 }
 
@@ -25,11 +28,29 @@ function ItemRow({
   item,
   entry,
   onSetEntry,
+  dataValue,
+  onSetData,
 }: {
   item: ChecklistItem;
   entry?: VisualFaultEntry;
   onSetEntry: (key: string, entry: VisualFaultEntry | null) => void;
+  dataValue?: string;
+  onSetData: (key: string, value: string) => void;
 }) {
+  if (item.data) {
+    return (
+      <div class="checkitem">
+        <div class="checkitem__name">{item.label}</div>
+        <input
+          class="checkitem__data"
+          type="text"
+          placeholder={item.unit ?? ""}
+          value={dataValue ?? ""}
+          onInput={(e) => onSetData(item.key, (e.currentTarget as HTMLInputElement).value)}
+        />
+      </div>
+    );
+  }
   return (
     <div>
       <div class="checkitem">
@@ -75,7 +96,17 @@ function ItemRow({
   );
 }
 
-export function VisualFaultsStep({ title, sections, entries, onSetEntry, onCheckAll, attestedSections, guards }: Props) {
+export function VisualFaultsStep({
+  title,
+  sections,
+  entries,
+  onSetEntry,
+  onCheckAll,
+  attestedSections,
+  dataValues,
+  onSetData,
+  guards,
+}: Props) {
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const tabs = sections.map((sec) => ({
@@ -84,7 +115,14 @@ export function VisualFaultsStep({ title, sections, entries, onSetEntry, onCheck
     content: (
       <div>
         {sec.items.map((it) => (
-          <ItemRow key={it.key} item={it} entry={entries[it.key]} onSetEntry={onSetEntry} />
+          <ItemRow
+            key={it.key}
+            item={it}
+            entry={entries[it.key]}
+            onSetEntry={onSetEntry}
+            dataValue={dataValues[it.key]}
+            onSetData={onSetData}
+          />
         ))}
         <div style="display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-4)">
           <button class="btn btn--secondary btn--sm" onClick={() => setConfirming(sec.key)}>

@@ -42,6 +42,8 @@ export interface LocalTest {
   readings: Record<string, number>;
   /** Recommendation text per fault, keyed by the fault's source key. */
   recommendations: Record<string, string>;
+  /** Visual-fault data-capture fields (belt sizes, diameters, lengths…), keyed by item key. */
+  dataFields: Record<string, string>;
   /** Visual Faults — Running: guards installed on pulsators. */
   guardsOnPulsators?: boolean;
   notes?: string;

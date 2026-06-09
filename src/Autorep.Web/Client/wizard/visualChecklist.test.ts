@@ -11,7 +11,12 @@ import type { VisualFaultEntry } from "./types";
 describe("visual checklist", () => {
   it("includes the releaser-pump section only when present", () => {
     expect(preStartSections(false).map((s) => s.key)).toEqual(["VacuumPump"]);
-    expect(preStartSections(true).map((s) => s.key)).toEqual(["VacuumPump", "ReleaserMilkPump"]);
+    expect(preStartSections(true).map((s) => s.key)).toEqual([
+      "VacuumPump",
+      "ReleaserBeltDriven",
+      "ReleaserType",
+      "Releasers",
+    ]);
   });
 
   it("maps resolver section keys to running checklist sections, skipping unknowns", () => {
