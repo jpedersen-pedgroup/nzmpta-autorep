@@ -56,8 +56,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Other API + Account/auth flows: always go to the network.
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/Account/')) {
+  // API, auth flows + the health probe: always go to the network (never cache-serve, so the
+  // connectivity check reflects real reachability).
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/Account/') || url.pathname === '/health') {
     return;
   }
 

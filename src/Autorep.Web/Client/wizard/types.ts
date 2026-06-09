@@ -73,6 +73,8 @@ export interface VisualFaultEntry {
 /** Records a use of "Check all as verified" on a wizard step (the PRD attestation trail). */
 export interface ChecklistAttestation {
   step: WizardStep;
+  /** The checklist section attested ("Check all as verified" is per-section/tab). */
+  section?: string;
   attestedAt: string;
   text: string;
 }

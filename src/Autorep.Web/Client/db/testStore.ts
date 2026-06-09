@@ -6,12 +6,31 @@ import type { ChecklistAttestation, MachineConfiguration, VisualFaultEntry } fro
 
 export type SyncState = "local-only" | "uploading" | "uploaded" | "merge-conflict";
 
+/** Read-only snapshot of the chosen Farm's details (from /api/farms/{id}), held on the test
+ * so the wizard can show them offline and carry them on sync. */
+export interface FarmSnapshot {
+  name: string;
+  supplyNumber?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  town?: string | null;
+  postCode?: string | null;
+  rapidNumber?: string | null;
+  regionName?: string | null;
+  milkCompanyName?: string | null;
+  farmerName?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+}
+
 /** A Machine Test as held on-device (mirrors the server MachineTest + MachineConfiguration). */
 export interface LocalTest {
   /** Client-generated id (used for upsert-by-ClientId on sync). */
   id: string;
   farmId?: string | null;
   farmName: string;
+  /** Snapshotted farm details for read-only display in the wizard. */
+  farm?: FarmSnapshot;
   config: MachineConfiguration;
   /** Which wizard step the Tester is on (a WizardStep name). */
   currentStep: string;

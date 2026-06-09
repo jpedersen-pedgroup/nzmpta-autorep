@@ -48,18 +48,18 @@
 ### M2 — Tester PWA core (offline + sync)
 - [x] ✅ PWA installable — web manifest + service worker registered (`wwwroot/manifest.webmanifest`, `sw.js`, `js/pwa-register.js`)
 - [x] ✅ Service worker caches **app shell** for offline UI (`sw.js`)
-- [x] ✅ Sync upload endpoint `POST /api/sync/tests` (upsert by ClientId, idempotent) (`Api/SyncController.cs`)
-- [ ] ⬜ IndexedDB local storage for tests / reference data
+- [x] ✅ Sync endpoints `POST /api/sync/tests` (upsert by ClientId, idempotent, **now carries Machine Configuration**) + `GET /api/sync/tests` (pull) (`Api/SyncController.cs`) — 9 Jun
+- [x] 🟡 IndexedDB local storage — **tests done** (`Client/db/testStore.ts`, `LocalTest` store); reference data still to come
 - [ ] 🟡 Reference-data **logos offline** — service worker now runtime-caches `/api/milk-companies/{id}/logo` (viewed logos available offline). M2 still needs: **pre-cache all active logos on sync** (so unseen ones work too) + render tester pages offline so cached logos actually display
-- [ ] ⬜ Offline-first **test creation** on-device (currently server-side Razor form only)
-- [ ] ⬜ `syncState` state machine (`local-only` → `uploading` → `uploaded` / `merge-conflict`)
+- [x] ✅ Offline-first **test creation** on-device (9 Jun) — the single Preact wizard creates/edits tests in IndexedDB; the create flow hands it the chosen farm
+- [ ] 🟡 `syncState` — `local-only`/`uploaded` wired (badges in My Tests); `uploading`/`merge-conflict` await the Sync Reconciliation Engine
 - [ ] ⬜ Vendor-specification caching for offline pass/fail
 - [ ] ⬜ Reference-data delta sync endpoint (`GET /api/sync/reference-data?asOf=`)
 - [ ] ⬜ Final Report blob sync endpoint (`/api/sync/final-report/{testId}`)
-- [ ] ⬜ **Tester test-history sync** — delta-download the Tester's Machine Tests into IndexedDB (cursor/`asOf` based; first post-migration sync pulls full history as DATA, later syncs pull deltas); background + non-blocking at login
+- [x] 🟡 **Tester test-history sync** — push local-only tests + **pull** the Tester's tests into IndexedDB (`Client/sync/syncClient.ts`, "Sync now" button). Still to come: delta/`asOf` cursor + background/login sync
 - [ ] ⬜ **Offline reprint of historical tests** — regenerate the Final Report client-side from synced data + the test's standards snapshot (avoid bulk-storing PDFs on-device, esp. iOS); cache only recently-opened PDFs
-- [ ] ⬜ Offline/sync status indicators in the UI
-- [ ] ❌ Tests (sync round-trip integration, offline lifecycle manual UAT)
+- [x] 🟡 Offline/sync status indicators — per-test sync badge + "Sync now" in My Tests; full offline/online connectivity banner still to come
+- [x] 🟡 Tests — **sync round-trip integration green** (`SyncControllerTests`) + Vitest (store/resolver/checklist); offline lifecycle still manual UAT
 
 ### M3 — Wizard test capture (steps 1–11)
 - [ ] 🟡 Test setup step (select/create farm) — basic `Pages/App/Tests/New` exists; not the full wizard

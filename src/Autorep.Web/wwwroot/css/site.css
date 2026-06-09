@@ -30,9 +30,9 @@
 
   /* Spacing scale */
   --space-1:  0.25rem;
-  --space-2:  0.5rem;
+  --space-2:  0.35rem;
   --space-3:  0.75rem;
-  --space-4:  1rem;
+  --space-4:  0.75rem;
   --space-5:  1.25rem;
   --space-6:  1.5rem;
   --space-8:  2rem;
@@ -274,6 +274,10 @@ main {
 
 .btn--danger { background: var(--danger); border-color: var(--danger); }
 .btn--danger:hover { background: #dc2626; border-color: #dc2626; }
+
+/* Soft red — for non-destructive "leave" actions like Exit. */
+.btn--danger-soft { background: var(--surface); color: #b91c1c; border-color: var(--danger-border); }
+.btn--danger-soft:hover { background: var(--danger-bg); border-color: #fca5a5; }
 
 .btn--full { width: 100%; }
 
@@ -670,6 +674,29 @@ main {
 
 /* ----- Wizard -------------------------------------------------------------- */
 .wizard { display: grid; grid-template-columns: 280px 1fr; gap: var(--space-6); align-items: start; }
+.wizard__content { display: flex; flex-direction: column; min-width: 0; }
+.wizard__panel { animation: wizard-fade 0.18s ease; }
+@keyframes wizard-fade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+/* ----- Tabs (within a wizard step card) ------------------------------------ */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 0 0 var(--space-3); overflow-x: auto; }
+.tab { padding: var(--space-2) var(--space-3); border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-muted); font-size: 0.9rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.is-active { color: var(--brand); border-bottom-color: var(--brand); }
+.tab-panel { animation: wizard-fade 0.15s ease; }
+/* Tighter spacing inside wizard steps so content fits within the rail. */
+.wizard .form-field { margin-bottom: var(--space-4); }
+.wizard .form-check { margin-bottom: var(--space-3); }
+.card__hint { font-weight: 400; font-size: 0.8125rem; color: var(--text-muted); margin-left: var(--space-2); }
+
+/* Desktop: fixed-height step lane so the rail doesn't move and Back/Next align to its bottom.
+   The step card fills the lane and scrolls internally if a step is long. */
+@media (min-width: 721px) {
+  .wizard__rail { height: 650px; }
+  .wizard__content { height: 650px; }
+  .wizard__panel { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .wizard__panel > .card { min-height: 100%; box-sizing: border-box; }
+}
 .wizard__rail {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -677,6 +704,9 @@ main {
   padding: var(--space-2);
   position: sticky;
   top: var(--space-6);
+  /* Fixed to its own content — never grows/shrinks with the step content. */
+  max-height: 1024px;
+  overflow-y: auto;
 }
 .wizard__step {
   display: flex;
@@ -739,7 +769,7 @@ main {
 
 /* ----- Visual-faults checklist --------------------------------------------- */
 .section-title { font-weight: 600; font-size: 0.95rem; margin: var(--space-5) 0 var(--space-2); color: var(--text); }
-.checkitem { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+.checkitem { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
 .checkitem__name { flex: 1; font-size: 0.9375rem; }
 .checkitem__actions { display: flex; gap: var(--space-2); flex: none; }
 .checkitem__actions button { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--radius-sm); padding: 0.35rem 0.8rem; font-size: 0.8125rem; cursor: pointer; }
@@ -749,3 +779,34 @@ main {
 .fault-detail select, .fault-detail input { padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--surface); }
 .fault-detail select { width: 130px; flex: none; }
 .fault-detail input { flex: 1; }
+
+/* ----- Toasts -------------------------------------------------------------- */
+.toast-container {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 360px;
+}
+.toast {
+  background: var(--text);
+  color: #fff;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.toast--show { opacity: 1; transform: none; }
+.toast--error { background: #7f1d1d; }
+.toast--success { background: #14532d; }
+.toast--info { background: var(--brand); }
+@media (max-width: 720px) {
+  .toast-container { left: var(--space-4); right: var(--space-4); bottom: var(--space-4); max-width: none; }
+}

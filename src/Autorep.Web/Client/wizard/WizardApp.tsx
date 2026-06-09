@@ -13,7 +13,10 @@ import {
   type VisualFaultEntry,
   type WizardStep,
 } from "./types";
-import { getTest, putTest, type LocalTest } from "../db/testStore";
+import { getTest, putTest, type FarmSnapshot, type LocalTest } from "../db/testStore";
+import { fetchFarm } from "../farms";
+import { Tabs } from "../ui/Tabs";
+import { useServerOnline } from "../connectivity";
 import { VisualFaultsStep } from "./VisualFaultsStep";
 import {
   applyCheckAll,
@@ -24,7 +27,7 @@ import {
 } from "./visualChecklist";
 
 const ATTESTATION_TEXT =
-  "I have inspected all items on this page and confirm they have been seen, tested and are in order.";
+  "I have inspected all items in this section and confirm they have been seen, tested and are in order.";
 
 export interface WizardOptions {
   id?: string;
@@ -69,6 +72,7 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
 
 function WizardApp({ id, farmId, farmName }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
+  const online = useServerOnline();
 
   useEffect(() => {
     let active = true;
@@ -81,6 +85,14 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
         url.search = "";
         url.searchParams.set("id", t.id);
         history.replaceState(null, "", url.toString());
+      }
+      // Best-effort: load full farm details (online) and snapshot them for display + sync.
+      if (t.farmId && !t.farm) {
+        const snap = await fetchFarm(t.farmId);
+        if (snap) {
+          t = { ...t, farm: snap, farmName: snap.name };
+          await putTest(t);
+        }
       }
       if (active) setTest(t);
     })();
@@ -106,14 +118,15 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     else delete visualFaults[key];
     return persist({ visualFaults });
   };
-  const checkAllVisual = (step: WizardStep, sections: ChecklistSection[]) => {
+  const checkAllSection = (step: WizardStep, section: ChecklistSection) => {
     const attestation: ChecklistAttestation = {
       step,
+      section: section.key,
       attestedAt: new Date().toISOString(),
       text: ATTESTATION_TEXT,
     };
     return persist({
-      visualFaults: applyCheckAll(sections, test.visualFaults),
+      visualFaults: applyCheckAll([section], test.visualFaults),
       attestations: [...test.attestations, attestation],
     });
   };
@@ -128,7 +141,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
 
   const preStart = preStartSections(test.config.hasReleaserPump);
   const running = runningSectionsFor(currentStep.sections);
-  const attestedFor = (step: WizardStep) => test.attestations.some((a) => a.step === step);
+  const attestedSectionsFor = (step: WizardStep) =>
+    test.attestations.filter((a) => a.step === step && a.section).map((a) => a.section!);
 
   return (
     <div>
@@ -136,11 +150,13 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
         <div class="page-header__heading">
           <h1>{test.farmName || "New machine test"}</h1>
           <p>
-            Offline wizard · <span class="badge badge--warning">saved on device ({test.syncState})</span>
+            <span class={online ? "badge badge--success" : "badge badge--warning"}>
+              {online ? "Online" : "Offline — saved on device"}
+            </span>
           </p>
         </div>
         <div class="page-header__actions">
-          <a class="btn btn--secondary btn--sm" href="/App/Tests/Index">Exit</a>
+          <a class="btn btn--danger-soft btn--sm" href="/App/Tests/Index">Exit</a>
         </div>
       </div>
 
@@ -176,82 +192,103 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
         </nav>
 
         <div class="wizard__content">
+          <div class="wizard__panel" key={current}>
           {current === "Setup" && (
             <div class="card">
               <div class="card__title">Farm &amp; details</div>
-              <div class="form-field">
-                <label>Farm name</label>
-                <input
-                  type="text"
-                  value={test.farmName}
-                  onInput={(e) => void persist({ farmName: (e.currentTarget as HTMLInputElement).value })}
-                />
+              <div class="form-grid">
+                {farmField("Farm", test.farm?.name ?? test.farmName)}
+                {farmField("Supply number", test.farm?.supplyNumber)}
+                {farmField("Milk supply company", test.farm?.milkCompanyName)}
+                {farmField("Region", test.farm?.regionName)}
+                {farmField("Address", farmAddress(test.farm))}
+                {farmField("RAPID number", test.farm?.rapidNumber)}
+                {farmField("Farmer", test.farm?.farmerName)}
+                {farmField("Phone", test.farm?.contactPhone)}
+                {farmField("Email", test.farm?.contactEmail)}
               </div>
+              <p style="color:var(--text-muted);font-size:0.8125rem;margin-top:var(--space-4)">
+                Farm details are managed in the admin area.
+              </p>
             </div>
           )}
 
           {current === "MachineConfiguration" && (
             <div class="card">
-              <div class="card__title">Machine configuration</div>
-              <p style="color:var(--text-muted);margin-bottom:var(--space-5)">
-                Changes save to this device immediately and re-resolve the steps on the left.
-              </p>
-              <div class="form-grid">
-                <div class="form-field">
-                  <label>Plant type</label>
-                  <select
-                    value={test.config.plantType}
-                    onChange={(e) =>
-                      void setConfig({ plantType: (e.currentTarget as HTMLSelectElement).value as PlantType })
-                    }
-                  >
-                    <option value="HerringboneLowline">Herringbone (lowline)</option>
-                    <option value="HerringboneHighline">Herringbone (highline)</option>
-                    <option value="Rotary">Rotary</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div class="form-field">
-                  <label>Cluster count</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={test.config.clusterCount}
-                    onInput={(e) =>
-                      void setConfig({ clusterCount: Number((e.currentTarget as HTMLInputElement).value) || 0 })
-                    }
-                  />
-                </div>
-                <div class="form-field">
-                  <label>Pump lubrication</label>
-                  <select
-                    value={test.config.pumpLubrication}
-                    onChange={(e) =>
-                      void setConfig({
-                        pumpLubrication: (e.currentTarget as HTMLSelectElement).value as PumpLubrication,
-                      })
-                    }
-                  >
-                    <option value="OilLubricated">Oil lubricated</option>
-                    <option value="LiquidRing">Liquid ring</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
+              <div class="card__title">
+                Machine configuration{" "}
+                <small class="card__hint">Changes save to this device immediately and re-resolve the steps on the left.</small>
               </div>
-
-              <div class="card__title" style="margin-top:var(--space-6)">Options &amp; ancillary equipment</div>
-              <div class="form-grid">
-                {confToggle("Variable speed drive (VSD)", test.config.vsdFitted, (v) => void setConfig({ vsdFitted: v }))}
-                {confToggle("ISO test ports available", test.config.isoPortsAvailable, (v) => void setConfig({ isoPortsAvailable: v }))}
-                {confToggle("Flushing pulsation system", test.config.flushingPulsationSystem, (v) => void setConfig({ flushingPulsationSystem: v }))}
-                {confToggle("Vented liners", test.config.linerVented, (v) => void setConfig({ linerVented: v }))}
-                {confToggle("Automatic cluster removers (ACRs)", test.config.hasAcr, (v) => void setConfig({ hasAcr: v }))}
-                {confToggle("Bail gates", test.config.hasBailGates, (v) => void setConfig({ hasBailGates: v }))}
-                {confToggle("Milk meters", test.config.hasMilkMeters, (v) => void setConfig({ hasMilkMeters: v }))}
-                {confToggle("Teat sprayer", test.config.hasTeatSprayer, (v) => void setConfig({ hasTeatSprayer: v }))}
-                {confToggle("Backing gate", test.config.hasBackingGate, (v) => void setConfig({ hasBackingGate: v }))}
-                {confToggle("Releaser pump", test.config.hasReleaserPump, (v) => void setConfig({ hasReleaserPump: v }))}
-              </div>
+              <Tabs
+                tabs={[
+                  {
+                    key: "machine",
+                    label: "Machine",
+                    content: (
+                      <div class="form-grid">
+                        <div class="form-field">
+                          <label>Plant type</label>
+                          <select
+                            value={test.config.plantType}
+                            onChange={(e) =>
+                              void setConfig({ plantType: (e.currentTarget as HTMLSelectElement).value as PlantType })
+                            }
+                          >
+                            <option value="HerringboneLowline">Herringbone (lowline)</option>
+                            <option value="HerringboneHighline">Herringbone (highline)</option>
+                            <option value="Rotary">Rotary</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div class="form-field">
+                          <label>Cluster count</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={test.config.clusterCount}
+                            onInput={(e) =>
+                              void setConfig({ clusterCount: Number((e.currentTarget as HTMLInputElement).value) || 0 })
+                            }
+                          />
+                        </div>
+                        <div class="form-field">
+                          <label>Pump lubrication</label>
+                          <select
+                            value={test.config.pumpLubrication}
+                            onChange={(e) =>
+                              void setConfig({
+                                pumpLubrication: (e.currentTarget as HTMLSelectElement).value as PumpLubrication,
+                              })
+                            }
+                          >
+                            <option value="OilLubricated">Oil lubricated</option>
+                            <option value="LiquidRing">Liquid ring</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "ancillary",
+                    label: "Ancillary equipment",
+                    content: (
+                      <div class="form-grid">
+                        {confToggle("Variable speed drive (VSD)", test.config.vsdFitted, (v) => void setConfig({ vsdFitted: v }))}
+                        {confToggle("ISO test ports available", test.config.isoPortsAvailable, (v) => void setConfig({ isoPortsAvailable: v }))}
+                        {confToggle("Flushing pulsation system", test.config.flushingPulsationSystem, (v) => void setConfig({ flushingPulsationSystem: v }))}
+                        {confToggle("Vented liners", test.config.linerVented, (v) => void setConfig({ linerVented: v }))}
+                        {confToggle("Automatic cluster removers (ACRs)", test.config.hasAcr, (v) => void setConfig({ hasAcr: v }))}
+                        {confToggle("Bail gates", test.config.hasBailGates, (v) => void setConfig({ hasBailGates: v }))}
+                        {confToggle("Milk meters", test.config.hasMilkMeters, (v) => void setConfig({ hasMilkMeters: v }))}
+                        {confToggle("Teat sprayer", test.config.hasTeatSprayer, (v) => void setConfig({ hasTeatSprayer: v }))}
+                        {confToggle("Backing gate", test.config.hasBackingGate, (v) => void setConfig({ hasBackingGate: v }))}
+                        {confToggle("Releaser pump", test.config.hasReleaserPump, (v) => void setConfig({ hasReleaserPump: v }))}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
             </div>
           )}
 
@@ -261,8 +298,11 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               sections={preStart}
               entries={test.visualFaults}
               onSetEntry={(k, e) => void setVisualFault(k, e)}
-              onCheckAll={() => void checkAllVisual("VisualFaultsPreStart", preStart)}
-              attested={attestedFor("VisualFaultsPreStart")}
+              onCheckAll={(secKey) => {
+                const sec = preStart.find((s) => s.key === secKey);
+                if (sec) void checkAllSection("VisualFaultsPreStart", sec);
+              }}
+              attestedSections={attestedSectionsFor("VisualFaultsPreStart")}
             />
           )}
 
@@ -272,8 +312,11 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               sections={running}
               entries={test.visualFaults}
               onSetEntry={(k, e) => void setVisualFault(k, e)}
-              onCheckAll={() => void checkAllVisual("VisualFaultsRunning", running)}
-              attested={attestedFor("VisualFaultsRunning")}
+              onCheckAll={(secKey) => {
+                const sec = running.find((s) => s.key === secKey);
+                if (sec) void checkAllSection("VisualFaultsRunning", sec);
+              }}
+              attestedSections={attestedSectionsFor("VisualFaultsRunning")}
               guards={{ value: test.guardsOnPulsators ?? false, onChange: (v) => void persist({ guardsOnPulsators: v }) }}
             />
           )}
@@ -283,8 +326,9 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             current !== "VisualFaultsPreStart" &&
             current !== "VisualFaultsRunning" && (
               <div class="card">
-                <div class="card__title">{currentStep.title}</div>
-                <p style="color:var(--text-muted)">Offline data entry for this step is coming next.</p>
+                <div class="card__title">
+                  {currentStep.title} <small class="card__hint">Offline data entry for this step is coming next.</small>
+                </div>
                 {currentStep.sections.length > 0 && (
                   <ul style="margin-top:var(--space-2)">
                     {currentStep.sections.map((sec) => (
@@ -294,6 +338,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
                 )}
               </div>
             )}
+          </div>
 
           <div class="wizard__nav">
             <div>{prev && <button class="btn btn--secondary" onClick={() => void go(prev)}>‹ Back</button>}</div>
@@ -303,6 +348,21 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
       </div>
     </div>
   );
+}
+
+function farmField(label: string, value?: string | null) {
+  return (
+    <div>
+      <span style="color:var(--text-muted);font-size:0.8125rem">{label}</span>
+      <div>{value && value.length > 0 ? value : "—"}</div>
+    </div>
+  );
+}
+
+function farmAddress(f?: FarmSnapshot): string | null {
+  if (!f) return null;
+  const parts = [f.addressLine1, f.addressLine2, f.town, f.postCode].filter((p): p is string => Boolean(p));
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 function confToggle(label: string, checked: boolean, onChange: (v: boolean) => void) {
