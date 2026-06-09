@@ -1,0 +1,20 @@
+{
+  "VPWaterCondition": ["Oil/Water Condition Poor", "Oil/Water Dirty"],
+  "VPWaterReservoir": ["Oil/Water Level Incorrect", "Oil/Water Too Low", "Oil/Water Too High"],
+  "VPWaterSupplyProtected": ["Oil/Water Supply Should Be Protected", "Lid Not Fitted", "No Lid"],
+  "VPWickCondition": ["Oil Wicks Dirty", "Oil Wicks Require Replacement", "No Oil Wicks Present"],
+  "VPBeltCondition": ["Vee Belts Perishing/Split", "Vee Belts Require Replacement"],
+  "VPEndPlay": ["End Play Excessive - Service Pump", "Excessive"],
+  "VPGuardsShaftBelts": ["Guards Not Fitted To Osh Regulations", "Guard Not Fitted", "No Guard"],
+  "VPInterceptorConnection": ["Interceptor Connection Is Substandard", "Interceptor Connection Is Broken", "Interceptor Connection Is Loose"],
+  "VPExaustSystem": ["Re-Plumb Vacuum Pump Exhaust"],
+  "VPDirectCoupling": ["Vacuum Pump Coupling Faulty", "Vacuum Pump Coupling Perishing/Split"],
+  "RMPBeltCondition": ["Vee Belt Condition Poor - Replace", "Vee Belt Perishing/Split"],
+  "RMPBeltTension": ["Vee Belts Require Retensioning", "Vee Belts Loose", "Vee Belts Overtightened"],
+  "RMPGuardShaftsBelts": ["Guards Not Fitted To Osh Regulations", "Guard Not Fitted", "No Guard"],
+  "RMPControls": ["Faulty", "Probe Is Faulty", "Controller Is Faulty - Repair"],
+  "RDCIntakeLine": ["Releaser Milk Pump Intake Line Is Leaking", "Rubber Bends/Unions Perished", "Unions Leaking"],
+  "RDCNonReturnValve": ["Blocked With Debris - Requires Cleaning", "Non Return Valve Is Faulty", "Spring Is Broken"],
+  "RDCRotation": ["Direction Of Rotation Incorrect"],
+  "RDCBackplate": ["Backing Plate Is Missing/Faulty", "Backing Plate Is Back To Front"]
+}

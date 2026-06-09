@@ -11,6 +11,9 @@ export interface ChecklistItem {
   data?: boolean;
   /** Optional unit / placeholder hint shown for data fields. */
   unit?: string;
+  /** Legacy Lookup category for this check's standard fault observations. When the item is marked
+   * Fault, the Tester picks the specific fault from this list (see faultObservationsFor). */
+  lookup?: string;
 }
 export interface ChecklistSection {
   key: string;
@@ -23,16 +26,16 @@ export const PRE_START_VACUUM_PUMP: ChecklistSection = {
   key: "VacuumPump",
   title: "Vacuum pumps (remove guard)",
   items: [
-    { key: "vp.oilWater", label: "Oil / water condition" },
-    { key: "vp.reservoirHeight", label: "Height of oil / water in reservoir" },
-    { key: "vp.supplyProtected", label: "Oil / water supply protected" },
-    { key: "vp.wick", label: "Wick condition" },
-    { key: "vp.belt", label: "Belt condition" },
-    { key: "vp.endPlay", label: "End play" },
-    { key: "vp.guards", label: "Guards on shaft or belts" },
-    { key: "vp.interceptor", label: "Interceptor connection" },
-    { key: "vp.exhaust", label: "Exhaust system restrictions" },
-    { key: "vp.coupling", label: "Direct coupling condition" },
+    { key: "vp.oilWater", label: "Oil / water condition", lookup: "VPWaterCondition" },
+    { key: "vp.reservoirHeight", label: "Height of oil / water in reservoir", lookup: "VPWaterReservoir" },
+    { key: "vp.supplyProtected", label: "Oil / water supply protected", lookup: "VPWaterSupplyProtected" },
+    { key: "vp.wick", label: "Wick condition", lookup: "VPWickCondition" },
+    { key: "vp.belt", label: "Belt condition", lookup: "VPBeltCondition" },
+    { key: "vp.endPlay", label: "End play", lookup: "VPEndPlay" },
+    { key: "vp.guards", label: "Guards on shaft or belts", lookup: "VPGuardsShaftBelts" },
+    { key: "vp.interceptor", label: "Interceptor connection", lookup: "VPInterceptorConnection" },
+    { key: "vp.exhaust", label: "Exhaust system restrictions", lookup: "VPExaustSystem" },
+    { key: "vp.coupling", label: "Direct coupling condition", lookup: "VPDirectCoupling" },
     { key: "vp.beltSize", label: "Vacuum pump belt size", data: true, unit: "size" },
   ],
 };
@@ -41,9 +44,9 @@ export const PRE_START_RELEASER_BELT: ChecklistSection = {
   key: "ReleaserBeltDriven",
   title: "Releaser milk pumps (belt driven)",
   items: [
-    { key: "rmp.belt", label: "Belt condition" },
-    { key: "rmp.beltTension", label: "Belt tension" },
-    { key: "rmp.guards", label: "Guards on shafts and belts" },
+    { key: "rmp.belt", label: "Belt condition", lookup: "RMPBeltCondition" },
+    { key: "rmp.beltTension", label: "Belt tension", lookup: "RMPBeltTension" },
+    { key: "rmp.guards", label: "Guards on shafts and belts", lookup: "RMPGuardShaftsBelts" },
     { key: "rmp.beltSize", label: "Milk pump belt size", data: true, unit: "size" },
   ],
 };
@@ -52,17 +55,17 @@ export const PRE_START_RELEASER_TYPE: ChecklistSection = {
   key: "ReleaserType",
   title: "Releaser (diaphragm / centrifugal / F.I.P / lobe)",
   items: [
-    { key: "rmp.intake", label: "RMP intake line" },
-    { key: "rmp.nrv", label: "Non return valve" },
-    { key: "rmp.rotation", label: "Rotation" },
-    { key: "rmp.backplate", label: "Backplate" },
+    { key: "rmp.intake", label: "RMP intake line", lookup: "RDCIntakeLine" },
+    { key: "rmp.nrv", label: "Non return valve", lookup: "RDCNonReturnValve" },
+    { key: "rmp.rotation", label: "Rotation", lookup: "RDCRotation" },
+    { key: "rmp.backplate", label: "Backplate", lookup: "RDCBackplate" },
   ],
 };
 
 export const PRE_START_RELEASER_CONTROLS: ChecklistSection = {
   key: "Releasers",
   title: "Releasers",
-  items: [{ key: "rmp.controls", label: "RMP controls" }],
+  items: [{ key: "rmp.controls", label: "RMP controls", lookup: "RMPControls" }],
 };
 
 // Running (VisualFaultsMMRunning1–4) — "Part Two". The resolver decides which sections are shown

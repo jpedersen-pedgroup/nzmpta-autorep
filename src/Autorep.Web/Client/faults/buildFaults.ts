@@ -22,7 +22,7 @@ export function buildFaultInputs(test: LocalTest): FaultInput[] {
         inputs.push({
           key: it.key,
           component: sec.title,
-          description: it.label,
+          description: e.observation ? `${it.label}: ${e.observation}` : it.label,
           severity: e.severity ?? "Major",
           source: "Visual faults",
           recommendation: test.recommendations[it.key] ?? e.note,

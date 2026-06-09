@@ -776,10 +776,11 @@ main {
 .checkitem__actions button.ok.on { background: var(--success-bg); border-color: var(--success-border); color: #166534; }
 .checkitem__actions button.bad.on { background: var(--danger-bg); border-color: var(--danger-border); color: #991b1b; }
 .checkitem__data { flex: none; width: 9rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0.35rem 0.6rem; font-size: 0.8125rem; }
-.fault-detail { display: flex; gap: var(--space-2); padding: var(--space-2) 0 var(--space-3); }
+.fault-detail { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) 0 var(--space-3); }
 .fault-detail select, .fault-detail input { padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--surface); }
 .fault-detail select { width: 130px; flex: none; }
-.fault-detail input { flex: 1; }
+.fault-detail select.fault-detail__obs { width: 100%; flex: 1 1 100%; }
+.fault-detail input { flex: 1; min-width: 8rem; }
 
 /* ----- Toasts -------------------------------------------------------------- */
 .toast-container {

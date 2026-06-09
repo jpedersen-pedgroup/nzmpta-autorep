@@ -77,6 +77,8 @@ export type FaultSeverity = "Critical" | "Major" | "Minor";
 export interface VisualFaultEntry {
   status: "ok" | "fault";
   severity?: FaultSeverity;
+  /** The specific standard fault chosen from the check's Lookup list (when faulted). */
+  observation?: string;
   note?: string;
 }
 

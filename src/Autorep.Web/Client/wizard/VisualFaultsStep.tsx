@@ -5,6 +5,7 @@ import { useState } from "preact/hooks";
 import type { FaultSeverity, VisualFaultEntry } from "./types";
 import { type ChecklistItem, type ChecklistSection, checklistComplete } from "./visualChecklist";
 import { Tabs } from "../ui/Tabs";
+import { faultObservationsFor } from "../reference/lookups";
 
 interface Props {
   title: string;
@@ -74,6 +75,25 @@ function ItemRow({
       </div>
       {entry?.status === "fault" && (
         <div class="fault-detail">
+          {faultObservationsFor(item.lookup).length > 0 && (
+            <select
+              class="fault-detail__obs"
+              value={entry.observation ?? ""}
+              onChange={(e) =>
+                onSetEntry(item.key, {
+                  ...entry,
+                  observation: (e.currentTarget as HTMLSelectElement).value || undefined,
+                })
+              }
+            >
+              <option value="">— select fault —</option>
+              {faultObservationsFor(item.lookup).map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             value={entry.severity ?? "Major"}
             onChange={(e) =>
@@ -86,7 +106,7 @@ function ItemRow({
           </select>
           <input
             type="text"
-            placeholder="Note / observation"
+            placeholder="Note (optional)"
             value={entry.note ?? ""}
             onInput={(e) => onSetEntry(item.key, { ...entry, note: (e.currentTarget as HTMLInputElement).value })}
           />

@@ -5,6 +5,15 @@
 import shellsJson from "./shells.json";
 import linersJson from "./liners.json";
 import pulsatorsJson from "./pulsators.json";
+import faultObservationsJson from "./faultObservations.json";
+
+/** Standard fault observations per visual check (legacy Lookup, keyed by Category). When a check
+ * is marked Fault the Tester picks which standard fault applies. */
+export const FAULT_OBSERVATIONS: Record<string, string[]> = faultObservationsJson;
+export function faultObservationsFor(category: string | null | undefined): string[] {
+  if (!category) return [];
+  return FAULT_OBSERVATIONS[category] ?? [];
+}
 
 export const MILKLINE_SIZES = ["50", "63", "75", "100"] as const;
 
