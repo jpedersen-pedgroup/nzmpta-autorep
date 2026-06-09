@@ -19,9 +19,28 @@ function step(
 
 const isRotary = (c: MachineConfiguration): boolean => c.plantType === "Rotary";
 
-// Visual Faults — Running: rotary rotation vs herringbone bail area, plus the common sub-sections.
+// Visual Faults — Running: the full VisualFaultsMMRunning1–4 group set. Bail vs rotary swaps with
+// the plant type; ACR / milk-meter groups appear only when that equipment is fitted; the rest are
+// core to every machine (the Tester marks absent items blank / N/A).
 function runningSections(c: MachineConfiguration): string[] {
-  return [isRotary(c) ? "Rotaries" : "BailArea", "MainAirline", "Inlets", "Clusters"];
+  const s = [
+    isRotary(c) ? "Rotaries" : "BailArea",
+    "MainAirline",
+    "Inlets",
+    "Clusters",
+    "Claw",
+    "Liner",
+    "Shell",
+    "ShortPulseTube",
+    "LongPulseTube",
+    "LongMilkTube",
+    "Platform",
+    "MilkFlowIndicator",
+  ];
+  if (c.hasAcr) s.push("Acr");
+  if (c.hasMilkMeters) s.push("MilkMeter");
+  s.push("Pulsation", "VacuumGauge", "Regulator", "Receiver", "VacuumPumpRunning", "Jetters");
+  return s;
 }
 
 // Test Record: ISO groups 1–9. Minimum-pump-speed vacuum only when a VSD is fitted.

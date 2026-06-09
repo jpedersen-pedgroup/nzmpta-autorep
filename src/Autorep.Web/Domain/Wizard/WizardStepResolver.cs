@@ -35,14 +35,36 @@ public static class WizardStepResolver
         WizardStep step, string title, bool optional = false, IReadOnlyList<string>? sections = null)
         => new(step, title, optional, sections ?? Array.Empty<string>());
 
-    // Visual Faults — Running: rotary rotation vs herringbone bail area, plus the common sub-sections.
-    private static IReadOnlyList<string> RunningSections(MachineConfiguration c) => new List<string>
+    // Visual Faults — Running: the full VisualFaultsMMRunning1–4 group set. Bail vs rotary swaps with
+    // the plant type; ACR / milk-meter groups appear only when that equipment is fitted; the rest are
+    // core to every machine (the Tester marks absent items blank / N/A).
+    private static IReadOnlyList<string> RunningSections(MachineConfiguration c)
     {
-        c.IsRotary ? "Rotaries" : "BailArea",
-        "MainAirline",
-        "Inlets",
-        "Clusters",
-    };
+        var s = new List<string>
+        {
+            c.IsRotary ? "Rotaries" : "BailArea",
+            "MainAirline",
+            "Inlets",
+            "Clusters",
+            "Claw",
+            "Liner",
+            "Shell",
+            "ShortPulseTube",
+            "LongPulseTube",
+            "LongMilkTube",
+            "Platform",
+            "MilkFlowIndicator",
+        };
+        if (c.HasAcr) s.Add("Acr");
+        if (c.HasMilkMeters) s.Add("MilkMeter");
+        s.Add("Pulsation");
+        s.Add("VacuumGauge");
+        s.Add("Regulator");
+        s.Add("Receiver");
+        s.Add("VacuumPumpRunning");
+        s.Add("Jetters");
+        return s;
+    }
 
     // Test Record: ISO groups 1–9. Minimum-pump-speed vacuum only when a VSD is fitted.
     private static IReadOnlyList<string> TestRecordSections(MachineConfiguration c)

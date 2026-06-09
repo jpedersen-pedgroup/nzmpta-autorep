@@ -22,7 +22,11 @@
   "optionalSteps": ["IndividualClusterTest"],
   "shortTest": false,
   "expectedSections": {
-    "VisualFaultsRunning": ["BailArea", "MainAirline", "Inlets", "Clusters"],
+    "VisualFaultsRunning": [
+      "BailArea", "MainAirline", "Inlets", "Clusters", "Claw", "Liner", "Shell",
+      "ShortPulseTube", "LongPulseTube", "LongMilkTube", "Platform", "MilkFlowIndicator",
+      "Pulsation", "VacuumGauge", "Regulator", "Receiver", "VacuumPumpRunning", "Jetters"
+    ],
     "TestRecord": [
       "SystemVacuumLevels", "ReserveCharacteristics", "RegulationCharacteristics",
       "VacuumDropAirline", "RegulatorSensitivity", "ReserveVacuumOffCluster",
