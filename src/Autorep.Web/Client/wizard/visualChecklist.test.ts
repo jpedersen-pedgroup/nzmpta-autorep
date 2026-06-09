@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   PRE_START_VACUUM_PUMP,
+  RUNNING_SECTIONS,
   applyCheckAll,
   checklistComplete,
   preStartSections,
   runningSectionsFor,
 } from "./visualChecklist";
+import { FAULT_OBSERVATIONS } from "../reference/lookups";
 import type { VisualFaultEntry } from "./types";
 
 describe("visual checklist", () => {
@@ -36,5 +38,14 @@ describe("visual checklist", () => {
     const after = applyCheckAll(sections, before);
     expect(after["vp.wick"].status).toBe("fault");
     expect(after["vp.oilWater"].status).toBe("ok");
+  });
+
+  it("every check's lookup category resolves to a non-empty standard-fault list", () => {
+    const sections = [...preStartSections(true), ...Object.values(RUNNING_SECTIONS)];
+    const unresolved = sections
+      .flatMap((sec) => sec.items)
+      .filter((it) => it.lookup && !(FAULT_OBSERVATIONS[it.lookup]?.length))
+      .map((it) => `${it.key} -> ${it.lookup}`);
+    expect(unresolved).toEqual([]);
   });
 });
