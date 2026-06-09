@@ -6,6 +6,7 @@ import type { FaultSeverity, VisualFaultEntry } from "./types";
 import { type ChecklistItem, type ChecklistSection, checklistComplete } from "./visualChecklist";
 import { Tabs } from "../ui/Tabs";
 import { faultObservationsFor } from "../reference/lookups";
+import { severityForObservation } from "../reference/faultRatings";
 
 interface Props {
   title: string;
@@ -79,12 +80,10 @@ function ItemRow({
             <select
               class="fault-detail__obs"
               value={entry.observation ?? ""}
-              onChange={(e) =>
-                onSetEntry(item.key, {
-                  ...entry,
-                  observation: (e.currentTarget as HTMLSelectElement).value || undefined,
-                })
-              }
+              onChange={(e) => {
+                const obs = (e.currentTarget as HTMLSelectElement).value || undefined;
+                onSetEntry(item.key, { ...entry, observation: obs, severity: severityForObservation(obs) });
+              }}
             >
               <option value="">— select fault —</option>
               {faultObservationsFor(item.lookup).map((o) => (

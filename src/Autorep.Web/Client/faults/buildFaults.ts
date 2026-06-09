@@ -4,6 +4,7 @@ import type { LocalTest } from "../db/testStore";
 import { preStartSections, runningSectionsFor } from "../wizard/visualChecklist";
 import { resolveWizard } from "../wizard/wizardStepResolver";
 import { allReadingSections } from "../passfail/standards";
+import { recommendationForObservation } from "../reference/faultRatings";
 import { evaluate } from "../passfail/passFail";
 import type { FaultInput } from "./faultAggregator";
 
@@ -25,7 +26,7 @@ export function buildFaultInputs(test: LocalTest): FaultInput[] {
           description: e.observation ? `${it.label}: ${e.observation}` : it.label,
           severity: e.severity ?? "Major",
           source: "Visual faults",
-          recommendation: test.recommendations[it.key] ?? e.note,
+          recommendation: test.recommendations[it.key] ?? (recommendationForObservation(e.observation) || e.note),
         });
       }
     }
