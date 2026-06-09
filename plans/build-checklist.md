@@ -69,9 +69,9 @@
 - [ ] ⬜ Visual faults — pre-start (checklist + "Check all as verified" + attestation)
 - [ ] ⬜ Visual faults — running (+ Guards-Installed-on-Pulsators boolean)
 - [ ] 🟡 Vacuum & reserve / **Test Record** — **first cut (9 Jun)**: tabbed System-vacuum / Reserve / Gauge-accuracy readings with **live pass/fail** (config-driven effective-reserve threshold from cluster count); full ISO 1–9 reading set + remaining standards still to come
-- [ ] ⬜ Additional tests (sections 8–16), auto-hidden when equipment absent
-- [ ] ⬜ Pulsator tests (per-pulsator rates/ratios; "faulty rows only" / "enter all")
-- [ ] ⬜ Individual cluster tests (optional / skippable)
+- [x] ✅ Additional Tests — **done (9 Jun)**: config-gated sections (ACR/milk-meter/teat-sprayer/gate/releaser shown only when present) + readings with pass/fail; cluster-air-admission band is vented-liner-aware
+- [ ] 🟡 Pulsator tests — **summary cut (9 Jun)**: fastest/slowest rate, highest/lowest ratio, airline stability (≤4 kPa). **Per-pulsator row table** ("faulty rows only" / "enter all" + range checks) still to come
+- [ ] 🟡 Individual cluster tests — **simplified cut (9 Jun)**: optional step with summary airflow readings; **per-cluster row table** still to come
 - [x] ✅ Pass/Fail Calculator — **.NET + TS mirror done (9 Jun)**: pure evaluator (atMost/atLeast/between/tolerance/none), shared fixtures in `tests/fixtures/passfail` drive both (xUnit + Vitest). Standards: EffectiveArea reserve-by-cluster lookup embedded
 - [x] ✅ Fault Aggregator — **.NET + TS mirror done (9 Jun)**: groups visual faults + failed readings by component, worst-severity rollup + counts; shared fixtures in `tests/fixtures/faults` (xUnit + Vitest). Fault Summary step renders grouped faults + per-fault recommendation field
 - [ ] 🟡 Recommendations — **freeform per-fault rec field done (9 Jun)** in the Fault Summary step; **Standard Recommendation Wording dropdown** (from the 113-row CMM catalog) still to wire

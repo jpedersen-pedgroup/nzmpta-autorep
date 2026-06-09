@@ -81,3 +81,110 @@ export function testRecordSections(config: MachineConfiguration): ReadingSection
     },
   ];
 }
+
+/** Additional Tests (ISO 10–16) — sections gated by the machine's ancillaries, mirroring the
+ * resolver. Cluster air admission is config-driven (vented liners widen the band). */
+export function additionalTestSections(config: MachineConfiguration): ReadingSection[] {
+  const sections: ReadingSection[] = [
+    {
+      key: "AirlineMilkSystemLeakage",
+      title: "Airline & milk leakage",
+      readings: [
+        { key: "add.airlineDrop", label: "Airline vacuum drop (10)", unit: "kPa", rule: { kind: "atMost", limit: 2 } },
+        { key: "add.milkSystemLeak", label: "Milk system leakage", unit: "L/min", rule: { kind: "none" } },
+      ],
+    },
+  ];
+  if (config.hasAcr) {
+    sections.push({ key: "AcrConsumption", title: "ACR", readings: [
+      { key: "add.acrConsumption", label: "ACR consumption (11)", unit: "L/min", rule: { kind: "none" } },
+    ] });
+  }
+  sections.push({
+    key: "ClusterAirAdmission",
+    title: "Cluster air admission",
+    readings: [
+      {
+        key: "add.clusterAirAdmission",
+        label: "Cluster air admission per cluster (12)",
+        unit: "L/min",
+        hint: config.linerVented ? "≤ 35 (vented liners)" : "4–12 per cluster",
+        rule: config.linerVented ? { kind: "atMost", limit: 35 } : { kind: "between", min: 4, max: 12 },
+      },
+    ],
+  });
+  if (config.hasMilkMeters) {
+    sections.push({ key: "MilkMeter", title: "Milk meters", readings: [
+      { key: "add.milkMeter", label: "Milk meter consumption", unit: "L/min", rule: { kind: "none" } },
+    ] });
+  }
+  if (config.hasTeatSprayer) {
+    sections.push({ key: "TeatSpray", title: "Teat sprayer", readings: [
+      { key: "add.teatSpray", label: "Teat sprayer consumption", unit: "L/min", rule: { kind: "none" } },
+    ] });
+  }
+  if (config.hasBailGates || config.hasBackingGate) {
+    sections.push({ key: "GateCylinder", title: "Gates", readings: [
+      { key: "add.gateCylinder", label: "Gate cylinder consumption", unit: "L/min", rule: { kind: "none" } },
+    ] });
+  }
+  if (config.hasReleaserPump) {
+    sections.push({ key: "ReleaserPumpHeads", title: "Releaser pump", readings: [
+      { key: "add.releaserSpeed", label: "Releaser pump speed", unit: "rpm", rule: { kind: "none" } },
+      { key: "add.releaserPower", label: "Releaser pump power", unit: "kW", rule: { kind: "none" } },
+    ] });
+  }
+  sections.push({ key: "RegulatorLoad", title: "Regulator", readings: [
+    { key: "add.regulatorLoad", label: "Peak regulator load (14)", unit: "kPa", rule: { kind: "atMost", limit: 2 } },
+  ] });
+  return sections;
+}
+
+/** Pulsator Test Results — summary rates/ratios + airline stability. (Per-pulsator rows are a
+ * follow-up; this captures the summary values the standard checks.) */
+export function pulsatorSections(_config: MachineConfiguration): ReadingSection[] {
+  return [
+    {
+      key: "PulsatorRates",
+      title: "Rates & ratios",
+      readings: [
+        { key: "puls.fastestRate", label: "Fastest pulsator rate", unit: "ppm", rule: { kind: "none" } },
+        { key: "puls.slowestRate", label: "Slowest pulsator rate", unit: "ppm", rule: { kind: "none" } },
+        { key: "puls.highestRatio", label: "Highest ratio", unit: "%", rule: { kind: "none" } },
+        { key: "puls.lowestRatio", label: "Lowest ratio", unit: "%", rule: { kind: "none" } },
+      ],
+    },
+    {
+      key: "PulsatorStability",
+      title: "Stability",
+      readings: [
+        { key: "puls.airlineStability", label: "Pulsator airline stability", unit: "kPa", rule: { kind: "atMost", limit: 4 } },
+      ],
+    },
+  ];
+}
+
+/** Individual Cluster Tests (optional) — simplified single-entry first cut (per-cluster rows
+ * are a follow-up). */
+export function individualClusterSections(_config: MachineConfiguration): ReadingSection[] {
+  return [
+    {
+      key: "IndividualCluster",
+      title: "Cluster airflow",
+      readings: [
+        { key: "ica.totalAirAdmission", label: "Total cluster air admission", unit: "L/min", rule: { kind: "none" } },
+        { key: "ica.leakage", label: "Cluster leakage", unit: "L/min", rule: { kind: "none" } },
+      ],
+    },
+  ];
+}
+
+/** All numerical reading sections across the reading-based steps — used to build the fault list. */
+export function allReadingSections(config: MachineConfiguration): ReadingSection[] {
+  return [
+    ...testRecordSections(config),
+    ...additionalTestSections(config),
+    ...pulsatorSections(config),
+    ...individualClusterSections(config),
+  ];
+}

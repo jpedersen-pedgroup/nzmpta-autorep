@@ -3,7 +3,7 @@
 import type { LocalTest } from "../db/testStore";
 import { preStartSections, runningSectionsFor } from "../wizard/visualChecklist";
 import { resolveWizard } from "../wizard/wizardStepResolver";
-import { testRecordSections } from "../passfail/standards";
+import { allReadingSections } from "../passfail/standards";
 import { evaluate } from "../passfail/passFail";
 import type { FaultInput } from "./faultAggregator";
 
@@ -31,16 +31,16 @@ export function buildFaultInputs(test: LocalTest): FaultInput[] {
     }
   }
 
-  for (const sec of testRecordSections(config)) {
+  for (const sec of allReadingSections(config)) {
     for (const r of sec.readings) {
       const v = test.readings[r.key];
       if (v != null && evaluate(v, r.rule) === "fail") {
         inputs.push({
           key: r.key,
-          component: `Test Record · ${sec.title}`,
+          component: sec.title,
           description: `${r.label}: ${v} ${r.unit}`,
           severity: "Major",
-          source: "Test Record",
+          source: "Numerical tests",
           recommendation: test.recommendations[r.key],
         });
       }

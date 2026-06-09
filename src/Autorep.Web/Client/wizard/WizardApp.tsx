@@ -17,8 +17,13 @@ import { getTest, putTest, type FarmSnapshot, type LocalTest } from "../db/testS
 import { fetchFarm } from "../farms";
 import { Tabs } from "../ui/Tabs";
 import { useServerOnline } from "../connectivity";
-import { TestRecordStep } from "./TestRecordStep";
-import { testRecordSections } from "../passfail/standards";
+import { ReadingsStep } from "./ReadingsStep";
+import {
+  additionalTestSections,
+  individualClusterSections,
+  pulsatorSections,
+  testRecordSections,
+} from "../passfail/standards";
 import { FaultSummaryStep } from "./FaultSummaryStep";
 import { buildFaultInputs } from "../faults/buildFaults";
 import { VisualFaultsStep } from "./VisualFaultsStep";
@@ -75,6 +80,15 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
   }
   if (testRecordSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
     done.add("TestRecord");
+  }
+  if (additionalTestSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
+    done.add("AdditionalTests");
+  }
+  if (pulsatorSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
+    done.add("PulsatorTest");
+  }
+  if (individualClusterSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
+    done.add("IndividualClusterTest");
   }
   const faults = buildFaultInputs(t);
   if (faults.every((f) => f.key != null && (t.recommendations[f.key] ?? "").trim().length > 0)) {
@@ -347,8 +361,40 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
           )}
 
           {current === "TestRecord" && (
-            <TestRecordStep
-              config={test.config}
+            <ReadingsStep
+              title="Test Record"
+              hint="Enter readings — pass/fail is live against the standard for this machine."
+              sections={testRecordSections(test.config)}
+              readings={test.readings}
+              onSetReading={(k, v) => void setReading(k, v)}
+            />
+          )}
+
+          {current === "AdditionalTests" && (
+            <ReadingsStep
+              title="Additional Tests"
+              hint="Only the sections relevant to this machine's ancillaries are shown."
+              sections={additionalTestSections(test.config)}
+              readings={test.readings}
+              onSetReading={(k, v) => void setReading(k, v)}
+            />
+          )}
+
+          {current === "PulsatorTest" && (
+            <ReadingsStep
+              title="Pulsator Test Results"
+              hint="Summary rates & ratios (per-pulsator rows coming next)."
+              sections={pulsatorSections(test.config)}
+              readings={test.readings}
+              onSetReading={(k, v) => void setReading(k, v)}
+            />
+          )}
+
+          {current === "IndividualClusterTest" && (
+            <ReadingsStep
+              title="Individual Cluster Tests"
+              hint="Optional — per-cluster airflow."
+              sections={individualClusterSections(test.config)}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
             />
@@ -363,6 +409,9 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             current !== "VisualFaultsPreStart" &&
             current !== "VisualFaultsRunning" &&
             current !== "TestRecord" &&
+            current !== "AdditionalTests" &&
+            current !== "PulsatorTest" &&
+            current !== "IndividualClusterTest" &&
             current !== "FaultSummary" && (
               <div class="card">
                 <div class="card__title">

@@ -1,15 +1,8 @@
-// Test Record step: numerical readings (ISO groups 1–9) grouped into tabs, each with a live
-// pass/fail verdict from the Pass/Fail Calculator against the standards.
+// Reusable numerical-readings step (Test Record, Additional Tests, Pulsator, Individual Cluster).
+// Sections become tabs; each reading shows a live pass/fail verdict from the Pass/Fail Calculator.
 import { evaluate } from "../passfail/passFail";
-import { type ReadingDef, testRecordSections } from "../passfail/standards";
-import type { MachineConfiguration } from "./types";
+import type { ReadingDef, ReadingSection } from "../passfail/standards";
 import { Tabs } from "../ui/Tabs";
-
-interface Props {
-  config: MachineConfiguration;
-  readings: Record<string, number>;
-  onSetReading: (key: string, value: number | null) => void;
-}
 
 function ReadingRow({
   reading,
@@ -44,8 +37,25 @@ function ReadingRow({
   );
 }
 
-export function TestRecordStep({ config, readings, onSetReading }: Props) {
-  const tabs = testRecordSections(config).map((sec) => ({
+interface Props {
+  title: string;
+  hint: string;
+  sections: ReadingSection[];
+  readings: Record<string, number>;
+  onSetReading: (key: string, value: number | null) => void;
+}
+
+export function ReadingsStep({ title, hint, sections, readings, onSetReading }: Props) {
+  if (sections.length === 0) {
+    return (
+      <div class="card">
+        <div class="card__title">{title}</div>
+        <p class="td-muted">No readings apply to this machine — you can move on.</p>
+      </div>
+    );
+  }
+
+  const tabs = sections.map((sec) => ({
     key: sec.key,
     label: sec.title,
     content: (
@@ -60,7 +70,7 @@ export function TestRecordStep({ config, readings, onSetReading }: Props) {
   return (
     <div class="card">
       <div class="card__title">
-        Test Record <small class="card__hint">Enter readings — pass/fail is live against the standard for this machine.</small>
+        {title} <small class="card__hint">{hint}</small>
       </div>
       <Tabs tabs={tabs} />
     </div>

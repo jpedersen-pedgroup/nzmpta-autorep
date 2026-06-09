@@ -783,7 +783,7 @@ main {
 /* ----- Toasts -------------------------------------------------------------- */
 .toast-container {
   position: fixed;
-  bottom: var(--space-6);
+  top: var(--space-6);
   right: var(--space-6);
   z-index: 200;
   display: flex;
@@ -800,7 +800,7 @@ main {
   font-size: 0.9rem;
   line-height: 1.4;
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(-8px);
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .toast--show { opacity: 1; transform: none; }
@@ -808,7 +808,7 @@ main {
 .toast--success { background: #14532d; }
 .toast--info { background: var(--brand); }
 @media (max-width: 720px) {
-  .toast-container { left: var(--space-4); right: var(--space-4); bottom: var(--space-4); max-width: none; }
+  .toast-container { left: var(--space-4); right: var(--space-4); top: var(--space-4); max-width: none; }
 }
 
 /* ----- Test Record readings + pass/fail badges ----------------------------- */
