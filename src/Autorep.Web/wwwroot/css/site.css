@@ -821,3 +821,16 @@ main {
 .pf--pass { background: var(--success-bg); color: #166534; }
 .pf--fail { background: var(--danger-bg); color: #991b1b; }
 .pf--noStandard { background: var(--surface-alt); color: var(--text-subtle); }
+
+/* ----- Fault summary ------------------------------------------------------- */
+.fault-counts { display: flex; gap: var(--space-2); margin: var(--space-3) 0 var(--space-4); flex-wrap: wrap; }
+.fault-group { margin-bottom: var(--space-4); }
+.fault-group__head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+.fault-group__name { font-weight: 600; font-size: 0.95rem; }
+.fault { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
+.fault__desc { flex: 1; font-size: 0.9rem; display: flex; align-items: center; gap: var(--space-2); }
+.fault__rec { flex: 1; min-width: 0; padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--surface); }
+.pf-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.pf-dot--critical { background: var(--danger); }
+.pf-dot--major { background: var(--warning); }
+.pf-dot--minor { background: var(--text-subtle); }

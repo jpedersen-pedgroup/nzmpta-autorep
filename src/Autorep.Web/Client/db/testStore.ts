@@ -40,6 +40,8 @@ export interface LocalTest {
   attestations: ChecklistAttestation[];
   /** Test Record numerical readings, keyed by reading key. */
   readings: Record<string, number>;
+  /** Recommendation text per fault, keyed by the fault's source key. */
+  recommendations: Record<string, string>;
   /** Visual Faults — Running: guards installed on pulsators. */
   guardsOnPulsators?: boolean;
   notes?: string;

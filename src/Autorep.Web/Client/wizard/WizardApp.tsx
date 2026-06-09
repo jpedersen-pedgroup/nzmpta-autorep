@@ -19,6 +19,8 @@ import { Tabs } from "../ui/Tabs";
 import { useServerOnline } from "../connectivity";
 import { TestRecordStep } from "./TestRecordStep";
 import { testRecordSections } from "../passfail/standards";
+import { FaultSummaryStep } from "./FaultSummaryStep";
+import { buildFaultInputs } from "../faults/buildFaults";
 import { VisualFaultsStep } from "./VisualFaultsStep";
 import {
   applyCheckAll,
@@ -52,6 +54,7 @@ function newLocalTest(farmId?: string, farmName?: string): LocalTest {
     visualFaults: {},
     attestations: [],
     readings: {},
+    recommendations: {},
     createdAt: now,
     updatedAt: now,
     markedCompleteAt: null,
@@ -72,6 +75,10 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
   }
   if (testRecordSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
     done.add("TestRecord");
+  }
+  const faults = buildFaultInputs(t);
+  if (faults.every((f) => f.key != null && (t.recommendations[f.key] ?? "").trim().length > 0)) {
+    done.add("FaultSummary");
   }
   return done;
 }
@@ -129,6 +136,12 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     if (value === null || Number.isNaN(value)) delete readings[key];
     else readings[key] = value;
     return persist({ readings });
+  };
+  const setRecommendation = (key: string, value: string) => {
+    const recommendations = { ...test.recommendations };
+    if (value.trim() === "") delete recommendations[key];
+    else recommendations[key] = value;
+    return persist({ recommendations });
   };
   const checkAllSection = (step: WizardStep, section: ChecklistSection) => {
     const attestation: ChecklistAttestation = {
@@ -341,11 +354,16 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             />
           )}
 
+          {current === "FaultSummary" && (
+            <FaultSummaryStep test={test} onSetRecommendation={(k, v) => void setRecommendation(k, v)} />
+          )}
+
           {current !== "Setup" &&
             current !== "MachineConfiguration" &&
             current !== "VisualFaultsPreStart" &&
             current !== "VisualFaultsRunning" &&
-            current !== "TestRecord" && (
+            current !== "TestRecord" &&
+            current !== "FaultSummary" && (
               <div class="card">
                 <div class="card__title">
                   {currentStep.title} <small class="card__hint">Offline data entry for this step is coming next.</small>

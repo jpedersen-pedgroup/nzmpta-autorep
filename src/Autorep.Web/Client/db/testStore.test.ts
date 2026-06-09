@@ -13,6 +13,7 @@ function sample(id: string, farmName = "Sunny Acres"): LocalTest {
     visualFaults: {},
     attestations: [],
     readings: {},
+    recommendations: {},
     createdAt: now,
     updatedAt: now,
     markedCompleteAt: null,

@@ -73,8 +73,8 @@
 - [ ] ⬜ Pulsator tests (per-pulsator rates/ratios; "faulty rows only" / "enter all")
 - [ ] ⬜ Individual cluster tests (optional / skippable)
 - [x] ✅ Pass/Fail Calculator — **.NET + TS mirror done (9 Jun)**: pure evaluator (atMost/atLeast/between/tolerance/none), shared fixtures in `tests/fixtures/passfail` drive both (xUnit + Vitest). Standards: EffectiveArea reserve-by-cluster lookup embedded
-- [ ] ⬜ Fault Aggregator (.NET) + Fault Summary step with per-fault severity
-- [ ] ⬜ Recommendations step (Standard Recommendation Wording dropdown + freeform)
+- [x] ✅ Fault Aggregator — **.NET + TS mirror done (9 Jun)**: groups visual faults + failed readings by component, worst-severity rollup + counts; shared fixtures in `tests/fixtures/faults` (xUnit + Vitest). Fault Summary step renders grouped faults + per-fault recommendation field
+- [ ] 🟡 Recommendations — **freeform per-fault rec field done (9 Jun)** in the Fault Summary step; **Standard Recommendation Wording dropdown** (from the 113-row CMM catalog) still to wire
 - [ ] ⬜ Next Test Date (pre-populated +12 months) + compliance disclaimer
 - [ ] ⬜ Review & sign-off step (+ back-navigation to any step)
 - [ ] ❌ Wizard unit tests + Playwright happy-path

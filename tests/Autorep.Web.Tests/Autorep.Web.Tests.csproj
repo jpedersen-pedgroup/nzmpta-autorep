@@ -30,6 +30,7 @@
     <!-- Shared wizard fixtures, also consumed by the future TypeScript (Vitest) mirror. -->
     <None Include="..\fixtures\wizard\*.json" Link="Fixtures\Wizard\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\fixtures\passfail\*.json" Link="Fixtures\PassFail\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\faults\*.json" Link="Fixtures\Faults\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -51,6 +51,7 @@ async function pullTests(): Promise<number> {
       visualFaults: {},
       attestations: [],
       readings: {},
+      recommendations: {},
       createdAt: r.createdAt,
       updatedAt: now,
       markedCompleteAt: r.markedCompleteAt,
