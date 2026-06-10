@@ -5,8 +5,7 @@ import { useState } from "preact/hooks";
 import type { FaultSeverity, VisualFaultEntry } from "./types";
 import { type ChecklistItem, type ChecklistSection, checklistComplete } from "./visualChecklist";
 import { Tabs } from "../ui/Tabs";
-import { faultObservationsFor } from "../reference/lookups";
-import { severityForObservation } from "../reference/faultRatings";
+import { observationsFor, severityFor } from "../reference/faultCatalog";
 import { Combobox } from "../ui/Combobox";
 
 interface Props {
@@ -70,11 +69,11 @@ function ItemRow({
             onClick={() => {
               if (entry?.status === "fault") return onSetEntry(item.key, null);
               // If the check has exactly one standard fault, select it automatically.
-              const obs = faultObservationsFor(item.lookup);
+              const obs = observationsFor(item.lookup);
               onSetEntry(
                 item.key,
                 obs.length === 1
-                  ? { status: "fault", observation: obs[0], severity: severityForObservation(obs[0]) }
+                  ? { status: "fault", observation: obs[0], severity: severityFor(item.lookup, obs[0]) }
                   : { status: "fault", severity: "Major" },
               );
             }}
@@ -85,15 +84,15 @@ function ItemRow({
       </div>
       {entry?.status === "fault" && (
         <div class="fault-detail">
-          {faultObservationsFor(item.lookup).length > 0 && (
+          {observationsFor(item.lookup).length > 0 && (
             <Combobox
               class="fault-detail__obs"
               listId={`obs-${item.key}`}
               placeholder="— select or type fault —"
               value={entry.observation ?? null}
-              options={faultObservationsFor(item.lookup)}
+              options={observationsFor(item.lookup)}
               onChange={(obs) =>
-                onSetEntry(item.key, { ...entry, observation: obs ?? undefined, severity: severityForObservation(obs) })
+                onSetEntry(item.key, { ...entry, observation: obs ?? undefined, severity: severityFor(item.lookup, obs) })
               }
             />
           )}

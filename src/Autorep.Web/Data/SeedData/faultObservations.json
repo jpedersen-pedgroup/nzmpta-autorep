@@ -1,0 +1,1118 @@
+[
+  {
+    "category": "VPWaterCondition",
+    "name": "Oil/Water Condition Poor",
+    "severity": "Major",
+    "recommendation": "Service the vacuum pump oiler / change oil"
+  },
+  {
+    "category": "VPWaterCondition",
+    "name": "Oil/Water Dirty",
+    "severity": "Minor",
+    "recommendation": "Change vacuum pump oil / water"
+  },
+  {
+    "category": "VPWaterReservoir",
+    "name": "Oil/Water Level Incorrect",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VPWaterReservoir",
+    "name": "Oil/Water Too Low",
+    "severity": "Minor",
+    "recommendation": "Raise level to 20 mm above the pump shaft centreline"
+  },
+  {
+    "category": "VPWaterReservoir",
+    "name": "Oil/Water Too High",
+    "severity": "Minor",
+    "recommendation": "Lower level to 20 mm above the pump shaft centreline"
+  },
+  {
+    "category": "VPWaterSupplyProtected",
+    "name": "Oil/Water Supply Should Be Protected",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VPWaterSupplyProtected",
+    "name": "Lid Not Fitted",
+    "severity": "Minor",
+    "recommendation": "Fit a lid to the oil/water supply"
+  },
+  {
+    "category": "VPWaterSupplyProtected",
+    "name": "No Lid",
+    "severity": "Minor",
+    "recommendation": "Fit a lid to the oil/water supply"
+  },
+  {
+    "category": "VPWickCondition",
+    "name": "Oil Wicks Dirty",
+    "severity": "Minor",
+    "recommendation": "Clean oil wicks"
+  },
+  {
+    "category": "VPWickCondition",
+    "name": "Oil Wicks Require Replacement",
+    "severity": "Major",
+    "recommendation": "Replace oil wicks"
+  },
+  {
+    "category": "VPWickCondition",
+    "name": "No Oil Wicks Present",
+    "severity": "Major",
+    "recommendation": "Fit oil wicks"
+  },
+  {
+    "category": "VPBeltCondition",
+    "name": "Vee Belts Perishing/Split",
+    "severity": "Major",
+    "recommendation": "Replace vee belts"
+  },
+  {
+    "category": "VPBeltCondition",
+    "name": "Vee Belts Require Replacement",
+    "severity": "Major",
+    "recommendation": "Replace vee belts"
+  },
+  {
+    "category": "VPEndPlay",
+    "name": "End Play Excessive - Service Pump",
+    "severity": "Major",
+    "recommendation": "Service the vacuum pump (excessive end play)"
+  },
+  {
+    "category": "VPEndPlay",
+    "name": "Excessive",
+    "severity": "Major",
+    "recommendation": "Service the vacuum pump (excessive end play)"
+  },
+  {
+    "category": "VPGuardsShaftBelts",
+    "name": "Guards Not Fitted To Osh Regulations",
+    "severity": "Major",
+    "recommendation": "Install guards to WorkSafe requirements"
+  },
+  {
+    "category": "VPGuardsShaftBelts",
+    "name": "Guard Not Fitted",
+    "severity": "Major",
+    "recommendation": "Install guard"
+  },
+  {
+    "category": "VPGuardsShaftBelts",
+    "name": "No Guard",
+    "severity": "Major",
+    "recommendation": "Install guard"
+  },
+  {
+    "category": "VPInterceptorConnection",
+    "name": "Interceptor Connection Is Substandard",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "VPInterceptorConnection",
+    "name": "Interceptor Connection Is Broken",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "VPInterceptorConnection",
+    "name": "Interceptor Connection Is Loose",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VPExaustSystem",
+    "name": "Re-Plumb Vacuum Pump Exhaust",
+    "severity": "Major",
+    "recommendation": "Remove restrictions / re-plumb the vacuum pump exhaust"
+  },
+  {
+    "category": "VPDirectCoupling",
+    "name": "Vacuum Pump Coupling Faulty",
+    "severity": "Major",
+    "recommendation": "Replace the vacuum pump coupling"
+  },
+  {
+    "category": "VPDirectCoupling",
+    "name": "Vacuum Pump Coupling Perishing/Split",
+    "severity": "Minor",
+    "recommendation": "Replace coupling inserts"
+  },
+  {
+    "category": "RMPBeltCondition",
+    "name": "Vee Belt Condition Poor - Replace",
+    "severity": "Major",
+    "recommendation": "Replace vee belts"
+  },
+  {
+    "category": "RMPBeltCondition",
+    "name": "Vee Belt Perishing/Split",
+    "severity": "Major",
+    "recommendation": "Replace vee belts"
+  },
+  {
+    "category": "RMPBeltTension",
+    "name": "Vee Belts Require Retensioning",
+    "severity": "Minor",
+    "recommendation": "Re-tension vee belts"
+  },
+  {
+    "category": "RMPBeltTension",
+    "name": "Vee Belts Loose",
+    "severity": "Minor",
+    "recommendation": "Tighten vee belts"
+  },
+  {
+    "category": "RMPBeltTension",
+    "name": "Vee Belts Overtightened",
+    "severity": "Minor",
+    "recommendation": "Re-tension vee belts to specification"
+  },
+  {
+    "category": "RMPGuardShaftsBelts",
+    "name": "Guards Not Fitted To Osh Regulations",
+    "severity": "Major",
+    "recommendation": "Install guards to WorkSafe requirements"
+  },
+  {
+    "category": "RMPGuardShaftsBelts",
+    "name": "Guard Not Fitted",
+    "severity": "Major",
+    "recommendation": "Install guard"
+  },
+  {
+    "category": "RMPGuardShaftsBelts",
+    "name": "No Guard",
+    "severity": "Major",
+    "recommendation": "Install guard"
+  },
+  {
+    "category": "RMPControls",
+    "name": "Faulty",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "RMPControls",
+    "name": "Probe Is Faulty",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "RMPControls",
+    "name": "Controller Is Faulty - Repair",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "RDCIntakeLine",
+    "name": "Releaser Milk Pump Intake Line Is Leaking",
+    "severity": "Major",
+    "recommendation": "Repair the releaser milk pump intake line"
+  },
+  {
+    "category": "RDCIntakeLine",
+    "name": "Rubber Bends/Unions Perished",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "RDCIntakeLine",
+    "name": "Unions Leaking",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "RDCNonReturnValve",
+    "name": "Blocked With Debris - Requires Cleaning",
+    "severity": "Major",
+    "recommendation": "Clean the non-return valve"
+  },
+  {
+    "category": "RDCNonReturnValve",
+    "name": "Non Return Valve Is Faulty",
+    "severity": "Major",
+    "recommendation": "Service or replace the non-return valve"
+  },
+  {
+    "category": "RDCNonReturnValve",
+    "name": "Spring Is Broken",
+    "severity": "Minor",
+    "recommendation": "Replace the non-return valve spring"
+  },
+  {
+    "category": "RDCRotation",
+    "name": "Direction Of Rotation Incorrect",
+    "severity": "Major",
+    "recommendation": "Reverse rotation to the correct direction"
+  },
+  {
+    "category": "RDCBackplate",
+    "name": "Backing Plate Is Missing/Faulty",
+    "severity": "Major",
+    "recommendation": "Fit / repair the backing plate"
+  },
+  {
+    "category": "RDCBackplate",
+    "name": "Backing Plate Is Back To Front",
+    "severity": "Major",
+    "recommendation": "Refit the backing plate the correct way around"
+  },
+  {
+    "category": "BAMilkLineHeight",
+    "name": "Milk Line Height Excessive",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "BAClusterAlignment",
+    "name": "Cluster Alignment Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "BAHerringboneCentres",
+    "name": "Milkline Centres Are Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "BAClusterPosition",
+    "name": "Cluster Positioning Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "BAFirstInlet",
+    "name": "First Cluster Position Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "ROTARIESRotation",
+    "name": "Direction Of Rotation Is Incorrect",
+    "severity": "Major",
+    "recommendation": "Reverse rotation to the correct direction"
+  },
+  {
+    "category": "ROTARIESClusters",
+    "name": "Cluster Positioning Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MAMounting",
+    "name": "Bracket Is Broken",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MAMounting",
+    "name": "Bracket Is Loose",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MAMounting",
+    "name": "Bracketing Is Inadequate",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MAMovement",
+    "name": "Pipework Movement Is Excessive",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MASealsJoiners",
+    "name": "Seals/Unions Faulty",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MASealsJoiners",
+    "name": "Milkline Seals/Unions Loose Or Broken",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MASealsJoiners",
+    "name": "Pulsator Airline Seals/Unions Loose Or Broken",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MASealsJoiners",
+    "name": "Main Airline Seals/Unions Loose/Broken",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MADeadEndLengths",
+    "name": "Dead End Lengths Exceed 75 Mm",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MADiameter",
+    "name": "Milkline Diameter(s) Outside Guidelines",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MADiameter",
+    "name": "Pulsator Airline(s) Diameter Outside Guidelines",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MAPlubming",
+    "name": "Milkline Diameter(s) Outside Guidelines",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MAPlubming",
+    "name": "Pulsator Airline(s) Diameter Outside Guidelines",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MASlopeDegree",
+    "name": "Degree Of Slope Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MASlopeDirection",
+    "name": "Direction Of Fall Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MAAirlineDrainPoints",
+    "name": "Not Falling To A Drain Point",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "INLETSDiameter",
+    "name": "Inlet Diameter Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "INLETSPosition",
+    "name": "Inlet Position Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "INLETSAlignment",
+    "name": "Alignment Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "INLETSMouldedBendsCondition",
+    "name": "Perishing/Split",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "INLETSMouldedBendsCondition",
+    "name": "Bends Require Replacement",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "INLETSMouldedBendsDiameter",
+    "name": "Too Small",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "INLETSMouldedBendsDiameter",
+    "name": "Too Large",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "INLETSMouldedBendsDiameter",
+    "name": "Bend Diameter Is Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "CLUSTERSAirAdmission",
+    "name": "Cluster Air Admission Is Blocked",
+    "severity": "Major",
+    "recommendation": "Clean the cluster air-admission holes"
+  },
+  {
+    "category": "CLUSTERSAirAdmission",
+    "name": "No Cluster Air Admission",
+    "severity": "Major",
+    "recommendation": "Clear / fit cluster air admission"
+  },
+  {
+    "category": "CLUSTERSAirAdmission",
+    "name": "Cluster Air Admission Requires Servicing",
+    "severity": "Major",
+    "recommendation": "Service the cluster air-admission holes"
+  },
+  {
+    "category": "CLUSTERSAirAdmissionDiameter",
+    "name": "Incorrectly Fitted Gaskets",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "CLUSTERSAirAdmissionDiameter",
+    "name": "Cluster Air Admission <.8 Mm",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "CLUSTERSAirAdmissionDiameter",
+    "name": "Cluster Air Admission Too Large",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "CLUSTERSAirAdmissionDiameter",
+    "name": "Cluster Air Admission Too Small",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "CLUSTERSPulseTubeManifold",
+    "name": "Pulse Tube Manifold Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "CLUSTERSPulseTubeManifold",
+    "name": "Pulse Tube Manifold Blocked",
+    "severity": "Major",
+    "recommendation": "Clear the pulse-tube manifold"
+  },
+  {
+    "category": "CLUSTERSPulseTubeManifold",
+    "name": "Pulse Tube Manifold Leaking",
+    "severity": "Major",
+    "recommendation": "Service the pulse-tube manifold"
+  },
+  {
+    "category": "CLAWClawCondition",
+    "name": "Claw Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "CLAWClawCondition",
+    "name": "Claw Condition Damaged",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "CLAWShutOffValves",
+    "name": "Perishing",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "CLAWShutOffValves",
+    "name": "Split",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "CLAWShutOffValves",
+    "name": "Valves Require Servicing",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "LINERShellCompatibility",
+    "name": "Liners Not Compatible With Shells",
+    "severity": "Major",
+    "recommendation": "Replace liners with a shell-compatible type"
+  },
+  {
+    "category": "LINERLinerTension",
+    "name": "Liners Have Minimal Elasticity",
+    "severity": "Major",
+    "recommendation": "Replace liners (minimal elasticity)"
+  },
+  {
+    "category": "LINERLinerTension",
+    "name": "Liners On 2nd Tension Ring",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LINERLinerAlignment",
+    "name": "Reset Liner Alignment Guide Arrows",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "LINERLinerLipCondition",
+    "name": "Lip Condition Perished/Split",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LINERLinerLipCondition",
+    "name": "Lip Condition Distorted",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LINERLinerLipCondition",
+    "name": "Lip Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LINERCondition",
+    "name": "Perished/Split",
+    "severity": "Major",
+    "recommendation": "Replace liners"
+  },
+  {
+    "category": "LINERCondition",
+    "name": "Liners Require Replacement",
+    "severity": "Major",
+    "recommendation": "Replace liners"
+  },
+  {
+    "category": "SHELLCondition",
+    "name": "Shells Dented",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "SHELLCondition",
+    "name": "Shells Squashed",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SHELLCondition",
+    "name": "Shell Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SHELLPortCondition",
+    "name": "Ports Bent",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SHELLPortCondition",
+    "name": "Port Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SPTCondition",
+    "name": "Short Pulse Tubes Incorrect Length",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SPTCondition",
+    "name": "Short Pulse Tubes Perished/Split",
+    "severity": "Major",
+    "recommendation": "Replace the short pulse tubes"
+  },
+  {
+    "category": "SPTCondition",
+    "name": "Short Pulse Tube Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SPTLenghth",
+    "name": "Short Pulse Tubes Incorrect Length",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SPTLenghth",
+    "name": "Short Pulse Tubes Perished/Split",
+    "severity": "Major",
+    "recommendation": "Replace the short pulse tubes"
+  },
+  {
+    "category": "SPTLenghth",
+    "name": "Short Pulse Tube Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SPTDiameter",
+    "name": "Short Pulse Tubes Incorrect Length",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "SPTDiameter",
+    "name": "Short Pulse Tubes Perished/Split",
+    "severity": "Major",
+    "recommendation": "Replace the short pulse tubes"
+  },
+  {
+    "category": "SPTDiameter",
+    "name": "Short Pulse Tube Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LPTCondition",
+    "name": "Long Pulse Tubes Incorrect Length",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LPTCondition",
+    "name": "Long Pulse Tubes Perished/Split",
+    "severity": "Major",
+    "recommendation": "Replace the long pulse tubes"
+  },
+  {
+    "category": "LPTCondition",
+    "name": "Long Pulse Tube Condition Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LPTCompatability",
+    "name": "Pulse Tubes Not Compatible",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LPTDiameter",
+    "name": "Pulse Tubes Not Compatible",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LPTLength",
+    "name": "Pulse Tubes Not Compatible",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "LMTLength",
+    "name": "Long Milk Tubes Incorrect Length",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "LMTCondition",
+    "name": "Long Milk Tubes Incorrect Length",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "LMTCondition",
+    "name": "Long Milk Tubes Perished/Split",
+    "severity": "Minor",
+    "recommendation": "Replace the long milk tubes"
+  },
+  {
+    "category": "LMTCondition",
+    "name": "Long Milk Tube Condition Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PLATFORMMounting",
+    "name": "Rollers Very Noisy",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PLATFORMMounting",
+    "name": "Platform Should Be Serviced",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PLATFORMSlope",
+    "name": "Milkline Fall Incorrect",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MFICondition",
+    "name": "Indicators Cracked",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MFICondition",
+    "name": "Indicators Cloudy",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MFICondition",
+    "name": "Indicator Condition Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MFIDegree",
+    "name": "Indicators Cracked",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MFIDegree",
+    "name": "Indicators Cloudy",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MFIDegree",
+    "name": "Indicator Condition Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MFIInstallation",
+    "name": "Seals Leaking",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MFIInstallation",
+    "name": "Seals Dirty",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MFIInstallation",
+    "name": "Seals Missing",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MFIInstallation",
+    "name": "Indicator Installation Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "ACRAirRamCondition",
+    "name": "Ropes Frayed",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "ACRAirRamCondition",
+    "name": "Ropes Broken",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "ACRAirRamCondition",
+    "name": "Hard To Pull Down",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "ACRAirRamCondition",
+    "name": "Ram Condition Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "ACRTubingCondition",
+    "name": "Tube Condition Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "ACRFloatCondition",
+    "name": "Float Condition Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MMTubingCondition",
+    "name": "Tube Condition Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MMCondition",
+    "name": "Milk Meter Condition Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSFilters",
+    "name": "Filter Condition Is Poor/Blocked",
+    "severity": "Major",
+    "recommendation": "Clean or replace the pulsator air filters"
+  },
+  {
+    "category": "PULSATORSFilters",
+    "name": "Filters Are Dirty",
+    "severity": "Minor",
+    "recommendation": "Clean the air filters"
+  },
+  {
+    "category": "PULSATORSFilters",
+    "name": "Filters Are Perished",
+    "severity": "Major",
+    "recommendation": "Replace the air filters"
+  },
+  {
+    "category": "PULSATORSFilters",
+    "name": "Inline Filters Are Dirty",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSPort",
+    "name": "Port Condition Perishing/Split",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSPort",
+    "name": "Ports Blocked",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSPort",
+    "name": "Port Condition Is Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSFilteredAir",
+    "name": "Filtered Air System Requires Servicing",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSFilteredAir",
+    "name": "Brackets Are Broken",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSFilteredAir",
+    "name": "Filters Are Dirty",
+    "severity": "Minor",
+    "recommendation": "Clean the air filters"
+  },
+  {
+    "category": "PULSATORSFilteredAir",
+    "name": "Filters Are Perishing",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSRecommendedPulsator",
+    "name": "Not The Recommended Pulsator",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSLastPulsatorService",
+    "name": "Service Overdue",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "PULSATORSPulsatorRunTime",
+    "name": "Run Time Exceeds Recommendation",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VGPresent",
+    "name": "Vacuum Gauge Not Fitted",
+    "severity": "Major",
+    "recommendation": "Fit a vacuum gauge"
+  },
+  {
+    "category": "VGPosition",
+    "name": "Vacuum Gauge Position Incorrect",
+    "severity": "Major",
+    "recommendation": "Reposition the vacuum gauge so milkers can see it"
+  },
+  {
+    "category": "VGPosition",
+    "name": "Vacuum Gauge Hard To See",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "VGCondition",
+    "name": "Vacuum Gauge Damaged/Rusty",
+    "severity": "Minor",
+    "recommendation": "Replace the vacuum gauge"
+  },
+  {
+    "category": "VGCondition",
+    "name": "Vacuum Gauge Faulty",
+    "severity": "Major",
+    "recommendation": "Replace the vacuum gauge"
+  },
+  {
+    "category": "MRVRFilters",
+    "name": "Filters Dirty",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MRVRFilters",
+    "name": "Filters Perished",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MRVRFilters",
+    "name": "Filters Require Cleaning/Replacing",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "MRVRPosition",
+    "name": "Regulator Installed Incorrectly",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "MRVRFittedSpecifications",
+    "name": "Not Fitted To Specification",
+    "severity": "Major",
+    "recommendation": "Refit the regulator to manufacturer's specification"
+  },
+  {
+    "category": "MRVRFittedSpecifications",
+    "name": "Pilot Tube Damaged/Not Connected",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "RECEIVERPerspexCondition",
+    "name": "Face Plate Condition Is Poor",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "RECEIVERPerspexCondition",
+    "name": "Face Plate Is Cracked",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "RECEIVERPerspexCondition",
+    "name": "Face Plate Is Cloudy",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "RECEIVERSealPlacement",
+    "name": "Face Plate Seal Condition Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "RECEIVERSealPlacement",
+    "name": "Face Plate Seal Is Perished/Split",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "RECEIVERSealPlacement",
+    "name": "Face Plate Seal Is Dirty",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "RECEIVERSize",
+    "name": "Receiver Is Undersized",
+    "severity": "Major",
+    "recommendation": "Replace with a correctly sized receiver"
+  },
+  {
+    "category": "RECEIVERRestrictions",
+    "name": "Restrictions In Mal/Ral Combination",
+    "severity": "Major",
+    "recommendation": null
+  },
+  {
+    "category": "VPOWInterceptorMovement",
+    "name": "Interceptor Support Is Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VPOWInterceptorMovement",
+    "name": "Interceptor Not Bracketted",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VPOWNoise",
+    "name": "Vacuum Pump Noise Is Excessive",
+    "severity": "Major",
+    "recommendation": "Service the vacuum pump"
+  },
+  {
+    "category": "VPOWWaterFlowRate",
+    "name": "Water Flow Rate Poor",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VPOWWaterFlowRate",
+    "name": "Restriction Inside Vacuum Pump",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VPOWWaterFlowRate",
+    "name": "Restriction Inside Exhaust",
+    "severity": "Minor",
+    "recommendation": null
+  },
+  {
+    "category": "VPOWWaterTemperature",
+    "name": "Vacuum Pump Water Temp Is Excessive",
+    "severity": "Major",
+    "recommendation": "Investigate / correct vacuum pump water temperature"
+  },
+  {
+    "category": "CSJetterType",
+    "name": "Incompatible Jetter Type",
+    "severity": "Major",
+    "recommendation": "Fit compatible jetters"
+  },
+  {
+    "category": "CSJetterCondition",
+    "name": "Condition Poor – Servicing Required",
+    "severity": "Minor",
+    "recommendation": "Service the cleaning jetters"
+  }
+]

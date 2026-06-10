@@ -1,0 +1,55 @@
+@page "{id:guid}"
+@model Autorep.Web.Pages.Admin.FaultObservations.EditModel
+@{
+    ViewData["Title"] = "Edit fault observation";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Edit fault observation</h1>
+        <p>Check: <code>@Model.Category</code></p>
+    </div>
+</div>
+
+@if (Model.Errors.Any())
+{
+    <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+}
+@if (Model.Message is not null)
+{
+    <div class="alert alert--success">@Model.Message</div>
+}
+
+<div class="card" style="max-width:640px">
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Name">Observation wording</label>
+            <input asp-for="Name" type="text" />
+        </div>
+        <div class="form-field">
+            <label asp-for="Severity">Severity (CMM)</label>
+            <select asp-for="Severity">
+                @foreach (var s in Autorep.Web.Pages.Admin.FaultObservations.EditModel.Severities)
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+        </div>
+        <div class="form-field">
+            <label asp-for="Recommendation">Default recommendation</label>
+            <textarea asp-for="Recommendation" rows="3" placeholder="Pre-fills the Fault Summary; the tester can edit it per test."></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--secondary" asp-page-handler="ToggleActive">
+                @(Model.IsActive ? "Deactivate" : "Reactivate")
+            </button>
+            <a class="btn btn--secondary" asp-page="/Admin/FaultObservations/Index">Back</a>
+            <button type="submit" class="btn btn--danger-soft" asp-page-handler="Delete"
+                    onclick="return confirm('Delete this observation? Prefer Deactivate if it may appear on historical tests.');"
+                    style="margin-left:auto">
+                Delete
+            </button>
+        </div>
+    </form>
+</div>

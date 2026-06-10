@@ -3,10 +3,11 @@
 // offline Preact wizard and the "My tests" list when their roots are present.
 import { initStandards } from "./standards/standardsSync";
 import { initEquipment } from "./standards/equipmentSync";
+import { initFaultCatalog } from "./standards/faultCatalogSync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
 
-void Promise.allSettled([initStandards(), initEquipment()]).finally(() => {
+void Promise.allSettled([initStandards(), initEquipment(), initFaultCatalog()]).finally(() => {
   const wizardRoot = document.getElementById("wizard-root");
   if (wizardRoot) {
     const params = new URLSearchParams(location.search);

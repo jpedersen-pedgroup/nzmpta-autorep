@@ -75,7 +75,33 @@ public static class Seed
         await db.SaveChangesAsync();
         await TestStandardsAsync(db);
         await EquipmentAsync(db);
+        await FaultObservationsAsync(db);
     }
+
+    // Seeds the standard fault observations (legacy Lookup wording merged with the CMM severity
+    // + recommendation catalog, embedded as JSON). Seed-only-when-empty so SuperAdmin edits stick.
+    private static async Task FaultObservationsAsync(AutorepDbContext db)
+    {
+        if (await db.FaultObservations.AnyAsync()) return;
+
+        using var stream = typeof(Seed).Assembly.GetManifestResourceStream("Autorep.Web.Data.SeedData.faultObservations.json")
+            ?? throw new InvalidOperationException("Missing embedded resource faultObservations.json");
+        var rows = System.Text.Json.JsonSerializer.Deserialize<List<FaultObservationSeed>>(stream,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+        foreach (var r in rows)
+        {
+            db.FaultObservations.Add(new FaultObservation
+            {
+                Category = r.Category,
+                Name = r.Name,
+                Severity = r.Severity,
+                Recommendation = r.Recommendation,
+            });
+        }
+        await db.SaveChangesAsync();
+    }
+
+    private sealed record FaultObservationSeed(string Category, string Name, string Severity, string? Recommendation);
 
     // Seeds the equipment catalogs (shells / liners / pulsator models from the legacy DB, embedded
     // as JSON resources, plus the small fixed lists). Seed-if-type-empty so SuperAdmin renames,

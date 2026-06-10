@@ -1,0 +1,54 @@
+@page
+@model Autorep.Web.Pages.Admin.FaultObservations.NewModel
+@{
+    ViewData["Title"] = "New fault observation";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>New fault observation</h1>
+        <p>
+            Adds a standard fault to one visual check's dropdown. The check key must match one the
+            wizard uses (pick from the list) — a brand-new key has no effect until a release wires
+            a checklist item to it.
+        </p>
+    </div>
+</div>
+
+@if (Model.Errors.Any())
+{
+    <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+}
+
+<div class="card" style="max-width:640px">
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Category">Check (category key)</label>
+            <input asp-for="Category" type="text" list="fo-categories" placeholder="e.g. VPWickCondition" />
+            <datalist id="fo-categories">
+                @foreach (var c in Model.Categories) { <option value="@c" /> }
+            </datalist>
+        </div>
+        <div class="form-field">
+            <label asp-for="Name">Observation wording</label>
+            <input asp-for="Name" type="text" />
+        </div>
+        <div class="form-field">
+            <label asp-for="Severity">Severity (CMM)</label>
+            <select asp-for="Severity">
+                @foreach (var s in Autorep.Web.Pages.Admin.FaultObservations.EditModel.Severities)
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+        </div>
+        <div class="form-field">
+            <label asp-for="Recommendation">Default recommendation</label>
+            <textarea asp-for="Recommendation" rows="3"></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">Create</button>
+            <a class="btn btn--secondary" asp-page="/Admin/FaultObservations/Index">Cancel</a>
+        </div>
+    </form>
+</div>

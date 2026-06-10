@@ -1,0 +1,68 @@
+@page
+@model Autorep.Web.Pages.Admin.FaultObservations.IndexModel
+@{
+    ViewData["Title"] = "Fault observations";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Fault observations</h1>
+        <p>
+            The standard fault wording a tester picks when a visual check fails, with its CMM
+            severity and the default recommendation that pre-fills the Fault Summary. Grouped by
+            the check it belongs to. Changes sync to testers' devices on their next sync.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn" asp-page="/Admin/FaultObservations/New">+ New observation</a>
+    </div>
+</div>
+
+<div class="form-field" style="max-width:420px; margin-bottom:var(--space-3)">
+    <input type="text" id="fo-filter" placeholder="Filter checks… (e.g. wick, liner, receiver)" />
+</div>
+
+@foreach (var group in Model.Groups)
+{
+    <details class="accordion" data-category="@group.Category.ToLowerInvariant()">
+        <summary class="accordion__summary">
+            <span><code>@group.Category</code></span>
+            <span class="badge">@group.Rows.Count observation(s)</span>
+        </summary>
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Observation</th><th>Severity</th><th>Default recommendation</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var r in group.Rows)
+                    {
+                        <tr>
+                            <td>@r.Name</td>
+                            <td>
+                                <span class="badge @(r.Severity == "Critical" ? "badge--danger" : r.Severity == "Major" ? "badge--warning" : "")">@r.Severity</span>
+                            </td>
+                            <td class="td-muted">@r.Recommendation</td>
+                            <td>
+                                @if (r.IsActive) { <span class="badge badge--success">Active</span> }
+                                else { <span class="badge">Deactivated</span> }
+                            </td>
+                            <td><a class="btn btn--secondary" asp-page="/Admin/FaultObservations/Edit" asp-route-id="@r.Id">Edit</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>
+}
+
+<script>
+    (function () {
+        var filter = document.getElementById('fo-filter');
+        var groups = document.querySelectorAll('details.accordion[data-category]');
+        filter.addEventListener('input', function () {
+            var q = filter.value.trim().toLowerCase();
+            groups.forEach(function (g) {
+                g.style.display = !q || g.getAttribute('data-category').indexOf(q) >= 0 ? '' : 'none';
+            });
+        });
+    })();
+</script>
