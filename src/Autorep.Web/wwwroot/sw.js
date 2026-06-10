@@ -5,7 +5,7 @@
 // should PROACTIVELY pre-cache all active milk-company logos on reference-data sync (not just
 // ones already viewed) and render the tester pages offline so cached logos actually display.
 
-const CACHE_VERSION = 'autorep-v3';
+const CACHE_VERSION = 'autorep-v4';
 const LOGO_CACHE = 'autorep-logos-v1';
 const APP_SHELL = [
   '/manifest.webmanifest',
@@ -70,11 +70,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin static assets: cache-first.
+  // Same-origin static assets: cache-first, populating the cache on first fetch so the app
+  // bundle and lazy chunks (e.g. the PDF generator) keep working offline.
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(event.request).then((cached) =>
-        cached || fetch(event.request).catch(() => new Response('', { status: 504 }))
+        cached ||
+        fetch(event.request)
+          .then((resp) => {
+            if (resp && resp.ok && (resp.type === 'basic' || resp.type === 'default')) {
+              const clone = resp.clone();
+              caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+            }
+            return resp;
+          })
+          .catch(() => new Response('', { status: 504 }))
       )
     );
   }

@@ -27,9 +27,10 @@ interface Props {
   syncing: boolean;
   onMarkComplete: () => void;
   onResync: () => void;
+  onDownloadReport: () => void;
 }
 
-export function ReviewSignOffStep({ test, steps, completed, syncing, onMarkComplete, onResync }: Props) {
+export function ReviewSignOffStep({ test, steps, completed, syncing, onMarkComplete, onResync, onDownloadReport }: Props) {
   const [attested, setAttested] = useState(false);
   const summary = aggregate(buildFaultInputs(test));
   const isComplete = Boolean(test.markedCompleteAt);
@@ -85,11 +86,9 @@ export function ReviewSignOffStep({ test, steps, completed, syncing, onMarkCompl
             <strong>{test.syncState === "uploaded" ? "synced" : test.syncState}</strong>
           </p>
           <div class="form-actions">
+            <button class="btn" onClick={onDownloadReport}>Download report (PDF)</button>
             <button class="btn btn--secondary" disabled={syncing} onClick={onResync}>
               {syncing ? "Syncing…" : "Sync again"}
-            </button>
-            <button class="btn btn--secondary" disabled title="Report PDF coming soon">
-              Report (soon)
             </button>
           </div>
         </div>

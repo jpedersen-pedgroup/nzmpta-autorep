@@ -1,0 +1,264 @@
+// Test Summary report (M4) — generated entirely on-device from the LocalTest so it works
+// offline. pdfmake (+ Roboto fonts) loads as a lazy chunk only when a report is requested.
+import type { Content, TDocumentDefinitions, TableCell } from "pdfmake/interfaces";
+import type { LocalTest } from "../db/testStore";
+import { aggregate } from "../faults/faultAggregator";
+import { buildFaultInputs } from "../faults/buildFaults";
+import { allReadingSections } from "../passfail/standards";
+import { evaluate, type PassFailRule } from "../passfail/passFail";
+import { preStartSections, runningSectionsFor } from "../wizard/visualChecklist";
+import { resolveWizard } from "../wizard/wizardStepResolver";
+import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
+
+const BRAND = "#0a2540";
+const MUTED = "#64748b";
+const PASS = "#16a34a";
+const FAIL = "#dc2626";
+
+function describeRule(rule: PassFailRule, unit: string): string {
+  switch (rule.kind) {
+    case "atMost": return `≤ ${rule.limit} ${unit}`;
+    case "atLeast": return `≥ ${rule.min} ${unit}`;
+    case "between": return `${rule.min}–${rule.max} ${unit}`;
+    case "tolerance": return `± ${rule.tolerance} ${unit}`;
+    default: return "—";
+  }
+}
+
+function fmtDate(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString("en-NZ");
+}
+
+const th = (text: string): TableCell => ({ text, bold: true, fontSize: 8, color: MUTED });
+
+function sectionHeader(text: string): Content {
+  return { text, fontSize: 12, bold: true, color: BRAND, margin: [0, 14, 0, 4] };
+}
+
+/** Builds the pdfmake document definition for the Test Summary. Pure — unit-testable. */
+export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
+  const config = test.config;
+  const summary = aggregate(buildFaultInputs(test));
+  const completed = fmtDate(test.markedCompleteAt);
+
+  // --- Farm + configuration ----------------------------------------------------------------
+  const farm = test.farm;
+  const farmLines: Content = {
+    columns: [
+      {
+        width: "*",
+        stack: [
+          { text: "Farm", fontSize: 8, color: MUTED },
+          { text: farm?.name ?? test.farmName ?? "—", fontSize: 10 },
+          { text: [farm?.addressLine1, farm?.addressLine2, farm?.town, farm?.postCode].filter(Boolean).join(", ") || "—", fontSize: 9, color: MUTED },
+          { text: `Supply no: ${farm?.supplyNumber ?? "—"} · ${farm?.milkCompanyName ?? "—"} · ${farm?.regionName ?? "—"}`, fontSize: 9, color: MUTED },
+        ],
+      },
+      {
+        width: "*",
+        stack: [
+          { text: "Test", fontSize: 8, color: MUTED },
+          { text: `Completed: ${completed}`, fontSize: 10 },
+          { text: `Farmer: ${farm?.farmerName ?? "—"} · ${farm?.contactPhone ?? "—"}`, fontSize: 9, color: MUTED },
+          {
+            text: `Calibration expiry — airflow: ${test.calAirFlowMeters ?? "—"} · pulsator: ${test.calPulsatorTesters ?? "—"} · vacuum: ${test.calVacuumGauges ?? "—"}`,
+            fontSize: 9, color: MUTED,
+          },
+        ],
+      },
+    ],
+    columnGap: 16,
+  };
+
+  const flags: string[] = [];
+  if (config.vsdFitted) flags.push("VSD");
+  if (config.hasAcr) flags.push("ACRs");
+  if (config.hasMilkMeters) flags.push("Milk meters");
+  if (config.hasTeatSprayer) flags.push("Teat sprayer");
+  if (config.hasBailGates) flags.push("Bail gates");
+  if (config.hasBackingGate) flags.push("Backing gate");
+  if (config.hasReleaserPump) flags.push("Releaser pump");
+  if (config.linerVented) flags.push("Vented liners");
+  if (config.flushingPulsationSystem) flags.push("Flushing pulsation");
+  if (!config.isoPortsAvailable) flags.push("No ISO ports (short test)");
+
+  const configBlock: Content = {
+    table: {
+      widths: ["auto", "*", "auto", "*"],
+      body: [
+        [th("Plant"), `${config.plantType} · ${config.plantSize ?? "—"}`, th("Clusters"), String(config.clusterCount || "—")],
+        [th("Pulsators"), `${config.pulsatorCount || "—"} · ${config.pulsatorBrand ?? "—"} ${config.pulsatorModel ?? ""}`.trim(), th("Configuration"), config.pulsatorConfiguration ?? "—"],
+        [th("Shell"), config.shellModel ?? "—", th("Claw"), config.clawModel ?? "—"],
+        [th("Liners (F/B)"), `${config.linerModel ?? "—"} / ${config.backLiner ?? "—"}`, th("Milkline"), config.milklineSize ? `${config.milklineSize} mm` : "—"],
+        [th("Vacuum pumps"), `${config.numberOfVacuumPumps} · ${config.pumpLubrication}`, th("Atmos. pressure"), config.atmosPressureSeaLevel ? `${config.atmosPressureSeaLevel} kPa` : "—"],
+        [th("Equipment"), { text: flags.join(", ") || "—", colSpan: 3 }, "", ""],
+      ],
+    },
+    layout: "lightHorizontalLines",
+    fontSize: 9,
+  };
+
+  // --- Fault summary -------------------------------------------------------------------------
+  const faultRows: TableCell[][] = [[th("Severity"), th("Area"), th("Fault"), th("Recommendation")]];
+  for (const g of summary.groups) {
+    for (const f of g.faults) {
+      faultRows.push([
+        { text: f.severity, color: f.severity === "Minor" ? MUTED : FAIL, fontSize: 9 },
+        { text: g.component, fontSize: 9 },
+        { text: f.description, fontSize: 9 },
+        { text: f.recommendation ?? "", fontSize: 9 },
+      ]);
+    }
+  }
+  const faultBlock: Content[] =
+    summary.total === 0
+      ? [{ text: "No faults recorded — the machine passed every completed check.", color: PASS, fontSize: 10 }]
+      : [
+          { text: `${summary.critical} critical · ${summary.major} major · ${summary.minor} minor`, fontSize: 10, margin: [0, 0, 0, 4] },
+          { table: { widths: ["auto", "auto", "*", "*"], body: faultRows }, layout: "lightHorizontalLines" },
+        ];
+
+  // --- Numerical readings ----------------------------------------------------------------------
+  const readingBlocks: Content[] = [];
+  for (const sec of allReadingSections(config, test.readings)) {
+    const entered = sec.readings.filter((r) => test.readings[r.key] != null);
+    if (entered.length === 0) continue;
+    const body: TableCell[][] = [[th("Reading"), th("Value"), th("Standard"), th("Result")]];
+    for (const r of entered) {
+      const v = test.readings[r.key];
+      const verdict = evaluate(v, r.rule);
+      body.push([
+        { text: r.label, fontSize: 9 },
+        { text: `${v} ${r.unit}`, fontSize: 9 },
+        { text: describeRule(r.rule, r.unit), fontSize: 9, color: MUTED },
+        verdict === "noStandard"
+          ? { text: "—", color: MUTED, fontSize: 9 }
+          : { text: verdict.toUpperCase(), color: verdict === "pass" ? PASS : FAIL, bold: true, fontSize: 9 },
+      ]);
+    }
+    readingBlocks.push({ text: sec.title, fontSize: 10, bold: true, margin: [0, 8, 0, 2] });
+    readingBlocks.push({ table: { widths: ["*", "auto", "auto", "auto"], body }, layout: "lightHorizontalLines" });
+  }
+
+  // --- Per-unit rows ---------------------------------------------------------------------------
+  const unitBlocks: Content[] = [];
+  if (test.pulsatorRows?.length) {
+    const s = pulsatorSummary(test.pulsatorRows);
+    const limits = pulsationLimits();
+    const body: TableCell[][] = [
+      [th("Pulsator"), th("Rate (ppm)"), th("Ratio F (%)"), th("Ratio B (%)"), th("Phase b (%)"), th("Phase d (ms)"), th("Max vac (kPa)"), th("Limp (%)")],
+      ...test.pulsatorRows.map((r) => [
+        { text: r.unit, fontSize: 9 },
+        ...["rate", "ratioFront", "ratioBack", "phaseB", "phaseDms", "maxVacuum", "limp"].map((k) => ({
+          text: r.values[k] ?? "", fontSize: 9,
+        } as TableCell)),
+      ]),
+    ];
+    unitBlocks.push(sectionHeader("Pulsator test results"));
+    unitBlocks.push({ table: { widths: ["auto", "auto", "auto", "auto", "auto", "auto", "auto", "auto"], body }, layout: "lightHorizontalLines" });
+    const spreadText: Content = {
+      text: [
+        `Rate ${s.slowestRate ?? "—"}–${s.fastestRate ?? "—"} ppm (spread ${s.rateSpread ?? "—"}, limit ${limits.rateSpreadMax}) `,
+        { text: s.rateSpreadOk == null ? "" : s.rateSpreadOk ? " PASS" : " FAIL", color: s.rateSpreadOk ? PASS : FAIL, bold: true },
+        `   ·   Ratio spread ${s.ratioSpread ?? "—"} (limit ${limits.ratioSpreadMax})`,
+        { text: s.ratioSpreadOk == null ? "" : s.ratioSpreadOk ? " PASS" : " FAIL", color: s.ratioSpreadOk ? PASS : FAIL, bold: true },
+      ],
+      fontSize: 9,
+      margin: [0, 4, 0, 0],
+    };
+    unitBlocks.push(spreadText);
+  }
+  if (test.clusterRows?.length) {
+    const body: TableCell[][] = [
+      [th("Cluster"), th("Total air admission"), th("Leakage"), th("Air-vent admission")],
+      ...test.clusterRows.map((r) => [
+        { text: r.unit, fontSize: 9 },
+        ...["totalAirAdmission", "leakage", "airVent"].map((k) => ({ text: r.values[k] ?? "", fontSize: 9 } as TableCell)),
+      ]),
+    ];
+    unitBlocks.push(sectionHeader("Individual cluster tests"));
+    unitBlocks.push({ table: { widths: ["auto", "*", "*", "*"], body }, layout: "lightHorizontalLines" });
+  }
+
+  // --- Visual checks ---------------------------------------------------------------------------
+  const runningKeys = resolveWizard(config).steps.find((s) => s.step === "VisualFaultsRunning")?.sections ?? [];
+  const visualSections = [...preStartSections(config.hasReleaserPump), ...runningSectionsFor(runningKeys)];
+  let okCount = 0;
+  const visualFaultRows: TableCell[][] = [[th("Area"), th("Check"), th("Fault"), th("Severity")]];
+  for (const sec of visualSections) {
+    for (const it of sec.items) {
+      const e = test.visualFaults[it.key];
+      if (e?.status === "ok") okCount++;
+      if (e?.status === "fault") {
+        visualFaultRows.push([
+          { text: sec.title, fontSize: 9 },
+          { text: it.label, fontSize: 9 },
+          { text: e.observation ?? e.note ?? "—", fontSize: 9 },
+          { text: e.severity ?? "Major", fontSize: 9, color: e.severity === "Minor" ? MUTED : FAIL },
+        ]);
+      }
+    }
+  }
+  const visualBlock: Content[] = [
+    { text: `${okCount} item(s) verified OK · ${visualFaultRows.length - 1} fault(s) logged`, fontSize: 10, margin: [0, 0, 0, 4] },
+  ];
+  if (visualFaultRows.length > 1) {
+    visualBlock.push({ table: { widths: ["auto", "*", "*", "auto"], body: visualFaultRows }, layout: "lightHorizontalLines" });
+  }
+
+  // --- Attestations ---------------------------------------------------------------------------
+  const attestRows = test.attestations.map((a) => ({
+    text: `${fmtDate(a.attestedAt)} — ${a.step}${a.section ? ` · ${a.section}` : ""}: "${a.text}"`,
+    fontSize: 8,
+    color: MUTED,
+    margin: [0, 1, 0, 0] as [number, number, number, number],
+  }));
+
+  return {
+    pageSize: "A4",
+    pageMargins: [40, 48, 40, 48],
+    info: { title: `Test Summary — ${farm?.name ?? test.farmName}` },
+    footer: (page, pages) => ({
+      columns: [
+        { text: `AutoRep · generated ${new Date().toLocaleString("en-NZ")}`, fontSize: 7, color: MUTED, margin: [40, 0, 0, 0] },
+        { text: `${page} / ${pages}`, alignment: "right", fontSize: 7, color: MUTED, margin: [0, 0, 40, 0] },
+      ],
+    }),
+    content: [
+      { text: "Milking Machine Test Summary", fontSize: 16, bold: true, color: BRAND },
+      { text: "NZMPTA AutoRep", fontSize: 9, color: MUTED, margin: [0, 0, 0, 10] },
+      farmLines,
+      sectionHeader("Machine configuration"),
+      configBlock,
+      sectionHeader("Fault summary & recommendations"),
+      ...faultBlock,
+      sectionHeader("Numerical test results"),
+      ...(readingBlocks.length > 0 ? readingBlocks : [{ text: "No readings entered.", fontSize: 9, color: MUTED } as Content]),
+      ...unitBlocks,
+      sectionHeader("Visual checks"),
+      ...visualBlock,
+      ...(attestRows.length > 0 ? [sectionHeader("Attestations"), ...attestRows] : []),
+    ],
+  };
+}
+
+/** Generates and downloads the PDF. pdfmake + fonts load as a lazy chunk on first use. */
+export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
+  const [pdfMakeModule, vfsModule] = await Promise.all([
+    import("pdfmake/build/pdfmake"),
+    import("pdfmake/build/vfs_fonts"),
+  ]);
+  const pdfMake = (pdfMakeModule as { default?: unknown }).default ?? pdfMakeModule;
+  const vfs = (vfsModule as { default?: unknown }).default ?? vfsModule;
+  // pdfmake 0.3.x: register the Roboto virtual file system.
+  (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
+
+  const name = `Test Summary - ${(test.farm?.name ?? test.farmName ?? "farm").replace(/[^\w\- ]+/g, "")} - ${
+    (test.markedCompleteAt ?? test.updatedAt).slice(0, 10)
+  }.pdf`;
+  (pdfMake as { createPdf(doc: TDocumentDefinitions): { download(filename: string): void } })
+    .createPdf(buildTestSummaryDoc(test))
+    .download(name);
+}

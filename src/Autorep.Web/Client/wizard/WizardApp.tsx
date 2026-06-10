@@ -26,6 +26,7 @@ import { VisualFaultsStep } from "./VisualFaultsStep";
 import { PulsatorStep } from "./PulsatorStep";
 import { ClusterStep } from "./ClusterStep";
 import { ReviewSignOffStep } from "./ReviewSignOffStep";
+import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
 import { syncAll } from "../sync/syncClient";
 import { showToast } from "../ui/toast";
 import {
@@ -384,6 +385,11 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               syncing={syncing}
               onMarkComplete={() => void markComplete()}
               onResync={() => void runSync("Re-synced")}
+              onDownloadReport={() =>
+                void downloadTestSummaryPdf(test).catch(() =>
+                  showToast("Could not generate the report on this device.", "error"),
+                )
+              }
             />
           )}
 
