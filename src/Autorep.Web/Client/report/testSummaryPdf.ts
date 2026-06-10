@@ -216,6 +216,18 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
     margin: [0, 1, 0, 0] as [number, number, number, number],
   }));
 
+  // --- Attachment note -------------------------------------------------------------------------
+  const attachmentBlock: Content[] = test.pulsationPdf
+    ? [
+        sectionHeader("Attachments"),
+        {
+          text: `Pulsation analyser report: ${test.pulsationPdf.name} (attached ${fmtDate(test.pulsationPdf.attachedAt)}) — appended to this document.`,
+          fontSize: 9,
+          color: MUTED,
+        },
+      ]
+    : [];
+
   return {
     pageSize: "A4",
     pageMargins: [40, 48, 40, 48],
@@ -239,12 +251,50 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
       ...unitBlocks,
       sectionHeader("Visual checks"),
       ...visualBlock,
+      ...attachmentBlock,
       ...(attestRows.length > 0 ? [sectionHeader("Attestations"), ...attestRows] : []),
     ],
   };
 }
 
-/** Generates and downloads the PDF. pdfmake + fonts load as a lazy chunk on first use. */
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function downloadBlob(bytes: Uint8Array, filename: string): void {
+  const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+interface CreatedPdf {
+  download(filename: string): void;
+  getBuffer(cb?: (b: Uint8Array) => void): Promise<Uint8Array> | void;
+}
+
+/** pdfmake 0.3 returns a Promise from getBuffer; 0.2 used a callback — support both. */
+function pdfBuffer(created: CreatedPdf): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    try {
+      const result = created.getBuffer((b) => resolve(b));
+      if (result && typeof (result as Promise<Uint8Array>).then === "function") {
+        (result as Promise<Uint8Array>).then(resolve, reject);
+      }
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
+ * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use. */
 export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
   const [pdfMakeModule, vfsModule] = await Promise.all([
     import("pdfmake/build/pdfmake"),
@@ -258,7 +308,24 @@ export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
   const name = `Test Summary - ${(test.farm?.name ?? test.farmName ?? "farm").replace(/[^\w\- ]+/g, "")} - ${
     (test.markedCompleteAt ?? test.updatedAt).slice(0, 10)
   }.pdf`;
-  (pdfMake as { createPdf(doc: TDocumentDefinitions): { download(filename: string): void } })
-    .createPdf(buildTestSummaryDoc(test))
-    .download(name);
+  const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
+    buildTestSummaryDoc(test),
+  );
+
+  if (test.pulsationPdf) {
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const summaryDoc = await PDFDocument.load(await pdfBuffer(created));
+      const attachDoc = await PDFDocument.load(base64ToBytes(test.pulsationPdf.base64));
+      const pages = await summaryDoc.copyPages(attachDoc, attachDoc.getPageIndices());
+      for (const page of pages) summaryDoc.addPage(page);
+      downloadBlob(await summaryDoc.save(), name);
+      return;
+    } catch {
+      // Unreadable/encrypted attachment — deliver the summary alone rather than nothing.
+      const { showToast } = await import("../ui/toast");
+      showToast("The attached PDF could not be appended — downloaded the summary without it.", "error");
+    }
+  }
+  created.download(name);
 }

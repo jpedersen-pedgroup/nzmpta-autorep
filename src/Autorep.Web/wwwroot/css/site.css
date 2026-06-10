@@ -817,6 +817,13 @@ main {
 .signoff-step__dot.is-todo { background: var(--danger-border); }
 .signoff-actions { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
 .signoff-complete { margin-top: var(--space-4); padding: var(--space-3); background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-sm); }
+.signoff-attach { margin-top: var(--space-4); }
+.dropzone { border: 2px dashed var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-4); text-align: center; color: var(--text-muted); font-size: 0.875rem; cursor: pointer; transition: border-color 0.12s ease, background 0.12s ease; }
+.dropzone:hover, .dropzone.is-over { border-color: var(--brand); background: rgba(10,37,64,0.04); color: var(--text); }
+.attach-chip { display: flex; align-items: center; gap: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); background: var(--surface); font-size: 0.875rem; }
+.attach-chip__name { font-weight: 600; }
+.attach-chip__size { color: var(--text-muted); font-size: 0.8125rem; }
+.attach-chip__remove { margin-left: auto; border: none; background: none; color: var(--danger); font-size: 1.1rem; line-height: 1; cursor: pointer; padding: 0 0.3rem; }
 .fault-detail { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) 0 var(--space-3); }
 .fault-detail select, .fault-detail input { padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--surface); }
 .fault-detail select { width: 130px; flex: none; }

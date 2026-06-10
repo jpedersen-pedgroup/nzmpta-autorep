@@ -23,6 +23,16 @@ export interface FarmSnapshot {
   contactEmail?: string | null;
 }
 
+/** The pulsation analyser's exported PDF, attached on Review & Sign-Off and appended to the
+ * Test Summary report. Stored base64 so it round-trips through the JSON sync payload. */
+export interface PulsationAttachment {
+  name: string;
+  /** Raw PDF bytes, base64-encoded. */
+  base64: string;
+  size: number;
+  attachedAt: string;
+}
+
 /** One row in a per-unit measurement table (a pulsator or a cluster). Values keyed by column. */
 export interface MeasurementRow {
   id: string;
@@ -56,6 +66,8 @@ export interface LocalTest {
   pulsatorRows?: MeasurementRow[];
   /** Per-cluster measurement rows (air admission / leakage per unit) — ISO 13. */
   clusterRows?: MeasurementRow[];
+  /** Pulsation analyser PDF (O3) — appended to the Test Summary report. */
+  pulsationPdf?: PulsationAttachment | null;
   /** Visual Faults — Running: guards installed on pulsators. */
   guardsOnPulsators?: boolean;
   /** Tester equipment calibration expiry dates (ISO date strings), shown with the farm details. */

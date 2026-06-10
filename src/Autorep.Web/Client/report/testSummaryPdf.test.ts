@@ -55,4 +55,13 @@ describe("buildTestSummaryDoc", () => {
     const doc = buildTestSummaryDoc(t);
     expect(JSON.stringify(doc.content)).toContain("No faults recorded");
   });
+
+  it("notes the appended pulsation PDF when one is attached", () => {
+    const t = sampleTest();
+    t.pulsationPdf = { name: "analyser-export.pdf", base64: "JVBERi0=", size: 1234, attachedAt: t.updatedAt };
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Attachments");
+    expect(json).toContain("analyser-export.pdf");
+    expect(json).toContain("appended to this document");
+  });
 });

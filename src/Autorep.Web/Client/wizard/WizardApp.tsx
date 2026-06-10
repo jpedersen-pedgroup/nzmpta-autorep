@@ -193,6 +193,29 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
       setSyncing(false);
     }
   };
+  const attachPulsationPdf = async (file: File) => {
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    if (!isPdf) {
+      showToast("Only PDF files can be attached here.", "error");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      showToast("That PDF is too large to attach (max 15 MB).", "error");
+      return;
+    }
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    await persist({
+      pulsationPdf: { name: file.name, base64, size: file.size, attachedAt: new Date().toISOString() },
+      syncState: "local-only", // dirty — re-push carries the attachment
+    });
+    showToast(`Attached ${file.name} — it will be appended to the report.`, "success");
+  };
+
   const markComplete = async () => {
     const now = new Date().toISOString();
     await persist({
@@ -390,6 +413,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
                   showToast("Could not generate the report on this device.", "error"),
                 )
               }
+              onAttachPdf={(file) => void attachPulsationPdf(file)}
+              onRemovePdf={() => void persist({ pulsationPdf: null, syncState: "local-only" })}
             />
           )}
 

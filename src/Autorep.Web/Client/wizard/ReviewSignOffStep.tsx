@@ -1,11 +1,15 @@
 // Review & Sign-Off — a read-only summary of the test (farm, plant, fault counts, step
 // completion), a Tester attestation, and Mark-as-Complete which stamps the completion time and
 // syncs to the server. Once complete it shows the synced state + a (coming-soon) report action.
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { aggregate } from "../faults/faultAggregator";
 import { buildFaultInputs } from "../faults/buildFaults";
 import type { LocalTest } from "../db/testStore";
 import type { PlantType, ResolvedWizardStep, WizardStep } from "./types";
+
+function fmtSize(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 const PLANT_LABELS: Record<PlantType, string> = {
   HerringboneLowline: "Herringbone (lowline)",
@@ -28,13 +32,33 @@ interface Props {
   onMarkComplete: () => void;
   onResync: () => void;
   onDownloadReport: () => void;
+  /** Attach the pulsation analyser's PDF (validated PDF-only by the caller too). */
+  onAttachPdf: (file: File) => void;
+  onRemovePdf: () => void;
 }
 
-export function ReviewSignOffStep({ test, steps, completed, syncing, onMarkComplete, onResync, onDownloadReport }: Props) {
+export function ReviewSignOffStep({
+  test,
+  steps,
+  completed,
+  syncing,
+  onMarkComplete,
+  onResync,
+  onDownloadReport,
+  onAttachPdf,
+  onRemovePdf,
+}: Props) {
   const [attested, setAttested] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const summary = aggregate(buildFaultInputs(test));
   const isComplete = Boolean(test.markedCompleteAt);
   const reviewable = steps.filter((s) => s.step !== "ReviewSignOff");
+
+  const pickFile = (files: FileList | null | undefined) => {
+    const file = files?.[0];
+    if (file) onAttachPdf(file);
+  };
 
   return (
     <div class="card">
@@ -77,6 +101,45 @@ export function ReviewSignOffStep({ test, steps, completed, syncing, onMarkCompl
             </div>
           );
         })}
+      </div>
+
+      <div class="signoff-attach">
+        <div class="signoff__label" style="margin-bottom:4px">Pulsation analyser report (PDF)</div>
+        {test.pulsationPdf ? (
+          <div class="attach-chip">
+            <span class="attach-chip__icon">📄</span>
+            <span class="attach-chip__name">{test.pulsationPdf.name}</span>
+            <span class="attach-chip__size">{fmtSize(test.pulsationPdf.size)} · appended to the report</span>
+            <button class="attach-chip__remove" title="Remove attachment" onClick={onRemovePdf}>×</button>
+          </div>
+        ) : (
+          <div
+            class={"dropzone" + (dragOver ? " is-over" : "")}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              pickFile(e.dataTransfer?.files);
+            }}
+            onClick={() => fileInput.current?.click()}
+          >
+            Drop the pulsation PDF here, or click to browse — it's appended to the Test Summary report.
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/pdf,.pdf"
+              style="display:none"
+              onChange={(e) => {
+                pickFile((e.currentTarget as HTMLInputElement).files);
+                (e.currentTarget as HTMLInputElement).value = "";
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {isComplete ? (
