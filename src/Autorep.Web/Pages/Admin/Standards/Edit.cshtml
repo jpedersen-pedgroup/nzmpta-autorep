@@ -1,0 +1,36 @@
+@page "{id:guid}"
+@model Autorep.Web.Pages.Admin.Standards.EditModel
+@{
+    ViewData["Title"] = "Edit standard";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Edit standard</h1>
+        <p>Key: <code>@Model.Key</code> — referenced by the wizard; the key itself can't change.</p>
+    </div>
+</div>
+
+@if (Model.Errors.Any())
+{
+    <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+}
+@if (Model.Message is not null)
+{
+    <div class="alert alert--success">@Model.Message</div>
+}
+
+<div class="card" style="max-width:760px">
+    <form method="post">
+        <partial name="_StandardForm" for="Input" />
+        <div class="form-actions">
+            <button type="submit" class="btn">Save</button>
+            <a class="btn btn--secondary" asp-page="/Admin/Standards/Index">Back</a>
+            <button type="submit" class="btn btn--danger-soft" asp-page-handler="Delete"
+                    onclick="return confirm('Delete this standard? The app reverts to its built-in default value.');"
+                    style="margin-left:auto">
+                Delete
+            </button>
+        </div>
+    </form>
+</div>

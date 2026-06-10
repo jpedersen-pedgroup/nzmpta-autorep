@@ -69,12 +69,20 @@ export interface LocalTest {
   syncState: SyncState;
 }
 
+/** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */
+export interface ReferenceEntry {
+  key: string;
+  version?: string | null;
+  rows?: unknown;
+}
+
 interface AutorepDB extends DBSchema {
   tests: { key: string; value: LocalTest };
+  reference: { key: string; value: ReferenceEntry };
 }
 
 const DB_NAME = "autorep";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2: + reference store (synced standards / catalogs)
 
 let dbPromise: Promise<IDBPDatabase<AutorepDB>> | null = null;
 
@@ -84,9 +92,20 @@ function db(): Promise<IDBPDatabase<AutorepDB>> {
       if (!database.objectStoreNames.contains("tests")) {
         database.createObjectStore("tests", { keyPath: "id" });
       }
+      if (!database.objectStoreNames.contains("reference")) {
+        database.createObjectStore("reference", { keyPath: "key" });
+      }
     },
   });
   return dbPromise;
+}
+
+export async function getReference(key: string): Promise<ReferenceEntry | undefined> {
+  return (await db()).get("reference", key);
+}
+
+export async function putReference(entry: ReferenceEntry): Promise<void> {
+  await (await db()).put("reference", entry);
 }
 
 export async function getTest(id: string): Promise<LocalTest | undefined> {

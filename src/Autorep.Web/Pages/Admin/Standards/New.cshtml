@@ -1,0 +1,35 @@
+@page
+@model Autorep.Web.Pages.Admin.Standards.NewModel
+@{
+    ViewData["Title"] = "New standard";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>New standard</h1>
+        <p>
+            A pass/fail rule keyed to a wizard reading key (e.g. <code>tr.airlineDropRR</code>) or a
+            formula parameter (<code>param.*</code>). Keys must match what the app evaluates — adding a
+            key the app doesn't read has no effect until a release wires it up.
+        </p>
+    </div>
+</div>
+
+@if (Model.Errors.Any())
+{
+    <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+}
+
+<div class="card" style="max-width:760px">
+    <form method="post">
+        <div class="form-field">
+            <label asp-for="Key">Key</label>
+            <input asp-for="Key" type="text" placeholder="tr.example / param.example.value" />
+        </div>
+        <partial name="_StandardForm" for="Input" />
+        <div class="form-actions">
+            <button type="submit" class="btn">Create</button>
+            <a class="btn btn--secondary" asp-page="/Admin/Standards/Index">Cancel</a>
+        </div>
+    </form>
+</div>

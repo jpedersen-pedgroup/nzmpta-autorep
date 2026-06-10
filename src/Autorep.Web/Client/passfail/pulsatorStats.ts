@@ -5,10 +5,21 @@
 // cluster (taken from the analyser's per-row limp value). Per-model rate/ratio bands from the
 // Pulsator catalog are a follow-up.
 import type { MeasurementRow } from "../db/testStore";
+import { paramFor } from "./standardsOverrides";
 
+// Built-in defaults; the synced admin-managed standards override them (param.pulsation.*).
 export const RATE_SPREAD_MAX = 6; // ppm
 export const RATIO_SPREAD_MAX = 5; // % — between pulsators, per quarter group
 export const LIMP_MAX = 5; // % — within a cluster
+
+/** The effective pulsation limits (synced overrides applied). */
+export function pulsationLimits(): { rateSpreadMax: number; ratioSpreadMax: number; limpMax: number } {
+  return {
+    rateSpreadMax: paramFor("param.pulsation.rateSpreadMax", RATE_SPREAD_MAX),
+    ratioSpreadMax: paramFor("param.pulsation.ratioSpreadMax", RATIO_SPREAD_MAX),
+    limpMax: paramFor("param.pulsation.limpMax", LIMP_MAX),
+  };
+}
 
 export interface PulsatorSummary {
   fastestRate: number | null;
@@ -48,6 +59,7 @@ export function pulsatorSummary(rows: MeasurementRow[]): PulsatorSummary {
   const groupSpreads = [spread(fronts), spread(backs)].filter((s): s is number => s != null);
   const ratioSpread = groupSpreads.length ? Math.max(...groupSpreads) : null;
   const worstLimp = limps.length ? Math.max(...limps) : null;
+  const limits = pulsationLimits();
 
   return {
     fastestRate,
@@ -57,8 +69,8 @@ export function pulsatorSummary(rows: MeasurementRow[]): PulsatorSummary {
     rateSpread,
     ratioSpread,
     worstLimp,
-    rateSpreadOk: rateSpread == null ? null : rateSpread <= RATE_SPREAD_MAX,
-    ratioSpreadOk: ratioSpread == null ? null : ratioSpread <= RATIO_SPREAD_MAX,
-    limpOk: worstLimp == null ? null : worstLimp <= LIMP_MAX,
+    rateSpreadOk: rateSpread == null ? null : rateSpread <= limits.rateSpreadMax,
+    ratioSpreadOk: ratioSpread == null ? null : ratioSpread <= limits.ratioSpreadMax,
+    limpOk: worstLimp == null ? null : worstLimp <= limits.limpMax,
   };
 }

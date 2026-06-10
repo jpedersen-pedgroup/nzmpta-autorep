@@ -4,6 +4,7 @@
 // Later phases move these standards to admin-managed reference data synced into IndexedDB.
 import type { MachineConfiguration } from "../wizard/types";
 import { correctionFactorFor } from "../reference/lookups";
+import { paramFor, ruleFor } from "./standardsOverrides";
 import type { PassFailRule } from "./passFail";
 
 // Required Effective Reserve (L/min) by cluster count — manual p42 table (steps of 2 clusters;
@@ -30,7 +31,7 @@ export function requiredEffectiveReserve(clusters: number): number | null {
  * the per-10-units pattern extends beyond the printed table). */
 export function requiredAirflow(clusters: number): number | null {
   if (clusters < 1) return null;
-  return 30 * Math.ceil(clusters / 10);
+  return paramFor("param.pulsator.consumptionPer10", 30) * Math.ceil(clusters / 10);
 }
 
 /** Cleaning Reserve (L/min) — manual p43: required when a wash-solution injection (slug) system
@@ -52,7 +53,9 @@ export function cleaningReserve(
  * 30 L/min minimum, rounded up to the nearest 10; doubled when bail-gate rams are present. */
 export function ancillaryAllowance(componentCount: number, hasBailGates: boolean): number | null {
   if (componentCount < 1) return null;
-  const base = Math.ceil(Math.max(30, 7.5 * componentCount) / 10) * 10;
+  const perUnit = paramFor("param.ancillary.perUnit", 7.5);
+  const minTotal = paramFor("param.ancillary.minTotal", 30);
+  const base = Math.ceil(Math.max(minTotal, perUnit * componentCount) / 10) * 10;
   return hasBailGates ? base * 2 : base;
 }
 
@@ -81,6 +84,14 @@ export function testRecordSections(
   const workingVacuum = readings["tr.workingVacuum"];
   const manualReserve = readings["tr.manualReserve"];
 
+  // Regulation-loss / regulator-leakage allowances (manual p40/p39 / ISO C.4.6 + C.4.8).
+  const lossPct = paramFor("param.reserve.lossPct", 10);
+  const lossFloor = paramFor("param.reserve.lossFloor", 35);
+  const leakPct = paramFor("param.reserve.leakPct", 5);
+  const leakFloor = paramFor("param.reserve.leakFloor", 35);
+  const lossLimit = (mr: number) => Math.max(lossFloor, Math.round((lossPct / 100) * mr));
+  const leakLimit = (mr: number) => Math.max(leakFloor, Math.round((leakPct / 100) * mr));
+
   // 1 — System vacuum levels
   sections.push({
     key: "SystemVacuumLevels",
@@ -91,8 +102,8 @@ export function testRecordSections(
         label: "Working vacuum @ receiver (1a)",
         unit: "kPa",
         // Manual p40: hard maximum 50 kPa; 40–50 is the guideline band by milkline lift height.
-        hint: "max 50 — guideline 40–50 by lift height",
-        rule: { kind: "atMost", limit: 50 },
+        hint: `max ${ruleFor("tr.workingVacuum", { kind: "atMost", limit: 50 }).limit} — guideline 40–50 by lift height`,
+        rule: ruleFor("tr.workingVacuum", { kind: "atMost", limit: 50 }),
       },
       { key: "tr.nominalVacuum", label: "Nominal vacuum (1b)", unit: "kPa", rule: { kind: "none" } },
       {
@@ -100,8 +111,8 @@ export function testRecordSections(
         label: "Vacuum regulation deviation (1c)",
         unit: "kPa",
         // Manual p40 / ISO D.2.7: ±2 kPa (signed difference from nominal).
-        hint: "± 2 kPa",
-        rule: { kind: "tolerance", target: 0, tolerance: 2 },
+        hint: `± ${ruleFor("tr.regulationDeviation", { kind: "tolerance", target: 0, tolerance: 2 }).tolerance} kPa`,
+        rule: ruleFor("tr.regulationDeviation", { kind: "tolerance", target: 0, tolerance: 2 }),
       },
       { key: "tr.vacuumAtRegulator", label: "Vacuum @ regulator (1d)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.vacuumAtPump", label: "Vacuum @ pump (1e)", unit: "kPa", rule: { kind: "none" } },
@@ -110,6 +121,7 @@ export function testRecordSections(
 
   // 1f — Minimum pump-speed vacuum (VSD only). Manual p40: rise must be < 2 kPa.
   if (config.vsdFitted) {
+    const maxRise = paramFor("param.vsd.maxRise", 2);
     sections.push({
       key: "MinPumpSpeedVacuum",
       title: "1 · Min pump-speed vacuum",
@@ -120,9 +132,9 @@ export function testRecordSections(
           unit: "kPa",
           hint:
             workingVacuum != null
-              ? `rise < 2 kPa above working vacuum (${workingVacuum})`
+              ? `rise < ${maxRise} kPa above working vacuum (${workingVacuum})`
               : "enter working vacuum (1a) for the standard",
-          rule: workingVacuum != null ? { kind: "atMost", limit: workingVacuum + 2 } : { kind: "none" },
+          rule: workingVacuum != null ? { kind: "atMost", limit: workingVacuum + maxRise } : { kind: "none" },
         },
       ],
     });
@@ -170,12 +182,9 @@ export function testRecordSections(
         // Manual p40 / ISO C.4.6: ≤ 10% of manual reserve or 35 L/min, whichever is greater.
         hint:
           manualReserve != null
-            ? `≤ ${Math.max(35, Math.round(0.1 * manualReserve))} (10% of manual reserve, min 35)`
-            : "≤ 10% of manual reserve or 35, whichever is greater",
-        rule:
-          manualReserve != null
-            ? { kind: "atMost", limit: Math.max(35, Math.round(0.1 * manualReserve)) }
-            : { kind: "none" },
+            ? `≤ ${lossLimit(manualReserve)} (${lossPct}% of manual reserve, min ${lossFloor})`
+            : `≤ ${lossPct}% of manual reserve or ${lossFloor}, whichever is greater`,
+        rule: manualReserve != null ? { kind: "atMost", limit: lossLimit(manualReserve) } : { kind: "none" },
       },
       { key: "tr.regulatorLeakageAirflow", label: "Airflow at regulator leakage (2e)", unit: "L/min", rule: { kind: "none" } },
       {
@@ -185,12 +194,9 @@ export function testRecordSections(
         // Manual p39/p41 / ISO C.4.8: ≤ 5% of manual reserve or 35 L/min, whichever is greater.
         hint:
           manualReserve != null
-            ? `≤ ${Math.max(35, Math.round(0.05 * manualReserve))} (5% of manual reserve, min 35)`
-            : "≤ 5% of manual reserve or 35, whichever is greater",
-        rule:
-          manualReserve != null
-            ? { kind: "atMost", limit: Math.max(35, Math.round(0.05 * manualReserve)) }
-            : { kind: "none" },
+            ? `≤ ${leakLimit(manualReserve)} (${leakPct}% of manual reserve, min ${leakFloor})`
+            : `≤ ${leakPct}% of manual reserve or ${leakFloor}, whichever is greater`,
+        rule: manualReserve != null ? { kind: "atMost", limit: leakLimit(manualReserve) } : { kind: "none" },
       },
     ],
   });
@@ -205,9 +211,9 @@ export function testRecordSections(
       { key: "tr.avgVacuumAirInlet", label: "Avg vacuum at air inlet (3c)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.maxVacuumIncrease", label: "Max vacuum increase (3d)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.avgVacuumStopAirInlet", label: "Avg vacuum, air inlet stopped (3e)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.fallOff", label: "Fall-off (3f)", unit: "kPa", rule: { kind: "atMost", limit: 2 } },
-      { key: "tr.regulationUndershoot", label: "Regulation undershoot (3g)", unit: "kPa", rule: { kind: "atMost", limit: 2 } },
-      { key: "tr.regulationOvershoot", label: "Regulation overshoot (3h)", unit: "kPa", rule: { kind: "atMost", limit: 2 } },
+      { key: "tr.fallOff", label: "Fall-off (3f)", unit: "kPa", rule: ruleFor("tr.fallOff", { kind: "atMost", limit: 2 }) },
+      { key: "tr.regulationUndershoot", label: "Regulation undershoot (3g)", unit: "kPa", rule: ruleFor("tr.regulationUndershoot", { kind: "atMost", limit: 2 }) },
+      { key: "tr.regulationOvershoot", label: "Regulation overshoot (3h)", unit: "kPa", rule: ruleFor("tr.regulationOvershoot", { kind: "atMost", limit: 2 }) },
     ],
   });
 
@@ -219,10 +225,10 @@ export function testRecordSections(
       { key: "tr.airlineVacReceiver", label: "Vacuum @ receiver (4a)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.airlineVacRegulator", label: "Vacuum @ regulator (4b)", unit: "kPa", rule: { kind: "none" } },
       // Manual p40 / ISO D.2.13: receiver→regulator drop ≤ 1 kPa.
-      { key: "tr.airlineDropRR", label: "Drop receiver → regulator (4c)", unit: "kPa", rule: { kind: "atMost", limit: 1 } },
+      { key: "tr.airlineDropRR", label: "Drop receiver → regulator (4c)", unit: "kPa", rule: ruleFor("tr.airlineDropRR", { kind: "atMost", limit: 1 }) },
       { key: "tr.airlineVacPump", label: "Vacuum @ pump (4d)", unit: "kPa", rule: { kind: "none" } },
       // Manual p40/p44 / ISO D.2.15: receiver→pump drop ≤ 3 kPa.
-      { key: "tr.airlinePumpDrop", label: "Pump vacuum drop (4e)", unit: "kPa", rule: { kind: "atMost", limit: 3 } },
+      { key: "tr.airlinePumpDrop", label: "Pump vacuum drop (4e)", unit: "kPa", rule: ruleFor("tr.airlinePumpDrop", { kind: "atMost", limit: 3 }) },
     ],
   });
 
@@ -232,7 +238,7 @@ export function testRecordSections(
     title: "5 · Regulator sensitivity",
     readings: [
       { key: "tr.regSensWorkingVac", label: "Working vacuum in milk system (5a)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.regulatorSensitivity", label: "Regulator sensitivity (5b)", unit: "kPa", rule: { kind: "atMost", limit: 1 } },
+      { key: "tr.regulatorSensitivity", label: "Regulator sensitivity (5b)", unit: "kPa", rule: ruleFor("tr.regulatorSensitivity", { kind: "atMost", limit: 1 }) },
     ],
   });
 
@@ -247,20 +253,21 @@ export function testRecordSections(
   });
 
   // 7 — Vacuum gauge accuracy. Manual p40 / ISO D.2.3: farm gauge within ±1 kPa of test gauge.
-  const gaugeTol: PassFailRule = { kind: "tolerance", target: 0, tolerance: 1 };
+  // One admin row ("tr.gaugeError") governs all three measurement points.
+  const gaugeTol: PassFailRule = ruleFor("tr.gaugeError", { kind: "tolerance", target: 0, tolerance: 1 });
   sections.push({
     key: "VacuumGaugeAccuracy",
     title: "7 · Gauge accuracy",
     readings: [
       { key: "tr.farmGauge1", label: "Farm gauge — point 1 (7a)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.testGauge1", label: "Test gauge — point 1 (7b)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.gaugeError1", label: "Gauge error — point 1 (7c)", unit: "kPa", hint: "± 1 kPa", rule: gaugeTol },
+      { key: "tr.gaugeError1", label: "Gauge error — point 1 (7c)", unit: "kPa", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
       { key: "tr.farmGauge2", label: "Farm gauge — point 2 (7d)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.testGauge2", label: "Test gauge — point 2 (7e)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.gaugeError2", label: "Gauge error — point 2 (7f)", unit: "kPa", hint: "± 1 kPa", rule: gaugeTol },
+      { key: "tr.gaugeError2", label: "Gauge error — point 2 (7f)", unit: "kPa", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
       { key: "tr.farmGauge3", label: "Farm gauge — point 3 (7g)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.testGauge3", label: "Test gauge — point 3 (7h)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.gaugeError3", label: "Gauge error — point 3 (7i)", unit: "kPa", hint: "± 1 kPa", rule: gaugeTol },
+      { key: "tr.gaugeError3", label: "Gauge error — point 3 (7i)", unit: "kPa", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
     ],
   });
 
@@ -310,9 +317,15 @@ export function additionalTestSections(
     }
     pumpCapacity = sum > 0 ? sum : null;
   }
-  const vacLeakLimit = pumpCapacity != null ? Math.round(0.05 * pumpCapacity) : null;
+  // Cluster air admission band (manual p42 / ISO D.6) + the vented-liner maximum (pp41–42).
+  const ventedMax = paramFor("param.clusterAir.ventedMax", 35);
+  const caaRule = ruleFor("add.clusterAirAdmission", { kind: "between", min: 4, max: 12 });
+  const vacLeakPct = paramFor("param.vacLeak.pctOfPumpCapacity", 5);
+  const vacLeakLimit = pumpCapacity != null ? Math.round((vacLeakPct / 100) * pumpCapacity) : null;
   // Milk system leakage ≤ 10 + 2 per cluster (manual p41 / ISO C.5.6).
-  const milkLeakLimit = config.clusterCount > 0 ? 10 + 2 * config.clusterCount : null;
+  const milkLeakBase = paramFor("param.milkLeak.base", 10);
+  const milkLeakPer = paramFor("param.milkLeak.perCluster", 2);
+  const milkLeakLimit = config.clusterCount > 0 ? milkLeakBase + milkLeakPer * config.clusterCount : null;
 
   const sections: ReadingSection[] = [
     {
@@ -324,7 +337,7 @@ export function additionalTestSections(
           key: "add.vacuumSystemLeakage",
           label: "Vacuum system leakage (10b)",
           unit: "L/min",
-          hint: vacLeakLimit != null ? `≤ ${vacLeakLimit} (5% of pump capacity)` : "≤ 5% of pump capacity — enter 8a/9b first",
+          hint: vacLeakLimit != null ? `≤ ${vacLeakLimit} (${vacLeakPct}% of pump capacity)` : `≤ ${vacLeakPct}% of pump capacity — enter 8a/9b first`,
           rule: vacLeakLimit != null ? { kind: "atMost", limit: vacLeakLimit } : { kind: "none" },
         },
         { key: "add.airflowMilkSystem", label: "Airflow — milk system (10c)", unit: "L/min", rule: { kind: "none" } },
@@ -332,7 +345,7 @@ export function additionalTestSections(
           key: "add.milkSystemLeakage",
           label: "Milk system leakage (10d)",
           unit: "L/min",
-          hint: milkLeakLimit != null ? `≤ ${milkLeakLimit} (10 + 2 per cluster)` : "≤ 10 + 2 per cluster",
+          hint: milkLeakLimit != null ? `≤ ${milkLeakLimit} (${milkLeakBase} + ${milkLeakPer} per cluster)` : `≤ ${milkLeakBase} + ${milkLeakPer} per cluster`,
           rule: milkLeakLimit != null ? { kind: "atMost", limit: milkLeakLimit } : { kind: "none" },
         },
       ],
@@ -362,8 +375,8 @@ export function additionalTestSections(
         key: "add.clusterAirAdmission",
         label: "Cluster air admission per cluster (12b)",
         unit: "L/min",
-        hint: config.linerVented ? "≤ 35 (vented liners)" : "4–12 per cluster",
-        rule: config.linerVented ? { kind: "atMost", limit: 35 } : { kind: "between", min: 4, max: 12 },
+        hint: config.linerVented ? `≤ ${ventedMax} (vented liners)` : `${caaRule.min}–${caaRule.max} per cluster`,
+        rule: config.linerVented ? { kind: "atMost", limit: ventedMax } : caaRule,
       },
     ],
   });
@@ -380,14 +393,15 @@ export function additionalTestSections(
     ] });
   }
   // Teat sprays / stimulators / vacuum-operated gates: 10 L/min per cluster (manual p41).
-  const perClusterTen = config.clusterCount > 0 ? 10 * config.clusterCount : null;
+  const perClusterAllowance = paramFor("param.perCluster.tenLpm", 10);
+  const perClusterTen = config.clusterCount > 0 ? perClusterAllowance * config.clusterCount : null;
   if (config.hasTeatSprayer) {
     sections.push({ key: "TeatSpray", title: "Teat sprayer", readings: [
       {
         key: "add.teatSpray",
         label: "Teat sprayer consumption",
         unit: "L/min",
-        hint: perClusterTen != null ? `≤ ${perClusterTen} (10 per cluster)` : undefined,
+        hint: perClusterTen != null ? `≤ ${perClusterTen} (${perClusterAllowance} per cluster)` : undefined,
         rule: perClusterTen != null ? { kind: "atMost", limit: perClusterTen } : { kind: "none" },
       },
     ] });
@@ -398,7 +412,7 @@ export function additionalTestSections(
         key: "add.gateCylinder",
         label: "Gate cylinder consumption",
         unit: "L/min",
-        hint: perClusterTen != null ? `≤ ${perClusterTen} (vacuum-operated gates, 10 per cluster)` : undefined,
+        hint: perClusterTen != null ? `≤ ${perClusterTen} (vacuum-operated gates, ${perClusterAllowance} per cluster)` : undefined,
         rule: perClusterTen != null ? { kind: "atMost", limit: perClusterTen } : { kind: "none" },
       },
     ] });
@@ -410,7 +424,7 @@ export function additionalTestSections(
     ] });
   }
   sections.push({ key: "RegulatorLoad", title: "Peak regulator load", readings: [
-    { key: "add.regulatorLoad", label: "Peak regulator load", unit: "kPa", rule: { kind: "atMost", limit: 2 } },
+    { key: "add.regulatorLoad", label: "Peak regulator load", unit: "kPa", rule: ruleFor("add.regulatorLoad", { kind: "atMost", limit: 2 }) },
   ] });
   return sections;
 }
@@ -425,6 +439,8 @@ export function pulsatorSections(
   const workingVacuum = readings["tr.workingVacuum"];
   // Manual p41: pulsator consumption allowance = 30 L/min per 10 units.
   const consumptionLimit = requiredAirflow(config.clusterCount);
+  // Manual p40 / ISO D.2.17: chamber vacuum within 2 kPa of the working vacuum.
+  const chamberDelta = paramFor("param.chamberVac.maxDelta", 2);
   return [
     {
       key: "PulsatorAncillary",
@@ -452,12 +468,11 @@ export function pulsatorSections(
           key: "puls.maxChamberVacuum",
           label: "Max pulsation chamber vacuum, B phase (15a)",
           unit: "kPa",
-          // Manual p40 / ISO D.2.17: within 2 kPa of the working vacuum at the receiver.
           hint:
             workingVacuum != null
-              ? `≥ ${workingVacuum - 2} (within 2 kPa of working vacuum)`
-              : "within 2 kPa of working vacuum — enter 1a first",
-          rule: workingVacuum != null ? { kind: "atLeast", min: workingVacuum - 2 } : { kind: "none" },
+              ? `≥ ${workingVacuum - chamberDelta} (within ${chamberDelta} kPa of working vacuum)`
+              : `within ${chamberDelta} kPa of working vacuum — enter 1a first`,
+          rule: workingVacuum != null ? { kind: "atLeast", min: workingVacuum - chamberDelta } : { kind: "none" },
         },
         { key: "puls.testPulsationReading", label: "Test pulsation reading (15b)", unit: "kPa", rule: { kind: "none" } },
       ],
@@ -467,7 +482,7 @@ export function pulsatorSections(
       title: "Stability",
       readings: [
         // Manual p40: pulsator airline vacuum dips must not exceed 4 kPa.
-        { key: "puls.airlineStability", label: "Pulsator airline stability", unit: "kPa", rule: { kind: "atMost", limit: 4 } },
+        { key: "puls.airlineStability", label: "Pulsator airline stability", unit: "kPa", rule: ruleFor("puls.airlineStability", { kind: "atMost", limit: 4 }) },
       ],
     },
   ];
@@ -476,6 +491,12 @@ export function pulsatorSections(
 /** Individual Cluster Tests (optional) — ISO 13 / Table D.6 per-cluster limits: total air
  * admission ≤ 12 (vented liners ≤ 35 per manual pp41–42), leakage ≤ 2, air-vent admission ≥ 4. */
 export function individualClusterSections(config: MachineConfiguration): ReadingSection[] {
+  const ventedMax = paramFor("param.clusterAir.ventedMax", 35);
+  const totalRule = config.linerVented
+    ? ({ kind: "atMost", limit: ventedMax } satisfies PassFailRule)
+    : ruleFor("ica.totalAirAdmission", { kind: "atMost", limit: 12 });
+  const leakRule = ruleFor("ica.leakage", { kind: "atMost", limit: 2 });
+  const ventRule = ruleFor("ica.airVentAdmission", { kind: "atLeast", min: 4 });
   return [
     {
       key: "IndividualCluster",
@@ -485,11 +506,11 @@ export function individualClusterSections(config: MachineConfiguration): Reading
           key: "ica.totalAirAdmission",
           label: "Total cluster air admission (13a)",
           unit: "L/min",
-          hint: config.linerVented ? "≤ 35 (vented liners)" : "≤ 12",
-          rule: { kind: "atMost", limit: config.linerVented ? 35 : 12 },
+          hint: config.linerVented ? `≤ ${ventedMax} (vented liners)` : `≤ ${totalRule.limit}`,
+          rule: totalRule,
         },
-        { key: "ica.leakage", label: "Cluster leakage (13b)", unit: "L/min", hint: "≤ 2", rule: { kind: "atMost", limit: 2 } },
-        { key: "ica.airVentAdmission", label: "Air-vent admission (13c)", unit: "L/min", hint: "≥ 4", rule: { kind: "atLeast", min: 4 } },
+        { key: "ica.leakage", label: "Cluster leakage (13b)", unit: "L/min", hint: `≤ ${leakRule.limit}`, rule: leakRule },
+        { key: "ica.airVentAdmission", label: "Air-vent admission (13c)", unit: "L/min", hint: `≥ ${ventRule.min}`, rule: ventRule },
       ],
     },
   ];

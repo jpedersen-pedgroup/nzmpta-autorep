@@ -2,6 +2,7 @@
 // leakage, air-vent admission. "Faulty clusters only" or "Enter all". Per-cell limits from
 // ISO 6690 Table D.6: total ≤ 12 (vented liners ≤ 35 per the manual), leakage ≤ 2, air vent ≥ 4.
 import { RowTable, type RowColumn } from "../ui/RowTable";
+import { paramFor, ruleFor } from "../passfail/standardsOverrides";
 import type { MachineConfiguration } from "./types";
 import type { MeasurementRow } from "../db/testStore";
 
@@ -11,10 +12,12 @@ function columnsFor(config: MachineConfiguration): RowColumn[] {
       key: "totalAirAdmission",
       label: "Total air admission",
       unit: "L/min",
-      rule: { kind: "atMost", limit: config.linerVented ? 35 : 12 },
+      rule: config.linerVented
+        ? { kind: "atMost", limit: paramFor("param.clusterAir.ventedMax", 35) }
+        : ruleFor("ica.totalAirAdmission", { kind: "atMost", limit: 12 }),
     },
-    { key: "leakage", label: "Leakage", unit: "L/min", rule: { kind: "atMost", limit: 2 } },
-    { key: "airVent", label: "Air-vent admission", unit: "L/min", rule: { kind: "atLeast", min: 4 } },
+    { key: "leakage", label: "Leakage", unit: "L/min", rule: ruleFor("ica.leakage", { kind: "atMost", limit: 2 }) },
+    { key: "airVent", label: "Air-vent admission", unit: "L/min", rule: ruleFor("ica.airVentAdmission", { kind: "atLeast", min: 4 }) },
   ];
 }
 

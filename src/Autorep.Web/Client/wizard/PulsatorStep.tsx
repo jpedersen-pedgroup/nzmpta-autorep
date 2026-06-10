@@ -4,20 +4,24 @@
 // ISO 6690 Table D.5: b ≥ 30%, d ≥ 150 ms.
 import { RowTable, type RowColumn } from "../ui/RowTable";
 import { ReadingsStep } from "./ReadingsStep";
-import { LIMP_MAX, RATE_SPREAD_MAX, RATIO_SPREAD_MAX, pulsatorSummary } from "../passfail/pulsatorStats";
+import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
 import { pulsatorSections } from "../passfail/standards";
+import { ruleFor } from "../passfail/standardsOverrides";
 import type { MachineConfiguration } from "./types";
 import type { MeasurementRow } from "../db/testStore";
 
-const COLUMNS: RowColumn[] = [
-  { key: "rate", label: "Rate", unit: "ppm" },
-  { key: "ratioFront", label: "Ratio front", unit: "%" },
-  { key: "ratioBack", label: "Ratio back", unit: "%" },
-  { key: "phaseB", label: "Phase b", unit: "%", rule: { kind: "atLeast", min: 30 } },
-  { key: "phaseDms", label: "Phase d", unit: "ms", rule: { kind: "atLeast", min: 150 } },
-  { key: "maxVacuum", label: "Max chamber vac", unit: "kPa" },
-  { key: "limp", label: "Limp", unit: "%", rule: { kind: "atMost", limit: LIMP_MAX } },
-];
+// Built inside the component so the synced standard overrides are in effect.
+function columnsFor(limpMax: number): RowColumn[] {
+  return [
+    { key: "rate", label: "Rate", unit: "ppm" },
+    { key: "ratioFront", label: "Ratio front", unit: "%" },
+    { key: "ratioBack", label: "Ratio back", unit: "%" },
+    { key: "phaseB", label: "Phase b", unit: "%", rule: ruleFor("puls.row.phaseB", { kind: "atLeast", min: 30 }) },
+    { key: "phaseDms", label: "Phase d", unit: "ms", rule: ruleFor("puls.row.phaseDms", { kind: "atLeast", min: 150 }) },
+    { key: "maxVacuum", label: "Max chamber vac", unit: "kPa" },
+    { key: "limp", label: "Limp", unit: "%", rule: { kind: "atMost", limit: limpMax } },
+  ];
+}
 
 const fmt = (n: number | null): string => (n == null ? "—" : String(n));
 
@@ -59,17 +63,18 @@ interface Props {
 
 export function PulsatorStep({ config, rows, onRows, readings, onSetReading }: Props) {
   const s = pulsatorSummary(rows);
+  const limits = pulsationLimits();
   return (
     <>
       <div class="card">
         <div class="card__title">
           Pulsator test results{" "}
           <small class="card__hint">
-            Add faulty pulsators, or “Enter all”. Rate spread ≤ {RATE_SPREAD_MAX} ppm, ratio spread ≤ {RATIO_SPREAD_MAX}%.
+            Add faulty pulsators, or “Enter all”. Rate spread ≤ {limits.rateSpreadMax} ppm, ratio spread ≤ {limits.ratioSpreadMax}%.
           </small>
         </div>
         <RowTable
-          columns={COLUMNS}
+          columns={columnsFor(limits.limpMax)}
           rows={rows}
           onChange={onRows}
           unitLabel="Pulsator"
@@ -82,7 +87,7 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading }: P
               range={`${fmt(s.slowestRate)}–${fmt(s.fastestRate)} ppm`}
               spread={s.rateSpread}
               ok={s.rateSpreadOk}
-              max={RATE_SPREAD_MAX}
+              max={limits.rateSpreadMax}
               unit="ppm"
             />
             <SpreadStat
@@ -90,14 +95,14 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading }: P
               range={`${fmt(s.lowestRatio)}–${fmt(s.highestRatio)} %`}
               spread={s.ratioSpread}
               ok={s.ratioSpreadOk}
-              max={RATIO_SPREAD_MAX}
+              max={limits.ratioSpreadMax}
               unit="%"
             />
             {s.worstLimp != null && (
               <div class="puls-stat">
                 <span class="puls-stat__label">Limp</span>
                 <span class={"pf pf--" + (s.limpOk ? "pass" : "fail")}>
-                  worst {s.worstLimp}% {s.limpOk ? "≤" : ">"} {LIMP_MAX}%
+                  worst {s.worstLimp}% {s.limpOk ? "≤" : ">"} {limits.limpMax}%
                 </span>
               </div>
             )}

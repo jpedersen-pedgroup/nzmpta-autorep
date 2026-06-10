@@ -1,7 +1,7 @@
 // Pins the standards against the NZMPTA Testing Standards Manual + ISO 6690:2007 values
 // (10 Jun 2026 audit — see plans/reference/standards-audit.md). The cleaning-reserve and
 // effective-reserve cases reproduce the manual's own worked examples.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   additionalTestSections,
   ancillaryAllowance,
@@ -11,7 +11,10 @@ import {
   requiredEffectiveReserve,
   testRecordSections,
 } from "./standards";
+import { applyStandardsOverrides, clearStandardsOverrides } from "./standardsOverrides";
 import { defaultMachineConfiguration } from "../wizard/types";
+
+afterEach(() => clearStandardsOverrides());
 
 function reading(sections: ReturnType<typeof testRecordSections>, key: string) {
   for (const s of sections) for (const r of s.readings) if (r.key === key) return r;
@@ -127,5 +130,31 @@ describe("additional tests rules (manual p41 / ISO C.5)", () => {
   it("max chamber vacuum within 2 kPa of working vacuum once 1a is entered", () => {
     const secs = pulsatorSections(config, { "tr.workingVacuum": 48 });
     expect(reading(secs, "puls.maxChamberVacuum").rule).toEqual({ kind: "atLeast", min: 46 });
+  });
+});
+
+describe("admin-managed standard overrides", () => {
+  const config = { ...defaultMachineConfiguration(), clusterCount: 20 };
+
+  it("a synced rule row replaces the built-in default", () => {
+    applyStandardsOverrides([
+      { key: "tr.airlineDropRR", label: "", category: "", kind: "atMost", limit: 1.5 },
+    ]);
+    expect(reading(testRecordSections(config), "tr.airlineDropRR").rule).toEqual({ kind: "atMost", limit: 1.5 });
+  });
+
+  it("a synced param row feeds the formula", () => {
+    applyStandardsOverrides([
+      { key: "param.milkLeak.perCluster", label: "", category: "", kind: "param", value: 3 },
+    ]);
+    // 10 + 3 × 20 clusters = 70 (default 2/cluster would give 50).
+    expect(reading(additionalTestSections(config), "add.milkSystemLeakage").rule).toEqual({ kind: "atMost", limit: 70 });
+  });
+
+  it("malformed or absent overrides fall back to the built-in default", () => {
+    applyStandardsOverrides([
+      { key: "tr.airlineDropRR", label: "", category: "", kind: "atMost", limit: null },
+    ]);
+    expect(reading(testRecordSections(config), "tr.airlineDropRR").rule).toEqual({ kind: "atMost", limit: 1 });
   });
 });
