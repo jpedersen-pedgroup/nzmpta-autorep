@@ -25,6 +25,9 @@ import { buildFaultInputs } from "../faults/buildFaults";
 import { VisualFaultsStep } from "./VisualFaultsStep";
 import { PulsatorStep } from "./PulsatorStep";
 import { ClusterStep } from "./ClusterStep";
+import { ReviewSignOffStep } from "./ReviewSignOffStep";
+import { syncAll } from "../sync/syncClient";
+import { showToast } from "../ui/toast";
 import {
   applyCheckAll,
   checklistComplete,
@@ -35,6 +38,7 @@ import {
 
 const ATTESTATION_TEXT =
   "I have inspected all items in this section and confirm they have been seen, tested and are in order.";
+const SIGN_OFF_ATTEST = "I confirm this test has been completed and the results are accurate.";
 
 export interface WizardOptions {
   id?: string;
@@ -98,6 +102,7 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
 
 function WizardApp({ id, farmId, farmName }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const online = useServerOnline();
 
   useEffect(() => {
@@ -173,6 +178,31 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
       visualFaults: applyCheckAll([section], test.visualFaults),
       attestations: [...test.attestations, attestation],
     });
+  };
+  const runSync = async (msg: string) => {
+    setSyncing(true);
+    try {
+      const r = await syncAll();
+      const fresh = await getTest(test.id);
+      if (fresh) setTest(fresh);
+      showToast(`${msg} — synced (${r.pushed} pushed, ${r.pulled} pulled).`, "success");
+    } catch {
+      showToast(`${msg} — saved; will sync when back online.`, "info");
+    } finally {
+      setSyncing(false);
+    }
+  };
+  const markComplete = async () => {
+    const now = new Date().toISOString();
+    await persist({
+      markedCompleteAt: now,
+      syncState: "local-only",
+      attestations: [
+        ...test.attestations,
+        { step: "ReviewSignOff", attestedAt: now, text: SIGN_OFF_ATTEST },
+      ],
+    });
+    await runSync("Test marked complete");
   };
 
   const plan = resolveWizard(test.config);
@@ -346,6 +376,17 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             <FaultSummaryStep test={test} onSetRecommendation={(k, v) => void setRecommendation(k, v)} />
           )}
 
+          {current === "ReviewSignOff" && (
+            <ReviewSignOffStep
+              test={test}
+              steps={plan.steps}
+              completed={completed}
+              syncing={syncing}
+              onMarkComplete={() => void markComplete()}
+              onResync={() => void runSync("Re-synced")}
+            />
+          )}
+
           {current !== "Setup" &&
             current !== "MachineConfiguration" &&
             current !== "VisualFaultsPreStart" &&
@@ -354,7 +395,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             current !== "AdditionalTests" &&
             current !== "PulsatorTest" &&
             current !== "IndividualClusterTest" &&
-            current !== "FaultSummary" && (
+            current !== "FaultSummary" &&
+            current !== "ReviewSignOff" && (
               <div class="card">
                 <div class="card__title">
                   {currentStep.title} <small class="card__hint">Offline data entry for this step is coming next.</small>
