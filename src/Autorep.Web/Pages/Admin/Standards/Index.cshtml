@@ -20,27 +20,32 @@
 
 @foreach (var group in Model.Groups)
 {
-    <h2 style="margin:1.25rem 0 0.5rem">@group.Key</h2>
-    <div class="table-wrap">
-        <table class="table">
-            <thead>
-                <tr><th>Standard</th><th>Value</th><th>Key</th><th>Source</th><th>Updated</th><th></th></tr>
-            </thead>
-            <tbody>
-                @foreach (var r in group)
-                {
-                    <tr>
-                        <td>@r.Label</td>
-                        <td><strong>@r.Summary</strong></td>
-                        <td class="td-muted"><code>@r.Key</code></td>
-                        <td class="td-muted">@r.SourceRef</td>
-                        <td class="td-muted">@r.UpdatedAt.ToLocalTime().ToString("d MMM yyyy")</td>
-                        <td><a class="btn btn--secondary" asp-page="/Admin/Standards/Edit" asp-route-id="@r.Id">Edit</a></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+    <details class="accordion">
+        <summary class="accordion__summary">
+            <span>@group.Key</span>
+            <span class="badge">@group.Count() standards</span>
+        </summary>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr><th>Standard</th><th>Value</th><th>Key</th><th>Source</th><th>Updated</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in group)
+                    {
+                        <tr>
+                            <td>@r.Label</td>
+                            <td><strong>@r.Summary</strong></td>
+                            <td class="td-muted"><code>@r.Key</code></td>
+                            <td class="td-muted">@r.SourceRef</td>
+                            <td class="td-muted">@r.UpdatedAt.ToLocalTime().ToString("d MMM yyyy")</td>
+                            <td><a class="btn btn--secondary" asp-page="/Admin/Standards/Edit" asp-route-id="@r.Id">Edit</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>
 }
 
 <hr style="margin:2rem 0 1rem; border:none; border-top:1px solid var(--border, #e5e7eb)" />
@@ -51,69 +56,83 @@
     If one of these ever needs to change it's a release, not an edit.
 </p>
 
-<div class="table-wrap">
-    <table class="table">
-        <thead><tr><th>Standard</th><th>Value / formula</th><th>Source</th></tr></thead>
-        <tbody>
-            @foreach (var f in Autorep.Web.Pages.Admin.Standards.IndexModel.FixedStandards)
-            {
-                <tr class="td-muted">
-                    <td>@f.Label</td>
-                    <td>@f.Value</td>
-                    <td>@f.Source</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-</div>
+<details class="accordion">
+    <summary class="accordion__summary">
+        <span>Fixed rules &amp; formulas</span>
+        <span class="badge">@Autorep.Web.Pages.Admin.Standards.IndexModel.FixedStandards.Length read-only</span>
+    </summary>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Standard</th><th>Value / formula</th><th>Source</th></tr></thead>
+            <tbody>
+                @foreach (var f in Autorep.Web.Pages.Admin.Standards.IndexModel.FixedStandards)
+                {
+                    <tr class="td-muted">
+                        <td>@f.Label</td>
+                        <td>@f.Value</td>
+                        <td>@f.Source</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</details>
 
-<h3 style="margin:1.25rem 0 0.25rem">Effective reserve by cluster count</h3>
-<p class="td-muted" style="margin:0 0 0.5rem">Manual p42 — L/min required; odd counts use the next even row; above 80 clusters: 2100 + 25 per cluster.</p>
-@{
-    var erRows = Autorep.Web.Pages.Admin.Standards.IndexModel.EffectiveReserveRows().ToList();
-    var erCols = 4;
-    var perCol = (int)Math.Ceiling(erRows.Count / (double)erCols);
-}
-<div class="table-wrap">
-    <table class="table" style="max-width:760px">
-        <thead>
-            <tr>
-                @for (var c = 0; c < erCols; c++) { <th>Clusters</th><th>Reserve</th> }
-            </tr>
-        </thead>
-        <tbody>
-            @for (var r = 0; r < perCol; r++)
-            {
-                <tr class="td-muted">
-                    @for (var c = 0; c < erCols; c++)
-                    {
-                        var i = c * perCol + r;
-                        if (i < erRows.Count) { <td>@erRows[i].Clusters</td><td>@erRows[i].Reserve</td> }
-                        else { <td></td><td></td> }
-                    }
+<details class="accordion">
+    <summary class="accordion__summary">
+        <span>Effective reserve by cluster count</span>
+        <span class="badge">Manual p42 · read-only</span>
+    </summary>
+    <div class="accordion__body">
+        <p class="td-muted" style="margin:0 0 0.5rem">L/min required; odd counts use the next even row; above 80 clusters: 2100 + 25 per cluster.</p>
+        @{
+            var erRows = Autorep.Web.Pages.Admin.Standards.IndexModel.EffectiveReserveRows().ToList();
+            var erCols = 4;
+            var perCol = (int)Math.Ceiling(erRows.Count / (double)erCols);
+        }
+        <table class="table" style="max-width:760px">
+            <thead>
+                <tr>
+                    @for (var c = 0; c < erCols; c++) { <th>Clusters</th><th>Reserve</th> }
                 </tr>
-            }
-        </tbody>
-    </table>
-</div>
+            </thead>
+            <tbody>
+                @for (var r = 0; r < perCol; r++)
+                {
+                    <tr class="td-muted">
+                        @for (var c = 0; c < erCols; c++)
+                        {
+                            var i = c * perCol + r;
+                            if (i < erRows.Count) { <td>@erRows[i].Clusters</td><td>@erRows[i].Reserve</td> }
+                            else { <td></td><td></td> }
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</details>
 
-<h3 style="margin:1.25rem 0 0.25rem">Atmospheric correction factors</h3>
-<p class="td-muted" style="margin:0 0 0.5rem">
-    Manual p31 / ISO 6690 Table 4 — multiply the measured airflow by the factor for the prevailing pressure.
-</p>
-<div class="table-wrap">
-    <table class="table" style="max-width:760px">
-        <thead>
-            <tr>
-                <th>Pressure (kPa)</th>
-                @foreach (var a in Autorep.Web.Pages.Admin.Standards.IndexModel.AtmosFactors) { <th>@a.Kpa</th> }
-            </tr>
-        </thead>
-        <tbody>
-            <tr class="td-muted">
-                <td><strong>Factor</strong></td>
-                @foreach (var a in Autorep.Web.Pages.Admin.Standards.IndexModel.AtmosFactors) { <td>@a.Factor.ToString("0.00")</td> }
-            </tr>
-        </tbody>
-    </table>
-</div>
+<details class="accordion">
+    <summary class="accordion__summary">
+        <span>Atmospheric correction factors</span>
+        <span class="badge">Manual p31 / ISO Table 4 · read-only</span>
+    </summary>
+    <div class="accordion__body">
+        <p class="td-muted" style="margin:0 0 0.5rem">Multiply the measured airflow by the factor for the prevailing pressure.</p>
+        <table class="table" style="max-width:760px">
+            <thead>
+                <tr>
+                    <th>Pressure (kPa)</th>
+                    @foreach (var a in Autorep.Web.Pages.Admin.Standards.IndexModel.AtmosFactors) { <th>@a.Kpa</th> }
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="td-muted">
+                    <td><strong>Factor</strong></td>
+                    @foreach (var a in Autorep.Web.Pages.Admin.Standards.IndexModel.AtmosFactors) { <td>@a.Factor.ToString("0.00")</td> }
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</details>

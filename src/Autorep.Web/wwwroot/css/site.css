@@ -294,6 +294,8 @@ main {
 .form-field input[type="email"],
 .form-field input[type="password"],
 .form-field input[type="number"],
+.form-field input[type="date"],
+.form-field input[type="datetime-local"],
 .form-field textarea,
 .form-field select {
   width: 100%;
@@ -791,6 +793,11 @@ main {
 .puls-stat { display: flex; align-items: center; gap: var(--space-2); font-size: 0.875rem; }
 .puls-stat__label { font-weight: 600; }
 .puls-stat__range { color: var(--text-muted); }
+
+/* Tabbed form card (admin edit pages) — consistent height across tabs, actions pinned below. */
+.form-tabs-card { display: flex; flex-direction: column; min-height: 520px; }
+.form-tabs-card__panel { flex: 1; }
+.form-tabs-card__actions { margin-top: auto; padding-top: var(--space-4); }
 
 /* Accordion sections (admin reference pages) */
 .accordion { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: var(--space-3); background: var(--surface); }
