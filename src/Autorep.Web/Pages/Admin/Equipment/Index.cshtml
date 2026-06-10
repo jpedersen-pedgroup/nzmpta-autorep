@@ -1,0 +1,54 @@
+@page
+@model Autorep.Web.Pages.Admin.Equipment.IndexModel
+@{
+    ViewData["Title"] = "Equipment catalogs";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Equipment catalogs</h1>
+        <p>
+            The brand/model lists behind the Machine Configuration dropdowns — shells, liners,
+            pulsator models, milkline sizes and pulsator configurations. Changes sync to testers'
+            devices the next time they're online. Deactivate an item to hide it from new tests
+            without affecting historical tests.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn" asp-page="/Admin/Equipment/New">+ New item</a>
+    </div>
+</div>
+
+@foreach (var group in Model.Groups)
+{
+    <details class="accordion" open="@(group.Rows.Count <= 10)">
+        <summary class="accordion__summary">
+            <span>@group.Title</span>
+            <span class="badge">@group.Rows.Count(r => r.IsActive) active@(group.Rows.Any(r => !r.IsActive) ? $" · {group.Rows.Count(r => !r.IsActive)} deactivated" : "")</span>
+        </summary>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        @if (group.Type == Autorep.Web.Domain.Entities.EquipmentItem.Pulsator) { <th>Brand</th> }
+                        <th>Name</th><th>Status</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in group.Rows)
+                    {
+                        <tr>
+                            @if (group.Type == Autorep.Web.Domain.Entities.EquipmentItem.Pulsator) { <td class="td-muted">@r.Brand</td> }
+                            <td>@r.Name</td>
+                            <td>
+                                @if (r.IsActive) { <span class="badge badge--success">Active</span> }
+                                else { <span class="badge">Deactivated</span> }
+                            </td>
+                            <td><a class="btn btn--secondary" asp-page="/Admin/Equipment/Edit" asp-route-id="@r.Id">Edit</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>
+}

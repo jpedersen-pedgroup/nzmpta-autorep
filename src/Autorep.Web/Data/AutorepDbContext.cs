@@ -18,6 +18,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<TestStandard> TestStandards => Set<TestStandard>();
+    public DbSet<EquipmentItem> EquipmentItems => Set<EquipmentItem>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -110,6 +111,14 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
                 .WithOne(t => t.Farm!)
                 .HasForeignKey(t => t.FarmId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<EquipmentItem>(eq =>
+        {
+            eq.Property(e => e.Type).HasMaxLength(40).IsRequired();
+            eq.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            eq.Property(e => e.Brand).HasMaxLength(100);
+            eq.HasIndex(e => new { e.Type, e.Name, e.Brand }).IsUnique();
         });
 
         builder.Entity<TestStandard>(std =>

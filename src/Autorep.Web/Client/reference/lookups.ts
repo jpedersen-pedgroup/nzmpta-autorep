@@ -15,10 +15,30 @@ export function faultObservationsFor(category: string | null | undefined): strin
   return FAULT_OBSERVATIONS[category] ?? [];
 }
 
+import { catalogNames, catalogPulsators } from "./catalogOverrides";
+
 export const MILKLINE_SIZES = ["50", "63", "75", "100"] as const;
 
 /** Lookup category 'PulsatorSize' — the pulsator configuration (e.g. 2×2, 4+0). */
 export const PULSATOR_CONFIGS = ["2 X 2", "4 + 0"] as const;
+
+// --- Effective catalogs: the synced admin-managed list wins, the bundled legacy list is the
+// --- offline / pre-sync fallback. The Machine Config dropdowns use these functions.
+export const shellOptions = (): string[] => catalogNames("Shell") ?? SHELLS;
+export const linerOptions = (): string[] => catalogNames("Liner") ?? LINERS;
+export const milklineSizeOptions = (): string[] => catalogNames("MilklineSize") ?? [...MILKLINE_SIZES];
+export const pulsatorConfigOptions = (): string[] => catalogNames("PulsatorConfiguration") ?? [...PULSATOR_CONFIGS];
+export const pulsatorOptions = (): PulsatorOption[] => catalogPulsators() ?? PULSATORS;
+
+export function pulsatorBrandOptions(): string[] {
+  return [...new Set(pulsatorOptions().map((p) => p.brand))].sort((a, b) => a.localeCompare(b));
+}
+
+/** Pulsator models for a brand (for the dependent Type dropdown). */
+export function pulsatorModelOptionsForBrand(brand: string | null | undefined): string[] {
+  if (!brand) return [];
+  return pulsatorOptions().filter((p) => p.brand === brand).map((p) => p.name);
+}
 
 export const SYSTEM_COUNTS = [1, 2, 3, 4, 5] as const;
 
@@ -65,13 +85,3 @@ export interface PulsatorOption {
 }
 export const PULSATORS: PulsatorOption[] = pulsatorsJson;
 
-/** Distinct pulsator brands (Lookup-backed in legacy via Pulsator.PULBrand). */
-export const PULSATOR_BRANDS: string[] = [...new Set(PULSATORS.map((p) => p.brand))].sort((a, b) =>
-  a.localeCompare(b),
-);
-
-/** Pulsator models for a brand (for the dependent Type dropdown). */
-export function pulsatorModelsForBrand(brand: string | null | undefined): string[] {
-  if (!brand) return [];
-  return PULSATORS.filter((p) => p.brand === brand).map((p) => p.name);
-}

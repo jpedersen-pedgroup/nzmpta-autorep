@@ -792,6 +792,14 @@ main {
 .puls-stat__label { font-weight: 600; }
 .puls-stat__range { color: var(--text-muted); }
 
+/* Accordion sections (admin reference pages) */
+.accordion { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: var(--space-3); background: var(--surface); }
+.accordion__summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; font-weight: 600; list-style: none; }
+.accordion__summary::-webkit-details-marker { display: none; }
+.accordion__summary::after { content: "▸"; color: var(--text-muted); transition: transform 0.15s ease; }
+.accordion[open] > .accordion__summary::after { transform: rotate(90deg); }
+.accordion > .table-wrap, .accordion__body { padding: 0 var(--space-4) var(--space-4); }
+
 /* Review & sign-off */
 .signoff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); margin-top: var(--space-2); }
 .signoff__label { color: var(--text-muted); font-size: 0.8125rem; }

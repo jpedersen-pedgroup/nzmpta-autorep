@@ -2,10 +2,11 @@
 // Loads the synced test standards (cached-then-fresh, with an update notice), then mounts the
 // offline Preact wizard and the "My tests" list when their roots are present.
 import { initStandards } from "./standards/standardsSync";
+import { initEquipment } from "./standards/equipmentSync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
 
-void initStandards().finally(() => {
+void Promise.allSettled([initStandards(), initEquipment()]).finally(() => {
   const wizardRoot = document.getElementById("wizard-root");
   if (wizardRoot) {
     const params = new URLSearchParams(location.search);

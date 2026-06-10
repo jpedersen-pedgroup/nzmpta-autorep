@@ -74,7 +74,57 @@ public static class Seed
 
         await db.SaveChangesAsync();
         await TestStandardsAsync(db);
+        await EquipmentAsync(db);
     }
+
+    // Seeds the equipment catalogs (shells / liners / pulsator models from the legacy DB, embedded
+    // as JSON resources, plus the small fixed lists). Seed-if-type-empty so SuperAdmin renames,
+    // deactivations and deletions are never resurrected on restart.
+    private static async Task EquipmentAsync(AutorepDbContext db)
+    {
+        static string[] Strings(string resource)
+        {
+            using var stream = typeof(Seed).Assembly.GetManifestResourceStream(resource)
+                ?? throw new InvalidOperationException($"Missing embedded resource {resource}");
+            return System.Text.Json.JsonSerializer.Deserialize<string[]>(stream) ?? [];
+        }
+
+        var hasType = await db.EquipmentItems.Select(e => e.Type).Distinct().ToListAsync();
+
+        if (!hasType.Contains(EquipmentItem.Shell))
+        {
+            foreach (var name in Strings("Autorep.Web.Data.SeedData.shells.json"))
+                db.EquipmentItems.Add(new EquipmentItem { Type = EquipmentItem.Shell, Name = name });
+        }
+        if (!hasType.Contains(EquipmentItem.Liner))
+        {
+            foreach (var name in Strings("Autorep.Web.Data.SeedData.liners.json"))
+                db.EquipmentItems.Add(new EquipmentItem { Type = EquipmentItem.Liner, Name = name });
+        }
+        if (!hasType.Contains(EquipmentItem.Pulsator))
+        {
+            using var stream = typeof(Seed).Assembly.GetManifestResourceStream("Autorep.Web.Data.SeedData.pulsators.json")
+                ?? throw new InvalidOperationException("Missing embedded resource pulsators.json");
+            var models = System.Text.Json.JsonSerializer.Deserialize<List<PulsatorSeed>>(stream,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+            foreach (var m in models)
+                db.EquipmentItems.Add(new EquipmentItem { Type = EquipmentItem.Pulsator, Name = m.Name, Brand = m.Brand });
+        }
+        if (!hasType.Contains(EquipmentItem.MilklineSize))
+        {
+            foreach (var name in new[] { "50", "63", "75", "100" })
+                db.EquipmentItems.Add(new EquipmentItem { Type = EquipmentItem.MilklineSize, Name = name });
+        }
+        if (!hasType.Contains(EquipmentItem.PulsatorConfiguration))
+        {
+            foreach (var name in new[] { "2 X 2", "4 + 0" })
+                db.EquipmentItems.Add(new EquipmentItem { Type = EquipmentItem.PulsatorConfiguration, Name = name });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private sealed record PulsatorSeed(string Name, string Brand);
 
     // Seeds the editable test standards (pass/fail thresholds + formula parameters) with the
     // values verified against the NZMPTA Testing Standards Manual + ISO 6690:2007 (see

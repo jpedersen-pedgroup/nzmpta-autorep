@@ -7,12 +7,12 @@ import { Tabs } from "../ui/Tabs";
 import { Combobox } from "../ui/Combobox";
 import {
   ATMOS_PRESSURES,
-  LINERS,
-  MILKLINE_SIZES,
-  PULSATOR_BRANDS,
-  PULSATOR_CONFIGS,
-  SHELLS,
-  pulsatorModelsForBrand,
+  linerOptions,
+  milklineSizeOptions,
+  pulsatorBrandOptions,
+  pulsatorConfigOptions,
+  pulsatorModelOptionsForBrand,
+  shellOptions,
 } from "../reference/lookups";
 
 interface Props {
@@ -129,7 +129,7 @@ export function MachineConfigStep({ config, onChange }: Props) {
             <Combobox
               value={config.milklineSize}
               onChange={(v) => onChange({ milklineSize: v })}
-              options={MILKLINE_SIZES}
+              options={milklineSizeOptions()}
               listId="cfg-milkline"
             />
           </Field>
@@ -184,10 +184,10 @@ export function MachineConfigStep({ config, onChange }: Props) {
               value={config.pulsatorBrand}
               onChange={(v) => {
                 // Auto-select the type when the chosen brand has only one model.
-                const models = pulsatorModelsForBrand(v);
+                const models = pulsatorModelOptionsForBrand(v);
                 onChange({ pulsatorBrand: v, pulsatorModel: models.length === 1 ? models[0] : null });
               }}
-              options={PULSATOR_BRANDS}
+              options={pulsatorBrandOptions()}
               listId="cfg-pulsator-brand"
             />
           </Field>
@@ -195,7 +195,7 @@ export function MachineConfigStep({ config, onChange }: Props) {
             <Combobox
               value={config.pulsatorModel}
               onChange={(v) => onChange({ pulsatorModel: v })}
-              options={pulsatorModelsForBrand(config.pulsatorBrand)}
+              options={pulsatorModelOptionsForBrand(config.pulsatorBrand)}
               listId="cfg-pulsator-type"
             />
           </Field>
@@ -206,7 +206,7 @@ export function MachineConfigStep({ config, onChange }: Props) {
             <Combobox
               value={config.pulsatorConfiguration}
               onChange={(v) => onChange({ pulsatorConfiguration: v })}
-              options={PULSATOR_CONFIGS}
+              options={pulsatorConfigOptions()}
               listId="cfg-pulsator-config"
             />
           </Field>
@@ -232,13 +232,13 @@ export function MachineConfigStep({ config, onChange }: Props) {
             <TextInput value={config.clawModel} onInput={(v) => onChange({ clawModel: v })} placeholder="Enter claw" />
           </Field>
           <Field label="Shell">
-            <Combobox value={config.shellModel} onChange={(v) => onChange({ shellModel: v })} options={SHELLS} listId="cfg-shell" />
+            <Combobox value={config.shellModel} onChange={(v) => onChange({ shellModel: v })} options={shellOptions()} listId="cfg-shell" />
           </Field>
           <Field label="Front liner">
-            <Combobox value={config.linerModel} onChange={(v) => onChange({ linerModel: v })} options={LINERS} listId="cfg-front-liner" />
+            <Combobox value={config.linerModel} onChange={(v) => onChange({ linerModel: v })} options={linerOptions()} listId="cfg-front-liner" />
           </Field>
           <Field label="Back liner">
-            <Combobox value={config.backLiner} onChange={(v) => onChange({ backLiner: v })} options={LINERS} listId="cfg-back-liner" />
+            <Combobox value={config.backLiner} onChange={(v) => onChange({ backLiner: v })} options={linerOptions()} listId="cfg-back-liner" />
           </Field>
           <Toggle label="Vented liners" checked={config.linerVented} onChange={(v) => onChange({ linerVented: v })} />
         </div>

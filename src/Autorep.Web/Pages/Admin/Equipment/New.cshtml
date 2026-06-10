@@ -1,0 +1,55 @@
+@page
+@model Autorep.Web.Pages.Admin.Equipment.NewModel
+@{
+    ViewData["Title"] = "New equipment item";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>New equipment item</h1>
+        <p>Add a shell, liner, pulsator model (with brand), milkline size or pulsator configuration.</p>
+    </div>
+</div>
+
+@if (Model.Errors.Any())
+{
+    <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+}
+
+<div class="card" style="max-width:640px">
+    <form method="post">
+        <div class="form-grid">
+            <div class="form-field">
+                <label asp-for="Type">Catalog</label>
+                <select asp-for="Type" id="eq-type">
+                    @foreach (var t in Autorep.Web.Domain.Entities.EquipmentItem.Types)
+                    {
+                        <option value="@t">@Autorep.Web.Pages.Admin.Equipment.IndexModel.TitleFor(t)</option>
+                    }
+                </select>
+            </div>
+            <div class="form-field" id="eq-brand-field">
+                <label asp-for="Brand">Brand</label>
+                <input asp-for="Brand" type="text" />
+            </div>
+            <div class="form-field form-field--full">
+                <label asp-for="Name">Name</label>
+                <input asp-for="Name" type="text" />
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">Create</button>
+            <a class="btn btn--secondary" asp-page="/Admin/Equipment/Index">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    (function () {
+        var type = document.getElementById('eq-type');
+        var brand = document.getElementById('eq-brand-field');
+        function refresh() { brand.style.display = type.value === 'Pulsator' ? '' : 'none'; }
+        type.addEventListener('change', refresh);
+        refresh();
+    })();
+</script>
