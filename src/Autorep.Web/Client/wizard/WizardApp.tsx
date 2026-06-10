@@ -18,13 +18,13 @@ import { MachineConfigStep } from "./MachineConfigStep";
 import { ReadingsStep } from "./ReadingsStep";
 import {
   additionalTestSections,
-  individualClusterSections,
-  pulsatorSections,
   testRecordSections,
 } from "../passfail/standards";
 import { FaultSummaryStep } from "./FaultSummaryStep";
 import { buildFaultInputs } from "../faults/buildFaults";
 import { VisualFaultsStep } from "./VisualFaultsStep";
+import { PulsatorStep } from "./PulsatorStep";
+import { ClusterStep } from "./ClusterStep";
 import {
   applyCheckAll,
   checklistComplete,
@@ -83,10 +83,10 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
   if (additionalTestSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
     done.add("AdditionalTests");
   }
-  if (pulsatorSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
+  if ((t.pulsatorRows ?? []).length > 0) {
     done.add("PulsatorTest");
   }
-  if (individualClusterSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
+  if ((t.clusterRows ?? []).length > 0) {
     done.add("IndividualClusterTest");
   }
   const faults = buildFaultInputs(t);
@@ -325,22 +325,20 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
           )}
 
           {current === "PulsatorTest" && (
-            <ReadingsStep
-              title="Pulsator Test Results"
-              hint="Summary rates & ratios (per-pulsator rows coming next)."
-              sections={pulsatorSections(test.config)}
+            <PulsatorStep
+              config={test.config}
+              rows={test.pulsatorRows ?? []}
+              onRows={(rows) => void persist({ pulsatorRows: rows })}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
             />
           )}
 
           {current === "IndividualClusterTest" && (
-            <ReadingsStep
-              title="Individual Cluster Tests"
-              hint="Optional — per-cluster airflow."
-              sections={individualClusterSections(test.config)}
-              readings={test.readings}
-              onSetReading={(k, v) => void setReading(k, v)}
+            <ClusterStep
+              config={test.config}
+              rows={test.clusterRows ?? []}
+              onRows={(rows) => void persist({ clusterRows: rows })}
             />
           )}
 

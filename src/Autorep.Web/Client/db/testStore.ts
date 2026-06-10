@@ -23,6 +23,14 @@ export interface FarmSnapshot {
   contactEmail?: string | null;
 }
 
+/** One row in a per-unit measurement table (a pulsator or a cluster). Values keyed by column. */
+export interface MeasurementRow {
+  id: string;
+  /** Unit / bail number as labelled by the Tester. */
+  unit: string;
+  values: Record<string, string>;
+}
+
 /** A Machine Test as held on-device (mirrors the server MachineTest + MachineConfiguration). */
 export interface LocalTest {
   /** Client-generated id (used for upsert-by-ClientId on sync). */
@@ -44,6 +52,10 @@ export interface LocalTest {
   recommendations: Record<string, string>;
   /** Visual-fault data-capture fields (belt sizes, diameters, lengths…), keyed by item key. */
   dataFields: Record<string, string>;
+  /** Per-pulsator measurement rows (rate / ratio per unit) — ISO 14–15. */
+  pulsatorRows?: MeasurementRow[];
+  /** Per-cluster measurement rows (air admission / leakage per unit) — ISO 13. */
+  clusterRows?: MeasurementRow[];
   /** Visual Faults — Running: guards installed on pulsators. */
   guardsOnPulsators?: boolean;
   /** Tester equipment calibration expiry dates (ISO date strings), shown with the farm details. */

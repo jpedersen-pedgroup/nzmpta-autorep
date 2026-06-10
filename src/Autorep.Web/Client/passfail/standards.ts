@@ -251,8 +251,9 @@ export function additionalTestSections(config: MachineConfiguration): ReadingSec
   return sections;
 }
 
-/** Pulsator Test Results — ISO 14 (pulsator & ancillary air consumption) + 15 (test pulsation),
- * plus the summary rates/ratios the standard checks. (Per-pulsator row table is a follow-up.) */
+/** Pulsator step readings that aren't per-pulsator — ISO 14 (pulsator & ancillary air consumption),
+ * 15 (test pulsation) and airline stability. The per-pulsator rates/ratios are captured in the
+ * pulsator row table (see pulsatorStats). */
 export function pulsatorSections(_config: MachineConfiguration): ReadingSection[] {
   return [
     {
@@ -273,16 +274,6 @@ export function pulsatorSections(_config: MachineConfiguration): ReadingSection[
       readings: [
         { key: "puls.maxChamberVacuum", label: "Max pulsation chamber vacuum, B phase (15a)", unit: "kPa", rule: { kind: "none" } },
         { key: "puls.testPulsationReading", label: "Test pulsation reading (15b)", unit: "kPa", rule: { kind: "none" } },
-      ],
-    },
-    {
-      key: "PulsatorRates",
-      title: "Rates & ratios",
-      readings: [
-        { key: "puls.fastestRate", label: "Fastest pulsator rate", unit: "ppm", rule: { kind: "none" } },
-        { key: "puls.slowestRate", label: "Slowest pulsator rate", unit: "ppm", rule: { kind: "none" } },
-        { key: "puls.highestRatio", label: "Highest ratio", unit: "%", rule: { kind: "none" } },
-        { key: "puls.lowestRatio", label: "Lowest ratio", unit: "%", rule: { kind: "none" } },
       ],
     },
     {
