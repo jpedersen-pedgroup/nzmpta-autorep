@@ -23,11 +23,15 @@ export const PULSATOR_CONFIGS = ["2 X 2", "4 + 0"] as const;
 export const SYSTEM_COUNTS = [1, 2, 3, 4, 5] as const;
 
 export interface AtmosPressureOption {
-  /** Atmospheric pressure at sea level (kPa). */
+  /** Prevailing atmospheric pressure at the test site (kPa). */
   kpa: number;
-  /** Correction factor applied to airflow figures at this pressure. */
+  /** Correction factor: MULTIPLY the measured airflow (effective reserve, pump capacity) by this
+   * before comparing to the standard — manual p31 / ISO 6690 §5.3.2. */
   cFactor: number;
 }
+// 90–100 kPa rows verified against the manual p31 altitude table; 101–105 against ISO 6690
+// Table 4 (K2 @ 50 kPa: 103→0.96, interpolated between the 100/103/106 anchor rows). The legacy
+// app's 102→0.98 / 103→0.97 were off by one step vs ISO.
 export const ATMOS_PRESSURES: AtmosPressureOption[] = [
   { kpa: 90, cFactor: 1.16 },
   { kpa: 91, cFactor: 1.14 },
@@ -41,8 +45,8 @@ export const ATMOS_PRESSURES: AtmosPressureOption[] = [
   { kpa: 99, cFactor: 1.01 },
   { kpa: 100, cFactor: 1 },
   { kpa: 101, cFactor: 0.99 },
-  { kpa: 102, cFactor: 0.98 },
-  { kpa: 103, cFactor: 0.97 },
+  { kpa: 102, cFactor: 0.97 },
+  { kpa: 103, cFactor: 0.96 },
   { kpa: 104, cFactor: 0.95 },
   { kpa: 105, cFactor: 0.94 },
 ];

@@ -32,7 +32,7 @@ export function buildFaultInputs(test: LocalTest): FaultInput[] {
     }
   }
 
-  for (const sec of allReadingSections(config)) {
+  for (const sec of allReadingSections(config, test.readings)) {
     for (const r of sec.readings) {
       const v = test.readings[r.key];
       if (v != null && evaluate(v, r.rule) === "fail") {

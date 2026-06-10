@@ -133,7 +133,7 @@ export function MachineConfigStep({ config, onChange }: Props) {
               listId="cfg-milkline"
             />
           </Field>
-          <Field label="Atmos. pressure at sea level (kPa)">
+          <Field label="Atmospheric pressure (kPa)">
             <select
               value={config.atmosPressureSeaLevel ?? ""}
               onChange={(e) => {

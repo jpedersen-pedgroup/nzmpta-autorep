@@ -784,6 +784,7 @@ main {
 .rowtable th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .rowtable td { padding: 0.2rem 0.3rem; border-bottom: 1px solid var(--border); }
 .rowtable input { width: 100%; min-width: 4rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0.3rem 0.4rem; font-size: 0.85rem; }
+.rowtable input.is-fail { border-color: var(--danger); background: var(--danger-bg); }
 .rowtable__unit { width: 3rem; min-width: 3rem; }
 .rowtable__del { border: none; background: none; color: var(--danger); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 0.3rem; }
 .puls-summary { display: flex; gap: var(--space-4); flex-wrap: wrap; margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }

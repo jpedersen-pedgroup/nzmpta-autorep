@@ -81,10 +81,10 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
   if (checklistComplete(runningSectionsFor(runningKeys), t.visualFaults)) {
     done.add("VisualFaultsRunning");
   }
-  if (testRecordSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
+  if (testRecordSections(t.config, t.readings).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
     done.add("TestRecord");
   }
-  if (additionalTestSections(t.config).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
+  if (additionalTestSections(t.config, t.readings).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
     done.add("AdditionalTests");
   }
   if ((t.pulsatorRows ?? []).length > 0) {
@@ -338,7 +338,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             <ReadingsStep
               title="Test Record"
               hint="Enter readings — pass/fail is live against the standard for this machine."
-              sections={testRecordSections(test.config)}
+              sections={testRecordSections(test.config, test.readings)}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
             />
@@ -348,7 +348,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             <ReadingsStep
               title="Additional Tests"
               hint="Only the sections relevant to this machine's ancillaries are shown."
-              sections={additionalTestSections(test.config)}
+              sections={additionalTestSections(test.config, test.readings)}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
             />

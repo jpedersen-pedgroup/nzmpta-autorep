@@ -1,11 +1,15 @@
 // Editable per-unit measurement table (pulsators, clusters). The Tester can add faulty rows only,
-// or "Enter all" to seed one row per unit from the configured count. Cells are numeric.
+// or "Enter all" to seed one row per unit from the configured count. Cells are numeric; a column
+// can carry a pass/fail rule — failing cells highlight red as the value is typed.
 import type { MeasurementRow } from "../db/testStore";
+import { evaluate, type PassFailRule } from "../passfail/passFail";
 
 export interface RowColumn {
   key: string;
   label: string;
   unit?: string;
+  /** Optional per-cell standard; cells failing it are highlighted. */
+  rule?: PassFailRule;
 }
 
 interface Props {
@@ -81,15 +85,21 @@ export function RowTable({ columns, rows, onChange, unitLabel, suggestedCount }:
                       onInput={(e) => setUnit(r.id, (e.currentTarget as HTMLInputElement).value)}
                     />
                   </td>
-                  {columns.map((c) => (
-                    <td key={c.key}>
-                      <input
-                        type="number"
-                        value={r.values[c.key] ?? ""}
-                        onInput={(e) => setCell(r.id, c.key, (e.currentTarget as HTMLInputElement).value)}
-                      />
-                    </td>
-                  ))}
+                  {columns.map((c) => {
+                    const raw = r.values[c.key] ?? "";
+                    const failed =
+                      c.rule != null && raw.trim() !== "" && evaluate(Number(raw), c.rule) === "fail";
+                    return (
+                      <td key={c.key}>
+                        <input
+                          type="number"
+                          class={failed ? "is-fail" : undefined}
+                          value={raw}
+                          onInput={(e) => setCell(r.id, c.key, (e.currentTarget as HTMLInputElement).value)}
+                        />
+                      </td>
+                    );
+                  })}
                   <td>
                     <button class="rowtable__del" title="Remove" onClick={() => removeRow(r.id)}>
                       ×

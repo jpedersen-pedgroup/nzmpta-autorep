@@ -1,11 +1,14 @@
-// Pulsator summary stats computed from the per-pulsator rows. The required ISO checks are the
-// rate spread (fastest − slowest ≤ 6 ppm) and ratio spread (highest − lowest ≤ 5%); both are
-// model-independent. (The per-model rate/ratio band check, from the Pulsator catalog, is a
-// follow-up.)
+// Pulsator summary stats computed from the per-pulsator rows. Standards (manual pp49–53 /
+// ISO 6690 Table D.5): rate spread ≤ 6 ppm between fastest and slowest pulsator; ratio variation
+// ≤ 5% BETWEEN pulsators — compared within the same quarter group (front vs front, back vs back),
+// because front and back quarters may run different ratios by design; limping ≤ 5% within a
+// cluster (taken from the analyser's per-row limp value). Per-model rate/ratio bands from the
+// Pulsator catalog are a follow-up.
 import type { MeasurementRow } from "../db/testStore";
 
 export const RATE_SPREAD_MAX = 6; // ppm
-export const RATIO_SPREAD_MAX = 5; // %
+export const RATIO_SPREAD_MAX = 5; // % — between pulsators, per quarter group
+export const LIMP_MAX = 5; // % — within a cluster
 
 export interface PulsatorSummary {
   fastestRate: number | null;
@@ -13,9 +16,12 @@ export interface PulsatorSummary {
   highestRatio: number | null;
   lowestRatio: number | null;
   rateSpread: number | null;
+  /** Worst spread across the front group and the back group (not pooled across groups). */
   ratioSpread: number | null;
+  worstLimp: number | null;
   rateSpreadOk: boolean | null;
   ratioSpreadOk: boolean | null;
+  limpOk: boolean | null;
 }
 
 function nums(values: (string | undefined)[]): number[] {
@@ -24,17 +30,24 @@ function nums(values: (string | undefined)[]): number[] {
     .filter((n) => !Number.isNaN(n));
 }
 
+const spread = (ns: number[]): number | null => (ns.length ? Math.max(...ns) - Math.min(...ns) : null);
+
 export function pulsatorSummary(rows: MeasurementRow[]): PulsatorSummary {
   const rates = nums(rows.map((r) => r.values.rate));
-  const ratios = nums(rows.flatMap((r) => [r.values.ratioFront, r.values.ratioBack]));
+  const fronts = nums(rows.map((r) => r.values.ratioFront));
+  const backs = nums(rows.map((r) => r.values.ratioBack));
+  const allRatios = [...fronts, ...backs];
+  const limps = nums(rows.map((r) => r.values.limp));
 
   const fastestRate = rates.length ? Math.max(...rates) : null;
   const slowestRate = rates.length ? Math.min(...rates) : null;
-  const highestRatio = ratios.length ? Math.max(...ratios) : null;
-  const lowestRatio = ratios.length ? Math.min(...ratios) : null;
+  const highestRatio = allRatios.length ? Math.max(...allRatios) : null;
+  const lowestRatio = allRatios.length ? Math.min(...allRatios) : null;
 
-  const rateSpread = fastestRate != null && slowestRate != null ? fastestRate - slowestRate : null;
-  const ratioSpread = highestRatio != null && lowestRatio != null ? highestRatio - lowestRatio : null;
+  const rateSpread = spread(rates);
+  const groupSpreads = [spread(fronts), spread(backs)].filter((s): s is number => s != null);
+  const ratioSpread = groupSpreads.length ? Math.max(...groupSpreads) : null;
+  const worstLimp = limps.length ? Math.max(...limps) : null;
 
   return {
     fastestRate,
@@ -43,7 +56,9 @@ export function pulsatorSummary(rows: MeasurementRow[]): PulsatorSummary {
     lowestRatio,
     rateSpread,
     ratioSpread,
+    worstLimp,
     rateSpreadOk: rateSpread == null ? null : rateSpread <= RATE_SPREAD_MAX,
     ratioSpreadOk: ratioSpread == null ? null : ratioSpread <= RATIO_SPREAD_MAX,
+    limpOk: worstLimp == null ? null : worstLimp <= LIMP_MAX,
   };
 }

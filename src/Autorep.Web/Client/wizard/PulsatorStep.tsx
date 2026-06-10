@@ -1,9 +1,10 @@
-// Pulsator Test Results — a per-pulsator row table (rate + front/back ratio + chamber vacuum +
-// limp) with the live spread checks (≤6 ppm rate, ≤5% ratio), plus the ISO 14–15 ancillary /
-// test-pulsation readings below.
+// Pulsator Test Results — a per-pulsator row table (rate + front/back ratio + phases b/d +
+// chamber vacuum + limp) with the live spread checks (≤6 ppm rate, ≤5% ratio between pulsators,
+// ≤5% limp), plus the ISO 14–15 ancillary / test-pulsation readings below. Phase limits per
+// ISO 6690 Table D.5: b ≥ 30%, d ≥ 150 ms.
 import { RowTable, type RowColumn } from "../ui/RowTable";
 import { ReadingsStep } from "./ReadingsStep";
-import { RATE_SPREAD_MAX, RATIO_SPREAD_MAX, pulsatorSummary } from "../passfail/pulsatorStats";
+import { LIMP_MAX, RATE_SPREAD_MAX, RATIO_SPREAD_MAX, pulsatorSummary } from "../passfail/pulsatorStats";
 import { pulsatorSections } from "../passfail/standards";
 import type { MachineConfiguration } from "./types";
 import type { MeasurementRow } from "../db/testStore";
@@ -12,8 +13,10 @@ const COLUMNS: RowColumn[] = [
   { key: "rate", label: "Rate", unit: "ppm" },
   { key: "ratioFront", label: "Ratio front", unit: "%" },
   { key: "ratioBack", label: "Ratio back", unit: "%" },
+  { key: "phaseB", label: "Phase b", unit: "%", rule: { kind: "atLeast", min: 30 } },
+  { key: "phaseDms", label: "Phase d", unit: "ms", rule: { kind: "atLeast", min: 150 } },
   { key: "maxVacuum", label: "Max chamber vac", unit: "kPa" },
-  { key: "limp", label: "Limp", unit: "%" },
+  { key: "limp", label: "Limp", unit: "%", rule: { kind: "atMost", limit: LIMP_MAX } },
 ];
 
 const fmt = (n: number | null): string => (n == null ? "—" : String(n));
@@ -90,13 +93,21 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading }: P
               max={RATIO_SPREAD_MAX}
               unit="%"
             />
+            {s.worstLimp != null && (
+              <div class="puls-stat">
+                <span class="puls-stat__label">Limp</span>
+                <span class={"pf pf--" + (s.limpOk ? "pass" : "fail")}>
+                  worst {s.worstLimp}% {s.limpOk ? "≤" : ">"} {LIMP_MAX}%
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
       <ReadingsStep
         title="Pulsator & ancillary readings"
         hint="ISO 14–15 air consumption + airline stability."
-        sections={pulsatorSections(config)}
+        sections={pulsatorSections(config, readings)}
         readings={readings}
         onSetReading={onSetReading}
       />
