@@ -112,6 +112,9 @@ builder.Services.AddRazorPages(opts =>
     opts.Conventions.AuthorizeFolder("/Admin/Companies", "SuperAdminOnly");
     opts.Conventions.AuthorizeFolder("/Admin/Regions", "SuperAdminOnly");
     opts.Conventions.AuthorizeFolder("/Admin/MilkSupplyCompanies", "SuperAdminOnly");
+    opts.Conventions.AuthorizeFolder("/Admin/Standards", "SuperAdminOnly");
+    opts.Conventions.AuthorizeFolder("/Admin/Equipment", "SuperAdminOnly");
+    opts.Conventions.AuthorizeFolder("/Admin/FaultObservations", "SuperAdminOnly");
 });
 
 builder.Services.AddControllers();

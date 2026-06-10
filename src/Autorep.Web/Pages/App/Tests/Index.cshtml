@@ -1,5 +1,4 @@
 @page
-@model Autorep.Web.Pages.App.Tests.IndexModel
 @{
     ViewData["Title"] = "My tests";
 }
@@ -7,53 +6,17 @@
 <div class="page-header">
     <div class="page-header__heading">
         <h1>My tests</h1>
-        <p>Machine tests you've created.</p>
+        <p>Machine tests on this device.</p>
     </div>
     <div class="page-header__actions">
         <a class="btn" asp-page="/App/Tests/New">+ New test</a>
     </div>
 </div>
 
-@if (!Model.Tests.Any())
-{
-    <div class="empty">
-        <div class="empty__title">No tests yet</div>
-        <p class="empty__text">Start your first machine test to begin building your testing history.</p>
-        <a class="btn" asp-page="/App/Tests/New">Start a new test</a>
-    </div>
-}
-else
-{
-    <div class="table-wrap">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Farm</th>
-                    <th>Created</th>
-                    <th>Completed</th>
-                    <th>Notes</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var t in Model.Tests)
-                {
-                    <tr>
-                        <td>@t.Farm?.Name</td>
-                        <td class="td-muted">@t.CreatedAt.ToString("dd MMM yyyy, HH:mm")</td>
-                        <td>
-                            @if (t.MarkedCompleteAt is null)
-                            {
-                                <span class="badge">In progress</span>
-                            }
-                            else
-                            {
-                                <span class="badge badge--success">Complete</span>
-                            }
-                        </td>
-                        <td class="td-muted">@t.Notes</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+@* The tester's tests live in IndexedDB (offline-first) and are listed client-side by the
+   Preact bundle; synced/downloaded tests merge into the same list. *@
+<div id="test-list-root"></div>
+
+@section Scripts {
+    <script type="module" src="~/js/dist/autorep.js" asp-append-version="true"></script>
 }

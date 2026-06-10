@@ -22,8 +22,8 @@
                     <option value="@f.Id" data-milkco="@f.MilkCompanyId">@f.Name</option>
                 }
             </select>
-            <div style="margin-top:var(--space-2)">
-                <button type="button" class="btn btn--secondary" id="new-farm-btn">+ Add a new farm</button>
+            <div style="margin-top:var(--space-3)">
+                <button type="button" class="btn btn--add" id="new-farm-btn">＋ Add a new farm</button>
             </div>
             <div id="farm-logo-wrap" style="margin-top:var(--space-3);display:none">
                 <span style="font-size:0.8125rem;color:var(--text-muted)">Milk supply company</span>
@@ -31,59 +31,52 @@
             </div>
         </div>
 
-        <div class="form-field">
-            <label asp-for="Input.Notes">Notes</label>
-            <textarea asp-for="Input.Notes" rows="2"></textarea>
-        </div>
-        <div class="form-check">
-            <input asp-for="Input.MarkComplete" type="checkbox" id="mark-complete" />
-            <label for="mark-complete">Mark as complete now</label>
-        </div>
-
         @if (Model.Errors.Any())
         {
             <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
         }
         <div class="form-actions">
-            <button type="submit" class="btn">Create test</button>
+            <button type="submit" class="btn">Start test</button>
             <a class="btn btn--secondary" asp-page="/App/Tests/Index">Cancel</a>
         </div>
     </form>
 </div>
 
 <div class="modal-overlay" id="farm-modal">
-    <div class="modal">
+    <div class="modal modal--wide">
         <div class="modal__title">Add a new farm</div>
         <div id="farm-modal-errors"></div>
-        <div class="form-field"><label for="nf-name">Farm name</label><input id="nf-name" type="text" /></div>
-        <div class="form-field"><label for="nf-supply">Supply number</label><input id="nf-supply" type="text" /></div>
-        <div class="form-field">
-            <label for="nf-milkco">Milk supply company</label>
-            <select id="nf-milkco">
-                <option value="">— Not set —</option>
-                @foreach (var c in Model.MilkCompanyOptions) { <option value="@c.Value">@c.Text</option> }
-            </select>
+        <div class="form-grid">
+            <div class="form-field form-field--full"><label for="nf-name">Farm name</label><input id="nf-name" type="text" /></div>
+            <div class="form-field"><label for="nf-supply">Supply number</label><input id="nf-supply" type="text" /></div>
+            <div class="form-field">
+                <label for="nf-milkco">Milk supply company</label>
+                <select id="nf-milkco">
+                    <option value="">— Not set —</option>
+                    @foreach (var c in Model.MilkCompanyOptions) { <option value="@c.Value">@c.Text</option> }
+                </select>
+            </div>
+            <div class="form-field form-field--full">
+                <label for="nf-region">Region</label>
+                <select id="nf-region">
+                    <option value="">— Not set —</option>
+                    @foreach (var grp in Model.RegionOptions.GroupBy(o => o.Group?.Name))
+                    {
+                        <optgroup label="@grp.Key">
+                            @foreach (var o in grp) { <option value="@o.Value">@o.Text</option> }
+                        </optgroup>
+                    }
+                </select>
+            </div>
+            <div class="form-field form-field--full"><label for="nf-addr1">Address line 1</label><input id="nf-addr1" type="text" /></div>
+            <div class="form-field form-field--full"><label for="nf-addr2">Address line 2</label><input id="nf-addr2" type="text" /></div>
+            <div class="form-field"><label for="nf-town">Town / city</label><input id="nf-town" type="text" /></div>
+            <div class="form-field"><label for="nf-postcode">Post code</label><input id="nf-postcode" type="text" /></div>
+            <div class="form-field"><label for="nf-rapid">RAPID number</label><input id="nf-rapid" type="text" /></div>
+            <div class="form-field"><label for="nf-farmer">Farmer name</label><input id="nf-farmer" type="text" /></div>
+            <div class="form-field"><label for="nf-phone">Phone</label><input id="nf-phone" type="text" /></div>
+            <div class="form-field"><label for="nf-email">Email</label><input id="nf-email" type="email" /></div>
         </div>
-        <div class="form-field">
-            <label for="nf-region">Region</label>
-            <select id="nf-region">
-                <option value="">— Not set —</option>
-                @foreach (var grp in Model.RegionOptions.GroupBy(o => o.Group?.Name))
-                {
-                    <optgroup label="@grp.Key">
-                        @foreach (var o in grp) { <option value="@o.Value">@o.Text</option> }
-                    </optgroup>
-                }
-            </select>
-        </div>
-        <div class="form-field"><label for="nf-addr1">Address line 1</label><input id="nf-addr1" type="text" /></div>
-        <div class="form-field"><label for="nf-addr2">Address line 2</label><input id="nf-addr2" type="text" /></div>
-        <div class="form-field"><label for="nf-town">Town / city</label><input id="nf-town" type="text" /></div>
-        <div class="form-field"><label for="nf-postcode">Post code</label><input id="nf-postcode" type="text" /></div>
-        <div class="form-field"><label for="nf-rapid">RAPID number</label><input id="nf-rapid" type="text" /></div>
-        <div class="form-field"><label for="nf-farmer">Farmer name</label><input id="nf-farmer" type="text" /></div>
-        <div class="form-field"><label for="nf-phone">Phone</label><input id="nf-phone" type="text" /></div>
-        <div class="form-field"><label for="nf-email">Email</label><input id="nf-email" type="email" /></div>
         <div class="form-actions">
             <button type="button" class="btn" id="nf-create">Add farm</button>
             <button type="button" class="btn btn--secondary" id="nf-cancel">Cancel</button>

@@ -1,0 +1,25 @@
+{
+  "name": "short-test-no-iso-ports",
+  "description": "ISO ports unavailable -> short-test flag is set; otherwise a basic highline herringbone.",
+  "config": {
+    "plantType": "HerringboneHighline",
+    "clusterCount": 16,
+    "vsdFitted": false,
+    "isoPortsAvailable": false,
+    "pumpLubrication": "OilLubricated"
+  },
+  "expectedSteps": [
+    "Setup", "MachineConfiguration", "VisualFaultsPreStart", "VisualFaultsRunning",
+    "TestRecord", "AdditionalTests", "PulsatorTest", "IndividualClusterTest",
+    "FaultSummary", "ReviewSignOff"
+  ],
+  "optionalSteps": ["IndividualClusterTest"],
+  "shortTest": true,
+  "expectedSections": {
+    "VisualFaultsRunning": [
+      "BailArea", "MainAirline", "Inlets", "Clusters", "Claw", "Liner", "Shell",
+      "ShortPulseTube", "LongPulseTube", "LongMilkTube", "Platform", "MilkFlowIndicator",
+      "Pulsation", "VacuumGauge", "Regulator", "Receiver", "VacuumPumpRunning", "Jetters"
+    ]
+  }
+}

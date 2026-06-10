@@ -63,6 +63,41 @@ namespace Autorep.Web.Migrations
                     b.ToTable("AuditEntries");
                 });
 
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.EquipmentItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Brand")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Type", "Name", "Brand")
+                        .IsUnique()
+                        .HasFilter("[Brand] IS NOT NULL");
+
+                    b.ToTable("EquipmentItems");
+                });
+
             modelBuilder.Entity("Autorep.Web.Domain.Entities.Farm", b =>
                 {
                     b.Property<Guid>("Id")
@@ -144,6 +179,159 @@ namespace Autorep.Web.Migrations
                     b.ToTable("Farms");
                 });
 
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.FaultObservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Recommendation")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category", "Name")
+                        .IsUnique();
+
+                    b.ToTable("FaultObservations");
+                });
+
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.MachineConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("AtmosPressureSeaLevel")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BackLiner")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ClawModel")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("ClusterCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("FlushingPulsationSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasAcr")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasBackingGate")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasBailGates")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasMilkMeters")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasPulsatorStopSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasReleaserPump")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasTeatSprayer")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("HerdSize")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsoPortsAvailable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastBmcc")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LinerModel")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("LinerVented")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("MachineTestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MilklineSize")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("NumberOfVacuumPumps")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PlantSize")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PlantType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("PulsatorBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PulsatorConfiguration")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PulsatorCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PulsatorModel")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("PumpLubrication")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ShellModel")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("VsdFitted")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MachineTestId")
+                        .IsUnique();
+
+                    b.ToTable("MachineConfigurations");
+                });
+
             modelBuilder.Entity("Autorep.Web.Domain.Entities.MachineTest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -163,6 +351,9 @@ namespace Autorep.Web.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayloadJson")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TesterId")
@@ -310,6 +501,69 @@ namespace Autorep.Web.Migrations
                         .IsUnique();
 
                     b.ToTable("Regions");
+                });
+
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.TestStandard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<double?>("Limit")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Max")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Min")
+                        .HasColumnType("float");
+
+                    b.Property<string>("SourceRef")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<double?>("Target")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Tolerance")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<double?>("Value")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("TestStandards");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.Tester", b =>
@@ -590,6 +844,17 @@ namespace Autorep.Web.Migrations
                     b.Navigation("Region");
                 });
 
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.MachineConfiguration", b =>
+                {
+                    b.HasOne("Autorep.Web.Domain.Entities.MachineTest", "MachineTest")
+                        .WithOne("Configuration")
+                        .HasForeignKey("Autorep.Web.Domain.Entities.MachineConfiguration", "MachineTestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MachineTest");
+                });
+
             modelBuilder.Entity("Autorep.Web.Domain.Entities.MachineTest", b =>
                 {
                     b.HasOne("Autorep.Web.Domain.Entities.Farm", "Farm")
@@ -683,6 +948,11 @@ namespace Autorep.Web.Migrations
             modelBuilder.Entity("Autorep.Web.Domain.Entities.Farm", b =>
                 {
                     b.Navigation("MachineTests");
+                });
+
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.MachineTest", b =>
+                {
+                    b.Navigation("Configuration");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.TestingCompany", b =>

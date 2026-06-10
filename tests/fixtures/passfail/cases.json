@@ -1,0 +1,58 @@
+[
+  {
+    "name": "atMost — regulation deviation ≤ 2 kPa",
+    "rule": { "kind": "atMost", "limit": 2 },
+    "cases": [
+      { "value": 1.5, "expected": "pass" },
+      { "value": 2, "expected": "pass" },
+      { "value": 2.1, "expected": "fail" },
+      { "value": null, "expected": "noStandard" }
+    ]
+  },
+  {
+    "name": "atLeast — effective reserve ≥ 500 L/min",
+    "rule": { "kind": "atLeast", "min": 500 },
+    "cases": [
+      { "value": 520, "expected": "pass" },
+      { "value": 500, "expected": "pass" },
+      { "value": 499, "expected": "fail" }
+    ]
+  },
+  {
+    "name": "between — working vacuum 40–50 kPa",
+    "rule": { "kind": "between", "min": 40, "max": 50 },
+    "cases": [
+      { "value": 45, "expected": "pass" },
+      { "value": 40, "expected": "pass" },
+      { "value": 50, "expected": "pass" },
+      { "value": 39.9, "expected": "fail" },
+      { "value": 50.1, "expected": "fail" }
+    ]
+  },
+  {
+    "name": "tolerance — gauge within ±1 kPa of 47",
+    "rule": { "kind": "tolerance", "target": 47, "tolerance": 1 },
+    "cases": [
+      { "value": 47, "expected": "pass" },
+      { "value": 48, "expected": "pass" },
+      { "value": 46, "expected": "pass" },
+      { "value": 48.5, "expected": "fail" },
+      { "value": 45.5, "expected": "fail" }
+    ]
+  },
+  {
+    "name": "none — no standard available",
+    "rule": { "kind": "none" },
+    "cases": [
+      { "value": 123, "expected": "noStandard" },
+      { "value": null, "expected": "noStandard" }
+    ]
+  },
+  {
+    "name": "malformed rule (missing limit) → noStandard",
+    "rule": { "kind": "atMost" },
+    "cases": [
+      { "value": 1, "expected": "noStandard" }
+    ]
+  }
+]

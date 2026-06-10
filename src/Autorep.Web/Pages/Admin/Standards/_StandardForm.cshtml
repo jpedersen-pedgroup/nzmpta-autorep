@@ -1,0 +1,72 @@
+@model Autorep.Web.Pages.Admin.Standards.StandardInput
+
+@* Shared field set for New/Edit. The numeric fields shown follow the selected kind. *@
+<div class="form-grid">
+    <div class="form-field form-field--full">
+        <label asp-for="Label">Standard</label>
+        <input asp-for="Label" type="text" />
+    </div>
+    <div class="form-field">
+        <label asp-for="Category">Category</label>
+        <input asp-for="Category" type="text" list="std-categories" />
+        <datalist id="std-categories">
+            <option value="Vacuum system" /><option value="Reserve" /><option value="Leakage" />
+            <option value="Ancillary" /><option value="Cluster air" /><option value="Pulsation" />
+        </datalist>
+    </div>
+    <div class="form-field">
+        <label asp-for="Kind">Kind</label>
+        <select asp-for="Kind" id="std-kind">
+            <option value="atMost">Maximum (≤ limit)</option>
+            <option value="atLeast">Minimum (≥ value)</option>
+            <option value="between">Range (min–max)</option>
+            <option value="tolerance">Tolerance (± around target)</option>
+            <option value="param">Formula parameter</option>
+        </select>
+    </div>
+    <div class="form-field" data-kinds="atMost">
+        <label asp-for="Limit">Maximum (limit)</label>
+        <input asp-for="Limit" type="number" step="any" />
+    </div>
+    <div class="form-field" data-kinds="atLeast between">
+        <label asp-for="Min">Minimum</label>
+        <input asp-for="Min" type="number" step="any" />
+    </div>
+    <div class="form-field" data-kinds="between">
+        <label asp-for="Max">Maximum</label>
+        <input asp-for="Max" type="number" step="any" />
+    </div>
+    <div class="form-field" data-kinds="tolerance">
+        <label asp-for="Target">Target (usually 0)</label>
+        <input asp-for="Target" type="number" step="any" />
+    </div>
+    <div class="form-field" data-kinds="tolerance">
+        <label asp-for="Tolerance">Tolerance (±)</label>
+        <input asp-for="Tolerance" type="number" step="any" />
+    </div>
+    <div class="form-field" data-kinds="param">
+        <label asp-for="Value">Value</label>
+        <input asp-for="Value" type="number" step="any" />
+    </div>
+    <div class="form-field">
+        <label asp-for="Unit">Unit</label>
+        <input asp-for="Unit" type="text" placeholder="kPa / L/min / % / ppm / ms" />
+    </div>
+    <div class="form-field form-field--full">
+        <label asp-for="SourceRef">Source reference</label>
+        <input asp-for="SourceRef" type="text" placeholder="e.g. Manual p40 / ISO D.2.13" />
+    </div>
+</div>
+
+<script>
+    (function () {
+        var kind = document.getElementById('std-kind');
+        function refresh() {
+            document.querySelectorAll('[data-kinds]').forEach(function (el) {
+                el.style.display = el.getAttribute('data-kinds').split(' ').indexOf(kind.value) >= 0 ? '' : 'none';
+            });
+        }
+        kind.addEventListener('change', refresh);
+        refresh();
+    })();
+</script>

@@ -24,81 +24,91 @@
 }
 
 <form method="post">
-    <div class="card" style="max-width:760px">
-        <h2 class="card__title">Identity</h2>
-        <div class="form-field">
-            <label asp-for="Input.Name">Farm name</label>
-            <input asp-for="Input.Name" required />
+    <div class="card form-tabs-card" style="max-width:760px">
+        <div class="tabs" id="farm-tabs" role="tablist">
+            <button type="button" class="tab is-active" data-panel="farm-panel-identity">Identity</button>
+            <button type="button" class="tab" data-panel="farm-panel-location">Location</button>
+            <button type="button" class="tab" data-panel="farm-panel-contact">Farmer contact</button>
+            <button type="button" class="tab" data-panel="farm-panel-notes">Notes &amp; status</button>
         </div>
-        <div class="form-field">
-            <label asp-for="Input.SupplyNumber">Supply number</label>
-            <input asp-for="Input.SupplyNumber" />
-        </div>
-        <div class="form-field">
-            <label asp-for="Input.MilkSupplyCompanyId">Milk supply company</label>
-            <select asp-for="Input.MilkSupplyCompanyId" asp-items="Model.MilkCompanyOptions">
-                <option value="">— Not set —</option>
-            </select>
-        </div>
-    </div>
 
-    <div class="card" style="max-width:760px">
-        <h2 class="card__title">Location</h2>
-        <div class="form-field" style="position:relative">
-            <label asp-for="Input.AddressLine1">Address line 1 <span style="color:var(--text-muted);font-weight:400">— type to search NZ Post</span></label>
-            <input asp-for="Input.AddressLine1" autocomplete="off" data-nzpost-search />
-            <div id="nzpost-suggestions" class="nzpost-suggestions" hidden></div>
+        <div class="tab-panel form-tabs-card__panel" id="farm-panel-identity">
+            <div class="form-field">
+                <label asp-for="Input.Name">Farm name</label>
+                <input asp-for="Input.Name" required />
+            </div>
+            <div class="form-field">
+                <label asp-for="Input.SupplyNumber">Supply number</label>
+                <input asp-for="Input.SupplyNumber" />
+            </div>
+            <div class="form-field">
+                <label asp-for="Input.MilkSupplyCompanyId">Milk supply company</label>
+                <select asp-for="Input.MilkSupplyCompanyId" asp-items="Model.MilkCompanyOptions">
+                    <option value="">— Not set —</option>
+                </select>
+            </div>
         </div>
-        <div class="form-field">
-            <label asp-for="Input.AddressLine2">Address line 2</label>
-            <input asp-for="Input.AddressLine2" />
-        </div>
-        <div class="form-field">
-            <label asp-for="Input.Town">Town / locality</label>
-            <input asp-for="Input.Town" />
-        </div>
-        <div class="form-field">
-            <label asp-for="Input.RegionId">Region</label>
-            <select asp-for="Input.RegionId" asp-items="Model.RegionOptions">
-                <option value="">— Not set —</option>
-            </select>
-        </div>
-        <div class="form-field">
-            <label asp-for="Input.PostCode">Post code</label>
-            <input asp-for="Input.PostCode" />
-        </div>
-        <div class="form-field">
-            <label asp-for="Input.RapidNumber">RAPID number</label>
-            <input asp-for="Input.RapidNumber" />
-        </div>
-    </div>
 
-    <div class="card" style="max-width:760px">
-        <h2 class="card__title">Farmer contact</h2>
-        <div class="form-field">
-            <label asp-for="Input.FarmerName">Farmer name</label>
-            <input asp-for="Input.FarmerName" />
+        <div class="tab-panel form-tabs-card__panel" id="farm-panel-location" hidden>
+            <div class="form-field" style="position:relative">
+                <label asp-for="Input.AddressLine1">Address line 1 <span style="color:var(--text-muted);font-weight:400">— type to search NZ Post</span></label>
+                <input asp-for="Input.AddressLine1" autocomplete="off" data-nzpost-search />
+                <div id="nzpost-suggestions" class="nzpost-suggestions" hidden></div>
+            </div>
+            <div class="form-grid">
+                <div class="form-field form-field--full">
+                    <label asp-for="Input.AddressLine2">Address line 2</label>
+                    <input asp-for="Input.AddressLine2" />
+                </div>
+                <div class="form-field">
+                    <label asp-for="Input.Town">Town / locality</label>
+                    <input asp-for="Input.Town" />
+                </div>
+                <div class="form-field">
+                    <label asp-for="Input.RegionId">Region</label>
+                    <select asp-for="Input.RegionId" asp-items="Model.RegionOptions">
+                        <option value="">— Not set —</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label asp-for="Input.PostCode">Post code</label>
+                    <input asp-for="Input.PostCode" />
+                </div>
+                <div class="form-field">
+                    <label asp-for="Input.RapidNumber">RAPID number</label>
+                    <input asp-for="Input.RapidNumber" />
+                </div>
+            </div>
         </div>
-        <div class="form-field">
-            <label asp-for="Input.ContactPhone">Phone</label>
-            <input asp-for="Input.ContactPhone" />
-        </div>
-        <div class="form-field">
-            <label asp-for="Input.ContactEmail">Email</label>
-            <input asp-for="Input.ContactEmail" type="email" />
-        </div>
-    </div>
 
-    <div class="card" style="max-width:760px">
-        <h2 class="card__title">Notes &amp; status</h2>
-        <div class="form-field">
-            <label asp-for="Input.Notes">Notes</label>
-            <textarea asp-for="Input.Notes" rows="3"></textarea>
+        <div class="tab-panel form-tabs-card__panel" id="farm-panel-contact" hidden>
+            <div class="form-field">
+                <label asp-for="Input.FarmerName">Farmer name</label>
+                <input asp-for="Input.FarmerName" />
+            </div>
+            <div class="form-field">
+                <label asp-for="Input.ContactPhone">Phone</label>
+                <input asp-for="Input.ContactPhone" />
+            </div>
+            <div class="form-field">
+                <label asp-for="Input.ContactEmail">Email</label>
+                <input asp-for="Input.ContactEmail" type="email" />
+            </div>
         </div>
-        <div class="form-field form-field--inline">
-            <label><input asp-for="Input.IsActive" type="checkbox" /> Active</label>
+
+        <div class="tab-panel form-tabs-card__panel" id="farm-panel-notes" hidden>
+            <div class="form-field">
+                <label asp-for="Input.Notes">Notes</label>
+                <textarea asp-for="Input.Notes" rows="3"></textarea>
+            </div>
+            <div class="form-field form-field--inline">
+                <label><input asp-for="Input.IsActive" type="checkbox" /> Active</label>
+            </div>
         </div>
-        <div class="form-actions"><button type="submit" class="btn">Save farm details</button></div>
+
+        <div class="form-actions form-tabs-card__actions">
+            <button type="submit" class="btn">Save farm details</button>
+        </div>
     </div>
 </form>
 
@@ -111,6 +121,31 @@
     .nzpost-suggestions button:last-child { border-bottom:0; }
     .nzpost-suggestions button:hover, .nzpost-suggestions button.active { background:#eff6ff; }
 </style>
+<script>
+    // Tab switching — all panels live in the one form, so Save submits every field
+    // regardless of which tab is showing. A validation error focuses its tab.
+    (function () {
+        var tabs = document.querySelectorAll('#farm-tabs .tab');
+        function show(panelId) {
+            tabs.forEach(function (t) {
+                var on = t.getAttribute('data-panel') === panelId;
+                t.classList.toggle('is-active', on);
+                document.getElementById(t.getAttribute('data-panel')).hidden = !on;
+            });
+        }
+        tabs.forEach(function (t) {
+            t.addEventListener('click', function () { show(t.getAttribute('data-panel')); });
+        });
+        // If the browser blocks submit on a hidden invalid field, jump to its tab.
+        document.querySelectorAll('.form-tabs-card__panel input, .form-tabs-card__panel select, .form-tabs-card__panel textarea')
+            .forEach(function (el) {
+                el.addEventListener('invalid', function () {
+                    var panel = el.closest('.form-tabs-card__panel');
+                    if (panel && panel.hidden) show(panel.id);
+                });
+            });
+    })();
+</script>
 <script>
     (function () {
         var input = document.querySelector('[data-nzpost-search]');

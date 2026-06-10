@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoRep wizard — interactive mockup</title>
+<style>
+  :root{
+    --accent:#2e7d32; --accent-d:#1b5e20; --bg:#eef1f4; --card:#fff;
+    --line:#dde3ea; --ink:#1f2933; --muted:#6b7785; --amber:#b26a00;
+    --blue:#1565c0; --red:#c62828; --green:#2e7d32;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.45 system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:12px 18px;background:var(--accent);color:#fff;flex-wrap:wrap}
+  .topbar h1{font-size:16px;margin:0;font-weight:600}
+  .topbar .sub{opacity:.85;font-size:12.5px}
+  .seg{display:flex;background:rgba(255,255,255,.15);border-radius:8px;overflow:hidden}
+  .seg button{border:0;background:transparent;color:#fff;padding:7px 12px;font-size:13px;cursor:pointer}
+  .seg button.on{background:#fff;color:var(--accent-d);font-weight:600}
+  .banner{background:#fff8e1;color:#7a5200;border-bottom:1px solid #f0e0a8;padding:8px 18px;font-size:13px;display:none}
+  .banner.show{display:block}
+  .layout{display:flex;min-height:calc(100vh - 120px)}
+  .rail{width:300px;flex:none;background:#f8fafc;border-right:1px solid var(--line);padding:10px 0;overflow:auto}
+  .railhdr{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 18px}
+  .step{display:flex;gap:10px;align-items:flex-start;padding:9px 16px 9px 14px;cursor:pointer;border-left:3px solid transparent}
+  .step:hover{background:#eef3f7}
+  .step.cur{background:#e8f5e9;border-left-color:var(--accent)}
+  .step.dim{opacity:.45}
+  .step .num{width:22px;height:22px;flex:none;border-radius:50%;background:#dfe6ee;color:#445;
+    font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .step.cur .num{background:var(--accent);color:#fff}
+  .step .lbl{font-size:13.5px}
+  .step .iso{font-size:11px;color:var(--muted)}
+  .tag{display:inline-block;font-size:10.5px;padding:1px 6px;border-radius:10px;margin-top:3px}
+  .tag.opt{background:#fff3e0;color:var(--amber)}
+  .tag.skip{background:#eceff1;color:#607d8b}
+  .tag.short{background:#e3f2fd;color:var(--blue)}
+  .content{flex:1;padding:22px 26px;overflow:auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;max-width:760px;margin:0 auto 16px}
+  .card h2{margin:0 0 4px;font-size:19px}
+  .card .lead{color:var(--muted);margin:0 0 16px;font-size:13.5px}
+  .row{display:flex;gap:14px;align-items:center;padding:9px 0;border-bottom:1px solid #f0f3f6}
+  .row:last-child{border-bottom:0}
+  .row label{flex:1;font-size:14px}
+  .row .hint{color:var(--muted);font-size:12px}
+  input[type=text],input[type=number],select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;width:160px}
+  .toggle{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 12px;cursor:pointer;font-size:13px}
+  .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .pf{font-size:12px;font-weight:600;padding:3px 9px;border-radius:8px;min-width:54px;text-align:center}
+  .pf.pass{background:#e8f5e9;color:var(--green)} .pf.fail{background:#ffebee;color:var(--red)} .pf.none{background:#eceff1;color:#90a4ae}
+  .checkitem{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #f0f3f6}
+  .checkitem .name{flex:1}
+  .mini{display:flex;gap:6px}
+  .mini button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:12.5px}
+  .mini button.ok.on{background:#e8f5e9;border-color:#a5d6a7;color:var(--green)}
+  .mini button.bad.on{background:#ffebee;border-color:#ef9a9a;color:var(--red)}
+  .btnrow{display:flex;justify-content:space-between;gap:12px;max-width:760px;margin:0 auto;padding:8px 0 30px}
+  .btn{border:0;border-radius:9px;padding:11px 20px;font-size:14px;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff} .btn.ghost{background:#e3e8ed;color:#33414f}
+  .btn.wide{background:#eef3f7;color:#2e7d32;border:1px dashed #9ccc9e;width:100%;margin-top:14px;font-weight:600}
+  .placeholder{color:var(--muted);font-size:13.5px;background:#fafcfe;border:1px dashed var(--line);border-radius:10px;padding:18px}
+  .modal{position:fixed;inset:0;background:rgba(20,30,40,.45);display:none;align-items:center;justify-content:center}
+  .modal.show{display:flex}
+  .modal .box{background:#fff;border-radius:12px;max-width:440px;padding:22px}
+  .modal h3{margin:0 0 10px}
+  .modal p{font-size:14px;color:#333}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>AutoRep — New Machine Test</h1>
+      <div class="sub">Sunny Acres Dairy · Supply #41892 · 8 Jun 2026</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span class="sub">Step layout:</span>
+      <div class="seg" id="grpseg">
+        <button data-g="grouped" class="on">Legacy-aligned (<span id="cg"></span>)</button>
+        <button data-g="granular">Granular (<span id="cn"></span>)</button>
+      </div>
+    </div>
+  </div>
+  <div class="banner" id="banner"></div>
+  <div class="layout">
+    <nav class="rail"><div class="railhdr">Wizard steps</div><div id="rail"></div></nav>
+    <div style="flex:1;display:flex;flex-direction:column">
+      <main class="content" id="content"></main>
+      <div class="btnrow">
+        <button class="btn ghost" id="back">‹ Back</button>
+        <button class="btn primary" id="next">Next ›</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="box">
+      <h3>Confirm: Check all as verified</h3>
+      <p>"I have inspected all items on this page and confirm they have been seen, tested and are in order."</p>
+      <p style="color:#6b7785;font-size:12.5px">This is recorded as an attestation on the test. You can still amend individual items afterwards.</p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px">
+        <button class="btn ghost" id="mcancel">Cancel</button>
+        <button class="btn primary" id="mok">I confirm</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const GROUPED=[
+  {key:'setup',label:'Farm & Your Details',iso:'Farm form · pg 1'},
+  {key:'config',label:'Machine Configuration & Ancillary',iso:'Farm form · pg 2'},
+  {key:'vfpre',label:'Visual Faults — Pre-Start'},
+  {key:'vfrun',label:'Visual Faults — Running'},
+  {key:'vac',label:'Test Record (Vacuum, Airflow & Pump)',iso:'ISO 1–9 · collapsible sections'},
+  {key:'addl',label:'Additional Tests',iso:'ISO 10–12 + extras'},
+  {key:'puls',label:'Pulsator Test Results',iso:'ISO 14–15'},
+  {key:'cluster',label:'Individual Cluster Tests',iso:'ISO 13',optional:true},
+  {key:'summary',label:'Fault Summary & Recommendations'},
+  {key:'signoff',label:'Review & Sign-Off → Reports'},
+];
+const GRANULAR=[
+  {key:'setup',label:'Setup'},
+  {key:'config',label:'Machine Configuration'},
+  {key:'ancillary',label:'Ancillary Equipment'},
+  {key:'vfpre',label:'Visual Faults — Pre-Start'},
+  {key:'vfrun',label:'Visual Faults — Running'},
+  {key:'iso1',label:'System Vacuum Levels',iso:'ISO 1',short:true},
+  {key:'iso2',label:'Reserve Characteristics',iso:'ISO 2',short:true},
+  {key:'iso3',label:'Regulation Characteristics',iso:'ISO 3',short:true},
+  {key:'iso4',label:'Vacuum Drop in Airline',iso:'ISO 4'},
+  {key:'iso5',label:'Regulator Sensitivity',iso:'ISO 5'},
+  {key:'iso6',label:'Reserve (Vacuum off Cluster)',iso:'ISO 6',optional:true},
+  {key:'iso7',label:'Vacuum Gauge Accuracy',iso:'ISO 7'},
+  {key:'iso8',label:'Vacuum Pump(s)',iso:'ISO 8',short:true},
+  {key:'iso9',label:'Pump Exhaust Pressure',iso:'ISO 9'},
+  {key:'iso10',label:'Airline & Milk Leakage',iso:'ISO 10'},
+  {key:'iso11',label:'Automatic Cluster Removers',iso:'ISO 11',needs:'acr'},
+  {key:'iso12',label:'Cluster Air Admission',iso:'ISO 12'},
+  {key:'iso13',label:'Individual Cluster Airflow',iso:'ISO 13',optional:true},
+  {key:'iso14',label:'Pulsator & Ancillary',iso:'ISO 14'},
+  {key:'iso15',label:'Test Pulsation',iso:'ISO 15',short:true},
+  {key:'addl',label:'Additional Tests'},
+  {key:'summary',label:'Fault Summary & Recommendations'},
+  {key:'signoff',label:'Review & Sign-Off'},
+];
+const SHORT_ALWAYS=['setup','config','ancillary','vfpre','vfrun','vac','pump','puls','addl','summary','signoff'];
+const VISUAL=['Vacuum pump oil / water condition','Oil / water reservoir height','Wick condition',
+  'Drive belt condition','Pump end play','Guards on shafts & belts','Interceptor connection','Exhaust restrictions'];
+const READINGS=[
+  {key:'wv',label:'Working vacuum @ receiver (1a)',unit:'kPa',hint:'42–50 kPa',test:v=>v>=42&&v<=50},
+  {key:'rd',label:'Vacuum regulation deviation (1c)',unit:'kPa',hint:'≤ 2 kPa',test:v=>v<=2},
+  {key:'er',label:'Effective reserve (2a)',unit:'L/min',hint:'≥ 800 L/min (by plant size)',test:v=>v>=800},
+  {key:'rl',label:'Regulation loss (2d)',unit:'L/min',hint:'record',test:()=>true},
+];
+const S={
+  grouping:'grouped', curKey:'config',
+  config:{plantType:'Herringbone',vsd:true,pulsatorStop:false,isoPorts:true,acr:true,milkMeters:false,teatSprayer:true,testIndividualClusters:false},
+  visual:{}, readings:{},
+};
+
+function resolve(grouping){
+  const base = grouping==='grouped'?GROUPED:GRANULAR;
+  const c=S.config, out=[];
+  for(const s of base){
+    if(s.needs==='acr' && !c.acr) continue;            // ACR step disappears when no ACRs
+    const step={...s, state:'normal'};
+    if((s.key==='cluster'||s.key==='iso13') && !c.testIndividualClusters) step.state='skipped';
+    if(!c.isoPorts){
+      const essential = s.short || SHORT_ALWAYS.includes(s.key);
+      if(!essential && step.state!=='skipped') step.state='dim';
+    }
+    out.push(step);
+  }
+  return out;
+}
+function counts(){
+  return {g:resolve('grouped').length, n:resolve('granular').length};
+}
+
+function render(){
+  const list=resolve(S.grouping);
+  if(!list.find(s=>s.key===S.curKey)) S.curKey=list[0].key;
+  const {g,n}=counts(); document.getElementById('cg').textContent=g+' steps'; document.getElementById('cn').textContent=n+' steps';
+  // banner
+  const b=document.getElementById('banner');
+  if(!S.config.isoPorts){b.classList.add('show'); b.innerHTML='⚠️ <b>Short test mode</b> — ISO ports not available. Only essential (red) tests are required; the rest are dimmed/skipped.';}
+  else b.classList.remove('show');
+  // rail
+  const rail=document.getElementById('rail');
+  rail.innerHTML=list.map((s,i)=>{
+    const tags=[]; if(s.optional)tags.push('<span class="tag opt">optional</span>');
+    if(s.state==='skipped')tags.push('<span class="tag skip">skipped</span>');
+    if(s.state==='dim')tags.push('<span class="tag short">short-test: skip</span>');
+    return `<div class="step ${s.key===S.curKey?'cur':''} ${s.state==='dim'?'dim':''}" data-k="${s.key}">
+      <div class="num">${i+1}</div>
+      <div><div class="lbl">${s.label}</div>${s.iso?`<div class="iso">${s.iso}</div>`:''}<div>${tags.join(' ')}</div></div>
+    </div>`;
+  }).join('');
+  rail.querySelectorAll('.step').forEach(el=>el.onclick=()=>{S.curKey=el.dataset.k;render();});
+  // content
+  document.getElementById('content').innerHTML=renderStep(S.curKey);
+  bindContent();
+}
+
+function renderStep(k){
+  if(k==='config') return configPanel();
+  if(k==='vfpre') return visualPanel();
+  if(k==='vac'||k==='iso1'||k==='iso2') return readingsPanel(k);
+  const meta=(S.grouping==='grouped'?GROUPED:GRANULAR).find(s=>s.key===k)||{label:k};
+  return `<div class="card"><h2>${meta.label}</h2><p class="lead">${meta.iso||''}</p>
+    <div class="placeholder">Fields for <b>${meta.label}</b> are captured on this screen (mockup placeholder). The point of this prototype is the <b>step layout</b> on the left and how Machine Configuration drives it.</div></div>`;
+}
+
+function chip(field,val,label){return `<span class="chip ${S.config[field]===val?'on':''}" data-f="${field}" data-v="${val}">${label}</span>`;}
+function tog(field,label){return `<span class="chip ${S.config[field]?'on':''}" data-t="${field}">${label}</span>`;}
+
+function configPanel(){
+  const c=S.config;
+  return `<div class="card">
+    <h2>Machine Configuration</h2>
+    <p class="lead">Declared upfront. These answers drive which later steps appear — change them and watch the step list on the left.</p>
+    <div class="row"><label>Plant type</label><div class="toggle">${chip('plantType','Herringbone','Herringbone')}${chip('plantType','Rotary','Rotary')}</div></div>
+    <div class="row"><label>Variable Speed Drive (VSD)?</label><div class="toggle">${tog('vsd','VSD fitted')}</div></div>
+    <div class="row"><label>Pulsator stop system?</label><div class="toggle">${tog('pulsatorStop','Fitted')}</div></div>
+    <div class="row"><label>ISO test ports available?</label><div class="toggle">${tog('isoPorts','Ports available')}</div><span class="hint">off → short test</span></div>
+    <h2 style="font-size:15px;margin:16px 0 2px">Ancillary equipment present</h2>
+    <div class="row"><label>Automatic Cluster Removers (ACRs)</label><div class="toggle">${tog('acr','Present')}</div><span class="hint">drives ISO 11</span></div>
+    <div class="row"><label>Milk meters</label><div class="toggle">${tog('milkMeters','Present')}</div></div>
+    <div class="row"><label>Teat sprayer</label><div class="toggle">${tog('teatSprayer','Present')}</div></div>
+    <div class="row"><label>Test clusters individually?</label><div class="toggle">${tog('testIndividualClusters','Yes')}</div><span class="hint">drives ISO 13</span></div>
+  </div>`;
+}
+
+function visualPanel(){
+  const rows=VISUAL.map((name,i)=>{
+    const st=S.visual[i]||'';
+    return `<div class="checkitem"><div class="name">${name}</div>
+      <div class="mini"><button class="ok ${st==='ok'?'on':''}" data-vi="${i}" data-s="ok">OK</button>
+      <button class="bad ${st==='bad'?'on':''}" data-vi="${i}" data-s="bad">Fault</button></div></div>`;
+  }).join('');
+  return `<div class="card"><h2>Visual Faults — Pre-Start</h2>
+    <p class="lead">Vacuum pump &amp; releaser checklist. Mark each OK or log a fault.</p>
+    ${rows}
+    <button class="btn wide" id="checkall">✓ Check all as verified</button></div>`;
+}
+
+function readingsPanel(k){
+  const title = k==='vac' ? 'System Vacuum & Reserve' : (k==='iso1'?'System Vacuum Levels (ISO 1)':'Reserve Characteristics (ISO 2)');
+  const rows=READINGS.map(r=>{
+    const v=S.readings[r.key]; let cls='none',txt='—';
+    if(v!==undefined&&v!==''){const num=parseFloat(v); if(!isNaN(num)){const ok=r.test(num); cls=ok?'pass':'fail'; txt=ok?'PASS':'FAIL';}}
+    return `<div class="row"><label>${r.label}<div class="hint">${r.hint}</div></label>
+      <input type="number" data-r="${r.key}" value="${v??''}" placeholder="0"> <span class="hint">${r.unit}</span>
+      <span class="pf ${cls}">${txt}</span></div>`;
+  }).join('');
+  return `<div class="card"><h2>${title}</h2>
+    <p class="lead">Live pass/fail against the cached standard as you type. ${S.grouping==='grouped'?'In the <b>legacy-aligned</b> layout, the Test Record (ISO 1–9) is one screen with collapsible sections.':'In the <b>granular</b> layout this is just one of ~18 screens.'}</p>
+    ${rows}</div>`;
+}
+
+function bindContent(){
+  document.querySelectorAll('.chip[data-f]').forEach(el=>el.onclick=()=>{S.config[el.dataset.f]=el.dataset.v;render();});
+  document.querySelectorAll('.chip[data-t]').forEach(el=>el.onclick=()=>{S.config[el.dataset.t]=!S.config[el.dataset.t];render();});
+  document.querySelectorAll('[data-vi]').forEach(el=>el.onclick=()=>{S.visual[el.dataset.vi]=el.dataset.s;render();});
+  document.querySelectorAll('[data-r]').forEach(el=>el.oninput=()=>{S.readings[el.dataset.r]=el.value; // light re-render of just badges
+    render();});
+  const ca=document.getElementById('checkall'); if(ca) ca.onclick=()=>document.getElementById('modal').classList.add('show');
+}
+
+document.getElementById('grpseg').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  S.grouping=b.dataset.g; document.querySelectorAll('#grpseg button').forEach(x=>x.classList.toggle('on',x===b)); render();
+});
+function move(d){const list=resolve(S.grouping);let i=list.findIndex(s=>s.key===S.curKey);i=Math.max(0,Math.min(list.length-1,i+d));S.curKey=list[i].key;render();}
+document.getElementById('next').onclick=()=>move(1);
+document.getElementById('back').onclick=()=>move(-1);
+document.getElementById('mcancel').onclick=()=>document.getElementById('modal').classList.remove('show');
+document.getElementById('mok').onclick=()=>{VISUAL.forEach((_,i)=>S.visual[i]='ok');document.getElementById('modal').classList.remove('show');render();};
+render();
+</script>
+</body>
+</html>

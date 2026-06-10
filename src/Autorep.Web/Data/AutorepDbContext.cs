@@ -14,8 +14,12 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<Region> Regions => Set<Region>();
     public DbSet<MilkSupplyCompany> MilkSupplyCompanies => Set<MilkSupplyCompany>();
     public DbSet<MachineTest> MachineTests => Set<MachineTest>();
+    public DbSet<MachineConfiguration> MachineConfigurations => Set<MachineConfiguration>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<TestStandard> TestStandards => Set<TestStandard>();
+    public DbSet<EquipmentItem> EquipmentItems => Set<EquipmentItem>();
+    public DbSet<FaultObservation> FaultObservations => Set<FaultObservation>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -28,6 +32,23 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             .HasIndex(t => t.ClientId)
             .IsUnique()
             .HasFilter("[ClientId] IS NOT NULL");
+
+        builder.Entity<MachineConfiguration>(cfg =>
+        {
+            cfg.HasIndex(c => c.MachineTestId).IsUnique();
+            cfg.HasOne(c => c.MachineTest)
+                .WithOne(t => t.Configuration!)
+                .HasForeignKey<MachineConfiguration>(c => c.MachineTestId)
+                .OnDelete(DeleteBehavior.Cascade);
+            cfg.Property(c => c.PlantType).HasConversion<string>().HasMaxLength(40);
+            cfg.Property(c => c.PumpLubrication).HasConversion<string>().HasMaxLength(40);
+            cfg.Property(c => c.PulsatorModel).HasMaxLength(150);
+            cfg.Property(c => c.ClawModel).HasMaxLength(150);
+            cfg.Property(c => c.ShellModel).HasMaxLength(150);
+            cfg.Property(c => c.LinerModel).HasMaxLength(150);
+            cfg.Property(c => c.MilklineSize).HasMaxLength(50);
+            cfg.Property(c => c.LastBmcc).HasMaxLength(100);
+        });
 
         builder.Entity<AuditEntry>()
             .HasIndex(a => a.Timestamp);
@@ -91,6 +112,34 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
                 .WithOne(t => t.Farm!)
                 .HasForeignKey(t => t.FarmId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<FaultObservation>(fo =>
+        {
+            fo.Property(f => f.Category).HasMaxLength(100).IsRequired();
+            fo.Property(f => f.Name).HasMaxLength(300).IsRequired();
+            fo.Property(f => f.Severity).HasMaxLength(20);
+            fo.Property(f => f.Recommendation).HasMaxLength(500);
+            fo.HasIndex(f => new { f.Category, f.Name }).IsUnique();
+        });
+
+        builder.Entity<EquipmentItem>(eq =>
+        {
+            eq.Property(e => e.Type).HasMaxLength(40).IsRequired();
+            eq.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            eq.Property(e => e.Brand).HasMaxLength(100);
+            eq.HasIndex(e => new { e.Type, e.Name, e.Brand }).IsUnique();
+        });
+
+        builder.Entity<TestStandard>(std =>
+        {
+            std.Property(s => s.Key).HasMaxLength(100).IsRequired();
+            std.Property(s => s.Label).HasMaxLength(200).IsRequired();
+            std.Property(s => s.Category).HasMaxLength(100);
+            std.Property(s => s.Kind).HasMaxLength(20);
+            std.Property(s => s.Unit).HasMaxLength(20);
+            std.Property(s => s.SourceRef).HasMaxLength(200);
+            std.HasIndex(s => s.Key).IsUnique();
         });
 
         builder.Entity<Region>(region =>

@@ -48,7 +48,8 @@ public class FarmAutocompleteE2ETests : IClassFixture<E2EWebAppFactory>, IAsyncL
         await page.GotoAsync($"/Admin/Farms/Edit/{_factory.FarmId}");
         await Expect(page.Locator("h1")).ToHaveTextAsync(E2EWebAppFactory.FarmName);
 
-        // 3. Type into the address field and choose the NZ Post suggestion.
+        // 3. Open the Location tab, type into the address field and choose the NZ Post suggestion.
+        await page.ClickAsync("#farm-tabs .tab:has-text('Location')");
         await page.Locator("#Input_AddressLine1").PressSequentiallyAsync("123 Test", new() { Delay = 40 });
         await page.WaitForSelectorAsync("#nzpost-suggestions button");
         await page.Locator("#nzpost-suggestions button").First.ClickAsync();

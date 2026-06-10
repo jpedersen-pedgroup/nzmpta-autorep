@@ -4,7 +4,16 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The TypeScript client (Client/**) is built by npm/esbuild, and node_modules is a
+         dependency cache — keep both out of the .NET build/publish globs. The compiled
+         bundle lands in wwwroot/js/dist and is served as a normal static asset. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;Client\**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Equipment catalog seed data (shells/liners/pulsators pulled from the legacy DB). -->
+    <EmbeddedResource Include="Data\SeedData\*.json" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.4.0" />

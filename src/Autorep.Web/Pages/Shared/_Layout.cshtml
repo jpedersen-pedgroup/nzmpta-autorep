@@ -54,40 +54,42 @@
                 <span class="app-header__brand-mark">AR</span>
                 <span>NZMPTA AutoRep</span>
             </a>
-            <nav class="app-header__nav">
-                @if (isTester)
-                {
-                    <a asp-page="/App/Index">Home</a>
-                    <a asp-page="/App/Tests/Index">My tests</a>
-                    <a asp-page="/App/Tests/New">New test</a>
-                }
-                @if (isAdmin)
-                {
-                    <a asp-page="/Admin/Index">Home</a>
-                    <a asp-page="/Admin/Tests/Index">All tests</a>
-                    <a asp-page="/Admin/Farms/Index">Farms</a>
-                    @if (isSuperAdmin)
-                    {
-                        <a asp-page="/Admin/Testers/Index">Testers</a>
-                        <a asp-page="/Admin/Companies/Index">Companies</a>
-                        <a asp-page="/Admin/Regions/Index">Regions</a>
-                        <a asp-page="/Admin/MilkSupplyCompanies/Index">Milk companies</a>
-                    }
-                }
-            </nav>
             <button type="button" class="app-header__burger" id="nav-burger" aria-label="Toggle menu" aria-expanded="false">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                     <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
                 </svg>
             </button>
-            <div class="app-header__user">
-                <a class="app-header__user-name" asp-page="/Account/Manage" style="text-decoration:none">
-                    <span class="app-header__user-avatar">@userInitials</span>
-                    <span>@User.Identity?.Name</span>
-                </a>
-                <form method="post" asp-page="/Account/Logout" style="margin:0">
-                    <button type="submit" class="btn btn--ghost">Sign out</button>
-                </form>
+            <div class="app-header__menu">
+                <nav class="app-header__nav">
+                    @if (isTester)
+                    {
+                        <a asp-page="/App/Index">Home</a>
+                        <a asp-page="/App/Tests/Index">My tests</a>
+                        <a asp-page="/App/Tests/New">New test</a>
+                    }
+                    @if (isAdmin)
+                    {
+                        <a asp-page="/Admin/Index">Home</a>
+                        <a asp-page="/Admin/Tests/Index">All tests</a>
+                        <a asp-page="/Admin/Farms/Index">Farms</a>
+                        @if (isSuperAdmin)
+                        {
+                            <a asp-page="/Admin/Testers/Index">Testers</a>
+                            <a asp-page="/Admin/Companies/Index">Companies</a>
+                            <a asp-page="/Admin/Regions/Index">Regions</a>
+                            <a asp-page="/Admin/MilkSupplyCompanies/Index">Milk companies</a>
+                        }
+                    }
+                </nav>
+                <div class="app-header__user">
+                    <a class="app-header__user-name" asp-page="/Account/Manage" style="text-decoration:none">
+                        <span class="app-header__user-avatar">@userInitials</span>
+                        <span>@User.Identity?.Name</span>
+                    </a>
+                    <form method="post" asp-page="/Account/Logout" style="margin:0">
+                        <button type="submit" class="btn btn--ghost">Sign out</button>
+                    </form>
+                </div>
             </div>
             </div>
         </header>
@@ -127,10 +129,10 @@
     <script>
         (function () {
             var b = document.getElementById('nav-burger');
-            var nav = document.querySelector('.app-header__nav');
-            if (b && nav) {
+            var header = document.querySelector('.app-header');
+            if (b && header) {
                 b.addEventListener('click', function () {
-                    var open = nav.classList.toggle('open');
+                    var open = header.classList.toggle('app-header--open');
                     b.setAttribute('aria-expanded', open ? 'true' : 'false');
                 });
             }

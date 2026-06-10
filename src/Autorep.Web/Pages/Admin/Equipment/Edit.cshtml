@@ -1,0 +1,52 @@
+@page "{id:guid}"
+@model Autorep.Web.Pages.Admin.Equipment.EditModel
+@{
+    ViewData["Title"] = "Edit equipment item";
+    var isPulsator = Model.Type == Autorep.Web.Domain.Entities.EquipmentItem.Pulsator;
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Edit @Autorep.Web.Pages.Admin.Equipment.IndexModel.TitleFor(Model.Type).TrimEnd('s').ToLowerInvariant()</h1>
+        <p>Catalog: @Autorep.Web.Pages.Admin.Equipment.IndexModel.TitleFor(Model.Type)</p>
+    </div>
+</div>
+
+@if (Model.Errors.Any())
+{
+    <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+}
+@if (Model.Message is not null)
+{
+    <div class="alert alert--success">@Model.Message</div>
+}
+
+<div class="card" style="max-width:640px">
+    <form method="post">
+        <div class="form-grid">
+            @if (isPulsator)
+            {
+                <div class="form-field">
+                    <label asp-for="Brand">Brand</label>
+                    <input asp-for="Brand" type="text" />
+                </div>
+            }
+            <div class="form-field form-field--full">
+                <label asp-for="Name">Name</label>
+                <input asp-for="Name" type="text" />
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--secondary" asp-page-handler="ToggleActive">
+                @(Model.IsActive ? "Deactivate" : "Reactivate")
+            </button>
+            <a class="btn btn--secondary" asp-page="/Admin/Equipment/Index">Back</a>
+            <button type="submit" class="btn btn--danger-soft" asp-page-handler="Delete"
+                    onclick="return confirm('Delete this item? Prefer Deactivate if it may appear on historical tests.');"
+                    style="margin-left:auto">
+                Delete
+            </button>
+        </div>
+    </form>
+</div>

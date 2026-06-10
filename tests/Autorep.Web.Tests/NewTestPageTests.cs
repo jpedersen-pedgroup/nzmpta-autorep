@@ -48,7 +48,7 @@ public class NewTestPageTests
     }
 
     [Fact]
-    public async Task OnPost_creates_a_test_for_an_active_farm()
+    public async Task OnPost_launches_the_wizard_for_an_active_farm_without_creating_a_server_test()
     {
         using var db = NewDb();
         var farm = new Farm { Name = "Active farm", IsActive = true };
@@ -60,7 +60,10 @@ public class NewTestPageTests
 
         var result = await model.OnPostAsync();
 
-        result.Should().BeOfType<RedirectToPageResult>();
-        (await db.MachineTests.CountAsync()).Should().Be(1);
+        var redirect = result.Should().BeOfType<RedirectToPageResult>().Subject;
+        redirect.PageName.Should().Be("/App/Tests/Wizard");
+        redirect.RouteValues!["farmId"].Should().Be(farm.Id);
+        // Offline-first: the Machine Test is created on-device in the wizard, not here.
+        (await db.MachineTests.CountAsync()).Should().Be(0);
     }
 }

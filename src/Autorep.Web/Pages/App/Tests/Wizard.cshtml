@@ -1,0 +1,14 @@
+@page
+@{
+    ViewData["Title"] = "Machine test";
+}
+
+@* The Tester wizard is the offline Preact app (wwwroot/js/dist/autorep.js). It runs entirely
+   client-side over IndexedDB and syncs to the server when online. The bundle is produced by
+   `npm run build` in src/Autorep.Web (CI runs build:prod). Reads ?id to resume a test, or
+   ?farmId/?farmName to start a new one. *@
+<div id="wizard-root"></div>
+
+@section Scripts {
+    <script type="module" src="~/js/dist/autorep.js" asp-append-version="true"></script>
+}

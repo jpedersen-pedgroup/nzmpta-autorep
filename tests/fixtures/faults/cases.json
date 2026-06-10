@@ -1,0 +1,33 @@
+[
+  {
+    "name": "empty — no groups",
+    "inputs": [],
+    "expectedGroups": [],
+    "critical": 0, "major": 0, "minor": 0, "total": 0
+  },
+  {
+    "name": "single minor fault",
+    "inputs": [
+      { "component": "Pipe lines", "description": "Seal perished", "severity": "Minor", "source": "Visual faults" }
+    ],
+    "expectedGroups": [
+      { "component": "Pipe lines", "severity": "Minor", "count": 1 }
+    ],
+    "critical": 0, "major": 0, "minor": 1, "total": 1
+  },
+  {
+    "name": "grouped — worst-severity rollup + critical-first ordering",
+    "inputs": [
+      { "component": "Vacuum pump", "description": "Drive belt worn", "severity": "Major", "source": "Visual faults" },
+      { "component": "Vacuum pump", "description": "Oiler fault", "severity": "Minor", "source": "Visual faults" },
+      { "component": "Pulsation", "description": "Ratio out of standard", "severity": "Critical", "source": "Pulsator" },
+      { "component": "Test Record", "description": "Effective reserve low", "severity": "Major", "source": "Test Record" }
+    ],
+    "expectedGroups": [
+      { "component": "Pulsation", "severity": "Critical", "count": 1 },
+      { "component": "Test Record", "severity": "Major", "count": 1 },
+      { "component": "Vacuum pump", "severity": "Major", "count": 2 }
+    ],
+    "critical": 1, "major": 2, "minor": 1, "total": 4
+  }
+]
