@@ -36,11 +36,17 @@ public class MachineConfiguration
     // --- Plant ------------------------------------------------------------
     public PlantType PlantType { get; set; } = PlantType.HerringboneLowline;
 
+    /// <summary>Free-text plant-size descriptor (legacy PlantSize, e.g. "30 a-side").</summary>
+    public string? PlantSize { get; set; }
+
     /// <summary>"Plant size" = number of clusters. Mandatory; drives effective-reserve and
     /// air-consumption standards (the legacy app refuses to calculate without it).</summary>
     public int ClusterCount { get; set; }
 
     public int? HerdSize { get; set; }
+
+    /// <summary>Atmospheric pressure at sea level (kPa) — selects the airflow correction factor.</summary>
+    public int? AtmosPressureSeaLevel { get; set; }
 
     /// <summary>Result of the last Bulk Milk Cell Count, recorded for the report.</summary>
     public string? LastBmcc { get; set; }
@@ -53,11 +59,17 @@ public class MachineConfiguration
     public bool FlushingPulsationSystem { get; set; }
 
     // --- Pulsation & cluster ---------------------------------------------
+    public string? PulsatorBrand { get; set; }
     public string? PulsatorModel { get; set; }
+    /// <summary>Pulsator configuration (legacy PulsatorSize, e.g. "2 X 2", "4 + 0").</summary>
+    public string? PulsatorConfiguration { get; set; }
     public int PulsatorCount { get; set; }
     public string? ClawModel { get; set; }
     public string? ShellModel { get; set; }
+    /// <summary>Front liner (legacy Liner).</summary>
     public string? LinerModel { get; set; }
+    /// <summary>Back liner (legacy BackLiner).</summary>
+    public string? BackLiner { get; set; }
 
     /// <summary>Vented liners change the cluster-air-admission pass band.</summary>
     public bool LinerVented { get; set; }

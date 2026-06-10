@@ -24,4 +24,10 @@ public class MachineTest
     // Client-generated id used for upsert-by-client during sync, so the
     // same test created offline on a Device doesn't duplicate on retry.
     public Guid? ClientId { get; set; }
+
+    /// <summary>The full offline capture payload (visual faults, readings, recommendations,
+    /// data-fields, per-pulsator/cluster rows, attestations, calibration dates) serialised as JSON.
+    /// The Device is the source of truth; this round-trips it for sync + reprint. Queryable header
+    /// fields stay in their own columns; the rich detail lives here.</summary>
+    public string? PayloadJson { get; set; }
 }

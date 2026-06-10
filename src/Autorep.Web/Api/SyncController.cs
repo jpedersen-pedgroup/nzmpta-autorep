@@ -23,20 +23,22 @@ public class SyncController : ControllerBase
     public SyncController(AutorepDbContext db) => _db = db;
 
     public record ConfigDto(
-        string PlantType, int ClusterCount, int? HerdSize, string? LastBmcc, string? MilklineSize,
-        bool FlushingPulsationSystem, string? PulsatorModel, int PulsatorCount,
-        string? ClawModel, string? ShellModel, string? LinerModel, bool LinerVented,
+        string PlantType, string? PlantSize, int ClusterCount, int? HerdSize, int? AtmosPressureSeaLevel,
+        string? LastBmcc, string? MilklineSize, bool FlushingPulsationSystem,
+        string? PulsatorBrand, string? PulsatorModel, string? PulsatorConfiguration, int PulsatorCount,
+        string? ClawModel, string? ShellModel, string? LinerModel, string? BackLiner, bool LinerVented,
         int NumberOfVacuumPumps, string PumpLubrication, bool VsdFitted, bool IsoPortsAvailable,
         bool HasPulsatorStopSystem, bool HasAcr, bool HasBailGates, bool HasMilkMeters,
         bool HasTeatSprayer, bool HasBackingGate, bool HasReleaserPump);
 
     public record UploadTestRequest(
         Guid ClientId, string FarmName, string? Notes,
-        DateTimeOffset? MarkedCompleteAt, DateTimeOffset? CreatedAt, ConfigDto? Config);
+        DateTimeOffset? MarkedCompleteAt, DateTimeOffset? CreatedAt, ConfigDto? Config,
+        string? PayloadJson);
 
     public record TestSummaryDto(
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
-        DateTimeOffset? MarkedCompleteAt, ConfigDto? Config);
+        DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson);
 
     // Pull: the Tester's tests (header + config), newest first.
     [HttpGet("tests")]
@@ -55,7 +57,8 @@ public class SyncController : ControllerBase
             t.Farm?.Name ?? string.Empty,
             t.CreatedAt,
             t.MarkedCompleteAt,
-            t.Configuration is null ? null : ToDto(t.Configuration)));
+            t.Configuration is null ? null : ToDto(t.Configuration),
+            t.PayloadJson));
 
         return Ok(dtos);
     }
@@ -78,6 +81,7 @@ public class SyncController : ControllerBase
         {
             existing.Notes = req.Notes;
             existing.MarkedCompleteAt = req.MarkedCompleteAt;
+            existing.PayloadJson = req.PayloadJson;
             ApplyConfig(existing, req.Config);
             await _db.SaveChangesAsync(ct);
             return Ok(new { id = existing.Id, status = "updated" });
@@ -99,6 +103,7 @@ public class SyncController : ControllerBase
             Notes = req.Notes,
             MarkedCompleteAt = req.MarkedCompleteAt,
             CreatedAt = req.CreatedAt ?? DateTimeOffset.UtcNow,
+            PayloadJson = req.PayloadJson,
         };
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
@@ -125,16 +130,21 @@ public class SyncController : ControllerBase
 
         var cfg = test.Configuration ?? new MachineConfiguration();
         cfg.PlantType = Enum.TryParse<PlantType>(dto.PlantType, out var pt) ? pt : PlantType.Other;
+        cfg.PlantSize = dto.PlantSize;
         cfg.ClusterCount = dto.ClusterCount;
         cfg.HerdSize = dto.HerdSize;
+        cfg.AtmosPressureSeaLevel = dto.AtmosPressureSeaLevel;
         cfg.LastBmcc = dto.LastBmcc;
         cfg.MilklineSize = dto.MilklineSize;
         cfg.FlushingPulsationSystem = dto.FlushingPulsationSystem;
+        cfg.PulsatorBrand = dto.PulsatorBrand;
         cfg.PulsatorModel = dto.PulsatorModel;
+        cfg.PulsatorConfiguration = dto.PulsatorConfiguration;
         cfg.PulsatorCount = dto.PulsatorCount;
         cfg.ClawModel = dto.ClawModel;
         cfg.ShellModel = dto.ShellModel;
         cfg.LinerModel = dto.LinerModel;
+        cfg.BackLiner = dto.BackLiner;
         cfg.LinerVented = dto.LinerVented;
         cfg.NumberOfVacuumPumps = dto.NumberOfVacuumPumps;
         cfg.PumpLubrication = Enum.TryParse<PumpLubrication>(dto.PumpLubrication, out var pl) ? pl : PumpLubrication.Other;
@@ -153,9 +163,10 @@ public class SyncController : ControllerBase
     }
 
     private static ConfigDto ToDto(MachineConfiguration c) => new(
-        c.PlantType.ToString(), c.ClusterCount, c.HerdSize, c.LastBmcc, c.MilklineSize,
-        c.FlushingPulsationSystem, c.PulsatorModel, c.PulsatorCount,
-        c.ClawModel, c.ShellModel, c.LinerModel, c.LinerVented,
+        c.PlantType.ToString(), c.PlantSize, c.ClusterCount, c.HerdSize, c.AtmosPressureSeaLevel,
+        c.LastBmcc, c.MilklineSize, c.FlushingPulsationSystem,
+        c.PulsatorBrand, c.PulsatorModel, c.PulsatorConfiguration, c.PulsatorCount,
+        c.ClawModel, c.ShellModel, c.LinerModel, c.BackLiner, c.LinerVented,
         c.NumberOfVacuumPumps, c.PumpLubrication.ToString(), c.VsdFitted, c.IsoPortsAvailable,
         c.HasPulsatorStopSystem, c.HasAcr, c.HasBailGates, c.HasMilkMeters,
         c.HasTeatSprayer, c.HasBackingGate, c.HasReleaserPump);

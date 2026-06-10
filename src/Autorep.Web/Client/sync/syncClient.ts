@@ -10,6 +10,8 @@ interface TestSummaryDto {
   createdAt: string;
   markedCompleteAt: string | null;
   config: MachineConfiguration | null;
+  /** Full offline capture payload (the serialised LocalTest) for exact rehydration. */
+  payloadJson: string | null;
 }
 
 export interface SyncResult {
@@ -28,6 +30,8 @@ async function pushTest(t: LocalTest): Promise<void> {
       markedCompleteAt: t.markedCompleteAt ?? null,
       createdAt: t.createdAt,
       config: t.config,
+      // The full rich capture round-trips as JSON so a re-download rehydrates exactly.
+      payloadJson: JSON.stringify(t),
     }),
   });
   if (!res.ok) throw new Error(`Push failed (${res.status})`);
@@ -43,7 +47,17 @@ async function pullTests(): Promise<number> {
   for (const r of remote) {
     if (await getTest(r.clientId)) continue; // local copy wins (authoritative for in-progress)
     const now = new Date().toISOString();
-    await putTest({
+
+    // Prefer the full payload (exact rehydration); fall back to the header for older tests.
+    let local: LocalTest | null = null;
+    if (r.payloadJson) {
+      try {
+        local = { ...(JSON.parse(r.payloadJson) as LocalTest), id: r.clientId, syncState: "uploaded" };
+      } catch {
+        local = null;
+      }
+    }
+    local ??= {
       id: r.clientId,
       farmName: r.farmName,
       config: r.config ?? defaultMachineConfiguration(),
@@ -57,7 +71,9 @@ async function pullTests(): Promise<number> {
       updatedAt: now,
       markedCompleteAt: r.markedCompleteAt,
       syncState: "uploaded",
-    });
+    };
+
+    await putTest(local);
     added++;
   }
   return added;
