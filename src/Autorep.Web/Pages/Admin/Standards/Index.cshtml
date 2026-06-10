@@ -43,8 +43,77 @@
     </div>
 }
 
-<p class="td-muted" style="margin-top:1rem">
-    The effective-reserve cluster table, cleaning-reserve formula and atmospheric correction factors
-    are ISO/manual-fixed and live in the app; the editable rows above cover every adjustable threshold
-    and formula parameter.
+<hr style="margin:2rem 0 1rem; border:none; border-top:1px solid var(--border, #e5e7eb)" />
+
+<h2 style="margin:0 0 0.25rem">Fixed standards <span class="badge">read-only</span></h2>
+<p class="td-muted" style="margin:0 0 0.75rem">
+    Fixed by the NZMPTA manual / ISO 6690 and built into the app — listed here for reference.
+    If one of these ever needs to change it's a release, not an edit.
 </p>
+
+<div class="table-wrap">
+    <table class="table">
+        <thead><tr><th>Standard</th><th>Value / formula</th><th>Source</th></tr></thead>
+        <tbody>
+            @foreach (var f in Autorep.Web.Pages.Admin.Standards.IndexModel.FixedStandards)
+            {
+                <tr class="td-muted">
+                    <td>@f.Label</td>
+                    <td>@f.Value</td>
+                    <td>@f.Source</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h3 style="margin:1.25rem 0 0.25rem">Effective reserve by cluster count</h3>
+<p class="td-muted" style="margin:0 0 0.5rem">Manual p42 — L/min required; odd counts use the next even row; above 80 clusters: 2100 + 25 per cluster.</p>
+@{
+    var erRows = Autorep.Web.Pages.Admin.Standards.IndexModel.EffectiveReserveRows().ToList();
+    var erCols = 4;
+    var perCol = (int)Math.Ceiling(erRows.Count / (double)erCols);
+}
+<div class="table-wrap">
+    <table class="table" style="max-width:760px">
+        <thead>
+            <tr>
+                @for (var c = 0; c < erCols; c++) { <th>Clusters</th><th>Reserve</th> }
+            </tr>
+        </thead>
+        <tbody>
+            @for (var r = 0; r < perCol; r++)
+            {
+                <tr class="td-muted">
+                    @for (var c = 0; c < erCols; c++)
+                    {
+                        var i = c * perCol + r;
+                        if (i < erRows.Count) { <td>@erRows[i].Clusters</td><td>@erRows[i].Reserve</td> }
+                        else { <td></td><td></td> }
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h3 style="margin:1.25rem 0 0.25rem">Atmospheric correction factors</h3>
+<p class="td-muted" style="margin:0 0 0.5rem">
+    Manual p31 / ISO 6690 Table 4 — multiply the measured airflow by the factor for the prevailing pressure.
+</p>
+<div class="table-wrap">
+    <table class="table" style="max-width:760px">
+        <thead>
+            <tr>
+                <th>Pressure (kPa)</th>
+                @foreach (var a in Autorep.Web.Pages.Admin.Standards.IndexModel.AtmosFactors) { <th>@a.Kpa</th> }
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="td-muted">
+                <td><strong>Factor</strong></td>
+                @foreach (var a in Autorep.Web.Pages.Admin.Standards.IndexModel.AtmosFactors) { <td>@a.Factor.ToString("0.00")</td> }
+            </tr>
+        </tbody>
+    </table>
+</div>
