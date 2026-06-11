@@ -35,7 +35,7 @@ async function pushTest(t: LocalTest): Promise<void> {
     }),
   });
   if (!res.ok) throw new Error(`Push failed (${res.status})`);
-  await putTest({ ...t, syncState: "uploaded" });
+  await putTest({ ...t, syncState: "uploaded", everUploaded: true });
 }
 
 async function pullTests(): Promise<number> {
@@ -52,7 +52,7 @@ async function pullTests(): Promise<number> {
     let local: LocalTest | null = null;
     if (r.payloadJson) {
       try {
-        local = { ...(JSON.parse(r.payloadJson) as LocalTest), id: r.clientId, syncState: "uploaded" };
+        local = { ...(JSON.parse(r.payloadJson) as LocalTest), id: r.clientId, syncState: "uploaded", everUploaded: true };
       } catch {
         local = null;
       }
@@ -71,6 +71,7 @@ async function pullTests(): Promise<number> {
       updatedAt: now,
       markedCompleteAt: r.markedCompleteAt,
       syncState: "uploaded",
+      everUploaded: true,
     };
 
     await putTest(local);

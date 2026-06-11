@@ -5,13 +5,16 @@
 // should PROACTIVELY pre-cache all active milk-company logos on reference-data sync (not just
 // ones already viewed) and render the tester pages offline so cached logos actually display.
 
-const CACHE_VERSION = 'autorep-v4';
+const CACHE_VERSION = 'autorep-v5';
 const LOGO_CACHE = 'autorep-logos-v1';
+const FA_CACHE = 'autorep-fontawesome-v1';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/css/site.css',
   '/js/pwa-register.js',
-  '/icons/icon.svg'
+  '/icons/icon.svg',
+  '/lib/fontawesome/css/all.min.css',
+  '/lib/fontawesome/webfonts/fa-solid-900.woff2'
 ];
 
 self.addEventListener('install', (event) => {
@@ -25,7 +28,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys.filter((k) => k !== CACHE_VERSION && k !== LOGO_CACHE).map((k) => caches.delete(k))
+        keys.filter((k) => k !== CACHE_VERSION && k !== LOGO_CACHE && k !== FA_CACHE).map((k) => caches.delete(k))
       )
     )
   );
@@ -42,6 +45,25 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/milk-companies/') && url.pathname.endsWith('/logo')) {
     event.respondWith(
       caches.open(LOGO_CACHE).then((cache) =>
+        cache.match(event.request).then((cached) => {
+          const network = fetch(event.request)
+            .then((resp) => {
+              if (resp && resp.ok) cache.put(event.request, resp.clone());
+              return resp;
+            })
+            .catch(() => cached);
+          return cached || network;
+        })
+      )
+    );
+    return;
+  }
+
+  // Font Awesome Pro kit (kit.fontawesome.com + its ka-f.fontawesome.com assets): stale-while-
+  // revalidate so the Pro icons keep rendering offline once the kit has loaded online once.
+  if (url.hostname.endsWith('.fontawesome.com')) {
+    event.respondWith(
+      caches.open(FA_CACHE).then((cache) =>
         cache.match(event.request).then((cached) => {
           const network = fetch(event.request)
             .then((resp) => {

@@ -7,6 +7,7 @@ import { type ChecklistItem, type ChecklistSection, checklistComplete } from "./
 import { Tabs } from "../ui/Tabs";
 import { observationsFor, severityFor } from "../reference/faultCatalog";
 import { Combobox } from "../ui/Combobox";
+import { Select } from "../ui/Select";
 
 interface Props {
   title: string;
@@ -96,16 +97,15 @@ function ItemRow({
               }
             />
           )}
-          <select
+          <Select
             value={entry.severity ?? "Major"}
-            onChange={(e) =>
-              onSetEntry(item.key, { ...entry, severity: (e.currentTarget as HTMLSelectElement).value as FaultSeverity })
-            }
-          >
-            <option value="Critical">Critical</option>
-            <option value="Major">Major</option>
-            <option value="Minor">Minor</option>
-          </select>
+            onChange={(v) => onSetEntry(item.key, { ...entry, severity: v as FaultSeverity })}
+            options={[
+              { value: "Critical", label: "Critical" },
+              { value: "Major", label: "Major" },
+              { value: "Minor", label: "Minor" },
+            ]}
+          />
           <input
             type="text"
             placeholder="Note (optional)"
