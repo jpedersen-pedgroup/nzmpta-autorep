@@ -802,10 +802,16 @@ main {
 /* Accordion sections (admin reference pages) */
 .accordion { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: var(--space-3); background: var(--surface); }
 .accordion__summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; font-weight: 600; list-style: none; }
+.accordion__summary > :first-child { flex: 1; } /* badge hugs the chevron so the pills line up across rows */
 .accordion__summary::-webkit-details-marker { display: none; }
 .accordion__summary::after { content: "▸"; color: var(--text-muted); transition: transform 0.15s ease; }
 .accordion[open] > .accordion__summary::after { transform: rotate(90deg); }
 .accordion > .table-wrap, .accordion__body { padding: 0 var(--space-4) var(--space-4); }
+
+/* Nested sub-accordions (e.g. brand groups inside an equipment catalog) */
+.accordion--nested { margin-bottom: var(--space-2); background: var(--bg); }
+.accordion--nested > .accordion__summary { padding: var(--space-2) var(--space-3); font-weight: 500; }
+.accordion--nested > .table-wrap { padding: 0 var(--space-3) var(--space-3); }
 
 /* Review & sign-off — fixed summary header, scrollable middle (steps + attachment),
    actions pinned as a footer. The card fills the desktop step lane to make that work. */

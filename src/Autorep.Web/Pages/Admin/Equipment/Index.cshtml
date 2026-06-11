@@ -21,34 +21,63 @@
 
 @foreach (var group in Model.Groups)
 {
-    <details class="accordion" open="@(group.Rows.Count <= 10)">
+    <details class="accordion">
         <summary class="accordion__summary">
             <span>@group.Title</span>
             <span class="badge">@group.Rows.Count(r => r.IsActive) active@(group.Rows.Any(r => !r.IsActive) ? $" · {group.Rows.Count(r => !r.IsActive)} deactivated" : "")</span>
         </summary>
-        <div class="table-wrap">
-            <table class="table">
-                <thead>
-                    <tr>
-                        @if (group.Type == Autorep.Web.Domain.Entities.EquipmentItem.Pulsator) { <th>Brand</th> }
-                        <th>Name</th><th>Status</th><th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var r in group.Rows)
-                    {
-                        <tr>
-                            @if (group.Type == Autorep.Web.Domain.Entities.EquipmentItem.Pulsator) { <td class="td-muted">@r.Brand</td> }
-                            <td>@r.Name</td>
-                            <td>
-                                @if (r.IsActive) { <span class="badge badge--success">Active</span> }
-                                else { <span class="badge">Deactivated</span> }
-                            </td>
-                            <td><a class="btn btn--secondary" asp-page="/Admin/Equipment/Edit" asp-route-id="@r.Id">Edit</a></td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+        @if (group.Brands.Count > 0)
+        {
+            <div class="accordion__body">
+                @foreach (var brand in group.Brands)
+                {
+                    <details class="accordion accordion--nested">
+                        <summary class="accordion__summary">
+                            <span>@brand.Title</span>
+                            <span class="badge">@brand.Rows.Count(r => r.IsActive) active@(brand.Rows.Any(r => !r.IsActive) ? $" · {brand.Rows.Count(r => !r.IsActive)} deactivated" : "")</span>
+                        </summary>
+                        <div class="table-wrap">
+                            <table class="table">
+                                <thead><tr><th>Name</th><th>Status</th><th></th></tr></thead>
+                                <tbody>
+                                    @foreach (var r in brand.Rows)
+                                    {
+                                        <tr>
+                                            <td>@r.Name</td>
+                                            <td>
+                                                @if (r.IsActive) { <span class="badge badge--success">Active</span> }
+                                                else { <span class="badge">Deactivated</span> }
+                                            </td>
+                                            <td><a class="btn btn--secondary" asp-page="/Admin/Equipment/Edit" asp-route-id="@r.Id">Edit</a></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Name</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var r in group.Rows)
+                        {
+                            <tr>
+                                <td>@r.Name</td>
+                                <td>
+                                    @if (r.IsActive) { <span class="badge badge--success">Active</span> }
+                                    else { <span class="badge">Deactivated</span> }
+                                </td>
+                                <td><a class="btn btn--secondary" asp-page="/Admin/Equipment/Edit" asp-route-id="@r.Id">Edit</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
     </details>
 }
