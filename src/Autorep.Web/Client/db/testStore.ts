@@ -79,6 +79,9 @@ export interface LocalTest {
   updatedAt: string;
   markedCompleteAt?: string | null;
   syncState: SyncState;
+  /** True once the test has ever reached the server (syncState alone can't tell — it flips back
+   * to "local-only" as a dirty marker). Tests that exist on the server can't be deleted locally. */
+  everUploaded?: boolean;
 }
 
 /** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */

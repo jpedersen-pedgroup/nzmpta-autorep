@@ -644,7 +644,7 @@ main {
 }
 
 @media print {
-  .app-header, .app-footer, .btn { display: none !important; }
+  .app-header, .app-footer, .btn, .popover { display: none !important; }
 }
 
 /* ----- Add-affordance button (stands out from primary/secondary) ----------- */
@@ -807,7 +807,15 @@ main {
 .accordion[open] > .accordion__summary::after { transform: rotate(90deg); }
 .accordion > .table-wrap, .accordion__body { padding: 0 var(--space-4) var(--space-4); }
 
-/* Review & sign-off */
+/* Review & sign-off — fixed summary header, scrollable middle (steps + attachment),
+   actions pinned as a footer. The card fills the desktop step lane to make that work. */
+.card--signoff { display: flex; flex-direction: column; position: relative; }
+@media (min-width: 721px) {
+  .wizard__panel > .card--signoff { height: 100%; }
+  .wizard__panel:has(> .card--signoff) { overflow-y: hidden; }
+}
+.signoff-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.signoff-footer { flex: none; margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
 .signoff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); margin-top: var(--space-2); }
 .signoff__label { color: var(--text-muted); font-size: 0.8125rem; }
 .signoff-steps { margin-top: var(--space-4); display: grid; gap: 3px; }
@@ -815,8 +823,39 @@ main {
 .signoff-step__dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--border-strong); }
 .signoff-step__dot.is-done { background: var(--success); }
 .signoff-step__dot.is-todo { background: var(--danger-border); }
-.signoff-actions { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
-.signoff-complete { margin-top: var(--space-4); padding: var(--space-3); background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-sm); }
+.signoff-actions { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+.signoff-actions .form-check { margin-bottom: 0; }
+.signoff-complete { padding: var(--space-3); background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-sm); }
+.signoff-complete .form-actions { margin-top: var(--space-3); padding-top: 0; border-top: none; }
+
+/* Confirm-ready action (sign-off attested) */
+.btn--success { background: var(--success); border-color: var(--success); }
+.btn--success:hover { background: #0ea371; border-color: #0ea371; }
+
+/* Busy overlay (PDF generation/merge) */
+.busy-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.65);
+  backdrop-filter: blur(2px);
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+}
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 .signoff-attach { margin-top: var(--space-4); }
 .dropzone { border: 2px dashed var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-4); text-align: center; color: var(--text-muted); font-size: 0.875rem; cursor: pointer; transition: border-color 0.12s ease, background 0.12s ease; }
 .dropzone:hover, .dropzone.is-over { border-color: var(--brand); background: rgba(10,37,64,0.04); color: var(--text); }
@@ -825,10 +864,12 @@ main {
 .attach-chip__size { color: var(--text-muted); font-size: 0.8125rem; }
 .attach-chip__remove { margin-left: auto; border: none; background: none; color: var(--danger); font-size: 1.1rem; line-height: 1; cursor: pointer; padding: 0 0.3rem; }
 .fault-detail { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) 0 var(--space-3); }
-.fault-detail select, .fault-detail input { padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--surface); }
-.fault-detail select { width: 130px; flex: none; }
+.fault-detail input { padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--surface); }
+.fault-detail .ui-select { width: 130px; flex: none; }
 .fault-detail .fault-detail__obs { width: 100%; flex: 1 1 100%; }
 .fault-detail input { flex: 1; min-width: 8rem; }
+.fault-detail .combobox input { width: 100%; min-width: 0; }
+.fault-detail .select-trigger { padding: 0.4rem 0.6rem; min-height: 0; font-size: 0.875rem; border-radius: var(--radius-sm); }
 
 /* ----- Toasts -------------------------------------------------------------- */
 .toast-container {
@@ -871,6 +912,102 @@ main {
 .pf--pass { background: var(--success-bg); color: #166534; }
 .pf--fail { background: var(--danger-bg); color: #991b1b; }
 .pf--noStandard { background: var(--surface-alt); color: var(--text-subtle); }
+
+/* ----- Popover dropdowns (Combobox / Select / DatePicker) -------------------
+   Custom replacements for the native datalist, <select> and date-input popups,
+   which can't be themed. position:fixed so they escape the wizard panel's
+   internal scroll; the popover hook anchors and flips them. */
+.popover {
+  position: fixed;
+  z-index: 150; /* above the modal overlay (100), below toasts (200) */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: popover-in 0.12s ease;
+}
+@keyframes popover-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.combobox, .ui-select, .datepicker { position: relative; }
+/* [type="text"] keeps the specificity level with .form-field input[type="text"] (this rule is
+   later in the file, so it wins) — otherwise text renders under the chevron/calendar icon. */
+.combobox input[type="text"], .datepicker input[type="text"] { padding-right: 2.5rem; width: 100%; min-width: 0; }
+
+/* Inline icon button (chevron / calendar) inside a field */
+.field-btn {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+}
+.field-btn:hover { background: var(--surface-alt); color: var(--text); }
+
+/* Listbox popup (combobox + select options) */
+.listbox { max-height: 280px; overflow-y: auto; padding: var(--space-2); }
+.listbox__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.listbox__option:hover, .listbox__option.is-active { background: var(--surface-alt); }
+.listbox__option:focus-visible { outline: none; background: var(--surface-alt); box-shadow: inset 0 0 0 1.5px var(--brand); }
+.listbox__option.is-selected { background: rgba(10,37,64,0.06); color: var(--brand); font-weight: 600; }
+.listbox__option span:first-child { flex: 1; min-width: 0; }
+.listbox__check { flex: none; color: var(--brand); font-size: 0.8125rem; }
+.listbox__empty { padding: 0.5rem 0.75rem; color: var(--text-muted); font-size: 0.875rem; }
+
+/* Select trigger — a button that looks like a form input */
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  background: var(--surface);
+  color: var(--text);
+  min-height: 42px;
+  text-align: left;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.select-trigger:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(10,37,64,0.1); }
+.select-trigger .is-placeholder { color: var(--text-subtle); }
+.select-trigger__chevron { flex: none; color: var(--text-muted); }
+
+/* Calendar popup — 40px+ targets for gloved tablet use */
+.datepicker-pop { width: 312px; padding: var(--space-3); }
+.cal__head { display: flex; align-items: center; gap: 2px; margin-bottom: var(--space-2); }
+.cal__label { flex: 1; text-align: center; font-weight: 600; font-size: 0.9375rem; }
+.cal__nav { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--text-muted); font-size: 1rem; line-height: 1; }
+.cal__nav:hover { background: var(--surface-alt); color: var(--text); }
+.cal__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal__dow { text-align: center; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; padding: var(--space-1) 0; }
+.cal__day { height: 40px; display: grid; place-items: center; border-radius: var(--radius-sm); font-size: 0.875rem; color: var(--text); }
+.cal__day:hover { background: var(--surface-alt); }
+.cal__day.is-outside { color: var(--text-subtle); }
+.cal__day.is-today { box-shadow: inset 0 0 0 1.5px var(--brand); font-weight: 600; }
+.cal__day.is-selected { background: var(--brand); color: #fff; font-weight: 600; }
+.cal__foot { display: flex; justify-content: space-between; margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--border); }
+.cal__action { font-size: 0.875rem; font-weight: 500; color: var(--brand); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); }
+.cal__action:hover { background: var(--surface-alt); }
+.cal__action--muted { color: var(--text-muted); }
+.cal__action--muted:hover { color: var(--text); }
 
 /* ----- Fault summary ------------------------------------------------------- */
 .fault-counts { display: flex; gap: var(--space-2); margin: var(--space-3) 0 var(--space-4); flex-wrap: wrap; }

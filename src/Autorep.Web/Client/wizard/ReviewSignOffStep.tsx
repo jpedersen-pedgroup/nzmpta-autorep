@@ -29,6 +29,8 @@ interface Props {
   steps: ResolvedWizardStep[];
   completed: Set<WizardStep>;
   syncing: boolean;
+  /** True while the report PDF is being generated/merged — shows the busy overlay. */
+  generating: boolean;
   onMarkComplete: () => void;
   onResync: () => void;
   onDownloadReport: () => void;
@@ -42,6 +44,7 @@ export function ReviewSignOffStep({
   steps,
   completed,
   syncing,
+  generating,
   onMarkComplete,
   onResync,
   onDownloadReport,
@@ -61,7 +64,7 @@ export function ReviewSignOffStep({
   };
 
   return (
-    <div class="card">
+    <div class="card card--signoff">
       <div class="card__title">
         Review &amp; sign-off <small class="card__hint">Check the test over, then mark it complete to sync.</small>
       </div>
@@ -89,6 +92,7 @@ export function ReviewSignOffStep({
         <span class="badge">{summary.minor} minor</span>
       </div>
 
+      <div class="signoff-scroll">
       <div class="signoff-steps">
         {reviewable.map((s) => {
           const done = completed.has(s.step);
@@ -141,29 +145,45 @@ export function ReviewSignOffStep({
           </div>
         )}
       </div>
+      </div>
 
-      {isComplete ? (
-        <div class="signoff-complete">
-          <p>
-            ✓ Marked complete {fmtDate(test.markedCompleteAt)} · sync:{" "}
-            <strong>{test.syncState === "uploaded" ? "synced" : test.syncState}</strong>
-          </p>
-          <div class="form-actions">
-            <button class="btn" onClick={onDownloadReport}>Download report (PDF)</button>
-            <button class="btn btn--secondary" disabled={syncing} onClick={onResync}>
-              {syncing ? "Syncing…" : "Sync again"}
+      <div class="signoff-footer">
+        {isComplete ? (
+          <div class="signoff-complete">
+            <p>
+              ✓ Marked complete {fmtDate(test.markedCompleteAt)} · sync:{" "}
+              <strong>{test.syncState === "uploaded" ? "synced" : test.syncState}</strong>
+            </p>
+            <div class="form-actions">
+              <button class="btn" disabled={generating} onClick={onDownloadReport}>
+                {generating ? "Generating…" : "Download report (PDF)"}
+              </button>
+              <button class="btn btn--secondary" disabled={syncing} onClick={onResync}>
+                {syncing ? "Syncing…" : "Sync again"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div class="signoff-actions">
+            <label class="form-check">
+              <input type="checkbox" checked={attested} onChange={(e) => setAttested((e.currentTarget as HTMLInputElement).checked)} />
+              <span>I confirm this test has been completed and the results are accurate.</span>
+            </label>
+            <button
+              class={"btn" + (attested && !syncing ? " btn--success" : "")}
+              disabled={!attested || syncing}
+              onClick={onMarkComplete}
+            >
+              {syncing ? "Completing…" : "Mark as complete & sync"}
             </button>
           </div>
-        </div>
-      ) : (
-        <div class="signoff-actions">
-          <label class="form-check">
-            <input type="checkbox" checked={attested} onChange={(e) => setAttested((e.currentTarget as HTMLInputElement).checked)} />
-            <span>I confirm this test has been completed and the results are accurate.</span>
-          </label>
-          <button class="btn" disabled={!attested || syncing} onClick={onMarkComplete}>
-            {syncing ? "Completing…" : "Mark as complete &amp; sync"}
-          </button>
+        )}
+      </div>
+
+      {generating && (
+        <div class="busy-overlay" role="status">
+          <span class="spinner" aria-hidden="true" />
+          {test.pulsationPdf ? "Merging PDFs…" : "Generating report…"}
         </div>
       )}
     </div>

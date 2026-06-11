@@ -1,9 +1,11 @@
 // "My tests" list — rendered from IndexedDB (offline-first). A "Sync now" button pushes
 // local-only tests to the server and pulls the Tester's tests down; synced tests merge into
 // the same store. A failed sync raises an offline toast (work stays saved locally).
+// In-progress tests that have never reached the server can be deleted (with confirmation);
+// anything that exists on the server can't be removed from here.
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { allTests, type LocalTest } from "../db/testStore";
+import { allTests, deleteTest, type LocalTest } from "../db/testStore";
 import { syncAll } from "../sync/syncClient";
 import { showToast } from "./toast";
 
@@ -24,9 +26,15 @@ function syncLabel(state: LocalTest["syncState"]): string {
   }
 }
 
+/** Deletable: still in progress AND the server has never seen it (delete here is permanent). */
+function canDelete(t: LocalTest): boolean {
+  return !t.markedCompleteAt && t.syncState === "local-only" && !t.everUploaded;
+}
+
 function TestListApp() {
   const [tests, setTests] = useState<LocalTest[] | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [deleting, setDeleting] = useState<LocalTest | null>(null);
 
   const reload = async () =>
     setTests((await allTests()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
@@ -49,6 +57,13 @@ function TestListApp() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const doDelete = async (t: LocalTest) => {
+    await deleteTest(t.id);
+    setDeleting(null);
+    await reload();
+    showToast(`Deleted "${t.farmName || "Untitled test"}" from this device.`, "info");
   };
 
   if (!tests) return <p class="td-muted">Loading…</p>;
@@ -92,6 +107,11 @@ function TestListApp() {
                     <span class="badge">{syncLabel(t.syncState)}</span>
                   </td>
                   <td class="td-actions">
+                    {canDelete(t) && (
+                      <button class="btn btn--danger-soft btn--sm" onClick={() => setDeleting(t)}>
+                        Delete
+                      </button>
+                    )}
                     <a class="btn btn--secondary btn--sm" href={`/App/Tests/Wizard?id=${t.id}`}>
                       {t.markedCompleteAt ? "View" : "Continue"}
                     </a>
@@ -100,6 +120,31 @@ function TestListApp() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {deleting && (
+        <div
+          class="modal-overlay open"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleting(null);
+          }}
+        >
+          <div class="modal">
+            <div class="modal__title">Delete this test?</div>
+            <p>
+              <strong>{deleting.farmName || "Untitled test"}</strong> only exists on this device — it has never
+              been synced. Deleting it is permanent and can't be undone.
+            </p>
+            <div class="form-actions">
+              <button class="btn btn--danger" onClick={() => void doDelete(deleting)}>
+                Delete test
+              </button>
+              <button class="btn btn--secondary" onClick={() => setDeleting(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

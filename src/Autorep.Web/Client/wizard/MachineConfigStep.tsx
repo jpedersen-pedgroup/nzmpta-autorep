@@ -5,6 +5,7 @@ import type { ComponentChildren } from "preact";
 import type { MachineConfiguration, PlantType, PumpLubrication } from "./types";
 import { Tabs } from "../ui/Tabs";
 import { Combobox } from "../ui/Combobox";
+import { Select } from "../ui/Select";
 import {
   ATMOS_PRESSURES,
   linerOptions,
@@ -102,15 +103,16 @@ export function MachineConfigStep({ config, onChange }: Props) {
       content: (
         <div class="form-grid">
           <Field label="Plant type">
-            <select
+            <Select
               value={config.plantType}
-              onChange={(e) => onChange({ plantType: (e.currentTarget as HTMLSelectElement).value as PlantType })}
-            >
-              <option value="HerringboneLowline">Herringbone (lowline)</option>
-              <option value="HerringboneHighline">Herringbone (highline)</option>
-              <option value="Rotary">Rotary</option>
-              <option value="Other">Other</option>
-            </select>
+              onChange={(v) => onChange({ plantType: v as PlantType })}
+              options={[
+                { value: "HerringboneLowline", label: "Herringbone (lowline)" },
+                { value: "HerringboneHighline", label: "Herringbone (highline)" },
+                { value: "Rotary", label: "Rotary" },
+                { value: "Other", label: "Other" },
+              ]}
+            />
           </Field>
           <Field label="Plant size">
             <TextInput
@@ -134,20 +136,14 @@ export function MachineConfigStep({ config, onChange }: Props) {
             />
           </Field>
           <Field label="Atmospheric pressure (kPa)">
-            <select
-              value={config.atmosPressureSeaLevel ?? ""}
-              onChange={(e) => {
-                const v = (e.currentTarget as HTMLSelectElement).value;
-                onChange({ atmosPressureSeaLevel: v === "" ? null : Number(v) });
-              }}
-            >
-              <option value="">— select —</option>
-              {ATMOS_PRESSURES.map((a) => (
-                <option key={a.kpa} value={a.kpa}>
-                  {a.kpa} kPa
-                </option>
-              ))}
-            </select>
+            <Select
+              value={config.atmosPressureSeaLevel != null ? String(config.atmosPressureSeaLevel) : ""}
+              onChange={(v) => onChange({ atmosPressureSeaLevel: v === "" ? null : Number(v) })}
+              options={[
+                { value: "", label: "— select —" },
+                ...ATMOS_PRESSURES.map((a) => ({ value: String(a.kpa), label: `${a.kpa} kPa` })),
+              ]}
+            />
           </Field>
           <Field label="Last BMCC">
             <TextInput value={config.lastBmcc} onInput={(v) => onChange({ lastBmcc: v })} />
@@ -160,16 +156,15 @@ export function MachineConfigStep({ config, onChange }: Props) {
             />
           </Field>
           <Field label="Pump lubrication">
-            <select
+            <Select
               value={config.pumpLubrication}
-              onChange={(e) =>
-                onChange({ pumpLubrication: (e.currentTarget as HTMLSelectElement).value as PumpLubrication })
-              }
-            >
-              <option value="OilLubricated">Oil lubricated</option>
-              <option value="LiquidRing">Liquid ring</option>
-              <option value="Other">Other</option>
-            </select>
+              onChange={(v) => onChange({ pumpLubrication: v as PumpLubrication })}
+              options={[
+                { value: "OilLubricated", label: "Oil lubricated" },
+                { value: "LiquidRing", label: "Liquid ring" },
+                { value: "Other", label: "Other" },
+              ]}
+            />
           </Field>
         </div>
       ),

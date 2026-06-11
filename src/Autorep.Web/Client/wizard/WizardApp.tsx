@@ -29,6 +29,7 @@ import { ReviewSignOffStep } from "./ReviewSignOffStep";
 import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
 import { syncAll } from "../sync/syncClient";
 import { showToast } from "../ui/toast";
+import { DatePicker } from "../ui/DatePicker";
 import {
   applyCheckAll,
   checklistComplete,
@@ -104,6 +105,7 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
 function WizardApp({ id, farmId, farmName }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const online = useServerOnline();
 
   useEffect(() => {
@@ -406,13 +408,15 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               steps={plan.steps}
               completed={completed}
               syncing={syncing}
+              generating={generating}
               onMarkComplete={() => void markComplete()}
               onResync={() => void runSync("Re-synced")}
-              onDownloadReport={() =>
-                void downloadTestSummaryPdf(test).catch(() =>
-                  showToast("Could not generate the report on this device.", "error"),
-                )
-              }
+              onDownloadReport={() => {
+                setGenerating(true);
+                void downloadTestSummaryPdf(test)
+                  .catch(() => showToast("Could not generate the report on this device.", "error"))
+                  .finally(() => setGenerating(false));
+              }}
               onAttachPdf={(file) => void attachPulsationPdf(file)}
               onRemovePdf={() => void persist({ pulsationPdf: null, syncState: "local-only" })}
             />
@@ -466,11 +470,7 @@ function calDateField(label: string, value: string | null | undefined, onChange:
   return (
     <div class="form-field">
       <label>{label}</label>
-      <input
-        type="date"
-        value={value ?? ""}
-        onInput={(e) => onChange((e.currentTarget as HTMLInputElement).value || null)}
-      />
+      <DatePicker value={value} onChange={onChange} />
     </div>
   );
 }
