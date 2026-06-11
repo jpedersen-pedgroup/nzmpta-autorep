@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "autorep-web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Autorep.Web/Autorep.Web.csproj", "--launch-profile", "http", "--no-build"],
+      "port": 5206,
+      "autoPort": false
+    }
+  ]
+}

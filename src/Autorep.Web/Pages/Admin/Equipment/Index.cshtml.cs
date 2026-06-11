@@ -11,7 +11,8 @@ public class IndexModel : PageModel
     public IndexModel(AutorepDbContext db) => _db = db;
 
     public record Row(Guid Id, string Name, string? Brand, bool IsActive);
-    public record Group(string Type, string Title, IList<Row> Rows);
+    public record BrandGroup(string Title, IList<Row> Rows);
+    public record Group(string Type, string Title, IList<Row> Rows, IList<BrandGroup> Brands);
 
     public IList<Group> Groups { get; private set; } = [];
 
@@ -31,8 +32,22 @@ public class IndexModel : PageModel
             .OrderBy(e => e.Brand).ThenBy(e => e.Name)
             .ToListAsync();
         Groups = EquipmentItem.Types
-            .Select(t => new Group(t, TitleFor(t),
-                rows.Where(e => e.Type == t).Select(e => new Row(e.Id, e.Name, e.Brand, e.IsActive)).ToList()))
+            .Select(t =>
+            {
+                var typeRows = rows.Where(e => e.Type == t).Select(e => new Row(e.Id, e.Name, e.Brand, e.IsActive)).ToList();
+                return new Group(t, TitleFor(t), typeRows, BrandsFor(typeRows));
+            })
             .ToList();
     }
+
+    // Brand sub-groups for catalogs that carry brand data (pulsator models). Catalogs whose rows
+    // have no brands at all render as a flat table instead.
+    private static IList<BrandGroup> BrandsFor(IList<Row> rows) =>
+        rows.Any(r => r.Brand is not null)
+            ? rows.GroupBy(r => r.Brand ?? "(No brand)")
+                .OrderBy(g => g.Key == "(No brand)")
+                .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(g => new BrandGroup(g.Key, g.ToList()))
+                .ToList()
+            : [];
 }
