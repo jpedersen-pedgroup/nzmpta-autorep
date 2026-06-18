@@ -175,7 +175,7 @@ public class SyncController : ControllerBase
         test.Configuration = cfg;
     }
 
-    private static ConfigDto ToDto(MachineConfiguration c) => new(
+    internal static ConfigDto ToDto(MachineConfiguration c) => new(
         c.PlantType.ToString(), c.PlantSize, c.ClusterCount, c.HerdSize, c.AtmosPressureSeaLevel,
         c.LastBmcc, c.MilklineSize, c.FlushingPulsationSystem,
         c.PulsatorBrand, c.PulsatorModel, c.PulsatorConfiguration, c.PulsatorCount,

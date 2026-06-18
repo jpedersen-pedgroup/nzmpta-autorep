@@ -17,6 +17,8 @@ function mountApps(): void {
       id: params.get("id") ?? undefined,
       farmId: params.get("farmId") ?? undefined,
       farmName: params.get("farmName") ?? undefined,
+      // Admin read-only view: fetch the test from the server instead of IndexedDB.
+      serverTestId: wizardRoot.getAttribute("data-server-test") ?? undefined,
     });
   }
 

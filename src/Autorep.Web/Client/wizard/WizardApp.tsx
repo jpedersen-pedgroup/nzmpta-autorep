@@ -27,6 +27,7 @@ import { PulsatorStep } from "./PulsatorStep";
 import { ClusterStep } from "./ClusterStep";
 import { ReviewSignOffStep } from "./ReviewSignOffStep";
 import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
+import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll } from "../sync/syncClient";
 import { showToast } from "../ui/toast";
 import { DatePicker } from "../ui/DatePicker";
@@ -46,10 +47,65 @@ export interface WizardOptions {
   id?: string;
   farmId?: string;
   farmName?: string;
+  /** Admin read-only view: fetch this test from the server (not IndexedDB) and render it read-only. */
+  serverTestId?: string;
 }
 
 export function mountWizard(root: HTMLElement, opts: WizardOptions): void {
   render(<WizardApp {...opts} />, root);
+}
+
+interface ServerTestDto {
+  id: string;
+  farmName: string;
+  createdAt: string;
+  markedCompleteAt: string | null;
+  config: MachineConfiguration | null;
+  payloadJson: string | null;
+  testerName: string | null;
+}
+
+/** Build a read-only LocalTest from a server fetch (admin view). Migrated legacy payloads are
+ * adapted to readings + as-recorded verdicts; new-format payloads rehydrate directly. */
+function localTestFromServer(dto: ServerTestDto): LocalTest {
+  const now = new Date().toISOString();
+  const base: Partial<LocalTest> = {};
+  if (dto.payloadJson) {
+    try {
+      const parsed = JSON.parse(dto.payloadJson) as Record<string, unknown>;
+      if (parsed.legacy !== undefined && parsed.currentStep === undefined) {
+        const adapted = adaptLegacyReadings(parsed);
+        base.readings = adapted.readings;
+        base.verdicts = adapted.verdicts;
+        base.notes = adapted.comment;
+      } else {
+        Object.assign(base, parsed as Partial<LocalTest>);
+      }
+    } catch {
+      /* fall through to a minimal shell */
+    }
+  }
+  return {
+    id: dto.id,
+    farmName: dto.farmName,
+    config: dto.config ?? base.config ?? defaultMachineConfiguration(),
+    currentStep: "Setup",
+    visualFaults: base.visualFaults ?? {},
+    attestations: base.attestations ?? [],
+    readings: base.readings ?? {},
+    verdicts: base.verdicts,
+    recommendations: base.recommendations ?? {},
+    dataFields: base.dataFields ?? {},
+    pulsatorRows: base.pulsatorRows,
+    clusterRows: base.clusterRows,
+    notes: base.notes,
+    createdAt: dto.createdAt,
+    updatedAt: now,
+    markedCompleteAt: dto.markedCompleteAt,
+    syncState: "uploaded",
+    everUploaded: true,
+    readonly: true,
+  };
 }
 
 function newLocalTest(farmId?: string, farmName?: string): LocalTest {
@@ -102,8 +158,9 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
   return done;
 }
 
-function WizardApp({ id, farmId, farmName }: WizardOptions) {
+function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const online = useServerOnline();
@@ -111,6 +168,19 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
   useEffect(() => {
     let active = true;
     void (async () => {
+      // Admin read-only view: load the test from the server, never IndexedDB.
+      if (serverTestId) {
+        try {
+          const res = await fetch(`/api/tests/${serverTestId}`, { headers: { Accept: "application/json" } });
+          if (!res.ok) throw new Error(String(res.status));
+          const dto = (await res.json()) as ServerTestDto;
+          if (active) setTest(localTestFromServer(dto));
+        } catch {
+          if (active) setError("This test could not be loaded.");
+        }
+        return;
+      }
+
       let t = id ? await getTest(id) : undefined;
       if (!t) {
         t = newLocalTest(farmId, farmName);
@@ -133,14 +203,16 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     return () => {
       active = false;
     };
-  }, [id, farmId, farmName]);
+  }, [id, farmId, farmName, serverTestId]);
 
+  if (error) return <div class="card">{error}</div>;
   if (!test) return <div class="card">Loading test…</div>;
 
   const persist = async (patch: Partial<LocalTest>) => {
     const updated: LocalTest = { ...test, ...patch, updatedAt: new Date().toISOString() };
     setTest(updated);
-    await putTest(updated);
+    // Admin view mode is in-memory only — never write another tester's test into this device's store.
+    if (!serverTestId) await putTest(updated);
   };
   // Migrated legacy tests are read-only: navigation still persists (currentStep), but data edits
   // are no-ops so a historical record can't be altered on-device.
@@ -262,7 +334,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
           </p>
         </div>
         <div class="page-header__actions">
-          <a class="btn btn--danger-soft btn--sm" href="/App/Tests/Index">Exit</a>
+          <a class="btn btn--danger-soft btn--sm" href={serverTestId ? "/Admin/Tests" : "/App/Tests/Index"}>Exit</a>
         </div>
       </div>
 
@@ -274,8 +346,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
 
       {readonly && (
         <div class="alert alert--warning">
-          📄 <strong>Historical test (read-only)</strong> — migrated from the previous AutoRep system.
-          Pass/fail is shown as recorded at the time of testing.
+          📄 <strong>Read-only</strong> — this test can't be edited here. Pass/fail is shown as
+          recorded at the time of testing.
         </div>
       )}
 
