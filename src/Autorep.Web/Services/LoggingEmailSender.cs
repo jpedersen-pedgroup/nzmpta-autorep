@@ -13,9 +13,9 @@ public class LoggingEmailSender : IEmailSender
 
     public Task SendEmailAsync(string email, string subject, string htmlMessage)
     {
-        _logger.LogInformation(
-            "[EMAIL — not sent, logging only]\n  To:      {Email}\n  Subject: {Subject}\n  Body:\n{Body}",
-            email, subject, htmlMessage);
+        // Log only the recipient + subject — NEVER the body. Password-reset / 2FA bodies embed
+        // single-use token links, which must not be persisted to logs/App Insights.
+        _logger.LogInformation("[EMAIL — not sent, logging only] To: {Email}  Subject: {Subject}", email, subject);
         return Task.CompletedTask;
     }
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using Azure.Identity;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
@@ -10,6 +11,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load secrets from Azure Key Vault when a vault is configured (the Bicep injects
+// AzureKeyVault__VaultUri into App Service). Uses the App Service managed identity in Azure and the
+// developer's az-login locally. No-op when unset, so local dev keeps using user-secrets/appsettings.
+var keyVaultUri = builder.Configuration["AzureKeyVault:VaultUri"];
+if (!string.IsNullOrWhiteSpace(keyVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUri), new DefaultAzureCredential());
+}
 
 // HttpContextAccessor is needed by the AuditInterceptor to discover the
 // current user as the actor on audit entries.
@@ -57,14 +67,21 @@ builder.Services.ConfigureApplicationCookie(opts =>
     opts.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
-// Email sender: pick Graph if SendingMailbox configured, else log-only.
+// Email sender: Graph when a sending mailbox is configured; otherwise the log-only sender is
+// permitted ONLY in Development/Testing. In staging/prod a missing mailbox is a hard startup error
+// rather than silently falling back to a sender that would write password-reset links to the logs.
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Graph:SendingMailbox"]))
 {
     builder.Services.AddSingleton<IEmailSender, GraphEmailSender>();
 }
-else
+else if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+}
+else
+{
+    throw new InvalidOperationException(
+        "No email transport configured: set Graph:SendingMailbox (via Key Vault) outside Development.");
 }
 
 // JWT for the sync API (sits alongside cookie auth used by Razor Pages).
@@ -73,6 +90,16 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<RefreshTokenService>();
 
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
+
+// The signing key must come from configuration/Key Vault outside Development — never a
+// source-checked-in placeholder (which would let anyone mint valid bearer tokens). Fail fast.
+var allowDevJwt = builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing");
+if (!allowDevJwt && string.IsNullOrWhiteSpace(jwt.SigningKey))
+    throw new InvalidOperationException("Jwt:SigningKey must be supplied (e.g. via Key Vault) outside Development.");
+var jwtSigningKey = string.IsNullOrWhiteSpace(jwt.SigningKey)
+    ? "dev-only-insecure-signing-key-not-for-production-use!" // reachable only in Dev/Testing (guarded above)
+    : jwt.SigningKey;
+
 builder.Services.AddAuthentication()
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, opts =>
     {
@@ -86,9 +113,7 @@ builder.Services.AddAuthentication()
             ValidAudience = jwt.Audience,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = string.IsNullOrWhiteSpace(jwt.SigningKey)
-                ? new SymmetricSecurityKey(Encoding.UTF8.GetBytes("dev-only-placeholder-signing-key-please-override-32"))
-                : new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
             ClockSkew = TimeSpan.FromMinutes(1)
         };
     });

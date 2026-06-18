@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Autorep.Web.Data;
+using Autorep.Web.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -25,10 +27,30 @@ public class FarmsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
-        var f = await _db.Farms
+        // Scope to farms the caller has a legitimate relationship with, so a tester can't harvest
+        // every farmer's contact details by iterating ids. Super-Admins see any farm; everyone else
+        // sees only farms their Testing Company (or they themselves, if unaffiliated) has tested.
+        // Return NotFound for out-of-scope ids so their existence isn't disclosed.
+        var query = _db.Farms
             .Include(x => x.Region)
             .Include(x => x.MilkSupplyCompany)
-            .FirstOrDefaultAsync(x => x.Id == id, ct);
+            .Where(x => x.Id == id);
+
+        if (!User.IsInRole(Roles.SuperAdministrator))
+        {
+            var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var companyId = await _db.Users
+                .Where(u => u.Id == testerId)
+                .Select(u => u.TestingCompanyId)
+                .FirstOrDefaultAsync(ct);
+
+            query = companyId != null
+                ? query.Where(x => _db.MachineTests.Any(t => t.FarmId == x.Id
+                    && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId)))
+                : query.Where(x => _db.MachineTests.Any(t => t.FarmId == x.Id && t.TesterId == testerId));
+        }
+
+        var f = await query.FirstOrDefaultAsync(ct);
 
         if (f is null) return NotFound();
 

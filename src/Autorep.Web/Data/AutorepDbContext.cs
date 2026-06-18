@@ -28,8 +28,11 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
         builder.Entity<MachineTest>()
             .HasIndex(t => new { t.TesterId, t.CreatedAt });
 
+        // Unique per (Tester, ClientId) — not ClientId alone — so each tester owns an independent
+        // ClientId space: a tester can never collide with (or overwrite) another tester's test via
+        // a reused ClientId, and re-syncs upsert the caller's own row.
         builder.Entity<MachineTest>()
-            .HasIndex(t => t.ClientId)
+            .HasIndex(t => new { t.TesterId, t.ClientId })
             .IsUnique()
             .HasFilter("[ClientId] IS NOT NULL");
 
