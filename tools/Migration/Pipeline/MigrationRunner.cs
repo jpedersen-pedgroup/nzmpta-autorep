@@ -26,6 +26,8 @@ public sealed class MigrationRunner
     private static readonly Guid Ns = new("8b1d3e90-5c2a-4f7b-9a3e-2d6c1f0a4b77");
     private static readonly DateTimeOffset Epoch = new(2011, 7, 18, 0, 0, 0, TimeSpan.FromHours(12));
     private static readonly TimeZoneInfo NzTz = ResolveNzTz();
+    // Far-future lockout to carry a legacy account's deactivated state (mirrors the admin "deactivate").
+    private static readonly DateTimeOffset LockedOutForever = new(9999, 12, 31, 0, 0, 0, TimeSpan.Zero);
 
     private static readonly string[] SingleTables =
     {
@@ -206,9 +208,11 @@ public sealed class MigrationRunner
         {
             var uid = Row.Int(r, "ID")!.Value;
             var id = DeterministicGuid.Create(Ns, $"user:{uid}").ToString();
-            ids.User[uid] = id;
-            if (existingIds.Contains(id)) { skipped++; continue; }
+            if (existingIds.Contains(id)) { ids.User[uid] = id; skipped++; continue; }
 
+            // Quarantined users are NOT inserted, so they must NOT enter the id map — otherwise a
+            // test owned by one would resolve to a never-saved AspNetUsers id and fail the FK
+            // (instead of falling back to the synthetic unknown tester).
             var email = Row.Str(r, "Email", 256);
             if (email is null) { q.Add("Users", uid.ToString(), "Tester", "tester_email_missing"); continue; }
             var norm = email.ToUpperInvariant();
@@ -224,6 +228,15 @@ public sealed class MigrationRunner
             var licence = LicenceDate(Row.Date(r, "ExpiryDate"));
 
             var u = NewIdentityUser(id, email, Row.Str(r, "UserName") ?? email, companyId, licence, cert, phone, hasher);
+            // Preserve the legacy deactivated state: login + refresh enforce deactivation via
+            // LockoutEnd, so a migrated inactive account must carry it or it becomes usable after a reset.
+            if (!Row.Truthy(r, "IsActive"))
+            {
+                u.LockoutEnd = LockedOutForever;
+                q.Add("Users", uid.ToString(), "Tester", "tester_was_inactive_lockedout", "info");
+            }
+
+            ids.User[uid] = id; // map only users actually inserted (existing users were mapped above)
             addUsers.Add(u);
             migrated++;
 
@@ -234,7 +247,6 @@ public sealed class MigrationRunner
                 _ => Roles.Tester,
             };
             addRoles.Add(new IdentityUserRole<string> { UserId = id, RoleId = roleMap[role] });
-            if (!Row.Truthy(r, "IsActive")) q.Add("Users", uid.ToString(), "Tester", "tester_was_inactive", "info");
         }
 
         ctx.Users.AddRange(addUsers);
@@ -291,8 +303,17 @@ public sealed class MigrationRunner
     private List<LogicalTest> BuildLogicalTests(SqlConnection src, Quarantine q)
     {
         var headers = Db.Query(src,
-            "SELECT [GUID],[IDNUMBER],[TestNo],[TestDate],[SynDate],[UserID],[CompanyID],[TestType],[TesterName],[RegNo],[ExpiryDate],[TEmail],[TPhone] " +
-            "FROM dbo.Tests WHERE ISNULL(IsDelete,0) = 0");
+            "SELECT [GUID],[IDNUMBER],[TestNo],[TestDate],[SynDate],[UserID],[CompanyID],[TestType],[TesterName],[RegNo],[ExpiryDate],[TEmail],[TPhone],[IsDelete] " +
+            "FROM dbo.Tests");
+
+        // Soft-deleted tests are excluded by decision, but recorded in the data-quality output so the
+        // audit accounts for every source row (rather than dropping them silently in the SQL filter).
+        foreach (var h in headers.Where(h => Row.Truthy(h, "IsDelete")))
+        {
+            var key = h["GUID"] is Guid g ? g.ToString() : Row.Str(h, "IDNUMBER") ?? "?";
+            q.Add("Tests", key, "MachineTest", "softdelete_excluded", "info");
+        }
+        var active = headers.Where(h => !Row.Truthy(h, "IsDelete")).ToList();
 
         var tdfi = new Dictionary<Guid, Dictionary<string, object?>>();
         foreach (var r in Db.Query(src, "SELECT * FROM dbo.TestDairyFarmInfo"))
@@ -302,7 +323,7 @@ public sealed class MigrationRunner
         }
 
         var logicals = new List<LogicalTest>();
-        foreach (var byGuid in headers.Where(h => h["GUID"] is Guid).GroupBy(h => (Guid)h["GUID"]!))
+        foreach (var byGuid in active.Where(h => h["GUID"] is Guid).GroupBy(h => (Guid)h["GUID"]!))
         {
             var subs = byGuid.GroupBy(h => (Row.Str(h, "TestNo") ?? "").ToUpperInvariant()).ToList();
             if (subs.Count > 1) q.Add("Tests", byGuid.Key.ToString(), "MachineTest", "dup_guid_distinct_tests_split", "info");
@@ -412,7 +433,13 @@ public sealed class MigrationRunner
     {
         if (t is null) return null;
         var supply = Row.Str(t, "SupplyNumber");
-        if (supply is not null) return "S:" + supply.ToUpperInvariant();
+        if (supply is not null)
+        {
+            // Supply numbers are unique only WITHIN a dairy company, so two farms supplying different
+            // processors can share one — key on (company, supply) to avoid merging them into one Farm.
+            var company = Row.Str(t, "DairyCompany") ?? Row.Int(t, "DairyCompanyID")?.ToString() ?? "";
+            return $"S:{company.ToUpperInvariant()}|{supply.ToUpperInvariant()}";
+        }
         var owner = Row.Str(t, "FarmOwner");
         var loc = Row.Str(t, "FarmLocation");
         if (owner is not null || loc is not null) return $"O:{owner?.ToUpperInvariant()}|{loc?.ToUpperInvariant()}";
