@@ -6,8 +6,10 @@
 // from the *O code — never recomputed (legacy thresholds differ subtly: atmospheric correction,
 // cleaning-reserve governing, tester overrides). See the rating-code decode below.
 //
-// This module covers the numerical readings (ISO groups 1–15). Visual faults and the per-unit
-// pulsator/cluster row tables are adapted separately (follow-up increments).
+// This module covers the numerical readings (ISO groups 1–15), recommendations, recorded visual
+// faults, and individual-cluster rows. Per-pulsator rows are deferred (legacy channel + phase-unit
+// semantics need confirmation before they can be mapped without mislabeling).
+import type { MeasurementRow } from "../db/testStore";
 
 export type LegacyVerdict = "pass" | "fail";
 
@@ -137,6 +139,8 @@ export interface AdaptedReadings {
   recordedRecommendations: { label: string; text: string }[];
   /** Visual-fault observation texts as recorded (the *O text where the *E verdict = fault). */
   recordedVisualFaults: string[];
+  /** Per-cluster rows (ISO 13) as recorded — total air / leakage / air-vent per unit. */
+  clusterRows: MeasurementRow[];
 }
 
 /** Parse a legacy *E value (a string) to a number; returns null for blank / non-numeric. */
@@ -167,7 +171,7 @@ function text(v: unknown): string | null {
 export function adaptLegacyReadings(payload: Record<string, unknown> | null | undefined): AdaptedReadings {
   const readings: Record<string, number> = {};
   const verdicts: Record<string, LegacyVerdict> = {};
-  if (!payload) return { readings, verdicts, recordedRecommendations: [], recordedVisualFaults: [] };
+  if (!payload) return { readings, verdicts, recordedRecommendations: [], recordedVisualFaults: [], clusterRows: [] };
 
   for (const m of READING_MAP) {
     const section = payload[m.src] as Record<string, unknown> | undefined;
@@ -209,5 +213,26 @@ export function adaptLegacyReadings(payload: Record<string, unknown> | null | un
     }
   }
 
-  return { readings, verdicts, comment: commentStr, recordedRecommendations, recordedVisualFaults: [...faultSet] };
+  // Individual-cluster rows (ISO 13): one row per UnitNo with total air / leakage / air-vent.
+  const clusterRows: MeasurementRow[] = [];
+  const clusterAirflow = payload.clusterAirflow;
+  if (Array.isArray(clusterAirflow)) {
+    clusterAirflow.forEach((row, i) => {
+      const r = row as Record<string, unknown>;
+      const values: Record<string, string> = {};
+      const total = num(r.TotalAirAdmission);
+      const leak = num(r.LeakageCluster);
+      const vent = num(r.AirVentAdmission);
+      if (total !== null) values.totalAirAdmission = String(total);
+      if (leak !== null) values.leakage = String(leak);
+      if (vent !== null) values.airVent = String(vent);
+      if (Object.keys(values).length === 0) return;
+      clusterRows.push({ id: `legacy-cluster-${i}`, unit: text(r.UnitNo) ?? String(i + 1), values });
+    });
+  }
+
+  return {
+    readings, verdicts, comment: commentStr, recordedRecommendations,
+    recordedVisualFaults: [...faultSet], clusterRows,
+  };
 }

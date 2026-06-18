@@ -20,9 +20,11 @@ interface Props {
   unitLabel: string;
   /** Count to seed when "Enter all" is used (e.g. pulsator / cluster count). */
   suggestedCount?: number;
+  /** Read-only (migrated/historical test): no editing, no add/remove controls. */
+  readonly?: boolean;
 }
 
-export function RowTable({ columns, rows, onChange, unitLabel, suggestedCount }: Props) {
+export function RowTable({ columns, rows, onChange, unitLabel, suggestedCount, readonly }: Props) {
   const addRow = () =>
     onChange([...rows, { id: crypto.randomUUID(), unit: String(rows.length + 1), values: {} }]);
 
@@ -41,24 +43,26 @@ export function RowTable({ columns, rows, onChange, unitLabel, suggestedCount }:
 
   return (
     <div>
-      <div class="rowtable-actions">
-        <button class="btn btn--secondary btn--sm" onClick={addRow}>
-          ＋ Add {unitLabel.toLowerCase()}
-        </button>
-        {suggestedCount ? (
-          <button class="btn btn--secondary btn--sm" onClick={fillAll}>
-            Enter all ({suggestedCount})
+      {!readonly && (
+        <div class="rowtable-actions">
+          <button class="btn btn--secondary btn--sm" onClick={addRow}>
+            ＋ Add {unitLabel.toLowerCase()}
           </button>
-        ) : null}
-        {rows.length > 0 ? (
-          <button class="btn btn--secondary btn--sm" onClick={() => onChange([])}>
-            Clear
-          </button>
-        ) : null}
-      </div>
+          {suggestedCount ? (
+            <button class="btn btn--secondary btn--sm" onClick={fillAll}>
+              Enter all ({suggestedCount})
+            </button>
+          ) : null}
+          {rows.length > 0 ? (
+            <button class="btn btn--secondary btn--sm" onClick={() => onChange([])}>
+              Clear
+            </button>
+          ) : null}
+        </div>
+      )}
       {rows.length === 0 ? (
         <p class="td-muted" style="margin-top:var(--space-2)">
-          No {unitLabel.toLowerCase()} rows yet — add faulty units only, or “Enter all”.
+          {readonly ? `No ${unitLabel.toLowerCase()} rows were recorded.` : `No ${unitLabel.toLowerCase()} rows yet — add faulty units only, or “Enter all”.`}
         </p>
       ) : (
         <div class="rowtable-wrap">
@@ -72,7 +76,7 @@ export function RowTable({ columns, rows, onChange, unitLabel, suggestedCount }:
                     {c.unit ? ` (${c.unit})` : ""}
                   </th>
                 ))}
-                <th aria-label="remove"></th>
+                {!readonly && <th aria-label="remove"></th>}
               </tr>
             </thead>
             <tbody>
@@ -82,7 +86,11 @@ export function RowTable({ columns, rows, onChange, unitLabel, suggestedCount }:
                     <input
                       class="rowtable__unit"
                       value={r.unit}
-                      onInput={(e) => setUnit(r.id, (e.currentTarget as HTMLInputElement).value)}
+                      disabled={readonly}
+                      onInput={(e) => {
+                        if (readonly) return;
+                        setUnit(r.id, (e.currentTarget as HTMLInputElement).value);
+                      }}
                     />
                   </td>
                   {columns.map((c) => {
@@ -95,16 +103,22 @@ export function RowTable({ columns, rows, onChange, unitLabel, suggestedCount }:
                           type="number"
                           class={failed ? "is-fail" : undefined}
                           value={raw}
-                          onInput={(e) => setCell(r.id, c.key, (e.currentTarget as HTMLInputElement).value)}
+                          disabled={readonly}
+                          onInput={(e) => {
+                            if (readonly) return;
+                            setCell(r.id, c.key, (e.currentTarget as HTMLInputElement).value);
+                          }}
                         />
                       </td>
                     );
                   })}
-                  <td>
-                    <button class="rowtable__del" title="Remove" onClick={() => removeRow(r.id)}>
-                      ×
-                    </button>
-                  </td>
+                  {!readonly && (
+                    <td>
+                      <button class="rowtable__del" title="Remove" onClick={() => removeRow(r.id)}>
+                        ×
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

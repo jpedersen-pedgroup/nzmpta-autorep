@@ -9,6 +9,7 @@ import { pulsatorSections } from "../passfail/standards";
 import { ruleFor } from "../passfail/standardsOverrides";
 import type { MachineConfiguration } from "./types";
 import type { MeasurementRow } from "../db/testStore";
+import type { PassFailVerdict } from "../passfail/passFail";
 
 // Built inside the component so the synced standard overrides are in effect.
 function columnsFor(limpMax: number): RowColumn[] {
@@ -59,9 +60,11 @@ interface Props {
   onRows: (rows: MeasurementRow[]) => void;
   readings: Record<string, number>;
   onSetReading: (key: string, value: number | null) => void;
+  readonly?: boolean;
+  storedVerdicts?: Record<string, PassFailVerdict>;
 }
 
-export function PulsatorStep({ config, rows, onRows, readings, onSetReading }: Props) {
+export function PulsatorStep({ config, rows, onRows, readings, onSetReading, readonly, storedVerdicts }: Props) {
   const s = pulsatorSummary(rows);
   const limits = pulsationLimits();
   return (
@@ -79,6 +82,7 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading }: P
           onChange={onRows}
           unitLabel="Pulsator"
           suggestedCount={config.pulsatorCount || undefined}
+          readonly={readonly}
         />
         {rows.length > 0 && (
           <div class="puls-summary">
@@ -115,6 +119,8 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading }: P
         sections={pulsatorSections(config, readings)}
         readings={readings}
         onSetReading={onSetReading}
+        readonly={readonly}
+        storedVerdicts={storedVerdicts}
       />
     </>
   );

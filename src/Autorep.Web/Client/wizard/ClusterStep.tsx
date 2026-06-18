@@ -25,9 +25,10 @@ interface Props {
   config: MachineConfiguration;
   rows: MeasurementRow[];
   onRows: (rows: MeasurementRow[]) => void;
+  readonly?: boolean;
 }
 
-export function ClusterStep({ config, rows, onRows }: Props) {
+export function ClusterStep({ config, rows, onRows, readonly }: Props) {
   return (
     <div class="card">
       <div class="card__title">
@@ -42,6 +43,7 @@ export function ClusterStep({ config, rows, onRows }: Props) {
         onChange={onRows}
         unitLabel="Cluster"
         suggestedCount={config.clusterCount || undefined}
+        readonly={readonly}
       />
     </div>
   );

@@ -81,6 +81,29 @@ describe("adaptLegacyReadings", () => {
     expect(min.comment).toBeUndefined();
     expect(min.recordedRecommendations).toEqual([]);
     expect(min.recordedVisualFaults).toEqual([]);
+    expect(min.clusterRows).toEqual([]);
+  });
+});
+
+describe("adaptLegacyReadings — individual cluster rows", () => {
+  const out = adaptLegacyReadings({
+    legacy: {},
+    clusterAirflow: [
+      { UnitNo: "1", TotalAirAdmission: 9, CheckStatus1: 2, LeakageCluster: 1, CheckStatus2: 2, AirVentAdmission: 6, CheckStatus3: 2 },
+      { UnitNo: "2", TotalAirAdmission: 14, CheckStatus1: 3, LeakageCluster: 3, CheckStatus2: 3, AirVentAdmission: 5, CheckStatus3: 2 },
+      { UnitNo: "3" }, // no readings — skipped
+    ],
+  });
+
+  it("maps each populated cluster unit to a row keyed by the wizard's columns", () => {
+    expect(out.clusterRows).toHaveLength(2);
+    expect(out.clusterRows[0]).toEqual({
+      id: "legacy-cluster-0",
+      unit: "1",
+      values: { totalAirAdmission: "9", leakage: "1", airVent: "6" },
+    });
+    expect(out.clusterRows[1].unit).toBe("2");
+    expect(out.clusterRows[1].values).toEqual({ totalAirAdmission: "14", leakage: "3", airVent: "5" });
   });
 });
 

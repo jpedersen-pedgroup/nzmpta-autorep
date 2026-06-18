@@ -69,6 +69,7 @@ async function pullTests(): Promise<number> {
             verdicts: adapted.verdicts,
             recordedRecommendations: adapted.recordedRecommendations,
             recordedVisualFaults: adapted.recordedVisualFaults,
+            clusterRows: adapted.clusterRows,
             recommendations: {},
             dataFields: {},
             notes: adapted.comment,

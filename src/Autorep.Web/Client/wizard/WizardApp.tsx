@@ -80,6 +80,7 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
         base.notes = adapted.comment;
         base.recordedRecommendations = adapted.recordedRecommendations;
         base.recordedVisualFaults = adapted.recordedVisualFaults;
+        base.clusterRows = adapted.clusterRows;
       } else {
         Object.assign(base, parsed as Partial<LocalTest>);
       }
@@ -480,6 +481,8 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
               onRows={(rows) => void persistEdit({ pulsatorRows: rows })}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
+              readonly={readonly}
+              storedVerdicts={test.verdicts}
             />
           )}
 
@@ -488,6 +491,7 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
               config={test.config}
               rows={test.clusterRows ?? []}
               onRows={(rows) => void persistEdit({ clusterRows: rows })}
+              readonly={readonly}
             />
           )}
 
