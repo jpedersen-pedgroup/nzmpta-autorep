@@ -142,33 +142,37 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     setTest(updated);
     await putTest(updated);
   };
+  // Migrated legacy tests are read-only: navigation still persists (currentStep), but data edits
+  // are no-ops so a historical record can't be altered on-device.
+  const readonly = test.readonly ?? false;
+  const persistEdit = (patch: Partial<LocalTest>) => (readonly ? Promise.resolve() : persist(patch));
   const setConfig = (patch: Partial<MachineConfiguration>) =>
-    persist({ config: { ...test.config, ...patch } });
+    persistEdit({ config: { ...test.config, ...patch } });
   const go = (step: WizardStep) => persist({ currentStep: step });
 
   const setVisualFault = (key: string, entry: VisualFaultEntry | null) => {
     const visualFaults = { ...test.visualFaults };
     if (entry) visualFaults[key] = entry;
     else delete visualFaults[key];
-    return persist({ visualFaults });
+    return persistEdit({ visualFaults });
   };
   const setReading = (key: string, value: number | null) => {
     const readings = { ...test.readings };
     if (value === null || Number.isNaN(value)) delete readings[key];
     else readings[key] = value;
-    return persist({ readings });
+    return persistEdit({ readings });
   };
   const setRecommendation = (key: string, value: string) => {
     const recommendations = { ...test.recommendations };
     if (value.trim() === "") delete recommendations[key];
     else recommendations[key] = value;
-    return persist({ recommendations });
+    return persistEdit({ recommendations });
   };
   const setDataField = (key: string, value: string) => {
     const dataFields = { ...(test.dataFields ?? {}) };
     if (value.trim() === "") delete dataFields[key];
     else dataFields[key] = value;
-    return persist({ dataFields });
+    return persistEdit({ dataFields });
   };
   const checkAllSection = (step: WizardStep, section: ChecklistSection) => {
     const attestation: ChecklistAttestation = {
@@ -177,7 +181,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
       attestedAt: new Date().toISOString(),
       text: ATTESTATION_TEXT,
     };
-    return persist({
+    return persistEdit({
       visualFaults: applyCheckAll([section], test.visualFaults),
       attestations: [...test.attestations, attestation],
     });
@@ -196,6 +200,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     }
   };
   const attachPulsationPdf = async (file: File) => {
+    if (readonly) return;
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
     if (!isPdf) {
       showToast("Only PDF files can be attached here.", "error");
@@ -219,6 +224,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
   };
 
   const markComplete = async () => {
+    if (readonly) return;
     const now = new Date().toISOString();
     await persist({
       markedCompleteAt: now,
@@ -263,6 +269,13 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
       {plan.isShortTest && (
         <div class="alert alert--warning">
           ⚠️ <strong>Short test</strong> — ISO ports unavailable, so only the essential tests are required.
+        </div>
+      )}
+
+      {readonly && (
+        <div class="alert alert--warning">
+          📄 <strong>Historical test (read-only)</strong> — migrated from the previous AutoRep system.
+          Pass/fail is shown as recorded at the time of testing.
         </div>
       )}
 
@@ -316,9 +329,9 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
                 <small class="card__hint">Your test equipment — air-flow meters, pulsator testers, vacuum gauges.</small>
               </div>
               <div class="form-grid">
-                {calDateField("Air-flow meters", test.calAirFlowMeters, (v) => void persist({ calAirFlowMeters: v }))}
-                {calDateField("Pulsator testers", test.calPulsatorTesters, (v) => void persist({ calPulsatorTesters: v }))}
-                {calDateField("Vacuum gauges", test.calVacuumGauges, (v) => void persist({ calVacuumGauges: v }))}
+                {calDateField("Air-flow meters", test.calAirFlowMeters, (v) => void persistEdit({ calAirFlowMeters: v }))}
+                {calDateField("Pulsator testers", test.calPulsatorTesters, (v) => void persistEdit({ calPulsatorTesters: v }))}
+                {calDateField("Vacuum gauges", test.calVacuumGauges, (v) => void persistEdit({ calVacuumGauges: v }))}
               </div>
             </div>
           )}
@@ -367,6 +380,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               sections={testRecordSections(test.config, test.readings)}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
+              readonly={readonly}
+              storedVerdicts={test.verdicts}
             />
           )}
 
@@ -377,6 +392,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               sections={additionalTestSections(test.config, test.readings)}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
+              readonly={readonly}
+              storedVerdicts={test.verdicts}
             />
           )}
 
@@ -384,7 +401,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             <PulsatorStep
               config={test.config}
               rows={test.pulsatorRows ?? []}
-              onRows={(rows) => void persist({ pulsatorRows: rows })}
+              onRows={(rows) => void persistEdit({ pulsatorRows: rows })}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
             />
@@ -394,7 +411,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             <ClusterStep
               config={test.config}
               rows={test.clusterRows ?? []}
-              onRows={(rows) => void persist({ clusterRows: rows })}
+              onRows={(rows) => void persistEdit({ clusterRows: rows })}
             />
           )}
 
@@ -418,7 +435,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
                   .finally(() => setGenerating(false));
               }}
               onAttachPdf={(file) => void attachPulsationPdf(file)}
-              onRemovePdf={() => void persist({ pulsationPdf: null, syncState: "local-only" })}
+              onRemovePdf={() => void persistEdit({ pulsationPdf: null, syncState: "local-only" })}
             />
           )}
 

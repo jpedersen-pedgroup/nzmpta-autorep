@@ -82,6 +82,11 @@ export interface LocalTest {
   /** True once the test has ever reached the server (syncState alone can't tell — it flips back
    * to "local-only" as a dirty marker). Tests that exist on the server can't be deleted locally. */
   everUploaded?: boolean;
+  /** As-recorded pass/fail per reading key, for MIGRATED legacy tests — shown on the read-only
+   * view instead of recomputing (the original verdict at test time). */
+  verdicts?: Record<string, "pass" | "fail">;
+  /** Migrated legacy test: rendered read-only (a historical record, not editable). */
+  readonly?: boolean;
 }
 
 /** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */

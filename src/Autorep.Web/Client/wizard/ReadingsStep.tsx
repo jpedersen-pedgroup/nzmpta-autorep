@@ -1,6 +1,6 @@
 // Reusable numerical-readings step (Test Record, Additional Tests, Pulsator, Individual Cluster).
 // Sections become tabs; each reading shows a live pass/fail verdict from the Pass/Fail Calculator.
-import { evaluate } from "../passfail/passFail";
+import { evaluate, type PassFailVerdict } from "../passfail/passFail";
 import type { ReadingDef, ReadingSection } from "../passfail/standards";
 import { Tabs } from "../ui/Tabs";
 
@@ -8,12 +8,17 @@ function ReadingRow({
   reading,
   value,
   onSet,
+  readonly,
+  storedVerdict,
 }: {
   reading: ReadingDef;
   value: number | undefined;
   onSet: (key: string, value: number | null) => void;
+  readonly?: boolean;
+  storedVerdict?: PassFailVerdict;
 }) {
-  const verdict = evaluate(value ?? null, reading.rule);
+  // Read-only (migrated) tests show the as-recorded verdict; live tests recompute against the standard.
+  const verdict = storedVerdict ?? evaluate(value ?? null, reading.rule);
   const label = verdict === "pass" ? "PASS" : verdict === "fail" ? "FAIL" : "—";
 
   return (
@@ -26,7 +31,9 @@ function ReadingRow({
         type="number"
         step="any"
         value={value ?? ""}
+        disabled={readonly}
         onInput={(e) => {
+          if (readonly) return;
           const raw = (e.currentTarget as HTMLInputElement).value;
           onSet(reading.key, raw === "" ? null : Number(raw));
         }}
@@ -43,9 +50,12 @@ interface Props {
   sections: ReadingSection[];
   readings: Record<string, number>;
   onSetReading: (key: string, value: number | null) => void;
+  readonly?: boolean;
+  /** As-recorded verdicts per reading key (migrated tests) — overrides live evaluation. */
+  storedVerdicts?: Record<string, PassFailVerdict>;
 }
 
-export function ReadingsStep({ title, hint, sections, readings, onSetReading }: Props) {
+export function ReadingsStep({ title, hint, sections, readings, onSetReading, readonly, storedVerdicts }: Props) {
   if (sections.length === 0) {
     return (
       <div class="card">
@@ -61,7 +71,14 @@ export function ReadingsStep({ title, hint, sections, readings, onSetReading }: 
     content: (
       <div>
         {sec.readings.map((r) => (
-          <ReadingRow key={r.key} reading={r} value={readings[r.key]} onSet={onSetReading} />
+          <ReadingRow
+            key={r.key}
+            reading={r}
+            value={readings[r.key]}
+            onSet={onSetReading}
+            readonly={readonly}
+            storedVerdict={storedVerdicts?.[r.key]}
+          />
         ))}
       </div>
     ),
