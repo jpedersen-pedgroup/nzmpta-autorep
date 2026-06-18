@@ -76,6 +76,10 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
         builder.Entity<Tester>()
             .HasIndex(u => u.TestingCompanyId);
 
+        builder.Entity<Tester>()
+            .Property(u => u.CertificateNo)
+            .HasMaxLength(50);
+
         builder.Entity<Farm>(farm =>
         {
             farm.Property(f => f.Name).HasMaxLength(200).IsRequired();
@@ -170,6 +174,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             company.Property(c => c.PostCode).HasMaxLength(10);
             company.Property(c => c.Phone).HasMaxLength(50);
             company.Property(c => c.Email).HasMaxLength(256);
+            company.Property(c => c.LogoContentType).HasMaxLength(100);
         });
     }
 }

@@ -21,4 +21,8 @@ public class Tester : IdentityUser
     // back to false after the reset. The Migration Tool (Phase 11) sets this
     // true on every migrated row so legacy passwords are never trusted.
     public bool ForcedPasswordResetRequired { get; set; }
+
+    // Tester accreditation / certificate number (legacy Users.CertificateNo),
+    // shown on the report sign-off block. Migrated from the legacy system.
+    public string? CertificateNo { get; set; }
 }
