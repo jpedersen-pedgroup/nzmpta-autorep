@@ -56,6 +56,27 @@ describe("buildTestSummaryDoc", () => {
     expect(JSON.stringify(doc.content)).toContain("No faults recorded");
   });
 
+  it("reprints a migrated test as-recorded (stored verdicts + recorded faults/recs, no recomputed visual section)", () => {
+    const base = sampleTest();
+    const t: LocalTest = {
+      ...base,
+      visualFaults: {},
+      pulsatorRows: undefined,
+      readings: { "tr.workingVacuum": 48 }, // 48 ≤ 50 would PASS on recompute…
+      verdicts: { "tr.workingVacuum": "fail" }, // …but it was recorded as FAIL
+      recordedRecommendations: [{ label: "Visual faults", text: "Replaced V-belts and cleaned filters." }],
+      recordedVisualFaults: ["Vee Belts Require Replacement"],
+      readonly: true,
+    };
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Replaced V-belts and cleaned filters."); // recorded recommendation
+    expect(json).toContain("Vee Belts Require Replacement"); // recorded fault
+    expect(json).toContain("Recorded faults");
+    expect(json).not.toContain("Visual checks"); // recomputed visual section omitted for migrated
+    expect(json).toContain("FAIL"); // the as-recorded verdict is honoured
+    expect(json).not.toContain("PASS"); // a recompute would have said PASS — proves as-recorded
+  });
+
   it("notes the appended pulsation PDF when one is attached", () => {
     const t = sampleTest();
     t.pulsationPdf = { name: "analyser-export.pdf", base64: "JVBERi0=", size: 1234, attachedAt: t.updatedAt };
