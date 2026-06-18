@@ -25,7 +25,9 @@ function ReadingRow({
     <div class="reading">
       <div class="reading__label">
         {reading.label}
-        {reading.hint && <span class="reading__hint">{reading.hint}</span>}
+        {/* Hints are recomputed against today's standards/config — hide them in read-only
+            (historical) mode where the badge already shows the as-recorded verdict. */}
+        {!readonly && reading.hint && <span class="reading__hint">{reading.hint}</span>}
       </div>
       <input
         type="number"
