@@ -1,0 +1,57 @@
+@page
+@model Autorep.Web.Pages.Account.AcceptTermsModel
+@{
+    ViewData["Title"] = "Accept terms";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Accept terms · NZMPTA AutoRep</title>
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <link rel="icon" href="~/icons/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="auth-layout">
+    <div class="auth-card">
+        <div class="auth-card__logo"><span class="auth-card__logo-mark">AR</span></div>
+        @if (Model.Success)
+        {
+            <h1 class="auth-card__title">Terms accepted</h1>
+            <p class="auth-card__subtitle">Thanks — you can now sign in.</p>
+            <a class="btn btn--full" asp-page="/Account/Login">Sign in</a>
+        }
+        else if (string.IsNullOrEmpty(Model.Input.Token))
+        {
+            <h1 class="auth-card__title">Link expired</h1>
+            <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+            <a class="btn btn--full" asp-page="/Account/Login">Back to sign in</a>
+        }
+        else
+        {
+            <h1 class="auth-card__title">Terms of Use</h1>
+            <p class="auth-card__subtitle">Please review and accept to continue (version @Model.TermsVersion).</p>
+            <div class="terms-body">@Model.TermsBody</div>
+            <form method="post">
+                <input type="hidden" asp-for="Input.Email" />
+                <input type="hidden" asp-for="Input.Token" />
+                <input type="hidden" asp-for="Input.ReturnUrl" />
+                <label class="terms-agree">
+                    <input type="checkbox" asp-for="Input.Agree" />
+                    <span>I have read and accept the Terms of Use.</span>
+                </label>
+                @if (Model.Errors.Any())
+                {
+                    <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+                }
+                <button type="submit" class="btn btn--full">Accept &amp; continue</button>
+            </form>
+        }
+    </div>
+</body>
+</html>

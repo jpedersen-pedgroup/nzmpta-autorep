@@ -140,6 +140,7 @@ builder.Services.AddRazorPages(opts =>
     opts.Conventions.AuthorizeFolder("/Admin/Standards", "SuperAdminOnly");
     opts.Conventions.AuthorizeFolder("/Admin/Equipment", "SuperAdminOnly");
     opts.Conventions.AuthorizeFolder("/Admin/FaultObservations", "SuperAdminOnly");
+    opts.Conventions.AuthorizeFolder("/Admin/Privacy", "SuperAdminOnly");
 });
 
 builder.Services.AddControllers();

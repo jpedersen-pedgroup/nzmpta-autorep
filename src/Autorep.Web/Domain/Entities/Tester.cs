@@ -25,4 +25,11 @@ public class Tester : IdentityUser
     // Tester accreditation / certificate number (legacy Users.CertificateNo),
     // shown on the report sign-off block. Migrated from the legacy system.
     public string? CertificateNo { get; set; }
+
+    // Terms of Use acceptance. The login gate requires (re-)acceptance when the accepted version
+    // differs from the current PrivacyContent.TermsVersion, OR when the licence has been renewed
+    // since acceptance (TermsAcceptedLicenceExpiry != LicenceExpiryDate).
+    public string? TermsAcceptedVersion { get; set; }
+    public DateTimeOffset? TermsAcceptedAt { get; set; }
+    public DateOnly? TermsAcceptedLicenceExpiry { get; set; }
 }

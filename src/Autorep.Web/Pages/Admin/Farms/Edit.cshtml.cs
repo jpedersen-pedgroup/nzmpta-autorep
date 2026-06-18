@@ -29,6 +29,7 @@ public class EditModel : PageModel
     public SelectList MilkCompanyOptions { get; private set; } = default!;
     public List<string> Errors { get; } = new();
     public string? Message { get; set; }
+    public string CollectionNotice { get; private set; } = "";
 
     public class InputModel
     {
@@ -136,6 +137,8 @@ public class EditModel : PageModel
         FarmName = farm.Name;
         UpdatedAt = farm.UpdatedAt;
         TestCount = await _db.MachineTests.CountAsync(t => t.FarmId == farm.Id);
+        CollectionNotice = await _db.PrivacyContent.OrderByDescending(p => p.UpdatedAt)
+            .Select(p => p.CollectionNotice).FirstOrDefaultAsync() ?? "";
         // Include the farm's current region even if it's since been deactivated, so an
         // unrelated edit doesn't silently drop the existing association.
         var regions = await _db.Regions.Where(r => r.IsActive || r.Id == Input.RegionId)

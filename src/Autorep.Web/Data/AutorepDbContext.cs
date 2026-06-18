@@ -20,6 +20,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<TestStandard> TestStandards => Set<TestStandard>();
     public DbSet<EquipmentItem> EquipmentItems => Set<EquipmentItem>();
     public DbSet<FaultObservation> FaultObservations => Set<FaultObservation>();
+    public DbSet<PrivacyContent> PrivacyContent => Set<PrivacyContent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -82,6 +83,20 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
         builder.Entity<Tester>()
             .Property(u => u.CertificateNo)
             .HasMaxLength(50);
+
+        builder.Entity<Tester>()
+            .Property(u => u.TermsAcceptedVersion)
+            .HasMaxLength(50);
+
+        builder.Entity<PrivacyContent>(pc =>
+        {
+            pc.Property(p => p.TermsVersion).HasMaxLength(50);
+            pc.Property(p => p.TermsBody).HasMaxLength(8000);
+            pc.Property(p => p.CollectionNotice).HasMaxLength(2000);
+            pc.Property(p => p.ReportFooterText).HasMaxLength(600);
+            pc.Property(p => p.PrivacyContactEmail).HasMaxLength(256);
+            pc.Property(p => p.PrivacyStatementUrl).HasMaxLength(500);
+        });
 
         builder.Entity<Farm>(farm =>
         {

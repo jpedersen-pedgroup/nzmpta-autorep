@@ -9,6 +9,7 @@ import { evaluate, type PassFailRule } from "../passfail/passFail";
 import { preStartSections, runningSectionsFor } from "../wizard/visualChecklist";
 import { resolveWizard } from "../wizard/wizardStepResolver";
 import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
+import { getPrivacyContent } from "../config/privacyContent";
 
 const BRAND = "#0a2540";
 const MUTED = "#64748b";
@@ -232,12 +233,22 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
     pageSize: "A4",
     pageMargins: [40, 48, 40, 48],
     info: { title: `Test Summary — ${farm?.name ?? test.farmName}` },
-    footer: (page, pages) => ({
-      columns: [
-        { text: `AutoRep · generated ${new Date().toLocaleString("en-NZ")}`, fontSize: 7, color: MUTED, margin: [40, 0, 0, 0] },
-        { text: `${page} / ${pages}`, alignment: "right", fontSize: 7, color: MUTED, margin: [0, 0, 40, 0] },
-      ],
-    }),
+    footer: (page, pages) => {
+      const privacyFooter = getPrivacyContent().reportFooterText;
+      return {
+        stack: [
+          {
+            columns: [
+              { text: `AutoRep · generated ${new Date().toLocaleString("en-NZ")}`, fontSize: 7, color: MUTED, margin: [40, 0, 0, 0] },
+              { text: `${page} / ${pages}`, alignment: "right", fontSize: 7, color: MUTED, margin: [0, 0, 40, 0] },
+            ],
+          },
+          ...(privacyFooter
+            ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [40, 2, 40, 0] } as Content]
+            : []),
+        ],
+      };
+    },
     content: [
       { text: "Milking Machine Test Summary", fontSize: 16, bold: true, color: BRAND },
       { text: "NZMPTA AutoRep", fontSize: 9, color: MUTED, margin: [0, 0, 0, 10] },

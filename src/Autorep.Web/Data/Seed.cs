@@ -7,6 +7,10 @@ namespace Autorep.Web.Data;
 
 public static class Seed
 {
+    /// <summary>Terms version used to seed PrivacyContent and to pre-accept dev users. The live
+    /// current version is the editable PrivacyContent.TermsVersion in the DB.</summary>
+    public const string DefaultTermsVersion = "2026-05-01";
+
     // Ensures the three application roles exist. Safe to call repeatedly.
     public static async Task RolesAsync(IServiceProvider services)
     {
@@ -76,6 +80,35 @@ public static class Seed
         await TestStandardsAsync(db);
         await EquipmentAsync(db);
         await FaultObservationsAsync(db);
+        await PrivacyContentAsync(db);
+    }
+
+    // Seeds the single PrivacyContent row with DRAFT wording (NZMPTA/legal finalise it in the admin
+    // portal). Seed-only-when-empty so admin edits are never overwritten on restart.
+    private static async Task PrivacyContentAsync(AutorepDbContext db)
+    {
+        if (await db.PrivacyContent.AnyAsync()) return;
+        db.PrivacyContent.Add(new PrivacyContent
+        {
+            TermsVersion = DefaultTermsVersion,
+            TermsBody =
+                "By using AutoRep you agree to: (1) carry out milking-machine tests in accordance with "
+                + "NZMPTA standards; (2) handle the farm and farmer personal information you collect only for "
+                + "testing, reporting and compliance, keep it secure, and not use or disclose it for any other "
+                + "purpose; and (3) keep your login credentials confidential. "
+                + "[DRAFT wording — NZMPTA to finalise.]",
+            CollectionNotice =
+                "The farm and farmer contact details entered here are collected by your testing company and "
+                + "NZMPTA to perform and report this milking-machine test and for compliance records, and are "
+                + "stored securely in New Zealand. The farmer may request access to or correction of their "
+                + "information. Please make sure the farmer is aware of this. [DRAFT]",
+            ReportFooterText =
+                "Personal information in this report is held under the Privacy Act 2020 for milking-machine "
+                + "test reporting and compliance. To access or correct it, contact privacy@nzmpta.co.nz. [DRAFT]",
+            PrivacyContactEmail = "privacy@nzmpta.co.nz",
+            PrivacyStatementUrl = "https://www.nzmpta.co.nz/privacy",
+        });
+        await db.SaveChangesAsync();
     }
 
     // Seeds the standard fault observations (legacy Lookup wording merged with the CMM severity
@@ -302,6 +335,14 @@ public static class Seed
         if (!await userManager.IsInRoleAsync(user, role))
         {
             await userManager.AddToRoleAsync(user, role);
+        }
+        // Pre-accept the current terms so local dev logins aren't sent through the terms gate.
+        if (user.TermsAcceptedVersion is null)
+        {
+            user.TermsAcceptedVersion = DefaultTermsVersion;
+            user.TermsAcceptedAt = DateTimeOffset.UtcNow;
+            user.TermsAcceptedLicenceExpiry = user.LicenceExpiryDate;
+            await userManager.UpdateAsync(user);
         }
     }
 }

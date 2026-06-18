@@ -94,6 +94,10 @@
                 <label asp-for="Input.ContactEmail">Email</label>
                 <input asp-for="Input.ContactEmail" type="email" />
             </div>
+            @if (!string.IsNullOrWhiteSpace(Model.CollectionNotice))
+            {
+                <p class="privacy-notice"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> @Model.CollectionNotice</p>
+            }
         </div>
 
         <div class="tab-panel form-tabs-card__panel" id="farm-panel-notes" hidden>

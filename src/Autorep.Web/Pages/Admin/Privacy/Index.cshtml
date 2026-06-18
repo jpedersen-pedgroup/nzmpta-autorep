@@ -1,0 +1,47 @@
+@page
+@model Autorep.Web.Pages.Admin.Privacy.IndexModel
+@{
+    ViewData["Title"] = "Privacy & Terms";
+}
+
+<h1>Privacy &amp; Terms</h1>
+<p class="muted">
+    Edit the Terms of Use, the farmer-data collection notice (shown where farmer details are entered),
+    and the privacy footer printed on reports. Changing the <strong>Terms version</strong> forces every
+    tester to re-accept the terms at their next sign-in. Testers' devices pick up notice/footer changes
+    on their next online sync.
+</p>
+
+@if (Model.Saved)
+{
+    <div class="alert alert--success">Saved.</div>
+}
+
+<form method="post" class="admin-form" style="max-width:760px">
+    <div class="form-field">
+        <label asp-for="Input.TermsVersion">Terms version</label>
+        <input asp-for="Input.TermsVersion" />
+        <small class="muted">Any change here re-prompts all testers to accept (e.g. a date like 2026-05-01).</small>
+    </div>
+    <div class="form-field">
+        <label asp-for="Input.TermsBody">Terms of Use</label>
+        <textarea asp-for="Input.TermsBody" rows="8"></textarea>
+    </div>
+    <div class="form-field">
+        <label asp-for="Input.CollectionNotice">Farmer-data collection notice (Privacy Act IPP3A)</label>
+        <textarea asp-for="Input.CollectionNotice" rows="4"></textarea>
+    </div>
+    <div class="form-field">
+        <label asp-for="Input.ReportFooterText">Report privacy footer</label>
+        <textarea asp-for="Input.ReportFooterText" rows="3"></textarea>
+    </div>
+    <div class="form-field">
+        <label asp-for="Input.PrivacyContactEmail">Privacy contact email</label>
+        <input asp-for="Input.PrivacyContactEmail" type="email" />
+    </div>
+    <div class="form-field">
+        <label asp-for="Input.PrivacyStatementUrl">Privacy statement URL</label>
+        <input asp-for="Input.PrivacyStatementUrl" type="url" />
+    </div>
+    <button type="submit" class="btn">Save</button>
+</form>

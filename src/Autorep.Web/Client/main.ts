@@ -4,6 +4,7 @@
 import { initStandards } from "./standards/standardsSync";
 import { initEquipment } from "./standards/equipmentSync";
 import { initFaultCatalog } from "./standards/faultCatalogSync";
+import { initPrivacy } from "./standards/privacySync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
 import { purgeStaleLocalData } from "./db/testStore";
@@ -26,5 +27,5 @@ function mountApps(): void {
 // Purge any other tester's locally-cached data first (shared-device isolation), THEN load the
 // synced standards and mount the offline wizard + "My tests" list.
 void purgeStaleLocalData()
-  .then(() => Promise.allSettled([initStandards(), initEquipment(), initFaultCatalog()]))
+  .then(() => Promise.allSettled([initStandards(), initEquipment(), initFaultCatalog(), initPrivacy()]))
   .finally(mountApps);

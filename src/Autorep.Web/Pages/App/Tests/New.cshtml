@@ -77,6 +77,10 @@
             <div class="form-field"><label for="nf-phone">Phone</label><input id="nf-phone" type="text" /></div>
             <div class="form-field"><label for="nf-email">Email</label><input id="nf-email" type="email" /></div>
         </div>
+        @if (!string.IsNullOrWhiteSpace(Model.CollectionNotice))
+        {
+            <p class="privacy-notice"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> @Model.CollectionNotice</p>
+        }
         <div class="form-actions">
             <button type="button" class="btn" id="nf-create">Add farm</button>
             <button type="button" class="btn btn--secondary" id="nf-cancel">Cancel</button>
