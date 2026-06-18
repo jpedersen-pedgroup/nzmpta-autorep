@@ -79,5 +79,37 @@ describe("adaptLegacyReadings", () => {
     expect(Object.keys(min.readings)).toHaveLength(0);
     expect(Object.keys(min.verdicts)).toHaveLength(0);
     expect(min.comment).toBeUndefined();
+    expect(min.recordedRecommendations).toEqual([]);
+    expect(min.recordedVisualFaults).toEqual([]);
+  });
+});
+
+describe("adaptLegacyReadings — recommendations + recorded visual faults", () => {
+  const out = adaptLegacyReadings({
+    legacy: {},
+    summary: {
+      MMFaultImprovement: "",
+      VFCFaultImprovement: "Replaced V-belts and cleaned filters.",
+      PSRFaultImprovement: "   ",
+    },
+    visualStart: {
+      VPBeltConditionE: 3, VPBeltConditionO: "Vee Belts Require Replacement",
+      VPWickConditionE: 1, VPWickConditionO: "N/A",
+      RMPControlsE: 2, RMPControlsE_IP: "On/Off", RMPControlsO: "N/A",
+    },
+    visualRunning1: { ClawConditionE: 3, ClawConditionO: "Cracked claw" },
+  });
+
+  it("collects only non-empty section recommendation narratives", () => {
+    expect(out.recordedRecommendations).toEqual([
+      { label: "Visual faults", text: "Replaced V-belts and cleaned filters." },
+    ]);
+  });
+
+  it("collects recorded fault observations where the verdict is fault (3), excluding N/A", () => {
+    expect(out.recordedVisualFaults).toContain("Vee Belts Require Replacement");
+    expect(out.recordedVisualFaults).toContain("Cracked claw");
+    expect(out.recordedVisualFaults).not.toContain("N/A");
+    expect(out.recordedVisualFaults).toHaveLength(2);
   });
 });

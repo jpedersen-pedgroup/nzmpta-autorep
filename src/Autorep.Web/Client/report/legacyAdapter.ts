@@ -112,6 +112,20 @@ for (let i = 1; i <= 4; i++) {
   );
 }
 
+// Section-level "fault improvement" narratives the legacy app stored on the test summary — the
+// closest thing to per-test recommendations (not per-fault like the new wizard).
+const SUMMARY_RECOMMENDATIONS: [column: string, label: string][] = [
+  ["MMFaultImprovement", "Milking machine"],
+  ["VFCFaultImprovement", "Visual faults"],
+  ["MMAddFaultImprovement", "Additional tests"],
+  ["PSRFaultImprovement", "Pulsation system"],
+  ["ICAFaultImprovement", "Individual cluster"],
+];
+
+// Visual-fault sections. Each carries *E (int verdict 1/2/3) + *O (observation text); code 3 is a
+// recorded fault and its *O column holds the human description. *E_IP columns are measured values.
+const VISUAL_SECTIONS = ["visualStart", "visualRunning1", "visualRunning2", "visualRunning3", "visualRunning4"];
+
 export interface AdaptedReadings {
   /** Numeric reading values keyed by the wizard reading key. */
   readings: Record<string, number>;
@@ -119,6 +133,10 @@ export interface AdaptedReadings {
   verdicts: Record<string, LegacyVerdict>;
   /** Free-text tester comment (legacy MMComment), if any. */
   comment?: string;
+  /** Section-level recommendation narratives as recorded (label + text). */
+  recordedRecommendations: { label: string; text: string }[];
+  /** Visual-fault observation texts as recorded (the *O text where the *E verdict = fault). */
+  recordedVisualFaults: string[];
 }
 
 /** Parse a legacy *E value (a string) to a number; returns null for blank / non-numeric. */
@@ -135,6 +153,13 @@ function asInt(v: unknown): number | null {
   return n === null ? null : Math.trunc(n);
 }
 
+/** Trim a legacy string value; null for blank. */
+function text(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
 /**
  * Build the readings + as-recorded verdicts from a migrated legacy payload. Safe on partial/minimal
  * payloads (missing sections are simply skipped).
@@ -142,7 +167,7 @@ function asInt(v: unknown): number | null {
 export function adaptLegacyReadings(payload: Record<string, unknown> | null | undefined): AdaptedReadings {
   const readings: Record<string, number> = {};
   const verdicts: Record<string, LegacyVerdict> = {};
-  if (!payload) return { readings, verdicts };
+  if (!payload) return { readings, verdicts, recordedRecommendations: [], recordedVisualFaults: [] };
 
   for (const m of READING_MAP) {
     const section = payload[m.src] as Record<string, unknown> | undefined;
@@ -159,8 +184,30 @@ export function adaptLegacyReadings(payload: Record<string, unknown> | null | un
   }
 
   const record3 = payload.record3 as Record<string, unknown> | undefined;
-  const comment = record3?.MMComment;
-  const commentStr = typeof comment === "string" && comment.trim() !== "" ? comment.trim() : undefined;
+  const commentStr = text(record3?.MMComment) ?? undefined;
 
-  return { readings, verdicts, comment: commentStr };
+  // Section-level recommendation narratives (as recorded).
+  const summary = payload.summary as Record<string, unknown> | undefined;
+  const recordedRecommendations: { label: string; text: string }[] = [];
+  if (summary) {
+    for (const [col, label] of SUMMARY_RECOMMENDATIONS) {
+      const t = text(summary[col]);
+      if (t) recordedRecommendations.push({ label, text: t });
+    }
+  }
+
+  // Recorded visual faults: the *O observation text wherever the paired *E verdict = 3 (fault).
+  const faultSet = new Set<string>();
+  for (const sectionName of VISUAL_SECTIONS) {
+    const section = payload[sectionName] as Record<string, unknown> | undefined;
+    if (!section) continue;
+    for (const key of Object.keys(section)) {
+      if (!key.endsWith("E") || key.endsWith("E_IP")) continue; // verdict columns only
+      if (asInt(section[key]) !== 3) continue; // 3 = fault
+      const obs = text(section[`${key.slice(0, -1)}O`]);
+      if (obs && obs.toUpperCase() !== "N/A") faultSet.add(obs);
+    }
+  }
+
+  return { readings, verdicts, comment: commentStr, recordedRecommendations, recordedVisualFaults: [...faultSet] };
 }

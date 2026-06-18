@@ -67,6 +67,8 @@ async function pullTests(): Promise<number> {
             attestations: [],
             readings: adapted.readings,
             verdicts: adapted.verdicts,
+            recordedRecommendations: adapted.recordedRecommendations,
+            recordedVisualFaults: adapted.recordedVisualFaults,
             recommendations: {},
             dataFields: {},
             notes: adapted.comment,

@@ -87,6 +87,10 @@ export interface LocalTest {
   verdicts?: Record<string, "pass" | "fail">;
   /** Migrated legacy test: rendered read-only (a historical record, not editable). */
   readonly?: boolean;
+  /** Section-level recommendation narratives as recorded (migrated tests, read-only). */
+  recordedRecommendations?: { label: string; text: string }[];
+  /** Visual-fault observation texts as recorded (migrated tests, read-only). */
+  recordedVisualFaults?: string[];
 }
 
 /** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */

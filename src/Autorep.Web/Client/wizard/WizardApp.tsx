@@ -78,6 +78,8 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
         base.readings = adapted.readings;
         base.verdicts = adapted.verdicts;
         base.notes = adapted.comment;
+        base.recordedRecommendations = adapted.recordedRecommendations;
+        base.recordedVisualFaults = adapted.recordedVisualFaults;
       } else {
         Object.assign(base, parsed as Partial<LocalTest>);
       }
@@ -99,6 +101,8 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
     pulsatorRows: base.pulsatorRows,
     clusterRows: base.clusterRows,
     notes: base.notes,
+    recordedRecommendations: base.recordedRecommendations,
+    recordedVisualFaults: base.recordedVisualFaults,
     createdAt: dto.createdAt,
     updatedAt: now,
     markedCompleteAt: dto.markedCompleteAt,
