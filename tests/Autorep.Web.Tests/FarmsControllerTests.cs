@@ -38,6 +38,13 @@ public class FarmsControllerTests : IClassFixture<AuthedWebAppFactory>
                 FarmerName = "Jo Farmer",
             };
             db.Farms.Add(farm);
+            // A tester may only fetch a farm they (or their company) have tested.
+            db.MachineTests.Add(new MachineTest
+            {
+                TesterId = "tester-farm-1",
+                FarmId = farm.Id,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
             await db.SaveChangesAsync();
             farmId = farm.Id;
         }
@@ -59,6 +66,31 @@ public class FarmsControllerTests : IClassFixture<AuthedWebAppFactory>
     {
         var client = _factory.CreateClientAs(Roles.Tester, "tester-farm-2");
         var res = await client.GetAsync($"/api/farms/{Guid.NewGuid()}");
+        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Get_returns_404_for_a_farm_the_tester_has_no_relationship_with()
+    {
+        Guid farmId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            var farm = new Farm { Name = "Other-Co Farm", FarmerName = "Private Contact" };
+            db.Farms.Add(farm);
+            // Linked only to a different tester — must not be harvestable by an unrelated tester.
+            db.MachineTests.Add(new MachineTest
+            {
+                TesterId = "some-other-tester",
+                FarmId = farm.Id,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+            farmId = farm.Id;
+        }
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-no-access");
+        var res = await client.GetAsync($"/api/farms/{farmId}");
         res.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

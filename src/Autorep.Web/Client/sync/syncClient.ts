@@ -3,6 +3,7 @@
 // tester's cookie (same-origin fetch sends it automatically).
 import { allTests, getTest, putTest, type LocalTest } from "../db/testStore";
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
+import { adaptLegacyReadings } from "../report/legacyAdapter";
 
 interface TestSummaryDto {
   clientId: string;
@@ -52,7 +53,37 @@ async function pullTests(): Promise<number> {
     let local: LocalTest | null = null;
     if (r.payloadJson) {
       try {
-        local = { ...(JSON.parse(r.payloadJson) as LocalTest), id: r.clientId, syncState: "uploaded", everUploaded: true };
+        const parsed = JSON.parse(r.payloadJson) as Record<string, unknown>;
+        if (parsed.legacy !== undefined && parsed.currentStep === undefined) {
+          // MIGRATED legacy test: the payload is raw legacy columns, not a LocalTest. Adapt it into
+          // a read-only LocalTest carrying the original (as-recorded) pass/fail verdicts.
+          const adapted = adaptLegacyReadings(parsed);
+          local = {
+            id: r.clientId,
+            farmName: r.farmName,
+            config: r.config ?? defaultMachineConfiguration(),
+            currentStep: "Setup",
+            visualFaults: {},
+            attestations: [],
+            readings: adapted.readings,
+            verdicts: adapted.verdicts,
+            recordedRecommendations: adapted.recordedRecommendations,
+            recordedVisualFaults: adapted.recordedVisualFaults,
+            clusterRows: adapted.clusterRows,
+            recommendations: {},
+            dataFields: {},
+            notes: adapted.comment,
+            createdAt: r.createdAt,
+            updatedAt: now,
+            markedCompleteAt: r.markedCompleteAt,
+            syncState: "uploaded",
+            everUploaded: true,
+            readonly: true,
+          };
+        } else {
+          // New-format test: the payload IS a serialised LocalTest — rehydrate exactly.
+          local = { ...(parsed as unknown as LocalTest), id: r.clientId, syncState: "uploaded", everUploaded: true };
+        }
       } catch {
         local = null;
       }

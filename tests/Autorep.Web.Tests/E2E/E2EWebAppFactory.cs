@@ -86,6 +86,13 @@ public class E2EWebAppFactory : WebApplicationFactory<Program>
             };
             await users.CreateAsync(admin, AdminPassword);
             await users.AddToRoleAsync(admin, Roles.SuperAdministrator);
+            // Pre-accept the current terms so the login terms-gate doesn't divert the E2E admin
+            // to /Account/AcceptTerms (ReferenceDataAsync above seeds the PrivacyContent that
+            // activates the gate).
+            admin.TermsAcceptedVersion = Seed.DefaultTermsVersion;
+            admin.TermsAcceptedAt = DateTimeOffset.UtcNow;
+            admin.TermsAcceptedLicenceExpiry = admin.LicenceExpiryDate;
+            await users.UpdateAsync(admin);
         }
 
         var db = sp.GetRequiredService<AutorepDbContext>();

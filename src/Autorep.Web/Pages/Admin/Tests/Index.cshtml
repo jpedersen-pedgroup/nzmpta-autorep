@@ -7,15 +7,26 @@
 <div class="page-header">
     <div class="page-header__heading">
         <h1>All tests</h1>
-        <p>Every machine test synced from the field.</p>
+        <p>@Model.TotalCount machine test@(Model.TotalCount == 1 ? "" : "s") synced from the field.</p>
     </div>
 </div>
+
+<form method="get" style="display:flex;gap:var(--space-2);margin-bottom:var(--space-4)">
+    <input type="search" name="q" value="@Model.Q" placeholder="Search by farm or tester email…" style="max-width:340px" />
+    <button type="submit" class="btn btn--secondary">Search</button>
+    @if (!string.IsNullOrWhiteSpace(Model.Q))
+    {
+        <a class="btn btn--secondary" asp-page="/Admin/Tests/Index">Clear</a>
+    }
+</form>
 
 @if (!Model.Tests.Any())
 {
     <div class="empty">
-        <div class="empty__title">No tests synced yet</div>
-        <p class="empty__text">Tests will appear here as Testers complete and sync them.</p>
+        <div class="empty__title">@(string.IsNullOrWhiteSpace(Model.Q) ? "No tests synced yet" : "No matching tests")</div>
+        <p class="empty__text">
+            @(string.IsNullOrWhiteSpace(Model.Q) ? "Tests will appear here as Testers complete and sync them." : "Try a different search term.")
+        </p>
     </div>
 }
 else
@@ -28,6 +39,7 @@ else
                     <th>Farm</th>
                     <th>Created</th>
                     <th>Status</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -47,9 +59,22 @@ else
                                 <span class="badge badge--success">Complete</span>
                             }
                         </td>
+                        <td><a class="btn btn--secondary btn--sm" href="/Admin/Tests/View/@t.Id">View</a></td>
                     </tr>
                 }
             </tbody>
         </table>
+    </div>
+
+    <div style="display:flex;gap:var(--space-3);align-items:center;margin-top:var(--space-4)">
+        @if (Model.PageNumber > 1)
+        {
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q">‹ Prev</a>
+        }
+        <span class="td-muted">Page @Model.PageNumber of @Model.TotalPages · @Model.TotalCount total</span>
+        @if (Model.PageNumber < Model.TotalPages)
+        {
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q">Next ›</a>
+        }
     </div>
 }

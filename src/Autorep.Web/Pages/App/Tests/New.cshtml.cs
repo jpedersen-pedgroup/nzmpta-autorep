@@ -20,6 +20,7 @@ public class NewModel : PageModel
     public List<FarmRow> Farms { get; private set; } = new();
     public List<SelectListItem> RegionOptions { get; private set; } = new();
     public List<SelectListItem> MilkCompanyOptions { get; private set; } = new();
+    public string CollectionNotice { get; private set; } = "";
 
     public class InputModel
     {
@@ -112,6 +113,9 @@ public class NewModel : PageModel
         MilkCompanyOptions = await _db.MilkSupplyCompanies.Where(c => c.IsActive).OrderBy(c => c.Name)
             .Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name })
             .ToListAsync();
+
+        CollectionNotice = await _db.PrivacyContent.OrderByDescending(p => p.UpdatedAt)
+            .Select(p => p.CollectionNotice).FirstOrDefaultAsync() ?? "";
     }
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

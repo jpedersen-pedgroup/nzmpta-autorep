@@ -27,6 +27,7 @@ import { PulsatorStep } from "./PulsatorStep";
 import { ClusterStep } from "./ClusterStep";
 import { ReviewSignOffStep } from "./ReviewSignOffStep";
 import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
+import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll } from "../sync/syncClient";
 import { showToast } from "../ui/toast";
 import { DatePicker } from "../ui/DatePicker";
@@ -46,10 +47,70 @@ export interface WizardOptions {
   id?: string;
   farmId?: string;
   farmName?: string;
+  /** Admin read-only view: fetch this test from the server (not IndexedDB) and render it read-only. */
+  serverTestId?: string;
 }
 
 export function mountWizard(root: HTMLElement, opts: WizardOptions): void {
   render(<WizardApp {...opts} />, root);
+}
+
+interface ServerTestDto {
+  id: string;
+  farmName: string;
+  createdAt: string;
+  markedCompleteAt: string | null;
+  config: MachineConfiguration | null;
+  payloadJson: string | null;
+  testerName: string | null;
+}
+
+/** Build a read-only LocalTest from a server fetch (admin view). Migrated legacy payloads are
+ * adapted to readings + as-recorded verdicts; new-format payloads rehydrate directly. */
+function localTestFromServer(dto: ServerTestDto): LocalTest {
+  const now = new Date().toISOString();
+  const base: Partial<LocalTest> = {};
+  if (dto.payloadJson) {
+    try {
+      const parsed = JSON.parse(dto.payloadJson) as Record<string, unknown>;
+      if (parsed.legacy !== undefined && parsed.currentStep === undefined) {
+        const adapted = adaptLegacyReadings(parsed);
+        base.readings = adapted.readings;
+        base.verdicts = adapted.verdicts;
+        base.notes = adapted.comment;
+        base.recordedRecommendations = adapted.recordedRecommendations;
+        base.recordedVisualFaults = adapted.recordedVisualFaults;
+        base.clusterRows = adapted.clusterRows;
+      } else {
+        Object.assign(base, parsed as Partial<LocalTest>);
+      }
+    } catch {
+      /* fall through to a minimal shell */
+    }
+  }
+  return {
+    id: dto.id,
+    farmName: dto.farmName,
+    config: dto.config ?? base.config ?? defaultMachineConfiguration(),
+    currentStep: "Setup",
+    visualFaults: base.visualFaults ?? {},
+    attestations: base.attestations ?? [],
+    readings: base.readings ?? {},
+    verdicts: base.verdicts,
+    recommendations: base.recommendations ?? {},
+    dataFields: base.dataFields ?? {},
+    pulsatorRows: base.pulsatorRows,
+    clusterRows: base.clusterRows,
+    notes: base.notes,
+    recordedRecommendations: base.recordedRecommendations,
+    recordedVisualFaults: base.recordedVisualFaults,
+    createdAt: dto.createdAt,
+    updatedAt: now,
+    markedCompleteAt: dto.markedCompleteAt,
+    syncState: "uploaded",
+    everUploaded: true,
+    readonly: true,
+  };
 }
 
 function newLocalTest(farmId?: string, farmName?: string): LocalTest {
@@ -102,8 +163,9 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
   return done;
 }
 
-function WizardApp({ id, farmId, farmName }: WizardOptions) {
+function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const online = useServerOnline();
@@ -111,6 +173,19 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
   useEffect(() => {
     let active = true;
     void (async () => {
+      // Admin read-only view: load the test from the server, never IndexedDB.
+      if (serverTestId) {
+        try {
+          const res = await fetch(`/api/tests/${serverTestId}`, { headers: { Accept: "application/json" } });
+          if (!res.ok) throw new Error(String(res.status));
+          const dto = (await res.json()) as ServerTestDto;
+          if (active) setTest(localTestFromServer(dto));
+        } catch {
+          if (active) setError("This test could not be loaded.");
+        }
+        return;
+      }
+
       let t = id ? await getTest(id) : undefined;
       if (!t) {
         t = newLocalTest(farmId, farmName);
@@ -133,42 +208,48 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     return () => {
       active = false;
     };
-  }, [id, farmId, farmName]);
+  }, [id, farmId, farmName, serverTestId]);
 
+  if (error) return <div class="card">{error}</div>;
   if (!test) return <div class="card">Loading test…</div>;
 
   const persist = async (patch: Partial<LocalTest>) => {
     const updated: LocalTest = { ...test, ...patch, updatedAt: new Date().toISOString() };
     setTest(updated);
-    await putTest(updated);
+    // Admin view mode is in-memory only — never write another tester's test into this device's store.
+    if (!serverTestId) await putTest(updated);
   };
+  // Migrated legacy tests are read-only: navigation still persists (currentStep), but data edits
+  // are no-ops so a historical record can't be altered on-device.
+  const readonly = test.readonly ?? false;
+  const persistEdit = (patch: Partial<LocalTest>) => (readonly ? Promise.resolve() : persist(patch));
   const setConfig = (patch: Partial<MachineConfiguration>) =>
-    persist({ config: { ...test.config, ...patch } });
+    persistEdit({ config: { ...test.config, ...patch } });
   const go = (step: WizardStep) => persist({ currentStep: step });
 
   const setVisualFault = (key: string, entry: VisualFaultEntry | null) => {
     const visualFaults = { ...test.visualFaults };
     if (entry) visualFaults[key] = entry;
     else delete visualFaults[key];
-    return persist({ visualFaults });
+    return persistEdit({ visualFaults });
   };
   const setReading = (key: string, value: number | null) => {
     const readings = { ...test.readings };
     if (value === null || Number.isNaN(value)) delete readings[key];
     else readings[key] = value;
-    return persist({ readings });
+    return persistEdit({ readings });
   };
   const setRecommendation = (key: string, value: string) => {
     const recommendations = { ...test.recommendations };
     if (value.trim() === "") delete recommendations[key];
     else recommendations[key] = value;
-    return persist({ recommendations });
+    return persistEdit({ recommendations });
   };
   const setDataField = (key: string, value: string) => {
     const dataFields = { ...(test.dataFields ?? {}) };
     if (value.trim() === "") delete dataFields[key];
     else dataFields[key] = value;
-    return persist({ dataFields });
+    return persistEdit({ dataFields });
   };
   const checkAllSection = (step: WizardStep, section: ChecklistSection) => {
     const attestation: ChecklistAttestation = {
@@ -177,7 +258,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
       attestedAt: new Date().toISOString(),
       text: ATTESTATION_TEXT,
     };
-    return persist({
+    return persistEdit({
       visualFaults: applyCheckAll([section], test.visualFaults),
       attestations: [...test.attestations, attestation],
     });
@@ -196,6 +277,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
     }
   };
   const attachPulsationPdf = async (file: File) => {
+    if (readonly) return;
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
     if (!isPdf) {
       showToast("Only PDF files can be attached here.", "error");
@@ -219,6 +301,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
   };
 
   const markComplete = async () => {
+    if (readonly) return;
     const now = new Date().toISOString();
     await persist({
       markedCompleteAt: now,
@@ -256,13 +339,20 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
           </p>
         </div>
         <div class="page-header__actions">
-          <a class="btn btn--danger-soft btn--sm" href="/App/Tests/Index">Exit</a>
+          <a class="btn btn--danger-soft btn--sm" href={serverTestId ? "/Admin/Tests" : "/App/Tests/Index"}>Exit</a>
         </div>
       </div>
 
       {plan.isShortTest && (
         <div class="alert alert--warning">
           ⚠️ <strong>Short test</strong> — ISO ports unavailable, so only the essential tests are required.
+        </div>
+      )}
+
+      {readonly && (
+        <div class="alert alert--warning">
+          📄 <strong>Read-only</strong> — this test can't be edited here. Pass/fail is shown as
+          recorded at the time of testing.
         </div>
       )}
 
@@ -316,9 +406,9 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
                 <small class="card__hint">Your test equipment — air-flow meters, pulsator testers, vacuum gauges.</small>
               </div>
               <div class="form-grid">
-                {calDateField("Air-flow meters", test.calAirFlowMeters, (v) => void persist({ calAirFlowMeters: v }))}
-                {calDateField("Pulsator testers", test.calPulsatorTesters, (v) => void persist({ calPulsatorTesters: v }))}
-                {calDateField("Vacuum gauges", test.calVacuumGauges, (v) => void persist({ calVacuumGauges: v }))}
+                {calDateField("Air-flow meters", test.calAirFlowMeters, (v) => void persistEdit({ calAirFlowMeters: v }))}
+                {calDateField("Pulsator testers", test.calPulsatorTesters, (v) => void persistEdit({ calPulsatorTesters: v }))}
+                {calDateField("Vacuum gauges", test.calVacuumGauges, (v) => void persistEdit({ calVacuumGauges: v }))}
               </div>
             </div>
           )}
@@ -367,6 +457,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               sections={testRecordSections(test.config, test.readings)}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
+              readonly={readonly}
+              storedVerdicts={test.verdicts}
             />
           )}
 
@@ -377,6 +469,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
               sections={additionalTestSections(test.config, test.readings)}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
+              readonly={readonly}
+              storedVerdicts={test.verdicts}
             />
           )}
 
@@ -384,9 +478,11 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             <PulsatorStep
               config={test.config}
               rows={test.pulsatorRows ?? []}
-              onRows={(rows) => void persist({ pulsatorRows: rows })}
+              onRows={(rows) => void persistEdit({ pulsatorRows: rows })}
               readings={test.readings}
               onSetReading={(k, v) => void setReading(k, v)}
+              readonly={readonly}
+              storedVerdicts={test.verdicts}
             />
           )}
 
@@ -394,7 +490,8 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
             <ClusterStep
               config={test.config}
               rows={test.clusterRows ?? []}
-              onRows={(rows) => void persist({ clusterRows: rows })}
+              onRows={(rows) => void persistEdit({ clusterRows: rows })}
+              readonly={readonly}
             />
           )}
 
@@ -418,7 +515,7 @@ function WizardApp({ id, farmId, farmName }: WizardOptions) {
                   .finally(() => setGenerating(false));
               }}
               onAttachPdf={(file) => void attachPulsationPdf(file)}
-              onRemovePdf={() => void persist({ pulsationPdf: null, syncState: "local-only" })}
+              onRemovePdf={() => void persistEdit({ pulsationPdf: null, syncState: "local-only" })}
             />
           )}
 

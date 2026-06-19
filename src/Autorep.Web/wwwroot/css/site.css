@@ -425,6 +425,46 @@ main {
   color: #166534;
 }
 
+/* IPP3A farmer-data collection notice, shown where farmer details are entered. */
+.privacy-notice {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-muted, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
+  color: var(--text-muted, #475569);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.privacy-notice > i { margin-top: 2px; opacity: 0.75; }
+
+/* Terms-of-Use body on the acceptance gate (scrollable, preserves line breaks). */
+.terms-body {
+  max-height: 320px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  text-align: left;
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--surface-muted, #f8fafc);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.terms-agree {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  text-align: left;
+  margin-bottom: var(--space-4);
+  font-size: 0.9375rem;
+}
+.terms-agree input { margin-top: 3px; }
+
 /* ----- Badges -------------------------------------------------------------- */
 .badge {
   display: inline-flex;

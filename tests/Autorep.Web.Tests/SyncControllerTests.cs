@@ -103,4 +103,33 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         var res = await admin.GetAsync("/api/sync/tests");
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
+
+    [Fact]
+    public async Task Upload_reusing_another_testers_client_id_does_not_overwrite_their_test()
+    {
+        var clientId = Guid.NewGuid();
+
+        var a = _factory.CreateClientAs(Roles.Tester, "tester-idor-a");
+        var aPayload = new
+        {
+            clientId, farmName = "A Farm", notes = "A-notes",
+            markedCompleteAt = (DateTimeOffset?)null, createdAt = DateTimeOffset.UtcNow, config = (object?)null,
+        };
+        (await a.PostAsJsonAsync("/api/sync/tests", aPayload)).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // Tester B reuses A's ClientId — must create B's own row, never touch A's.
+        var b = _factory.CreateClientAs(Roles.Tester, "tester-idor-b");
+        var bPayload = new
+        {
+            clientId, farmName = "B Farm", notes = "B-notes",
+            markedCompleteAt = (DateTimeOffset?)null, createdAt = DateTimeOffset.UtcNow, config = (object?)null,
+        };
+        (await b.PostAsJsonAsync("/api/sync/tests", bPayload)).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var aList = await a.GetFromJsonAsync<List<TestSummary>>("/api/sync/tests");
+        aList!.Single(t => t.ClientId == clientId).FarmName.Should().Be("A Farm"); // unchanged
+
+        var bList = await b.GetFromJsonAsync<List<TestSummary>>("/api/sync/tests");
+        bList!.Single(t => t.ClientId == clientId).FarmName.Should().Be("B Farm");
+    }
 }

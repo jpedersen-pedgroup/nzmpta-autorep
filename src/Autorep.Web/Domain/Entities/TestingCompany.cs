@@ -13,6 +13,11 @@ public class TestingCompany
     public string? Phone { get; set; }
     public string? Email { get; set; }
 
+    // Report branding — the testing firm's logo shown on generated reports
+    // (mirrors MilkSupplyCompany). Migrated from legacy Companies.ImagePath.
+    public byte[]? LogoData { get; set; }
+    public string? LogoContentType { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

@@ -362,11 +362,11 @@ namespace Autorep.Web.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClientId")
+                    b.HasIndex("FarmId");
+
+                    b.HasIndex("TesterId", "ClientId")
                         .IsUnique()
                         .HasFilter("[ClientId] IS NOT NULL");
-
-                    b.HasIndex("FarmId");
 
                     b.HasIndex("TesterId", "CreatedAt");
 
@@ -427,6 +427,50 @@ namespace Autorep.Web.Migrations
                         .IsUnique();
 
                     b.ToTable("MilkSupplyCompanies");
+                });
+
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.PrivacyContent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CollectionNotice")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PrivacyContactEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("PrivacyStatementUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReportFooterText")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
+                    b.Property<string>("TermsBody")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TermsVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PrivacyContent");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.RefreshToken", b =>
@@ -574,6 +618,10 @@ namespace Autorep.Web.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
+                    b.Property<string>("CertificateNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
@@ -620,6 +668,16 @@ namespace Autorep.Web.Migrations
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("TermsAcceptedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateOnly?>("TermsAcceptedLicenceExpiry")
+                        .HasColumnType("date");
+
+                    b.Property<string>("TermsAcceptedVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<Guid?>("TestingCompanyId")
                         .HasColumnType("uniqueidentifier");
@@ -669,6 +727,13 @@ namespace Autorep.Web.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<string>("LogoContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("LogoData")
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<string>("Name")
                         .IsRequired()

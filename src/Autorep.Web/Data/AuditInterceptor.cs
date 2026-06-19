@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Autorep.Web.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -68,14 +70,14 @@ public class AuditInterceptor : SaveChangesInterceptor
         switch (entry.State)
         {
             case EntityState.Added:
-                after = SerializeCurrentValues(entry);
+                after = Serialize(entry, current: true);
                 break;
             case EntityState.Deleted:
-                before = SerializeOriginalValues(entry);
+                before = Serialize(entry, current: false);
                 break;
             case EntityState.Modified:
-                before = SerializeOriginalValues(entry);
-                after = SerializeCurrentValues(entry);
+                before = Serialize(entry, current: false);
+                after = Serialize(entry, current: true);
                 break;
         }
 
@@ -91,19 +93,40 @@ public class AuditInterceptor : SaveChangesInterceptor
         };
     }
 
-    private static string SerializeCurrentValues(EntityEntry entry)
+    // Property-name fragments whose values are secrets and must never reach the 7-year audit
+    // store: Identity password/security fields, refresh-token hashes, 2FA/authenticator secrets.
+    // Matched case-insensitively so new Identity columns are caught without a code change.
+    private static readonly string[] SensitiveNameFragments =
+        { "password", "hash", "stamp", "token", "secret", "securitykey", "recoverycode", "twofactor", "authenticator" };
+
+    private const string Redacted = "***REDACTED***";
+
+    private static bool IsSensitive(string name) =>
+        SensitiveNameFragments.Any(f => name.Contains(f, StringComparison.OrdinalIgnoreCase));
+
+    // Serializes the entity's properties for the audit blob, with redaction:
+    //  - secret/security properties are masked (never stored), and
+    //  - MachineTest.PayloadJson (bulk farm-owner PII) is reduced to a length + SHA-256 hash so the
+    //    audit trail stays tamper-evident without retaining the PII for 7 years.
+    private static string Serialize(EntityEntry entry, bool current)
     {
-        var dict = entry.Properties
-            .Where(p => !p.Metadata.IsShadowProperty())
-            .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
+        var dict = new Dictionary<string, object?>();
+        foreach (var p in entry.Properties.Where(p => !p.Metadata.IsShadowProperty()))
+        {
+            var name = p.Metadata.Name;
+            var value = current ? p.CurrentValue : p.OriginalValue;
+
+            if (IsSensitive(name)) dict[name] = Redacted;
+            else if (name == nameof(Domain.Entities.MachineTest.PayloadJson)) dict[name] = SummarizePayload(value as string);
+            else dict[name] = value;
+        }
         return JsonSerializer.Serialize(dict);
     }
 
-    private static string SerializeOriginalValues(EntityEntry entry)
+    private static string? SummarizePayload(string? payload)
     {
-        var dict = entry.Properties
-            .Where(p => !p.Metadata.IsShadowProperty())
-            .ToDictionary(p => p.Metadata.Name, p => p.OriginalValue);
-        return JsonSerializer.Serialize(dict);
+        if (string.IsNullOrEmpty(payload)) return payload;
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
+        return $"[PayloadJson redacted: len={payload.Length} sha256={hash}]";
     }
 }

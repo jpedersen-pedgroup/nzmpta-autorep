@@ -1,0 +1,138 @@
+import { describe, expect, it } from "vitest";
+import { adaptLegacyReadings, decodeReadingVerdict, decodeStatusVerdict } from "./legacyAdapter";
+
+describe("legacy rating-code decode", () => {
+  it("maps reading O-codes to as-recorded verdicts", () => {
+    expect(decodeReadingVerdict(2)).toBe("pass");
+    expect(decodeReadingVerdict(3)).toBe("fail");
+    expect(decodeReadingVerdict(1)).toBeNull(); // no reading recorded
+    expect(decodeReadingVerdict(0)).toBeNull(); // not applicable
+    expect(decodeReadingVerdict(null)).toBeNull();
+  });
+
+  it("maps visual/pulsation status codes", () => {
+    expect(decodeStatusVerdict(3)).toBe("fail");
+    expect(decodeStatusVerdict(2)).toBe("pass");
+    expect(decodeStatusVerdict(1)).toBeNull(); // blank / no fault
+  });
+});
+
+describe("adaptLegacyReadings", () => {
+  const payload = {
+    legacy: { guid: "x", testNo: "1" },
+    record1: {
+      VLVacuumReceiverE: "45", VLVacuumReceiverO: 2, // working vacuum, pass
+      VLNominalVacuumE: "45", // value only, no verdict
+      VLVacuumRegulationE: "-0.2", VLVacuumRegulationO: 3, // deviation, fail
+      RCEffectiveReserveE: "3342", RCEffectiveReserveO: 2, // pass
+      RCRegulationLossE: "", RCRegulationLossO: 1, // no reading -> skipped
+      RCFallVacuumDropE: "", RCFallVacuumDropO: 0, // not applicable -> skipped
+    },
+    record2: {
+      VPCPumpCapacity1E: "4842", VPCPumpCapacity1O: 2, // pump 1 capacity, pass
+      VPCPumpCapacity2E: "", VPCPumpCapacity2O: 1, // unused slot -> skipped
+      VGAGaugeError1E: "0.3", VGAGaugeError1O: 2, // gauge error, pass
+    },
+    record3: {
+      CAAClusterAirAdmissionE: "14", CAAClusterAirAdmissionO: 3, // over band, fail
+      MMComment: "  Liners need replacing soon.  ",
+    },
+  };
+
+  const out = adaptLegacyReadings(payload);
+
+  it("maps values + as-recorded verdicts onto wizard reading keys", () => {
+    expect(out.readings["tr.workingVacuum"]).toBe(45);
+    expect(out.verdicts["tr.workingVacuum"]).toBe("pass");
+
+    expect(out.readings["tr.regulationDeviation"]).toBe(-0.2);
+    expect(out.verdicts["tr.regulationDeviation"]).toBe("fail");
+
+    expect(out.readings["tr.effectiveReserve"]).toBe(3342);
+    expect(out.verdicts["tr.effectiveReserve"]).toBe("pass");
+
+    expect(out.readings["tr.pumpCapacity1"]).toBe(4842);
+    expect(out.verdicts["tr.pumpCapacity1"]).toBe("pass");
+
+    expect(out.readings["add.clusterAirAdmission"]).toBe(14);
+    expect(out.verdicts["add.clusterAirAdmission"]).toBe("fail");
+  });
+
+  it("keeps value-only readings without a verdict", () => {
+    expect(out.readings["tr.nominalVacuum"]).toBe(45);
+    expect(out.verdicts["tr.nominalVacuum"]).toBeUndefined();
+  });
+
+  it("skips no-reading (O=1) and not-applicable (O=0) fields", () => {
+    expect(out.readings["tr.regulationLoss"]).toBeUndefined();
+    expect(out.verdicts["tr.regulationLoss"]).toBeUndefined();
+    expect(out.readings["tr.fallOff"]).toBeUndefined();
+    expect(out.readings["tr.pumpCapacity2"]).toBeUndefined();
+  });
+
+  it("extracts the tester comment, trimmed", () => {
+    expect(out.comment).toBe("Liners need replacing soon.");
+  });
+
+  it("is safe on an empty/minimal payload", () => {
+    const min = adaptLegacyReadings({ legacy: {}, signOff: {} });
+    expect(Object.keys(min.readings)).toHaveLength(0);
+    expect(Object.keys(min.verdicts)).toHaveLength(0);
+    expect(min.comment).toBeUndefined();
+    expect(min.recordedRecommendations).toEqual([]);
+    expect(min.recordedVisualFaults).toEqual([]);
+    expect(min.clusterRows).toEqual([]);
+  });
+});
+
+describe("adaptLegacyReadings — individual cluster rows", () => {
+  const out = adaptLegacyReadings({
+    legacy: {},
+    clusterAirflow: [
+      { UnitNo: "1", TotalAirAdmission: 9, CheckStatus1: 2, LeakageCluster: 1, CheckStatus2: 2, AirVentAdmission: 6, CheckStatus3: 2 },
+      { UnitNo: "2", TotalAirAdmission: 14, CheckStatus1: 3, LeakageCluster: 3, CheckStatus2: 3, AirVentAdmission: 5, CheckStatus3: 2 },
+      { UnitNo: "3" }, // no readings — skipped
+    ],
+  });
+
+  it("maps each populated cluster unit to a row keyed by the wizard's columns", () => {
+    expect(out.clusterRows).toHaveLength(2);
+    expect(out.clusterRows[0]).toEqual({
+      id: "legacy-cluster-0",
+      unit: "1",
+      values: { totalAirAdmission: "9", leakage: "1", airVent: "6" },
+    });
+    expect(out.clusterRows[1].unit).toBe("2");
+    expect(out.clusterRows[1].values).toEqual({ totalAirAdmission: "14", leakage: "3", airVent: "5" });
+  });
+});
+
+describe("adaptLegacyReadings — recommendations + recorded visual faults", () => {
+  const out = adaptLegacyReadings({
+    legacy: {},
+    summary: {
+      MMFaultImprovement: "",
+      VFCFaultImprovement: "Replaced V-belts and cleaned filters.",
+      PSRFaultImprovement: "   ",
+    },
+    visualStart: {
+      VPBeltConditionE: 3, VPBeltConditionO: "Vee Belts Require Replacement",
+      VPWickConditionE: 1, VPWickConditionO: "N/A",
+      RMPControlsE: 2, RMPControlsE_IP: "On/Off", RMPControlsO: "N/A",
+    },
+    visualRunning1: { ClawConditionE: 3, ClawConditionO: "Cracked claw" },
+  });
+
+  it("collects only non-empty section recommendation narratives", () => {
+    expect(out.recordedRecommendations).toEqual([
+      { label: "Visual faults", text: "Replaced V-belts and cleaned filters." },
+    ]);
+  });
+
+  it("collects recorded fault observations where the verdict is fault (3), excluding N/A", () => {
+    expect(out.recordedVisualFaults).toContain("Vee Belts Require Replacement");
+    expect(out.recordedVisualFaults).toContain("Cracked claw");
+    expect(out.recordedVisualFaults).not.toContain("N/A");
+    expect(out.recordedVisualFaults).toHaveLength(2);
+  });
+});

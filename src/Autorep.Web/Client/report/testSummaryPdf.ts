@@ -9,6 +9,7 @@ import { evaluate, type PassFailRule } from "../passfail/passFail";
 import { preStartSections, runningSectionsFor } from "../wizard/visualChecklist";
 import { resolveWizard } from "../wizard/wizardStepResolver";
 import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
+import { getPrivacyContent } from "../config/privacyContent";
 
 const BRAND = "#0a2540";
 const MUTED = "#64748b";
@@ -42,6 +43,9 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
   const config = test.config;
   const summary = aggregate(buildFaultInputs(test));
   const completed = fmtDate(test.markedCompleteAt);
+  // Migrated tests carry faults/recommendations + verdicts as recorded; reprint those faithfully
+  // rather than recomputing against today's standards.
+  const isLegacy = test.recordedRecommendations !== undefined;
 
   // --- Farm + configuration ----------------------------------------------------------------
   const farm = test.farm;
@@ -112,8 +116,9 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
       ]);
     }
   }
-  const faultBlock: Content[] =
-    summary.total === 0
+  const faultBlock: Content[] = isLegacy
+    ? recordedFaultBlock(test)
+    : summary.total === 0
       ? [{ text: "No faults recorded — the machine passed every completed check.", color: PASS, fontSize: 10 }]
       : [
           { text: `${summary.critical} critical · ${summary.major} major · ${summary.minor} minor`, fontSize: 10, margin: [0, 0, 0, 4] },
@@ -128,7 +133,8 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
     const body: TableCell[][] = [[th("Reading"), th("Value"), th("Standard"), th("Result")]];
     for (const r of entered) {
       const v = test.readings[r.key];
-      const verdict = evaluate(v, r.rule);
+      // As-recorded verdict for migrated tests; recompute for live ones.
+      const verdict = test.verdicts?.[r.key] ?? evaluate(v, r.rule);
       body.push([
         { text: r.label, fontSize: 9 },
         { text: `${v} ${r.unit}`, fontSize: 9 },
@@ -232,12 +238,22 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
     pageSize: "A4",
     pageMargins: [40, 48, 40, 48],
     info: { title: `Test Summary — ${farm?.name ?? test.farmName}` },
-    footer: (page, pages) => ({
-      columns: [
-        { text: `AutoRep · generated ${new Date().toLocaleString("en-NZ")}`, fontSize: 7, color: MUTED, margin: [40, 0, 0, 0] },
-        { text: `${page} / ${pages}`, alignment: "right", fontSize: 7, color: MUTED, margin: [0, 0, 40, 0] },
-      ],
-    }),
+    footer: (page, pages) => {
+      const privacyFooter = getPrivacyContent().reportFooterText;
+      return {
+        stack: [
+          {
+            columns: [
+              { text: `AutoRep · generated ${new Date().toLocaleString("en-NZ")}`, fontSize: 7, color: MUTED, margin: [40, 0, 0, 0] },
+              { text: `${page} / ${pages}`, alignment: "right", fontSize: 7, color: MUTED, margin: [0, 0, 40, 0] },
+            ],
+          },
+          ...(privacyFooter
+            ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [40, 2, 40, 0] } as Content]
+            : []),
+        ],
+      };
+    },
     content: [
       { text: "Milking Machine Test Summary", fontSize: 16, bold: true, color: BRAND },
       { text: "NZMPTA AutoRep", fontSize: 9, color: MUTED, margin: [0, 0, 0, 10] },
@@ -249,12 +265,38 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
       sectionHeader("Numerical test results"),
       ...(readingBlocks.length > 0 ? readingBlocks : [{ text: "No readings entered.", fontSize: 9, color: MUTED } as Content]),
       ...unitBlocks,
-      sectionHeader("Visual checks"),
-      ...visualBlock,
+      // Migrated tests show their recorded faults in the Fault Summary above; the recomputed
+      // visual-checks section (driven by the empty visualFaults map) is omitted for them.
+      ...(isLegacy ? [] : [sectionHeader("Visual checks"), ...visualBlock]),
       ...attachmentBlock,
       ...(attestRows.length > 0 ? [sectionHeader("Attestations"), ...attestRows] : []),
     ],
   };
+}
+
+// Fault Summary block for a migrated test: recorded faults + section recommendations + comment,
+// exactly as recorded (no recompute).
+function recordedFaultBlock(test: LocalTest): Content[] {
+  const recs = test.recordedRecommendations ?? [];
+  const faults = test.recordedVisualFaults ?? [];
+  const comment = test.notes?.trim();
+  if (faults.length === 0 && recs.length === 0 && !comment) {
+    return [{ text: "No faults or recommendations were recorded for this test.", color: PASS, fontSize: 10 }];
+  }
+  const out: Content[] = [];
+  if (faults.length > 0) {
+    out.push({ text: "Recorded faults", fontSize: 10, bold: true, margin: [0, 4, 0, 2] });
+    out.push({ ul: faults, fontSize: 9 });
+  }
+  for (const r of recs) {
+    out.push({ text: r.label, fontSize: 10, bold: true, margin: [0, 6, 0, 2] });
+    out.push({ text: r.text, fontSize: 9 });
+  }
+  if (comment) {
+    out.push({ text: "Tester comment", fontSize: 10, bold: true, margin: [0, 6, 0, 2] });
+    out.push({ text: comment, fontSize: 9 });
+  }
+  return out;
 }
 
 function base64ToBytes(b64: string): Uint8Array {

@@ -42,6 +42,11 @@
             <input asp-for="Input.LicenceExpiryDate" type="date" />
             <p class="form-field__hint">Required for Testers — they can't sign in if expired. Leave blank for admins.</p>
         </div>
+        <div class="form-field">
+            <label asp-for="Input.CertificateNo">Certificate number</label>
+            <input asp-for="Input.CertificateNo" maxlength="50" />
+            <p class="form-field__hint">NZMPTA accreditation / certificate number, shown on the report sign-off.</p>
+        </div>
 
         @if (Model.Errors.Any())
         {

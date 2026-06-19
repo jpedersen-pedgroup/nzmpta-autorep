@@ -82,6 +82,15 @@ export interface LocalTest {
   /** True once the test has ever reached the server (syncState alone can't tell — it flips back
    * to "local-only" as a dirty marker). Tests that exist on the server can't be deleted locally. */
   everUploaded?: boolean;
+  /** As-recorded pass/fail per reading key, for MIGRATED legacy tests — shown on the read-only
+   * view instead of recomputing (the original verdict at test time). */
+  verdicts?: Record<string, "pass" | "fail">;
+  /** Migrated legacy test: rendered read-only (a historical record, not editable). */
+  readonly?: boolean;
+  /** Section-level recommendation narratives as recorded (migrated tests, read-only). */
+  recordedRecommendations?: { label: string; text: string }[];
+  /** Visual-fault observation texts as recorded (migrated tests, read-only). */
+  recordedVisualFaults?: string[];
 }
 
 /** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */
@@ -96,13 +105,51 @@ interface AutorepDB extends DBSchema {
   reference: { key: string; value: ReferenceEntry };
 }
 
-const DB_NAME = "autorep";
+const DB_PREFIX = "autorep";
 const DB_VERSION = 2; // v2: + reference store (synced standards / catalogs)
+const LAST_TESTER_KEY = "autorep:lastTesterId";
+
+function currentTesterId(): string | null {
+  const id = (globalThis as { __autorepTesterId?: unknown }).__autorepTesterId;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+// Per-tester database name so a shared device never exposes one tester's cached tests / farm PII to
+// another, and offline-created tests can't be mis-attributed on sync. Falls back to the legacy
+// unnamespaced name only when no identity is present (e.g. unit tests).
+function dbName(): string {
+  const t = currentTesterId();
+  return t ? `${DB_PREFIX}_${t}` : DB_PREFIX;
+}
+
+function deleteDatabase(name: string): Promise<void> {
+  return new Promise((resolve) => {
+    const req = indexedDB.deleteDatabase(name);
+    req.onsuccess = req.onerror = req.onblocked = () => resolve();
+  });
+}
+
+/** Deletes a previous tester's local database when a different tester (or none) uses this device,
+ * so cached tests + farm PII never leak across accounts on a shared device. Call once at startup
+ * before any store access. Best-effort — never blocks app start (per-tester DB naming is the
+ * primary isolation). */
+export async function purgeStaleLocalData(): Promise<void> {
+  try {
+    const current = currentTesterId() ?? "";
+    const last = localStorage.getItem(LAST_TESTER_KEY) ?? "";
+    if (last === current) return;
+    await deleteDatabase(DB_PREFIX); // drop the legacy shared DB if it exists
+    if (last) await deleteDatabase(`${DB_PREFIX}_${last}`);
+    localStorage.setItem(LAST_TESTER_KEY, current);
+  } catch {
+    /* ignore */
+  }
+}
 
 let dbPromise: Promise<IDBPDatabase<AutorepDB>> | null = null;
 
 function db(): Promise<IDBPDatabase<AutorepDB>> {
-  dbPromise ??= openDB<AutorepDB>(DB_NAME, DB_VERSION, {
+  dbPromise ??= openDB<AutorepDB>(dbName(), DB_VERSION, {
     upgrade(database) {
       if (!database.objectStoreNames.contains("tests")) {
         database.createObjectStore("tests", { keyPath: "id" });

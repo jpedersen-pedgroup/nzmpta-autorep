@@ -35,6 +35,11 @@
             <input asp-for="Details.DisplayName" required />
         </div>
         <div class="form-field">
+            <label asp-for="Details.CertificateNo">Certificate number</label>
+            <input asp-for="Details.CertificateNo" maxlength="50" />
+            <p class="form-field__hint">NZMPTA accreditation / certificate number, shown on the report sign-off.</p>
+        </div>
+        <div class="form-field">
             <label asp-for="Details.Role">Role</label>
             <select asp-for="Details.Role">
                 <option value="@Roles.Tester">Tester</option>

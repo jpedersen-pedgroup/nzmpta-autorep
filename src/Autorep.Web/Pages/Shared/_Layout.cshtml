@@ -142,6 +142,10 @@
             }
         })();
     </script>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <script>window.__autorepTesterId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value));</script>
+    }
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

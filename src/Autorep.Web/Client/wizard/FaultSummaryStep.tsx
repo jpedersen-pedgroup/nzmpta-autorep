@@ -10,6 +10,12 @@ interface Props {
 }
 
 export function FaultSummaryStep({ test, onSetRecommendation }: Props) {
+  // Migrated tests carry their faults + recommendations as-recorded (not the new per-fault model),
+  // so render those read-only rather than recomputing.
+  if (test.recordedRecommendations !== undefined) {
+    return <RecordedFaultSummary test={test} />;
+  }
+
   const summary = aggregate(buildFaultInputs(test));
 
   return (
@@ -53,6 +59,54 @@ export function FaultSummaryStep({ test, onSetRecommendation }: Props) {
             ))}
           </div>
         ))
+      )}
+    </div>
+  );
+}
+
+// Read-only fault summary for a migrated test: faults + recommendations exactly as recorded.
+function RecordedFaultSummary({ test }: { test: LocalTest }) {
+  const recs = test.recordedRecommendations ?? [];
+  const faults = test.recordedVisualFaults ?? [];
+  const comment = test.notes?.trim();
+  const empty = recs.length === 0 && faults.length === 0 && !comment;
+
+  return (
+    <div class="card">
+      <div class="card__title">
+        Fault Summary &amp; Recommendations{" "}
+        <small class="card__hint">As recorded at the time of testing.</small>
+      </div>
+
+      {empty && (
+        <p class="td-muted" style="margin-top:var(--space-3)">
+          No faults or recommendations were recorded for this test.
+        </p>
+      )}
+
+      {faults.length > 0 && (
+        <div class="fault-group">
+          <div class="fault-group__head"><span class="fault-group__name">Recorded faults</span></div>
+          {faults.map((f) => (
+            <div key={f} class="fault">
+              <div class="fault__desc"><span class="pf-dot pf-dot--major"></span>{f}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {recs.map((r) => (
+        <div key={r.label} class="fault-group">
+          <div class="fault-group__head"><span class="fault-group__name">{r.label}</span></div>
+          <p style="white-space:pre-wrap;margin:var(--space-2) 0 0">{r.text}</p>
+        </div>
+      ))}
+
+      {comment && (
+        <div class="fault-group">
+          <div class="fault-group__head"><span class="fault-group__name">Tester comment</span></div>
+          <p style="white-space:pre-wrap;margin:var(--space-2) 0 0">{comment}</p>
+        </div>
       )}
     </div>
   );

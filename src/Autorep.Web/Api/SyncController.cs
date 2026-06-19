@@ -73,9 +73,12 @@ public class SyncController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.FarmName))
             return BadRequest(new { error = "FarmName is required" });
 
+        // Scope the upsert to the caller's own tests: a ClientId belonging to another tester must
+        // never match here (otherwise tester A could overwrite tester B's test — IDOR). Combined
+        // with the unique (TesterId, ClientId) index, a foreign ClientId falls through to create.
         var existing = await _db.MachineTests
             .Include(t => t.Configuration)
-            .FirstOrDefaultAsync(t => t.ClientId == req.ClientId, ct);
+            .FirstOrDefaultAsync(t => t.ClientId == req.ClientId && t.TesterId == testerId, ct);
 
         if (existing is not null)
         {
@@ -121,7 +124,17 @@ public class SyncController : ControllerBase
             .Include(t => t.Farm)
             .Include(t => t.Configuration)
             .FirstOrDefaultAsync(t => t.Id == id && t.TesterId == testerId, ct);
-        return test is null ? NotFound() : Ok(test);
+        if (test is null) return NotFound();
+
+        // Project to the DTO rather than returning the raw entity (avoids leaking the Farm
+        // navigation and any future entity members through the sync surface).
+        return Ok(new TestSummaryDto(
+            test.ClientId ?? Guid.Empty,
+            test.Farm?.Name ?? string.Empty,
+            test.CreatedAt,
+            test.MarkedCompleteAt,
+            test.Configuration is null ? null : ToDto(test.Configuration),
+            test.PayloadJson));
     }
 
     private static void ApplyConfig(MachineTest test, ConfigDto? dto)
@@ -162,7 +175,7 @@ public class SyncController : ControllerBase
         test.Configuration = cfg;
     }
 
-    private static ConfigDto ToDto(MachineConfiguration c) => new(
+    internal static ConfigDto ToDto(MachineConfiguration c) => new(
         c.PlantType.ToString(), c.PlantSize, c.ClusterCount, c.HerdSize, c.AtmosPressureSeaLevel,
         c.LastBmcc, c.MilklineSize, c.FlushingPulsationSystem,
         c.PulsatorBrand, c.PulsatorModel, c.PulsatorConfiguration, c.PulsatorCount,

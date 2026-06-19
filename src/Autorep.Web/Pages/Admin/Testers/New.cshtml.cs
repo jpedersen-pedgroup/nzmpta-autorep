@@ -35,6 +35,7 @@ public class NewModel : PageModel
         public Guid? TestingCompanyId { get; set; }
         public string Role { get; set; } = Roles.Tester;
         public DateOnly? LicenceExpiryDate { get; set; }
+        public string? CertificateNo { get; set; }
     }
 
     public async Task OnGetAsync() => await PopulateAsync();
@@ -59,6 +60,7 @@ public class NewModel : PageModel
             DisplayName = Input.DisplayName.Trim(),
             TestingCompanyId = Input.TestingCompanyId,
             LicenceExpiryDate = Input.LicenceExpiryDate,
+            CertificateNo = string.IsNullOrWhiteSpace(Input.CertificateNo) ? null : Input.CertificateNo.Trim(),
             ForcedPasswordResetRequired = true
         };
         var create = await _users.CreateAsync(user, tempPassword);

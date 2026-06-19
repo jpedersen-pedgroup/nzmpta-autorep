@@ -4,10 +4,12 @@
 import { initStandards } from "./standards/standardsSync";
 import { initEquipment } from "./standards/equipmentSync";
 import { initFaultCatalog } from "./standards/faultCatalogSync";
+import { initPrivacy } from "./standards/privacySync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
+import { purgeStaleLocalData } from "./db/testStore";
 
-void Promise.allSettled([initStandards(), initEquipment(), initFaultCatalog()]).finally(() => {
+function mountApps(): void {
   const wizardRoot = document.getElementById("wizard-root");
   if (wizardRoot) {
     const params = new URLSearchParams(location.search);
@@ -15,9 +17,17 @@ void Promise.allSettled([initStandards(), initEquipment(), initFaultCatalog()]).
       id: params.get("id") ?? undefined,
       farmId: params.get("farmId") ?? undefined,
       farmName: params.get("farmName") ?? undefined,
+      // Admin read-only view: fetch the test from the server instead of IndexedDB.
+      serverTestId: wizardRoot.getAttribute("data-server-test") ?? undefined,
     });
   }
 
   const listRoot = document.getElementById("test-list-root");
   if (listRoot) mountTestList(listRoot);
-});
+}
+
+// Purge any other tester's locally-cached data first (shared-device isolation), THEN load the
+// synced standards and mount the offline wizard + "My tests" list.
+void purgeStaleLocalData()
+  .then(() => Promise.allSettled([initStandards(), initEquipment(), initFaultCatalog(), initPrivacy()]))
+  .finally(mountApps);

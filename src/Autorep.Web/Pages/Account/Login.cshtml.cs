@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 
 namespace Autorep.Web.Pages.Account;
 
@@ -84,6 +85,27 @@ public class LoginModel : PageModel
                 return RedirectToPage("/Account/ResetPassword",
                     new { email = user.Email, token });
             }
+
+            // Terms acceptance gate: require (re-)acceptance when the current terms version differs
+            // from what the tester accepted, or their licence has been renewed since acceptance.
+            // Mirror the reset flow: sign out and route through the anonymous, token-protected page.
+            if (user is not null)
+            {
+                var currentTermsVersion = await _db.PrivacyContent
+                    .Select(p => p.TermsVersion)
+                    .FirstOrDefaultAsync();
+                if (!string.IsNullOrEmpty(currentTermsVersion)
+                    && (user.TermsAcceptedVersion != currentTermsVersion
+                        || user.TermsAcceptedLicenceExpiry != user.LicenceExpiryDate))
+                {
+                    await _signIn.SignOutAsync();
+                    var termsToken = await _users.GenerateUserTokenAsync(
+                        user, TokenOptions.DefaultProvider, "AcceptTerms");
+                    return RedirectToPage("/Account/AcceptTerms",
+                        new { email = user.Email, token = termsToken, returnUrl });
+                }
+            }
+
             return LocalRedirect(returnUrl ?? "/");
         }
         if (result.RequiresTwoFactor)
@@ -105,7 +127,9 @@ public class LoginModel : PageModel
 
     private async Task WriteLoginAuditAsync(string email, string? userId, string outcome)
     {
-        _logger.LogInformation("Login: {Email} {Outcome}", email, outcome);
+        // Don't log the raw email to app logs/App Insights — the authoritative login record is the
+        // audit row below (covered by the IPP3A notice + retention policy).
+        _logger.LogInformation("Login {Outcome} for user {UserId}", outcome, userId ?? "(anonymous)");
         _db.AuditEntries.Add(new Autorep.Web.Domain.Entities.AuditEntry
         {
             Timestamp = DateTimeOffset.UtcNow,

@@ -52,6 +52,7 @@ public class EditModel : PageModel
         public string DisplayName { get; set; } = string.Empty;
         public Guid? TestingCompanyId { get; set; }
         public string Role { get; set; } = Roles.Tester;
+        public string? CertificateNo { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync()
@@ -65,6 +66,7 @@ public class EditModel : PageModel
         if (!await LoadAsync(hydrateForGet: false)) return NotFound();
         EditingUser!.DisplayName = Details.DisplayName.Trim();
         EditingUser.TestingCompanyId = Details.TestingCompanyId;
+        EditingUser.CertificateNo = string.IsNullOrWhiteSpace(Details.CertificateNo) ? null : Details.CertificateNo.Trim();
         await _users.UpdateAsync(EditingUser);
 
         var currentRoles = await _users.GetRolesAsync(EditingUser);
@@ -150,6 +152,7 @@ public class EditModel : PageModel
             Details.DisplayName = EditingUser.DisplayName;
             Details.TestingCompanyId = EditingUser.TestingCompanyId;
             Details.Role = PrimaryRole == "—" ? Roles.Tester : PrimaryRole;
+            Details.CertificateNo = EditingUser.CertificateNo;
             LicenceExpiryDate = EditingUser.LicenceExpiryDate;
         }
 
