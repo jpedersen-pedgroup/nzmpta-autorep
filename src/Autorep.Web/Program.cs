@@ -12,13 +12,19 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load secrets from Azure Key Vault when a vault is configured (the Bicep injects
-// AzureKeyVault__VaultUri into App Service). Uses the App Service managed identity in Azure and the
-// developer's az-login locally. No-op when unset, so local dev keeps using user-secrets/appsettings.
+// Production loads its secrets (JWT signing key, sending mailbox, etc.) from Azure Key Vault via the
+// App Service managed identity. The staging/dev vaults are private-network-only and can be
+// unreachable from a given host; the Key Vault config provider loads synchronously at startup, so an
+// unreachable vault HANGS the whole container until App Service kills it (ContainerTimeout → 503)
+// rather than throwing cleanly. To keep non-production resilient we only wire the vault in Production
+// (where it's required and reachable) and let other environments fall back to the graceful defaults
+// below. ManagedIdentityCredential (not DefaultAzureCredential) gives a fast, deterministic token
+// path in Azure. Local development keeps using user-secrets/appsettings (vault left unwired).
+var isProduction = builder.Environment.IsProduction();
 var keyVaultUri = builder.Configuration["AzureKeyVault:VaultUri"];
-if (!string.IsNullOrWhiteSpace(keyVaultUri))
+if (!string.IsNullOrWhiteSpace(keyVaultUri) && isProduction)
 {
-    builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUri), new DefaultAzureCredential());
+    builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUri), new ManagedIdentityCredential());
 }
 
 // HttpContextAccessor is needed by the AuditInterceptor to discover the
@@ -68,20 +74,21 @@ builder.Services.ConfigureApplicationCookie(opts =>
 });
 
 // Email sender: Graph when a sending mailbox is configured; otherwise the log-only sender is
-// permitted ONLY in Development/Testing. In staging/prod a missing mailbox is a hard startup error
-// rather than silently falling back to a sender that would write password-reset links to the logs.
+// permitted outside Production. In Production a missing mailbox is a hard startup error rather than
+// silently falling back to a sender that would write password-reset links to the logs. (Staging has
+// no mail transport provisioned, so it legitimately uses the log-only sender.)
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Graph:SendingMailbox"]))
 {
     builder.Services.AddSingleton<IEmailSender, GraphEmailSender>();
 }
-else if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+else if (!isProduction)
 {
     builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 }
 else
 {
     throw new InvalidOperationException(
-        "No email transport configured: set Graph:SendingMailbox (via Key Vault) outside Development.");
+        "No email transport configured: set Graph:SendingMailbox (via Key Vault) in Production.");
 }
 
 // JWT for the sync API (sits alongside cookie auth used by Razor Pages).
@@ -91,13 +98,14 @@ builder.Services.AddScoped<RefreshTokenService>();
 
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
 
-// The signing key must come from configuration/Key Vault outside Development — never a
-// source-checked-in placeholder (which would let anyone mint valid bearer tokens). Fail fast.
-var allowDevJwt = builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing");
+// In Production the signing key must come from configuration/Key Vault — never a source-checked-in
+// placeholder (which would let anyone mint valid bearer tokens). Fail fast there; outside Production
+// (dev/test/staging) fall back to a non-production placeholder so the app can boot without a vault.
+var allowDevJwt = !isProduction;
 if (!allowDevJwt && string.IsNullOrWhiteSpace(jwt.SigningKey))
-    throw new InvalidOperationException("Jwt:SigningKey must be supplied (e.g. via Key Vault) outside Development.");
+    throw new InvalidOperationException("Jwt:SigningKey must be supplied (e.g. via Key Vault) in Production.");
 var jwtSigningKey = string.IsNullOrWhiteSpace(jwt.SigningKey)
-    ? "dev-only-insecure-signing-key-not-for-production-use!" // reachable only in Dev/Testing (guarded above)
+    ? "dev-only-insecure-signing-key-not-for-production-use!" // reachable only outside Production (guarded above)
     : jwt.SigningKey;
 
 builder.Services.AddAuthentication()
