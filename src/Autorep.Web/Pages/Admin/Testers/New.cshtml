@@ -23,12 +23,18 @@
             <input asp-for="Input.DisplayName" required />
         </div>
         <div class="form-field">
-            <label asp-for="Input.Role">Role</label>
-            <select asp-for="Input.Role">
-                <option value="@Roles.Tester">Tester</option>
-                <option value="@Roles.CompanyAdministrator">Company Administrator</option>
-                <option value="@Roles.SuperAdministrator">Super Administrator</option>
-            </select>
+            <label>Roles</label>
+            <div class="checkbox-group">
+                @foreach (var role in Roles.All)
+                {
+                    <label class="form-check">
+                        <input type="checkbox" name="Input.SelectedRoles" value="@role"
+                               checked="@(Model.Input.SelectedRoles.Contains(role))" />
+                        <span>@Roles.Label(role)</span>
+                    </label>
+                }
+            </div>
+            <p class="form-field__hint">A user can hold more than one role — e.g. a Company Administrator who is also a Tester.</p>
         </div>
         <div class="form-field">
             <label asp-for="Input.TestingCompanyId">Testing company</label>

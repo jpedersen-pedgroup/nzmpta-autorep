@@ -43,6 +43,11 @@ public class Farm
 
     public string? Notes { get; set; }
 
+    /// <summary>The Testing Company that first set this farm up (via the New-test flow). Lets a
+    /// tester's farm picker show farms their company created as well as ones they've tested.
+    /// Null for legacy/migrated farms and farms created by an unaffiliated Super-Administrator.</summary>
+    public Guid? CreatedByTestingCompanyId { get; set; }
+
     /// <summary>Soft enable/disable so retired farms drop out of pickers without losing history.</summary>
     public bool IsActive { get; set; } = true;
 

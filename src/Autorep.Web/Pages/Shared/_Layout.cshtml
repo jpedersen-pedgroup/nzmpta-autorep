@@ -130,6 +130,28 @@
             }
         })();
     </script>
+    <script>
+        // Client-side list filter: an <input data-table-filter="tableId"> hides non-matching
+        // rows of #tableId as you type, and toggles an optional [data-table-empty="tableId"].
+        (function () {
+            document.querySelectorAll('input[data-table-filter]').forEach(function (input) {
+                var id = input.getAttribute('data-table-filter');
+                var table = document.getElementById(id);
+                if (!table) return;
+                var empty = document.querySelector('[data-table-empty="' + id + '"]');
+                input.addEventListener('input', function () {
+                    var q = input.value.trim().toLowerCase();
+                    var shown = 0;
+                    table.querySelectorAll('tbody tr').forEach(function (row) {
+                        var match = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
+                        row.style.display = match ? '' : 'none';
+                        if (match) shown++;
+                    });
+                    if (empty) empty.hidden = shown !== 0;
+                });
+            });
+        })();
+    </script>
     @if (User.Identity?.IsAuthenticated == true)
     {
         <script>window.__autorepTesterId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value));</script>

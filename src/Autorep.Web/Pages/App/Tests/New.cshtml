@@ -14,14 +14,13 @@
 <div class="card" style="max-width:640px">
     <form method="post">
         <div class="form-field">
-            <label asp-for="Input.FarmId">Farm</label>
-            <select asp-for="Input.FarmId" id="farm-select">
-                <option value="">— Select a farm —</option>
-                @foreach (var f in Model.Farms)
-                {
-                    <option value="@f.Id" data-milkco="@f.MilkCompanyId">@f.Name</option>
-                }
-            </select>
+            <label for="farm-search">Farm</label>
+            <input type="hidden" asp-for="Input.FarmId" id="farm-id" />
+            <div class="autocomplete">
+                <input type="text" id="farm-search" autocomplete="off" placeholder="Type to search your farms…" />
+                <div id="farm-menu" class="autocomplete-menu" hidden></div>
+            </div>
+            <p class="form-field__hint">Shows farms your company has set up or tested. Not listed? Add a new one.</p>
             <div style="margin-top:var(--space-3)">
                 <button type="button" class="btn btn--add" id="new-farm-btn">＋ Add a new farm</button>
             </div>
@@ -91,16 +90,19 @@
 @section Scripts {
 <script>
 (function () {
-    var sel = document.getElementById('farm-select');
+    var farms = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        Model.Farms.Select(f => new { id = f.Id, name = f.Name, milkco = f.MilkCompanyId })));
+    var search = document.getElementById('farm-search');
+    var hidden = document.getElementById('farm-id');
+    var menu = document.getElementById('farm-menu');
     var logoWrap = document.getElementById('farm-logo-wrap');
     var logo = document.getElementById('farm-logo');
     var modal = document.getElementById('farm-modal');
     var tokenEl = document.querySelector('input[name="__RequestVerificationToken"]');
     var token = tokenEl ? tokenEl.value : '';
+    var current = [], active = -1;
 
-    function showLogo() {
-        var opt = sel.options[sel.selectedIndex];
-        var milkco = opt ? opt.getAttribute('data-milkco') : '';
+    function showLogo(milkco) {
         if (milkco) {
             logo.onerror = function () { logoWrap.style.display = 'none'; };
             logo.src = '/api/milk-companies/' + milkco + '/logo';
@@ -109,15 +111,53 @@
             logoWrap.style.display = 'none';
         }
     }
-    sel.addEventListener('change', showLogo);
-    showLogo();
+    function hide() { menu.hidden = true; menu.innerHTML = ''; current = []; active = -1; }
+    function pick(f) { hidden.value = f.id; search.value = f.name; showLogo(f.milkco); hide(); }
+    function render(list) {
+        current = list; menu.innerHTML = '';
+        if (!list.length) {
+            menu.innerHTML = '<div class="autocomplete-menu__empty">No matching farms — add a new one below.</div>';
+            menu.hidden = false; return;
+        }
+        list.forEach(function (f, i) {
+            var b = document.createElement('button');
+            b.type = 'button'; b.textContent = f.name;
+            if (i === active) b.className = 'is-active';
+            b.addEventListener('mousedown', function (e) { e.preventDefault(); pick(f); });
+            menu.appendChild(b);
+        });
+        menu.hidden = false;
+    }
+    function filter() {
+        var q = search.value.trim().toLowerCase();
+        var list = (q === '' ? farms : farms.filter(function (f) { return f.name.toLowerCase().indexOf(q) !== -1; })).slice(0, 50);
+        active = -1; render(list);
+    }
+    search.addEventListener('input', function () { hidden.value = ''; showLogo(null); filter(); });
+    search.addEventListener('focus', filter);
+    search.addEventListener('keydown', function (e) {
+        if (menu.hidden) return;
+        if (e.key === 'ArrowDown') { active = Math.min(active + 1, current.length - 1); render(current); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { active = Math.max(active - 1, 0); render(current); e.preventDefault(); }
+        else if (e.key === 'Enter') { if (active >= 0) { pick(current[active]); e.preventDefault(); } }
+        else if (e.key === 'Escape') { hide(); }
+    });
+    document.addEventListener('click', function (e) { if (!menu.contains(e.target) && e.target !== search) hide(); });
+    // Forgiving submit: if they typed an exact farm name but didn't click a suggestion, resolve it.
+    var form = search.closest('form');
+    if (form) form.addEventListener('submit', function () {
+        if (!hidden.value) {
+            var q = search.value.trim().toLowerCase();
+            var match = farms.filter(function (f) { return f.name.toLowerCase() === q; })[0];
+            if (match) hidden.value = match.id;
+        }
+    });
 
+    // Add-a-farm modal.
     document.getElementById('new-farm-btn').addEventListener('click', function () { modal.classList.add('open'); });
     document.getElementById('nf-cancel').addEventListener('click', function () { modal.classList.remove('open'); });
     modal.addEventListener('click', function (e) { if (e.target === modal) modal.classList.remove('open'); });
-
     function val(id) { var v = document.getElementById(id).value.trim(); return v === '' ? null : v; }
-
     document.getElementById('nf-create').addEventListener('click', function () {
         var errEl = document.getElementById('farm-modal-errors');
         errEl.innerHTML = '';
@@ -135,13 +175,9 @@
             body: JSON.stringify(payload)
         }).then(function (r) { return r.ok ? r.json() : r.json().then(function (e) { throw e; }); })
           .then(function (farm) {
-              var o = document.createElement('option');
-              o.value = farm.id;
-              o.textContent = farm.name;
-              o.setAttribute('data-milkco', farm.milkCompanyId || '');
-              sel.appendChild(o);
-              sel.value = farm.id;
-              showLogo();
+              var f = { id: farm.id, name: farm.name, milkco: farm.milkCompanyId || null };
+              farms.push(f);
+              pick(f);
               modal.classList.remove('open');
           })
           .catch(function (e) {

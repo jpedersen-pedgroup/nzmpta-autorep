@@ -362,6 +362,38 @@ main {
    instead of scrolling the whole page. */
 .table-wrap--scroll { max-height: calc(100vh - 290px); overflow-y: auto; }
 .table-wrap--scroll thead th { position: sticky; top: 0; z-index: 1; }
+
+/* List-page search box — filters the table rows client-side as you type. */
+.list-search { margin-bottom: var(--space-4); max-width: 360px; }
+.list-search input {
+  width: 100%;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  background: var(--surface);
+  color: var(--text);
+  min-height: 40px;
+}
+.list-search input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,56,147,0.1); }
+
+/* Inline checkbox group (e.g. multi-select roles). */
+.checkbox-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.checkbox-group .form-check { margin-bottom: 0; }
+
+/* Themed autocomplete (e.g. the new-test farm picker) — avoids the unstyleable native <datalist>. */
+.autocomplete { position: relative; }
+.autocomplete-menu {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); max-height: 280px; overflow-y: auto; padding: var(--space-2);
+}
+.autocomplete-menu button {
+  display: block; width: 100%; text-align: left; padding: 0.5rem 0.75rem;
+  border-radius: var(--radius); font-size: 0.9375rem; color: var(--text); cursor: pointer;
+}
+.autocomplete-menu button:hover, .autocomplete-menu button.is-active { background: var(--surface-alt); }
+.autocomplete-menu__empty { padding: 0.5rem 0.75rem; color: var(--text-muted); font-size: 0.875rem; }
 .table {
   width: 100%;
   border-collapse: collapse;
