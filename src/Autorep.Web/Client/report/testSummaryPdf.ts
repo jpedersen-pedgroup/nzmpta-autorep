@@ -256,7 +256,10 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
     },
     content: [
       { text: "Milking Machine Test Summary", fontSize: 16, bold: true, color: BRAND },
-      { text: "NZMPTA AutoRep", fontSize: 9, color: MUTED, margin: [0, 0, 0, 10] },
+      { text: "NZMPTA AutoRep", fontSize: 9, color: MUTED, margin: [0, 0, 0, (test.version ?? 1) > 1 ? 2 : 10] },
+      ...((test.version ?? 1) > 1
+        ? [{ text: `Version ${test.version} — supersedes an earlier completed test`, fontSize: 9, bold: true, color: BRAND, margin: [0, 0, 0, 10] } as Content]
+        : []),
       farmLines,
       sectionHeader("Machine configuration"),
       configBlock,
