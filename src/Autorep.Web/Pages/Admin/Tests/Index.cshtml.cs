@@ -23,6 +23,8 @@ public class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
     [BindProperty(SupportsGet = true)] public string? Q { get; set; }
+    [BindProperty(SupportsGet = true)] public Guid? FarmId { get; set; }
+    public string? FarmName { get; private set; }
     public int PageSize { get; } = 50;
     public int TotalCount { get; private set; }
     public int TotalPages => TotalCount == 0 ? 1 : (int)Math.Ceiling(TotalCount / (double)PageSize);
@@ -44,6 +46,16 @@ public class IndexModel : PageModel
                 .Where(u => u.TestingCompanyId == companyId)
                 .Select(u => u.Id);
             query = query.Where(t => companyTesterIds.Contains(t.TesterId));
+        }
+
+        // Deep-link from a farm's details page: scope to that farm's tests.
+        if (FarmId is not null)
+        {
+            query = query.Where(t => t.FarmId == FarmId);
+            FarmName = await _db.Farms
+                .Where(f => f.Id == FarmId)
+                .Select(f => f.Name)
+                .FirstOrDefaultAsync();
         }
 
         if (!string.IsNullOrWhiteSpace(Q))

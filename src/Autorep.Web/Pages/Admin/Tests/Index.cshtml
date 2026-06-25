@@ -6,26 +6,45 @@
 
 <div class="page-header">
     <div class="page-header__heading">
-        <h1>All tests</h1>
-        <p>@Model.TotalCount machine test@(Model.TotalCount == 1 ? "" : "s") synced from the field.</p>
+        <h1>@(Model.FarmName ?? "All tests")</h1>
+        <p>
+            @Model.TotalCount machine test@(Model.TotalCount == 1 ? "" : "s")
+            @(Model.FarmName is null ? "synced from the field." : "for this farm.")
+        </p>
     </div>
+    @if (Model.FarmName is not null)
+    {
+        <div class="page-header__actions">
+            <a class="btn btn--secondary" asp-page="/Admin/Tests/Index">View all tests</a>
+        </div>
+    }
 </div>
 
 <form method="get" style="display:flex;gap:var(--space-2);margin-bottom:var(--space-4)">
-    <input type="search" name="q" value="@Model.Q" placeholder="Search by farm or tester email…" style="max-width:340px" />
+    @if (Model.FarmId is not null)
+    {
+        <input type="hidden" name="farmId" value="@Model.FarmId" />
+    }
+    <input type="search" name="q" value="@Model.Q" placeholder="@(Model.FarmName is null ? "Search by farm or tester email…" : "Search this farm by tester email…")" style="max-width:340px" />
     <button type="submit" class="btn btn--secondary">Search</button>
     @if (!string.IsNullOrWhiteSpace(Model.Q))
     {
-        <a class="btn btn--secondary" asp-page="/Admin/Tests/Index">Clear</a>
+        <a class="btn btn--secondary" asp-page="/Admin/Tests/Index" asp-route-farmId="@Model.FarmId">Clear</a>
     }
 </form>
 
 @if (!Model.Tests.Any())
 {
     <div class="empty">
-        <div class="empty__title">@(string.IsNullOrWhiteSpace(Model.Q) ? "No tests synced yet" : "No matching tests")</div>
+        <div class="empty__title">
+            @(!string.IsNullOrWhiteSpace(Model.Q) ? "No matching tests"
+                : Model.FarmName is not null ? "No tests for this farm yet"
+                : "No tests synced yet")
+        </div>
         <p class="empty__text">
-            @(string.IsNullOrWhiteSpace(Model.Q) ? "Tests will appear here as Testers complete and sync them." : "Try a different search term.")
+            @(!string.IsNullOrWhiteSpace(Model.Q) ? "Try a different search term."
+                : Model.FarmName is not null ? "Tests will appear here once this farm has synced machine tests."
+                : "Tests will appear here as Testers complete and sync them.")
         </p>
     </div>
 }
@@ -69,12 +88,12 @@ else
     <div style="display:flex;gap:var(--space-3);align-items:center;margin-top:var(--space-4)">
         @if (Model.PageNumber > 1)
         {
-            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q">‹ Prev</a>
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId">‹ Prev</a>
         }
         <span class="td-muted">Page @Model.PageNumber of @Model.TotalPages · @Model.TotalCount total</span>
         @if (Model.PageNumber < Model.TotalPages)
         {
-            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q">Next ›</a>
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId">Next ›</a>
         }
     </div>
 }

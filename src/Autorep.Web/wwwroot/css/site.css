@@ -358,6 +358,10 @@ main {
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
+/* Long, unpaged admin lists: scroll the table inside the card (sticky header)
+   instead of scrolling the whole page. */
+.table-wrap--scroll { max-height: calc(100vh - 290px); overflow-y: auto; }
+.table-wrap--scroll thead th { position: sticky; top: 0; z-index: 1; }
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -835,6 +839,17 @@ main {
 .form-tabs-card { display: flex; flex-direction: column; min-height: 520px; }
 .form-tabs-card__panel { flex: 1; }
 .form-tabs-card__actions { margin-top: auto; padding-top: var(--space-4); }
+
+/* Admin edit cards that scroll internally instead of growing the page: the card is
+   capped to the viewport and its body (form fields / active tab panel) scrolls,
+   keeping the heading + Save action in view. */
+.card--scroll { display: flex; flex-direction: column; max-height: calc(100vh - 290px); }
+.card--scroll > form { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.card--scroll .scroll-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: var(--space-2); }
+/* Tabbed variant (tester edit): stable card height per viewport (no jump between
+   tabs) and the active tab panel scrolls within it. */
+.form-tabs-card--scroll { min-height: 0; height: clamp(420px, calc(100vh - 290px), 680px); }
+.form-tabs-card--scroll .form-tabs-card__panel { overflow-y: auto; min-height: 0; padding-right: var(--space-2); }
 
 /* Accordion sections (admin reference pages) */
 .accordion { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: var(--space-3); background: var(--surface); }
