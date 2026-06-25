@@ -11,7 +11,7 @@ import { resolveWizard } from "../wizard/wizardStepResolver";
 import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
 import { getPrivacyContent } from "../config/privacyContent";
 
-const BRAND = "#0a2540";
+const BRAND = "#003893";
 const MUTED = "#64748b";
 const PASS = "#16a34a";
 const FAIL = "#dc2626";

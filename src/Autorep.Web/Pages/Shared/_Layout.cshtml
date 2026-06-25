@@ -28,26 +28,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@(ViewData["Title"] ?? "AutoRep") · NZMPTA AutoRep</title>
 
-    <!-- PWA -->
-    <link rel="manifest" href="~/manifest.webmanifest" />
-    <link rel="icon" href="~/icons/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="~/icons/icon.svg" />
-    <meta name="theme-color" content="#0a2540" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="AutoRep" />
-
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
     <!-- Font Awesome: vendored Free webfonts as the offline baseline; the Pro kit upgrades the
          same fa-solid classes when it loads (the service worker caches it for offline reuse). -->
     <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" asp-append-version="true" />
     <script src="https://kit.fontawesome.com/46ebb87e5d.js" crossorigin="anonymous" defer></script>
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    @* PWA icons, theme colour, brand fonts, iOS launch screens, and site.css. *@
+    <partial name="_BrandHead" />
 </head>
 <body>
     @if (User.Identity?.IsAuthenticated == true)
@@ -55,8 +42,9 @@
         <header class="app-header">
             <div class="app-header__inner">
             <a class="app-header__brand" asp-page="/Index">
-                <span class="app-header__brand-mark">AR</span>
-                <span>NZMPTA AutoRep</span>
+                @* Decorative: the adjacent "AutoRep App" text already labels this home link. *@
+                <img class="app-header__brand-logo" src="~/img/logo-mpnz-white.svg" alt="" width="88" height="30" />
+                <span>AutoRep App</span>
             </a>
             <button type="button" class="app-header__burger" id="nav-burger" aria-label="Toggle menu" aria-expanded="false">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">

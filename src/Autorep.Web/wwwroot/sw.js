@@ -5,7 +5,7 @@
 // should PROACTIVELY pre-cache all active milk-company logos on reference-data sync (not just
 // ones already viewed) and render the tester pages offline so cached logos actually display.
 
-const CACHE_VERSION = 'autorep-v5';
+const CACHE_VERSION = 'autorep-v6';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 const APP_SHELL = [
@@ -13,6 +13,9 @@ const APP_SHELL = [
   '/css/site.css',
   '/js/pwa-register.js',
   '/icons/icon.svg',
+  '/img/logo-mpnz.svg',
+  '/img/logo-mpnz-white.svg',
+  '/img/logo-mpnz-lockup.svg',
   '/lib/fontawesome/css/all.min.css',
   '/lib/fontawesome/webfonts/fa-solid-900.woff2'
 ];
