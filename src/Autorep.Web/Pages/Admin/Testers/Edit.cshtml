@@ -27,85 +27,116 @@
     </div>
 }
 
-<div class="card" style="max-width:720px">
-    <h2 class="card__title">Details</h2>
-    <form method="post" asp-page-handler="Details">
-        <div class="form-field">
-            <label asp-for="Details.DisplayName">Display name</label>
-            <input asp-for="Details.DisplayName" required />
-        </div>
-        <div class="form-field">
-            <label asp-for="Details.CertificateNo">Certificate number</label>
-            <input asp-for="Details.CertificateNo" maxlength="50" />
-            <p class="form-field__hint">NZMPTA accreditation / certificate number, shown on the report sign-off.</p>
-        </div>
-        <div class="form-field">
-            <label asp-for="Details.Role">Role</label>
-            <select asp-for="Details.Role">
-                <option value="@Roles.Tester">Tester</option>
-                <option value="@Roles.CompanyAdministrator">Company Administrator</option>
-                <option value="@Roles.SuperAdministrator">Super Administrator</option>
-            </select>
-        </div>
-        <div class="form-field">
-            <label asp-for="Details.TestingCompanyId">Testing company</label>
-            <select asp-for="Details.TestingCompanyId" asp-items="Model.Companies">
-                <option value="">— None —</option>
-            </select>
-        </div>
-        <div class="form-actions">
-            <button type="submit" class="btn">Save details</button>
-        </div>
-    </form>
+<div class="card form-tabs-card form-tabs-card--scroll" style="max-width:720px">
+    <div class="tabs" id="tester-tabs" role="tablist">
+        <button type="button" class="tab is-active" data-panel="tester-panel-details">Details</button>
+        <button type="button" class="tab" data-panel="tester-panel-licence">Licence</button>
+        <button type="button" class="tab" data-panel="tester-panel-security">Security</button>
+        <button type="button" class="tab" data-panel="tester-panel-account">Account</button>
+    </div>
+
+    <div class="tab-panel form-tabs-card__panel" id="tester-panel-details">
+        <form method="post" asp-page-handler="Details">
+            <div class="form-field">
+                <label asp-for="Details.DisplayName">Display name</label>
+                <input asp-for="Details.DisplayName" required />
+            </div>
+            <div class="form-field">
+                <label asp-for="Details.CertificateNo">Certificate number</label>
+                <input asp-for="Details.CertificateNo" maxlength="50" />
+                <p class="form-field__hint">NZMPTA accreditation / certificate number, shown on the report sign-off.</p>
+            </div>
+            <div class="form-field">
+                <label asp-for="Details.Role">Role</label>
+                <select asp-for="Details.Role">
+                    <option value="@Roles.Tester">Tester</option>
+                    <option value="@Roles.CompanyAdministrator">Company Administrator</option>
+                    <option value="@Roles.SuperAdministrator">Super Administrator</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label asp-for="Details.TestingCompanyId">Testing company</label>
+                <select asp-for="Details.TestingCompanyId" asp-items="Model.Companies">
+                    <option value="">— None —</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Save details</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="tab-panel form-tabs-card__panel" id="tester-panel-licence" hidden>
+        <form method="post" asp-page-handler="Licence">
+            <div class="form-field">
+                <label asp-for="LicenceExpiryDate">Licence expiry date</label>
+                <input asp-for="LicenceExpiryDate" type="date" />
+                <p class="form-field__hint">Leave blank to clear. Testers can't sign in once expired (admins still can).</p>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Save licence</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="tab-panel form-tabs-card__panel" id="tester-panel-security" hidden>
+        <h3 class="section-title" style="margin-top:0">Password reset</h3>
+        <p style="color:var(--text-muted)">Send the user a link to set a new password. Link expires in 1 hour.</p>
+        <form method="post" asp-page-handler="ResetPassword">
+            <div class="form-actions">
+                <button type="submit" class="btn btn--secondary">Send reset email</button>
+            </div>
+        </form>
+        <h3 class="section-title">Force sign out</h3>
+        <p style="color:var(--text-muted)">Invalidates all browser sessions and refresh tokens. The user will have to sign in again.</p>
+        <form method="post" asp-page-handler="ForceLogout">
+            <div class="form-actions">
+                <button type="submit" class="btn btn--secondary">Force sign out</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="tab-panel form-tabs-card__panel" id="tester-panel-account" hidden>
+        <h3 class="section-title" style="margin-top:0">@(isActive ? "Deactivate account" : "Reactivate account")</h3>
+        <p style="color:var(--text-muted)">
+            @if (isActive)
+            { <span>Prevents sign-in and revokes all sessions. Data is preserved.</span> }
+            else
+            { <span>Allows this user to sign in again.</span> }
+        </p>
+        <form method="post" asp-page-handler="ToggleActive">
+            <div class="form-actions">
+                <button type="submit" class="btn @(isActive ? "btn--danger" : "")">
+                    @(isActive ? "Deactivate" : "Reactivate")
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 
-<div class="card" style="max-width:720px">
-    <h2 class="card__title">Licence</h2>
-    <form method="post" asp-page-handler="Licence">
-        <div class="form-field">
-            <label asp-for="LicenceExpiryDate">Licence expiry date</label>
-            <input asp-for="LicenceExpiryDate" type="date" />
-            <p class="form-field__hint">Leave blank to clear. Testers can't sign in once expired (admins still can).</p>
-        </div>
-        <div class="form-actions">
-            <button type="submit" class="btn">Save licence</button>
-        </div>
-    </form>
-</div>
-
-<div class="card" style="max-width:720px">
-    <h2 class="card__title">Password reset</h2>
-    <p style="color:var(--text-muted)">Send the user a link to set a new password. Link expires in 1 hour.</p>
-    <form method="post" asp-page-handler="ResetPassword">
-        <div class="form-actions">
-            <button type="submit" class="btn btn--secondary">Send reset email</button>
-        </div>
-    </form>
-</div>
-
-<div class="card" style="max-width:720px">
-    <h2 class="card__title">Force sign out</h2>
-    <p style="color:var(--text-muted)">Invalidates all browser sessions and refresh tokens. The user will have to sign in again.</p>
-    <form method="post" asp-page-handler="ForceLogout">
-        <div class="form-actions">
-            <button type="submit" class="btn btn--secondary">Force sign out</button>
-        </div>
-    </form>
-</div>
-
-<div class="card" style="max-width:720px">
-    <h2 class="card__title">@(isActive ? "Deactivate account" : "Reactivate account")</h2>
-    <p style="color:var(--text-muted)">
-        @if (isActive)
-        { <span>Prevents sign-in and revokes all sessions. Data is preserved.</span> }
-        else
-        { <span>Allows this user to sign in again.</span> }
-    </p>
-    <form method="post" asp-page-handler="ToggleActive">
-        <div class="form-actions">
-            <button type="submit" class="btn @(isActive ? "btn--danger" : "")">
-                @(isActive ? "Deactivate" : "Reactivate")
-            </button>
-        </div>
-    </form>
-</div>
+@section Scripts {
+<script>
+    // Tab switching — each panel holds its own form/handler; the active tab panel
+    // scrolls within the card. A validation error reveals its tab.
+    (function () {
+        var tabs = document.querySelectorAll('#tester-tabs .tab');
+        function show(panelId) {
+            tabs.forEach(function (t) {
+                var on = t.getAttribute('data-panel') === panelId;
+                t.classList.toggle('is-active', on);
+                document.getElementById(t.getAttribute('data-panel')).hidden = !on;
+            });
+        }
+        tabs.forEach(function (t) {
+            t.addEventListener('click', function () { show(t.getAttribute('data-panel')); });
+        });
+        document.querySelectorAll('.form-tabs-card__panel input, .form-tabs-card__panel select, .form-tabs-card__panel textarea')
+            .forEach(function (el) {
+                el.addEventListener('invalid', function () {
+                    var panel = el.closest('.form-tabs-card__panel');
+                    if (panel && panel.hidden) show(panel.id);
+                });
+            });
+    })();
+</script>
+}
