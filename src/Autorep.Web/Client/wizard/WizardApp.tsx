@@ -11,7 +11,7 @@ import {
   type VisualFaultEntry,
   type WizardStep,
 } from "./types";
-import { getTest, putTest, type FarmSnapshot, type LocalTest } from "../db/testStore";
+import { allTests, getTest, putTest, type FarmSnapshot, type LocalTest } from "../db/testStore";
 import { fetchFarm } from "../farms";
 import { useServerOnline } from "../connectivity";
 import { MachineConfigStep } from "./MachineConfigStep";
@@ -110,6 +110,8 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
     syncState: "uploaded",
     everUploaded: true,
     readonly: true,
+    version: typeof base.version === "number" ? base.version : 1,
+    supersedesId: typeof base.supersedesId === "string" ? base.supersedesId : undefined,
   };
 }
 
@@ -130,6 +132,7 @@ function newLocalTest(farmId?: string, farmName?: string): LocalTest {
     updatedAt: now,
     markedCompleteAt: null,
     syncState: "local-only",
+    version: 1,
   };
 }
 
@@ -202,6 +205,11 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
           t = { ...t, farm: snap, farmName: snap.name };
           await putTest(t);
         }
+      }
+      // A superseded original is read-only even if its stored flag didn't round-trip from another
+      // device — having any later version supersede it is the source of truth.
+      if (!t.readonly && (await allTests()).some((x) => x.supersedesId === t!.id)) {
+        t = { ...t, readonly: true };
       }
       if (active) setTest(t);
     })();
@@ -336,6 +344,7 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
             <span class={online ? "badge badge--success" : "badge badge--warning"}>
               {online ? "Online" : "Offline — saved on device"}
             </span>
+            {(test.version ?? 1) > 1 && <> <span class="badge">Version {test.version}</span></>}
           </p>
         </div>
         <div class="page-header__actions">

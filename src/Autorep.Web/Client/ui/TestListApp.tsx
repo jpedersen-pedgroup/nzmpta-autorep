@@ -5,7 +5,7 @@
 // anything that exists on the server can't be removed from here.
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { allTests, deleteTest, type LocalTest } from "../db/testStore";
+import { allTests, deleteTest, putTest, type LocalTest } from "../db/testStore";
 import { syncAll } from "../sync/syncClient";
 import { showToast } from "./toast";
 
@@ -61,12 +61,47 @@ function TestListApp() {
 
   const doDelete = async (t: LocalTest) => {
     await deleteTest(t.id);
+    // If this was a re-edit version and nothing else supersedes its original, unlock the original
+    // again so it isn't stranded read-only with no way to edit.
+    if (t.supersedesId) {
+      const remaining = await allTests();
+      if (!remaining.some((x) => x.supersedesId === t.supersedesId)) {
+        const orig = remaining.find((x) => x.id === t.supersedesId);
+        if (orig?.readonly) await putTest({ ...orig, readonly: false, syncState: "local-only" });
+      }
+    }
     setDeleting(null);
     await reload();
     showToast(`Deleted "${t.farmName || "Untitled test"}" from this device.`, "info");
   };
 
+  // Reopen a completed test as a new editable version. The original is kept as history and locked
+  // (read-only). The new version starts from the original's data but with a FRESH completion record
+  // — its attestations + sign-off are re-done, not inherited. (Two devices editing the same
+  // completed test each spawn a version; there's no cross-device merge — consistent with the rest
+  // of the offline-first model, where the Sync Reconciliation Engine is a later phase.)
+  const editAsNewVersion = async (orig: LocalTest) => {
+    const now = new Date().toISOString();
+    const copy: LocalTest = {
+      ...orig,
+      id: crypto.randomUUID(),
+      version: (orig.version ?? 1) + 1,
+      supersedesId: orig.id,
+      attestations: [],
+      markedCompleteAt: null,
+      syncState: "local-only",
+      everUploaded: false,
+      readonly: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await putTest(copy);
+    await putTest({ ...orig, readonly: true, syncState: "local-only", updatedAt: now });
+    location.href = `/App/Tests/Wizard?id=${copy.id}`;
+  };
+
   if (!tests) return <p class="td-muted">Loading…</p>;
+  const supersededIds = new Set(tests.map((t) => t.supersedesId).filter(Boolean) as string[]);
 
   return (
     <div>
@@ -105,6 +140,8 @@ function TestListApp() {
                       <span class="badge badge--warning">In progress</span>
                     )}{" "}
                     <span class="badge">{syncLabel(t.syncState)}</span>
+                    {(t.version ?? 1) > 1 && <> <span class="badge">v{t.version}</span></>}
+                    {supersededIds.has(t.id) && <> <span class="badge">superseded</span></>}
                   </td>
                   <td class="td-actions">
                     {canDelete(t) && (
@@ -115,6 +152,11 @@ function TestListApp() {
                     <a class="btn btn--secondary btn--sm" href={`/App/Tests/Wizard?id=${t.id}`}>
                       {t.markedCompleteAt ? "View" : "Continue"}
                     </a>
+                    {t.markedCompleteAt && !supersededIds.has(t.id) && !t.readonly && (
+                      <button class="btn btn--secondary btn--sm" onClick={() => void editAsNewVersion(t)}>
+                        Edit
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

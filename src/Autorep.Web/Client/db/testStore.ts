@@ -91,6 +91,11 @@ export interface LocalTest {
   recordedRecommendations?: { label: string; text: string }[];
   /** Visual-fault observation texts as recorded (migrated tests, read-only). */
   recordedVisualFaults?: string[];
+  /** Version number (1 = original). Bumped when a completed test is reopened as a new version. */
+  version?: number;
+  /** Client id of the prior version this one supersedes — forms the history chain. Round-trips
+   * through PayloadJson, so the server keeps every version as its own linked record. */
+  supersedesId?: string;
 }
 
 /** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */
