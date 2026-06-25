@@ -10,21 +10,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sign in · NZMPTA AutoRep</title>
-    <link rel="manifest" href="~/manifest.webmanifest" />
-    <link rel="icon" href="~/icons/icon.svg" type="image/svg+xml" />
-    <meta name="theme-color" content="#0a2540" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <partial name="_BrandHead" />
 </head>
 <body class="auth-layout">
     <div class="auth-card">
         <div class="auth-card__logo">
-            <span class="auth-card__logo-mark">AR</span>
+            <img class="auth-card__logo-img auth-card__logo-img--lockup" src="~/img/logo-mpnz-lockup.svg" alt="MPNZ — Milking & Pumping since 1932" />
         </div>
-        <h1 class="auth-card__title">Sign in to AutoRep</h1>
-        <p class="auth-card__subtitle">NZMPTA milking machine testing</p>
+        <h1 class="auth-card__title auth-card__title--solo">Sign in to AutoRep</h1>
 
         <form method="post">
             <div class="form-field">
