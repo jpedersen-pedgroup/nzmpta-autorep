@@ -33,7 +33,8 @@ public class NewModel : PageModel
         public string Email { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
         public Guid? TestingCompanyId { get; set; }
-        public string Role { get; set; } = Roles.Tester;
+        // A user may hold more than one role (e.g. Company Administrator + Tester).
+        public List<string> SelectedRoles { get; set; } = new() { Roles.Tester };
         public DateOnly? LicenceExpiryDate { get; set; }
         public string? CertificateNo { get; set; }
     }
@@ -45,8 +46,10 @@ public class NewModel : PageModel
         await PopulateAsync();
         if (string.IsNullOrWhiteSpace(Input.Email)) Errors.Add("Email is required.");
         if (string.IsNullOrWhiteSpace(Input.DisplayName)) Errors.Add("Display name is required.");
-        if (!Roles.All.Contains(Input.Role)) Errors.Add("Role is invalid.");
-        if (Input.Role == Roles.Tester && Input.TestingCompanyId is null)
+        var roles = Input.SelectedRoles.Distinct().ToList();
+        if (roles.Count == 0) Errors.Add("Select at least one role.");
+        if (roles.Any(r => !Roles.All.Contains(r))) Errors.Add("Role is invalid.");
+        if (roles.Contains(Roles.Tester) && Input.TestingCompanyId is null)
             Errors.Add("Testers must be assigned to a Testing Company.");
         if (Errors.Any()) return Page();
 
@@ -69,7 +72,7 @@ public class NewModel : PageModel
             foreach (var e in create.Errors) Errors.Add(e.Description);
             return Page();
         }
-        await _users.AddToRoleAsync(user, Input.Role);
+        await _users.AddToRolesAsync(user, roles);
 
         var token = await _users.GeneratePasswordResetTokenAsync(user);
         var resetUrl = Url.Page("/Account/ResetPassword", null,

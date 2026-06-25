@@ -55,28 +55,31 @@ public class LoginModel : PageModel
 
         var user = await _users.FindByEmailAsync(Input.Email);
 
-        // Pre-check Tester Licence so an expired Tester doesn't waste a password attempt.
-        if (user is not null)
-        {
-            var roles = await _users.GetRolesAsync(user);
-            var isPureTester = roles.Contains(Roles.Tester)
-                && !roles.Contains(Roles.SuperAdministrator)
-                && !roles.Contains(Roles.CompanyAdministrator);
-            if (isPureTester && user.LicenceExpiryDate is { } expiry
-                && expiry < DateOnly.FromDateTime(DateTime.UtcNow))
-            {
-                ErrorMessage = "Your tester licence has expired. Contact NZMPTA to renew.";
-                await WriteLoginAuditAsync(Input.Email, user.Id, "licence-expired");
-                return Page();
-            }
-        }
-
         var result = await _signIn.PasswordSignInAsync(
             Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
 
         if (result.Succeeded)
         {
             await WriteLoginAuditAsync(Input.Email, user?.Id, "success");
+
+            // Expired Tester licence — checked only AFTER a correct password, so the message can't be
+            // used to enumerate accounts. Pure testers only; multi-role admins keep access.
+            if (user is not null)
+            {
+                var roles = await _users.GetRolesAsync(user);
+                var isPureTester = roles.Contains(Roles.Tester)
+                    && !roles.Contains(Roles.SuperAdministrator)
+                    && !roles.Contains(Roles.CompanyAdministrator);
+                if (isPureTester && user.LicenceExpiryDate is { } expiry
+                    && expiry < DateOnly.FromDateTime(DateTime.UtcNow))
+                {
+                    await _signIn.SignOutAsync();
+                    await WriteLoginAuditAsync(Input.Email, user.Id, "licence-expired");
+                    ErrorMessage = "Your tester licence has expired. Contact NZMPTA to renew.";
+                    return Page();
+                }
+            }
+
             // Forced password reset path: sign back out and route through ResetPassword.
             if (user is not null && user.ForcedPasswordResetRequired)
             {
@@ -116,7 +119,19 @@ public class LoginModel : PageModel
         if (result.IsLockedOut)
         {
             await WriteLoginAuditAsync(Input.Email, user?.Id, "locked-out");
-            ErrorMessage = "Account locked. Try again later.";
+            // Identity reports lockout BEFORE checking the password, so only disclose WHY (deactivated
+            // vs a temporary failed-attempts lockout) to someone who actually has the password —
+            // otherwise the distinct message lets an attacker enumerate deactivated accounts.
+            if (user is not null && await _users.CheckPasswordAsync(user, Input.Password))
+            {
+                ErrorMessage = AccountLockout.IsDeactivated(user.LockoutEnd)
+                    ? "This account isn't active. Contact NZMPTA."
+                    : "Too many attempts — your account is temporarily locked. Try again shortly.";
+            }
+            else
+            {
+                ErrorMessage = "Invalid email or password.";
+            }
             return Page();
         }
 

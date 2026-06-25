@@ -41,7 +41,7 @@ public class EditModel : PageModel
 
     // Named EditingUser to avoid shadowing PageModel.User (the current principal).
     public Tester? EditingUser { get; private set; }
-    public string PrimaryRole { get; private set; } = "—";
+    public string RolesDisplay { get; private set; } = "—";
     public string? CompanyName { get; private set; }
     public List<SelectListItem> Companies { get; private set; } = [];
     public List<string> Errors { get; } = new();
@@ -51,7 +51,8 @@ public class EditModel : PageModel
     {
         public string DisplayName { get; set; } = string.Empty;
         public Guid? TestingCompanyId { get; set; }
-        public string Role { get; set; } = Roles.Tester;
+        // A user may hold more than one role (e.g. Company Administrator + Tester).
+        public List<string> SelectedRoles { get; set; } = new();
         public string? CertificateNo { get; set; }
     }
 
@@ -64,14 +65,34 @@ public class EditModel : PageModel
     public async Task<IActionResult> OnPostDetailsAsync()
     {
         if (!await LoadAsync(hydrateForGet: false)) return NotFound();
+
+        var roles = Details.SelectedRoles.Distinct().ToList();
+        if (roles.Count == 0) Errors.Add("Select at least one role.");
+        if (roles.Any(r => !Roles.All.Contains(r))) Errors.Add("Role is invalid.");
+        if (roles.Contains(Roles.Tester) && Details.TestingCompanyId is null)
+            Errors.Add("Testers must be assigned to a Testing Company.");
+        if (Errors.Any()) return Page(); // LoadAsync populated Companies; Details keeps the posted values
+
+        var currentRoles = await _users.GetRolesAsync(EditingUser!);
+        // Never let the system's last Super Administrator be demoted (incl. self-demotion via the
+        // multi-role checkboxes) — that would lock everyone out of the SuperAdmin-only admin areas.
+        if (currentRoles.Contains(Roles.SuperAdministrator) && !roles.Contains(Roles.SuperAdministrator))
+        {
+            var superAdmins = await _users.GetUsersInRoleAsync(Roles.SuperAdministrator);
+            if (superAdmins.All(u => u.Id == EditingUser!.Id))
+            {
+                Errors.Add("This is the only Super Administrator — grant the role to someone else before removing it here.");
+                return Page();
+            }
+        }
+
         EditingUser!.DisplayName = Details.DisplayName.Trim();
         EditingUser.TestingCompanyId = Details.TestingCompanyId;
         EditingUser.CertificateNo = string.IsNullOrWhiteSpace(Details.CertificateNo) ? null : Details.CertificateNo.Trim();
         await _users.UpdateAsync(EditingUser);
 
-        var currentRoles = await _users.GetRolesAsync(EditingUser);
         await _users.RemoveFromRolesAsync(EditingUser, currentRoles);
-        await _users.AddToRoleAsync(EditingUser, Details.Role);
+        await _users.AddToRolesAsync(EditingUser, roles);
 
         Message = "Details saved.";
         await LoadAsync(hydrateForGet: true);
@@ -128,7 +149,7 @@ public class EditModel : PageModel
         }
         else
         {
-            await _users.SetLockoutEndDateAsync(EditingUser, DateTimeOffset.UtcNow.AddYears(100));
+            await _users.SetLockoutEndDateAsync(EditingUser, AccountLockout.DeactivatedUntil());
             await _refresh.RevokeAllAsync(EditingUser.Id, "deactivated");
             Message = "User deactivated.";
         }
@@ -144,14 +165,14 @@ public class EditModel : PageModel
         if (EditingUser is null) return false;
 
         var roles = await _users.GetRolesAsync(EditingUser);
-        PrimaryRole = roles.FirstOrDefault() ?? "—";
+        RolesDisplay = roles.Count == 0 ? "—" : string.Join(", ", roles.Select(Roles.Label));
         CompanyName = EditingUser.TestingCompany?.Name;
 
         if (hydrateForGet)
         {
             Details.DisplayName = EditingUser.DisplayName;
             Details.TestingCompanyId = EditingUser.TestingCompanyId;
-            Details.Role = PrimaryRole == "—" ? Roles.Tester : PrimaryRole;
+            Details.SelectedRoles = roles.Count > 0 ? roles.ToList() : new List<string> { Roles.Tester };
             Details.CertificateNo = EditingUser.CertificateNo;
             LicenceExpiryDate = EditingUser.LicenceExpiryDate;
         }

@@ -1,4 +1,5 @@
 using Autorep.Web.Data;
+using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -22,7 +23,7 @@ public class IndexModel : PageModel
         string Email,
         string DisplayName,
         string? CompanyName,
-        string PrimaryRole,
+        string RolesDisplay,
         bool IsActive,
         DateOnly? LicenceExpiryDate);
 
@@ -39,14 +40,14 @@ public class IndexModel : PageModel
         foreach (var u in users)
         {
             var roles = await _users.GetRolesAsync(u);
-            var primary = roles.FirstOrDefault() ?? "—";
+            var rolesDisplay = roles.Count == 0 ? "—" : string.Join(", ", roles.Select(Roles.Label));
             var isActive = !u.LockoutEnd.HasValue || u.LockoutEnd < DateTimeOffset.UtcNow;
             rows.Add(new TesterRow(
                 u.Id,
                 u.Email ?? "",
                 u.DisplayName,
                 u.TestingCompany?.Name,
-                primary,
+                rolesDisplay,
                 isActive,
                 u.LicenceExpiryDate));
         }

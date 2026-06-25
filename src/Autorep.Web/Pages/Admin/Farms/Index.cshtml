@@ -25,8 +25,11 @@
 }
 else
 {
+    <div class="list-search">
+        <input type="search" data-table-filter="farms-table" placeholder="Search farms…" aria-label="Search farms" />
+    </div>
     <div class="table-wrap table-wrap--scroll">
-        <table class="table">
+        <table class="table" id="farms-table">
             <thead>
                 <tr><th>Name</th><th>Region</th><th>Milk company</th><th>Town</th><th>Status</th><th>Tests</th><th></th></tr>
             </thead>
@@ -48,5 +51,9 @@ else
                 }
             </tbody>
         </table>
+    </div>
+    <div class="empty" data-table-empty="farms-table" hidden>
+        <div class="empty__title">No matching farms</div>
+        <p class="empty__text">Try a different search term.</p>
     </div>
 }

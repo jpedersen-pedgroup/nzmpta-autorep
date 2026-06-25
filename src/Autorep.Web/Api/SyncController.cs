@@ -93,7 +93,11 @@ public class SyncController : ControllerBase
         var farm = await _db.Farms.FirstOrDefaultAsync(f => f.Name == req.FarmName, ct);
         if (farm is null)
         {
-            farm = new Farm { Name = req.FarmName };
+            // Offline-created farm-by-name: tag the syncing tester's company so it shows in that
+            // company's farm picker (matches farms created via the New-test "add farm" modal).
+            var companyId = await _db.Users.Where(u => u.Id == testerId)
+                .Select(u => u.TestingCompanyId).FirstOrDefaultAsync(ct);
+            farm = new Farm { Name = req.FarmName, CreatedByTestingCompanyId = companyId };
             _db.Farms.Add(farm);
         }
 

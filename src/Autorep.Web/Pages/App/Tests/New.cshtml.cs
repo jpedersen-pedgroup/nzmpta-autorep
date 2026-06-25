@@ -77,6 +77,9 @@ public class NewModel : PageModel
         var entity = new Farm
         {
             Name = name,
+            // Tag the creating company so it appears in this company's farm picker straight away,
+            // even before the first test is synced against it.
+            CreatedByTestingCompanyId = await CompanyIdAsync(),
             SupplyNumber = Clean(farm.SupplyNumber),
             MilkSupplyCompanyId = farm.MilkSupplyCompanyId,
             RegionId = farm.RegionId,
@@ -94,11 +97,28 @@ public class NewModel : PageModel
         return new JsonResult(new { id = entity.Id, name = entity.Name, milkCompanyId = entity.MilkSupplyCompanyId });
     }
 
+    // The Testing Company the signed-in tester belongs to (scopes the farm picker).
+    private async Task<Guid?> CompanyIdAsync()
+    {
+        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return await _db.Users.Where(u => u.Id == testerId)
+            .Select(u => u.TestingCompanyId).FirstOrDefaultAsync();
+    }
+
     private async Task LoadListsAsync()
     {
-        Farms = await _db.Farms.Where(f => f.IsActive).OrderBy(f => f.Name)
-            .Select(f => new FarmRow(f.Id, f.Name, f.MilkSupplyCompanyId))
-            .ToListAsync();
+        // Only show farms this tester's company set up or has tested — not the whole national list.
+        var companyId = await CompanyIdAsync();
+        Farms = companyId is null
+            ? new List<FarmRow>()
+            : await _db.Farms
+                .Where(f => f.IsActive && (
+                    f.CreatedByTestingCompanyId == companyId
+                    || _db.MachineTests.Any(t => t.FarmId == f.Id
+                        && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId))))
+                .OrderBy(f => f.Name)
+                .Select(f => new FarmRow(f.Id, f.Name, f.MilkSupplyCompanyId))
+                .ToListAsync();
 
         var regions = await _db.Regions.Where(r => r.IsActive)
             .OrderBy(r => r.Island).ThenBy(r => r.SortOrder).ThenBy(r => r.Name).ToListAsync();

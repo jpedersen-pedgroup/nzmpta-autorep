@@ -24,8 +24,11 @@
 }
 else
 {
-    <div class="table-wrap">
-        <table class="table">
+    <div class="list-search">
+        <input type="search" data-table-filter="companies-table" placeholder="Search companies…" aria-label="Search companies" />
+    </div>
+    <div class="table-wrap table-wrap--scroll">
+        <table class="table" id="companies-table">
             <thead>
                 <tr>
                     <th>Name</th>
@@ -51,5 +54,9 @@ else
                 }
             </tbody>
         </table>
+    </div>
+    <div class="empty" data-table-empty="companies-table" hidden>
+        <div class="empty__title">No matching companies</div>
+        <p class="empty__text">Try a different search term.</p>
     </div>
 }

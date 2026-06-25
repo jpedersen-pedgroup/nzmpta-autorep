@@ -25,8 +25,11 @@
 }
 else
 {
+    <div class="list-search">
+        <input type="search" data-table-filter="testers-table" placeholder="Search testers…" aria-label="Search testers" />
+    </div>
     <div class="table-wrap table-wrap--scroll">
-        <table class="table">
+        <table class="table" id="testers-table">
             <thead>
                 <tr>
                     <th>Email</th>
@@ -45,7 +48,7 @@ else
                         <td>@t.Email</td>
                         <td>@t.DisplayName</td>
                         <td>@(t.CompanyName ?? "—")</td>
-                        <td>@t.PrimaryRole</td>
+                        <td>@t.RolesDisplay</td>
                         <td>
                             @if (t.LicenceExpiryDate is null) { <span class="badge">—</span> }
                             else if (t.LicenceExpiryDate < today) { <span class="badge badge--danger">Expired @t.LicenceExpiryDate</span> }
@@ -61,5 +64,9 @@ else
                 }
             </tbody>
         </table>
+    </div>
+    <div class="empty" data-table-empty="testers-table" hidden>
+        <div class="empty__title">No matching testers</div>
+        <p class="empty__text">Try a different search term.</p>
     </div>
 }
