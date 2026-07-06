@@ -34,6 +34,7 @@ else
                     <th>Name</th>
                     <th>Status</th>
                     <th>Testers</th>
+                    <th>Tests</th>
                     <th>Created</th>
                     <th></th>
                 </tr>
@@ -47,7 +48,16 @@ else
                             @if (c.IsActive) { <span class="badge badge--success">Active</span> }
                             else { <span class="badge">Deactivated</span> }
                         </td>
-                        <td>@c.TesterCount</td>
+                        <td>
+                            @if (c.TesterCount > 0)
+                            { <a class="count-link" asp-page="/Admin/Testers/Index" asp-route-companyId="@c.Id" title="View this company's testers">@c.TesterCount</a> }
+                            else { @c.TesterCount }
+                        </td>
+                        <td>
+                            @if (c.TestCount > 0)
+                            { <a class="count-link" asp-page="/Admin/Tests/Index" asp-route-companyId="@c.Id" title="View this company's tests">@c.TestCount</a> }
+                            else { @c.TestCount }
+                        </td>
                         <td class="td-muted">@c.CreatedAt.ToString("dd MMM yyyy")</td>
                         <td><a class="btn btn--secondary" asp-page="/Admin/Companies/Edit" asp-route-id="@c.Id">Edit</a></td>
                     </tr>

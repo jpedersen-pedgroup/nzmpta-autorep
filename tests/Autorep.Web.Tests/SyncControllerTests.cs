@@ -1,7 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
+using Autorep.Web.Data;
 using Autorep.Web.Domain;
+using Autorep.Web.Domain.Entities;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Autorep.Web.Tests;
 
@@ -102,6 +106,247 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         var admin = _factory.CreateClientAs(Roles.SuperAdministrator, "admin-1");
         var res = await admin.GetAsync("/api/sync/tests");
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    // Seeds a tester as a member of a fresh Testing Company; returns the company id.
+    private async Task<Guid> SeedTesterInCompanyAsync(string testerId, string companyName)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var company = new TestingCompany { Name = companyName };
+        db.TestingCompanies.Add(company);
+        db.Users.Add(new Tester { Id = testerId, UserName = testerId, TestingCompanyId = company.Id });
+        await db.SaveChangesAsync();
+        return company.Id;
+    }
+
+    private async Task<T> WithDbAsync<T>(Func<AutorepDbContext, Task<T>> f)
+    {
+        using var scope = _factory.Services.CreateScope();
+        return await f(scope.ServiceProvider.GetRequiredService<AutorepDbContext>());
+    }
+
+    private static object UploadPayload(Guid clientId, string farmName,
+        Guid? farmId = null, string? supply = null, string? milk = null) => new
+    {
+        clientId,
+        farmName,
+        farmId,
+        farmSupplyNumber = supply,
+        farmMilkCompanyName = milk,
+        notes = (string?)null,
+        markedCompleteAt = (DateTimeOffset?)null,
+        createdAt = DateTimeOffset.UtcNow,
+        config = (object?)null,
+    };
+
+    // The farm link must never cross company scope: another company's same-named farm is not
+    // "the" farm — linking to it would grant this company visibility of that farm (and its
+    // farmer contact details) through the test-derived scoping.
+    [Fact]
+    public async Task Upload_with_a_name_colliding_with_another_companys_farm_creates_a_separate_farm()
+    {
+        var farmName = "Colliding Farm " + Guid.NewGuid();
+        var companyA = await WithDbAsync(async db =>
+        {
+            var company = new TestingCompany { Name = "Collide Co A" };
+            db.TestingCompanies.Add(company);
+            db.Farms.Add(new Farm { Name = farmName, CreatedByTestingCompanyId = company.Id, FarmerName = "A's farmer" });
+            await db.SaveChangesAsync();
+            return company.Id;
+        });
+        var companyB = await SeedTesterInCompanyAsync("tester-collide-b", "Collide Co B");
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-collide-b");
+        var post = await client.PostAsJsonAsync("/api/sync/tests", UploadPayload(Guid.NewGuid(), farmName));
+        post.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var farms = await WithDbAsync(db => db.Farms.Where(f => f.Name == farmName).ToListAsync());
+        farms.Should().HaveCount(2, "company B's sync must get its own farm, not company A's");
+        var linkedFarmId = await WithDbAsync(db => db.MachineTests
+            .Where(t => t.TesterId == "tester-collide-b").Select(t => t.FarmId).SingleAsync());
+        farms.Single(f => f.Id == linkedFarmId).CreatedByTestingCompanyId.Should().Be(companyB);
+        farms.Single(f => f.Id != linkedFarmId).CreatedByTestingCompanyId.Should().Be(companyA);
+    }
+
+    [Fact]
+    public async Task Upload_links_by_farm_id_when_the_farm_is_in_the_testers_company_scope()
+    {
+        var companyId = await SeedTesterInCompanyAsync("tester-byid-1", "ById Co");
+        var farmId = await WithDbAsync(async db =>
+        {
+            var farm = new Farm { Name = "ById Farm " + Guid.NewGuid(), CreatedByTestingCompanyId = companyId };
+            db.Farms.Add(farm);
+            await db.SaveChangesAsync();
+            return farm.Id;
+        });
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-byid-1");
+        // The device may carry a stale/renamed farm name — the in-scope id wins.
+        var post = await client.PostAsJsonAsync("/api/sync/tests",
+            UploadPayload(Guid.NewGuid(), "Renamed On Device " + Guid.NewGuid(), farmId: farmId));
+        post.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var linkedFarmId = await WithDbAsync(db => db.MachineTests
+            .Where(t => t.TesterId == "tester-byid-1").Select(t => t.FarmId).SingleAsync());
+        linkedFarmId.Should().Be(farmId);
+    }
+
+    [Fact]
+    public async Task Upload_with_a_foreign_farm_id_does_not_link_that_farm()
+    {
+        var foreignFarmId = await WithDbAsync(async db =>
+        {
+            var otherCompany = new TestingCompany { Name = "Foreign Co" };
+            db.TestingCompanies.Add(otherCompany);
+            var farm = new Farm { Name = "Foreign Farm " + Guid.NewGuid(), CreatedByTestingCompanyId = otherCompany.Id };
+            db.Farms.Add(farm);
+            await db.SaveChangesAsync();
+            return farm.Id;
+        });
+        var companyId = await SeedTesterInCompanyAsync("tester-foreign-1", "Foreign-Probe Co");
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-foreign-1");
+        var farmName = "Probe Farm " + Guid.NewGuid();
+        var post = await client.PostAsJsonAsync("/api/sync/tests",
+            UploadPayload(Guid.NewGuid(), farmName, farmId: foreignFarmId));
+        post.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var test = await WithDbAsync(db => db.MachineTests
+            .Include(t => t.Farm).SingleAsync(t => t.TesterId == "tester-foreign-1"));
+        test.FarmId.Should().NotBe(foreignFarmId, "a crafted/foreign farm id must fall through to create");
+        test.Farm!.Name.Should().Be(farmName);
+        test.Farm.CreatedByTestingCompanyId.Should().Be(companyId);
+    }
+
+    [Fact]
+    public async Task Upload_without_farm_id_matches_an_own_company_farm_on_name_supply_and_milk_company()
+    {
+        var companyId = await SeedTesterInCompanyAsync("tester-identity-1", "Identity Co");
+        var farmName = "Identity Farm " + Guid.NewGuid();
+        var milkName = "Milk Co " + Guid.NewGuid();
+        var farmId = await WithDbAsync(async db =>
+        {
+            var milk = new MilkSupplyCompany { Name = milkName };
+            db.MilkSupplyCompanies.Add(milk);
+            var farm = new Farm
+            {
+                Name = farmName, SupplyNumber = "11111",
+                MilkSupplyCompanyId = milk.Id, CreatedByTestingCompanyId = companyId,
+            };
+            db.Farms.Add(farm);
+            await db.SaveChangesAsync();
+            return farm.Id;
+        });
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-identity-1");
+        var post = await client.PostAsJsonAsync("/api/sync/tests",
+            UploadPayload(Guid.NewGuid(), farmName, supply: "11111", milk: milkName));
+        post.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var linkedFarmId = await WithDbAsync(db => db.MachineTests
+            .Where(t => t.TesterId == "tester-identity-1").Select(t => t.FarmId).SingleAsync());
+        linkedFarmId.Should().Be(farmId);
+        (await WithDbAsync(db => db.Farms.CountAsync(f => f.Name == farmName))).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Upload_with_a_different_supply_number_creates_a_new_farm_even_within_the_company()
+    {
+        var companyId = await SeedTesterInCompanyAsync("tester-supply-1", "Supply Co");
+        var farmName = "Supply Farm " + Guid.NewGuid();
+        await WithDbAsync(async db =>
+        {
+            db.Farms.Add(new Farm { Name = farmName, SupplyNumber = "11111", CreatedByTestingCompanyId = companyId });
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-supply-1");
+        var post = await client.PostAsJsonAsync("/api/sync/tests",
+            UploadPayload(Guid.NewGuid(), farmName, supply: "22222"));
+        post.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var farms = await WithDbAsync(db => db.Farms.Where(f => f.Name == farmName).ToListAsync());
+        farms.Should().HaveCount(2, "a different supply number is a different farm identity");
+        farms.Select(f => f.SupplyNumber).Should().BeEquivalentTo(new[] { "11111", "22222" });
+    }
+
+    [Fact]
+    public async Task Upload_with_a_different_milk_company_creates_a_new_farm_even_within_the_company()
+    {
+        var companyId = await SeedTesterInCompanyAsync("tester-milk-1", "Milk-Split Co");
+        var farmName = "Milk Farm " + Guid.NewGuid();
+        var fonterra = "Fonterra " + Guid.NewGuid();
+        var synlait = "Synlait " + Guid.NewGuid();
+        await WithDbAsync(async db =>
+        {
+            var milk = new MilkSupplyCompany { Name = fonterra };
+            db.MilkSupplyCompanies.Add(milk);
+            db.MilkSupplyCompanies.Add(new MilkSupplyCompany { Name = synlait });
+            db.Farms.Add(new Farm
+            {
+                Name = farmName, SupplyNumber = "333",
+                MilkSupplyCompanyId = milk.Id, CreatedByTestingCompanyId = companyId,
+            });
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-milk-1");
+        var post = await client.PostAsJsonAsync("/api/sync/tests",
+            UploadPayload(Guid.NewGuid(), farmName, supply: "333", milk: synlait));
+        post.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var farms = await WithDbAsync(db => db.Farms.Include(f => f.MilkSupplyCompany)
+            .Where(f => f.Name == farmName).ToListAsync());
+        farms.Should().HaveCount(2, "a different milk processor is a different farm identity");
+        farms.Select(f => f.MilkSupplyCompany!.Name).Should().BeEquivalentTo(new[] { fonterra, synlait });
+    }
+
+    // The migrated-farm shape: legacy farms carry test history but a null
+    // CreatedByTestingCompanyId, so the by-id link must honour the tests leg of the scope.
+    [Fact]
+    public async Task Upload_links_by_farm_id_when_the_farm_is_in_scope_via_tests_only()
+    {
+        await SeedTesterInCompanyAsync("tester-testleg-1", "Test-Leg Co");
+        var farmId = await WithDbAsync(async db =>
+        {
+            var farm = new Farm { Name = "Legacy Farm " + Guid.NewGuid() }; // no CreatedBy — migrated shape
+            db.Farms.Add(farm);
+            db.MachineTests.Add(new MachineTest
+            {
+                TesterId = "tester-testleg-1", FarmId = farm.Id, CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+            return farm.Id;
+        });
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-testleg-1");
+        var post = await client.PostAsJsonAsync("/api/sync/tests",
+            UploadPayload(Guid.NewGuid(), "Whatever Name", farmId: farmId));
+        post.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var farmIds = await WithDbAsync(db => db.MachineTests
+            .Where(t => t.TesterId == "tester-testleg-1").Select(t => t.FarmId).ToListAsync());
+        farmIds.Should().OnlyContain(id => id == farmId, "the farm is in scope via the company's test history");
+    }
+
+    // A tester with no Testing Company (not creatable via admin UI, but a supported fallback in
+    // FarmScope) re-matches their own previously synced farm instead of duplicating it per push.
+    [Fact]
+    public async Task Upload_by_a_companyless_tester_rematches_their_own_farm_across_pushes()
+    {
+        var farmName = "Unaffiliated Farm " + Guid.NewGuid();
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-nocompany-1"); // no Users row seeded
+
+        (await client.PostAsJsonAsync("/api/sync/tests", UploadPayload(Guid.NewGuid(), farmName)))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+        (await client.PostAsJsonAsync("/api/sync/tests", UploadPayload(Guid.NewGuid(), farmName)))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        (await WithDbAsync(db => db.Farms.CountAsync(f => f.Name == farmName)))
+            .Should().Be(1, "the second push must match the farm the first push created");
     }
 
     [Fact]

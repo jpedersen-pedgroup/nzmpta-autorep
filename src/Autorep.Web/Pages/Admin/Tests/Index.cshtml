@@ -20,14 +20,31 @@
     }
 </div>
 
-<form method="get" style="display:flex;gap:var(--space-2);margin-bottom:var(--space-4)">
+<form method="get" class="list-filters">
     @if (Model.FarmId is not null)
     {
         <input type="hidden" name="farmId" value="@Model.FarmId" />
     }
-    <input type="search" name="q" value="@Model.Q" placeholder="@(Model.FarmName is null ? "Search by farm or tester email…" : "Search this farm by tester email…")" style="max-width:340px" />
+    <input type="search" name="q" value="@Model.Q" placeholder="@(Model.FarmName is null ? "Search by farm or tester email…" : "Search this farm by tester email…")" />
+    @if (Model.CompanyOptions.Any())
+    {
+        <select name="companyId" onchange="if (this.form.testerId) this.form.testerId.value = ''; this.form.submit()" aria-label="Filter by company">
+            <option value="">All companies</option>
+            @foreach (var o in Model.CompanyOptions)
+            {
+                <option value="@o.Value" selected="@o.Selected">@o.Text</option>
+            }
+        </select>
+    }
+    <select name="testerId" onchange="this.form.submit()" aria-label="Filter by tester">
+        <option value="">All testers</option>
+        @foreach (var o in Model.TesterOptions)
+        {
+            <option value="@o.Value" selected="@o.Selected">@o.Text</option>
+        }
+    </select>
     <button type="submit" class="btn btn--secondary">Search</button>
-    @if (!string.IsNullOrWhiteSpace(Model.Q))
+    @if (Model.HasFilter)
     {
         <a class="btn btn--secondary" asp-page="/Admin/Tests/Index" asp-route-farmId="@Model.FarmId">Clear</a>
     }
@@ -37,12 +54,12 @@
 {
     <div class="empty">
         <div class="empty__title">
-            @(!string.IsNullOrWhiteSpace(Model.Q) ? "No matching tests"
+            @(Model.HasFilter ? "No matching tests"
                 : Model.FarmName is not null ? "No tests for this farm yet"
                 : "No tests synced yet")
         </div>
         <p class="empty__text">
-            @(!string.IsNullOrWhiteSpace(Model.Q) ? "Try a different search term."
+            @(Model.HasFilter ? "Try a different search term or filter."
                 : Model.FarmName is not null ? "Tests will appear here once this farm has synced machine tests."
                 : "Tests will appear here as Testers complete and sync them.")
         </p>
@@ -88,12 +105,12 @@ else
     <div style="display:flex;gap:var(--space-3);align-items:center;margin-top:var(--space-4)">
         @if (Model.PageNumber > 1)
         {
-            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId">‹ Prev</a>
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId" asp-route-companyId="@Model.CompanyId" asp-route-testerId="@Model.TesterId">‹ Prev</a>
         }
         <span class="td-muted">Page @Model.PageNumber of @Model.TotalPages · @Model.TotalCount total</span>
         @if (Model.PageNumber < Model.TotalPages)
         {
-            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId">Next ›</a>
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId" asp-route-companyId="@Model.CompanyId" asp-route-testerId="@Model.TesterId">Next ›</a>
         }
     </div>
 }

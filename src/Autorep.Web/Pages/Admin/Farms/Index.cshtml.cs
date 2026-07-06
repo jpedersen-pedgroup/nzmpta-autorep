@@ -25,29 +25,31 @@ public class IndexModel : PageModel
     {
         IQueryable<Farm> q = _db.Farms;
 
-        // Super-Administrator sees all farms. A Company Administrator sees only farms
-        // that have a completed Machine Test by a Tester in their Testing Company.
+        // Super-Administrator sees all farms. A Company Administrator sees only farms in their
+        // company's scope — set up or tested by the company (the shared FarmScope predicate,
+        // matching the tester farm picker and the farm snapshot API).
+        Guid? companyId = null;
         if (!User.IsInRole(Roles.SuperAdministrator))
         {
             ScopedView = true;
             var me = await _users.GetUserAsync(User);
-            var companyId = me?.TestingCompanyId;
-            q = q.Where(f => _db.MachineTests.Any(t =>
-                t.FarmId == f.Id
-                && t.MarkedCompleteAt != null
-                && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId)));
+            companyId = me?.TestingCompanyId;
+            q = q.InCompanyScope(_db, companyId, me?.Id);
         }
+        q = q.OrderBy(f => f.Name);
 
-        Farms = await q
-            .OrderBy(f => f.Name)
-            .Select(f => new Row(
-                f.Id,
-                f.Name,
-                f.Region!.Name,
-                f.MilkSupplyCompany!.Name,
-                f.Town,
-                f.IsActive,
+        // The Tests count matches the viewer's reach: a Company Administrator sees their own
+        // company's tests on the farm (multi-company farms carry other companies' history too),
+        // a Super-Administrator sees the total.
+        Farms = ScopedView
+            ? await q.Select(f => new Row(
+                f.Id, f.Name, f.Region!.Name, f.MilkSupplyCompany!.Name, f.Town, f.IsActive,
+                _db.MachineTests.Count(t => t.FarmId == f.Id
+                    && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId))))
+                .ToListAsync()
+            : await q.Select(f => new Row(
+                f.Id, f.Name, f.Region!.Name, f.MilkSupplyCompany!.Name, f.Town, f.IsActive,
                 _db.MachineTests.Count(t => t.FarmId == f.Id)))
-            .ToListAsync();
+                .ToListAsync();
     }
 }
