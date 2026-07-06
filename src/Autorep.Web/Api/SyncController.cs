@@ -44,15 +44,37 @@ public class SyncController : ControllerBase
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
         DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson);
 
-    // Pull: the Tester's tests (header + config), newest first.
+    /// <summary>Pull envelope. Watermark is stored by the Device and sent back as `since` on its
+    /// next pull — server clock on both sides, so device clock skew is irrelevant.</summary>
+    public record PullResponse(DateTimeOffset Watermark, IReadOnlyList<TestSummaryDto> Tests);
+
+    // The watermark is deliberately LAGGED behind now. UpdatedAt is stamped app-side shortly
+    // BEFORE the row's transaction commits, so a pull racing a concurrent push could capture
+    // "now" above a stamp whose row isn't visible to its query yet — and that row would sit
+    // below every future watermark, permanently skipped. Returning (now − lag) instead means
+    // such a row is always above the watermark and arrives on the next pull. The cost is that
+    // every pull re-delivers rows written within the lag window — harmless, because the pull
+    // upserts and the device's local copy wins. The lag must exceed the longest stamp-to-commit
+    // gap, which is bounded by the SQL command timeout (30s default; no retry strategy is
+    // configured on this context).
+    private static readonly TimeSpan WatermarkLag = TimeSpan.FromSeconds(120);
+
+    // Pull: the Tester's tests (header + config), newest first. With ?since= (the Watermark of
+    // the previous pull) only tests written since then are returned — a delta, not the full set.
     [HttpGet("tests")]
-    public async Task<IActionResult> ListTests(CancellationToken ct)
+    public async Task<IActionResult> ListTests([FromQuery] DateTimeOffset? since, CancellationToken ct)
     {
         var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var tests = await _db.MachineTests
+
+        var watermark = DateTimeOffset.UtcNow - WatermarkLag;
+
+        var query = _db.MachineTests
             .Include(t => t.Farm)
             .Include(t => t.Configuration)
-            .Where(t => t.TesterId == testerId && t.ClientId != null)
+            .Where(t => t.TesterId == testerId && t.ClientId != null);
+        if (since is not null) query = query.Where(t => t.UpdatedAt > since);
+
+        var tests = await query
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
@@ -64,7 +86,7 @@ public class SyncController : ControllerBase
             t.Configuration is null ? null : ToDto(t.Configuration),
             t.PayloadJson));
 
-        return Ok(dtos);
+        return Ok(new PullResponse(watermark, dtos.ToList()));
     }
 
     // Push: upsert by ClientId (idempotent), linking the Farm by id / farm identity within the
@@ -90,6 +112,7 @@ public class SyncController : ControllerBase
             existing.Notes = req.Notes;
             existing.MarkedCompleteAt = req.MarkedCompleteAt;
             existing.PayloadJson = req.PayloadJson;
+            existing.UpdatedAt = DateTimeOffset.UtcNow;
             ApplyConfig(existing, req.Config);
             await _db.SaveChangesAsync(ct);
             return Ok(new { id = existing.Id, status = "updated" });

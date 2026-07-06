@@ -77,6 +77,44 @@ describe("buildTestSummaryDoc", () => {
     expect(json).not.toContain("PASS"); // a recompute would have said PASS — proves as-recorded
   });
 
+  it("renders the Amendment history as a final page when the test carries amendments", () => {
+    const t = sampleTest();
+    t.version = 2;
+    t.supersedesId = "t0";
+    t.amendments = [
+      {
+        version: 2,
+        amendedAt: "2026-07-06T00:00:00.000Z",
+        amendedBy: "tester@local",
+        baseVersion: 1,
+        baseCompletedAt: "2026-06-11T00:00:00.000Z",
+        changes: [
+          { section: "Numerical readings", label: "Working vacuum", from: "48 kPa", to: "50 kPa" },
+        ],
+      },
+    ];
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Amendment history");
+    expect(json).toContain('"pageBreak":"before"'); // it starts on its own page
+    expect(json).toContain("supersedes version 1");
+    expect(json).toContain("by tester@local"); // the WHO of the audit trail
+    expect(json).toContain("48 kPa");
+    expect(json).toContain("50 kPa");
+    expect(json).toContain("Amendment history section"); // banner points at the appendix
+  });
+
+  it("notes a re-completion with no data changes, and omits the section entirely for v1 tests", () => {
+    const t = sampleTest();
+    t.version = 2;
+    t.amendments = [
+      { version: 2, amendedAt: "2026-07-06T00:00:00.000Z", baseVersion: 1, changes: [] },
+    ];
+    expect(JSON.stringify(buildTestSummaryDoc(t).content)).toContain("Re-completed with no data changes");
+
+    const v1 = sampleTest();
+    expect(JSON.stringify(buildTestSummaryDoc(v1).content)).not.toContain("Amendment history");
+  });
+
   it("notes the appended pulsation PDF when one is attached", () => {
     const t = sampleTest();
     t.pulsationPdf = { name: "analyser-export.pdf", base64: "JVBERi0=", size: 1234, attachedAt: t.updatedAt };

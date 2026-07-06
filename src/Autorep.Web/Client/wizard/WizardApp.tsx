@@ -13,6 +13,7 @@ import {
 } from "./types";
 import { allTests, getTest, putTest, type FarmSnapshot, type LocalTest } from "../db/testStore";
 import { fetchFarm } from "../farms";
+import { buildAmendmentRecord } from "../versioning/amendments";
 import { useServerOnline } from "../connectivity";
 import { MachineConfigStep } from "./MachineConfigStep";
 import { ReadingsStep } from "./ReadingsStep";
@@ -112,6 +113,7 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
     readonly: true,
     version: typeof base.version === "number" ? base.version : 1,
     supersedesId: typeof base.supersedesId === "string" ? base.supersedesId : undefined,
+    amendments: Array.isArray(base.amendments) ? base.amendments : undefined,
   };
 }
 
@@ -199,7 +201,9 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
         history.replaceState(null, "", url.toString());
       }
       // Best-effort: load full farm details (online) and snapshot them for display + sync.
-      if (t.farmId && !t.farm) {
+      // Editable tests only — a completed version is frozen (its snapshot is part of the record
+      // the amendment diff runs against), so never backfill into one.
+      if (t.farmId && !t.farm && !t.markedCompleteAt && !t.readonly) {
         const snap = await fetchFarm(t.farmId);
         if (snap) {
           t = { ...t, farm: snap, farmName: snap.name };
@@ -227,10 +231,16 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
     // Admin view mode is in-memory only — never write another tester's test into this device's store.
     if (!serverTestId) await putTest(updated);
   };
-  // Migrated legacy tests are read-only: navigation still persists (currentStep), but data edits
-  // are no-ops so a historical record can't be altered on-device.
-  const readonly = test.readonly ?? false;
-  const persistEdit = (patch: Partial<LocalTest>) => (readonly ? Promise.resolve() : persist(patch));
+  // Read-only: migrated legacy tests, superseded originals AND any completed test. Completion
+  // freezes a version — without that, a signed-off test could be silently altered afterwards and
+  // the next version's amendment diff would report a falsified "Previous" column. Changing a
+  // completed test is done by reopening it as a new version (the audited path). Navigation still
+  // persists (currentStep), but data edits are no-ops.
+  const readonly = (test.readonly ?? false) || test.markedCompleteAt != null;
+  // Every data edit flips the test dirty ("local-only") so it re-pushes on the next sync —
+  // an edit that kept syncState "uploaded" would silently diverge from the server copy.
+  const persistEdit = (patch: Partial<LocalTest>) =>
+    readonly ? Promise.resolve() : persist({ syncState: "local-only", ...patch });
   const setConfig = (patch: Partial<MachineConfiguration>) =>
     persistEdit({ config: { ...test.config, ...patch } });
   const go = (step: WizardStep) => persist({ currentStep: step });
@@ -311,8 +321,23 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
   const markComplete = async () => {
     if (readonly) return;
     const now = new Date().toISOString();
+
+    // Re-edit of a completed test: fix the amendment record (what changed vs the superseded
+    // version, when, by whom) at sign-off, appended to the cumulative chain the copy carried
+    // forward. Replaces any same-version record so a repeated sign-off can't double-log.
+    let amendments = test.amendments;
+    if (test.supersedesId) {
+      const base = await getTest(test.supersedesId);
+      const amendedBy = (globalThis as { __autorepTesterName?: unknown }).__autorepTesterName;
+      const record = buildAmendmentRecord(
+        base, test, now, typeof amendedBy === "string" ? amendedBy : undefined,
+      );
+      amendments = [...(test.amendments ?? []).filter((a) => a.version !== record.version), record];
+    }
+
     await persist({
       markedCompleteAt: now,
+      amendments,
       syncState: "local-only",
       attestations: [
         ...test.attestations,
@@ -455,7 +480,7 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
               attestedSections={attestedSectionsFor("VisualFaultsRunning")}
               dataValues={test.dataFields ?? {}}
               onSetData={(k, v) => void setDataField(k, v)}
-              guards={{ value: test.guardsOnPulsators ?? false, onChange: (v) => void persist({ guardsOnPulsators: v }) }}
+              guards={{ value: test.guardsOnPulsators ?? false, onChange: (v) => void persistEdit({ guardsOnPulsators: v }) }}
             />
           )}
 

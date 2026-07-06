@@ -5,6 +5,7 @@ import { initStandards } from "./standards/standardsSync";
 import { initEquipment } from "./standards/equipmentSync";
 import { initFaultCatalog } from "./standards/faultCatalogSync";
 import { initPrivacy } from "./standards/privacySync";
+import { initFarms } from "./sync/farmsSync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
 import { purgeStaleLocalData } from "./db/testStore";
@@ -27,7 +28,16 @@ function mountApps(): void {
 }
 
 // Purge any other tester's locally-cached data first (shared-device isolation), THEN load the
-// synced standards and mount the offline wizard + "My tests" list.
+// synced reference data and mount the offline wizard + "My tests" list. The farm book is
+// tester-pages-only: on the admin read-only test view (wizard root with data-server-test) the
+// bundle also runs, and for a Super-Admin /api/farms is the entire national list — caching that
+// PII into an admin's IndexedDB buys nothing (admins never pick farms offline).
+const wizardHost = document.getElementById("wizard-root");
+const isTesterPage =
+  document.getElementById("test-list-root") !== null ||
+  (wizardHost !== null && !wizardHost.getAttribute("data-server-test"));
+const referenceSyncs = [initStandards, initEquipment, initFaultCatalog, initPrivacy];
+if (isTesterPage) referenceSyncs.push(initFarms);
 void purgeStaleLocalData()
-  .then(() => Promise.allSettled([initStandards(), initEquipment(), initFaultCatalog(), initPrivacy()]))
+  .then(() => Promise.allSettled(referenceSyncs.map((sync) => sync())))
   .finally(mountApps);

@@ -14,6 +14,12 @@ public class MachineTest
     public Farm? Farm { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Server-side watermark for delta sync: stamped (server clock) whenever this row is
+    /// written through the sync surface. Deliberately NOT the device's updatedAt — device clocks
+    /// can't be trusted to order pulls.</summary>
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
     public DateTimeOffset? MarkedCompleteAt { get; set; }
     public string? Notes { get; set; }
 

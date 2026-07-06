@@ -118,4 +118,33 @@ public class FarmsControllerTests : IClassFixture<AuthedWebAppFactory>
         var res = await client.GetAsync($"/api/farms/{farmId}");
         res.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task List_returns_only_farms_in_the_callers_scope()
+    {
+        Guid mineId, othersId, inactiveId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+
+            var mine = new Farm { Name = "List Mine Farm" };
+            var others = new Farm { Name = "List Others Farm" };
+            var inactive = new Farm { Name = "List Inactive Farm", IsActive = false };
+            db.Farms.AddRange(mine, others, inactive);
+            db.MachineTests.AddRange(
+                new MachineTest { TesterId = "tester-list-1", FarmId = mine.Id, CreatedAt = DateTimeOffset.UtcNow },
+                new MachineTest { TesterId = "tester-list-other", FarmId = others.Id, CreatedAt = DateTimeOffset.UtcNow },
+                new MachineTest { TesterId = "tester-list-1", FarmId = inactive.Id, CreatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+            (mineId, othersId, inactiveId) = (mine.Id, others.Id, inactive.Id);
+        }
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-list-1");
+        var farms = await client.GetFromJsonAsync<List<FarmResponse>>("/api/farms");
+
+        farms.Should().NotBeNull();
+        farms!.Should().Contain(f => f.Id == mineId);
+        farms.Should().NotContain(f => f.Id == othersId);   // another tester's farm — not harvestable
+        farms.Should().NotContain(f => f.Id == inactiveId); // deactivated farms drop out of the book
+    }
 }

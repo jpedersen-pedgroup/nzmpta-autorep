@@ -1,7 +1,12 @@
 // Sync client — the only thing that talks to the server. Pushes local-only tests up
-// (POST /api/sync/tests, upsert by ClientId) and pulls the Tester's tests down. Auth is the
-// tester's cookie (same-origin fetch sends it automatically).
-import { allTests, getTest, putTest, type LocalTest } from "../db/testStore";
+// (POST /api/sync/tests, upsert by ClientId) and pulls the Tester's tests down as a DELTA:
+// each pull returns a watermark that is stored and sent back as ?since= on the next one, so
+// only tests written since then come down (first pull = full history). Both sides of the
+// comparison are the server's clock — device clock skew can't lose tests. The watermark lags
+// real time slightly (see SyncController), so recently-written tests are re-delivered on the
+// next pull; that's by design and harmless — the loop below skips tests already on-device.
+// Auth is the tester's cookie (same-origin fetch sends it automatically).
+import { allTests, getTest, putTest, getReference, putReference, type LocalTest } from "../db/testStore";
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 
@@ -14,6 +19,15 @@ interface TestSummaryDto {
   /** Full offline capture payload (the serialised LocalTest) for exact rehydration. */
   payloadJson: string | null;
 }
+
+interface PullResponse {
+  /** Server-clock watermark: store it, send it back as ?since= next pull. */
+  watermark: string;
+  tests: TestSummaryDto[];
+}
+
+/** Reference-store key for the pull watermark (per-tester DB, so per-tester watermark). */
+const WATERMARK_KEY = "testPullWatermark";
 
 export interface SyncResult {
   pushed: number;
@@ -45,13 +59,26 @@ async function pushTest(t: LocalTest): Promise<void> {
 }
 
 async function pullTests(): Promise<number> {
-  const res = await fetch("/api/sync/tests", { headers: { Accept: "application/json" } });
+  let since: string | null | undefined;
+  try {
+    since = (await getReference(WATERMARK_KEY))?.version;
+  } catch {
+    // No watermark readable — fall through to a full pull.
+  }
+
+  const url = since ? `/api/sync/tests?since=${encodeURIComponent(since)}` : "/api/sync/tests";
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`Pull failed (${res.status})`);
-  const remote = (await res.json()) as TestSummaryDto[];
+  const { watermark, tests: remote } = (await res.json()) as PullResponse;
 
   let added = 0;
   for (const r of remote) {
-    if (await getTest(r.clientId)) continue; // local copy wins (authoritative for in-progress)
+    // A DIRTY local copy wins (it holds edits the server hasn't seen — they'll push next).
+    // A CLEAN ("uploaded") copy is by definition one the server has seen, so the server's
+    // current state replaces it — otherwise a device that pulled an in-progress draft would
+    // keep it stale forever and never receive the completed version or its amendment history.
+    const existing = await getTest(r.clientId);
+    if (existing && existing.syncState !== "uploaded") continue;
     const now = new Date().toISOString();
 
     // Prefer the full payload (exact rehydration); fall back to the header for older tests.
@@ -113,6 +140,10 @@ async function pullTests(): Promise<number> {
     await putTest(local);
     added++;
   }
+
+  // Advance the watermark only after every pulled test is stored: an interrupted pull re-fetches
+  // the same window next time (safe — the loop upserts) instead of losing it.
+  await putReference({ key: WATERMARK_KEY, version: watermark });
   return added;
 }
 
