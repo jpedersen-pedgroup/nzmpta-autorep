@@ -222,6 +222,11 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
     margin: [0, 1, 0, 0] as [number, number, number, number],
   }));
 
+  // --- Amendment history -----------------------------------------------------------------------
+  // A re-edited test carries its cumulative amendment chain; render it as the report's final
+  // page so every change made after the original sign-off is visible on the printed record.
+  const amendmentBlock: Content[] = buildAmendmentBlock(test);
+
   // --- Attachment note -------------------------------------------------------------------------
   const attachmentBlock: Content[] = test.pulsationPdf
     ? [
@@ -258,7 +263,12 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
       { text: "Milking Machine Test Summary", fontSize: 16, bold: true, color: BRAND },
       { text: "NZMPTA AutoRep", fontSize: 9, color: MUTED, margin: [0, 0, 0, (test.version ?? 1) > 1 ? 2 : 10] },
       ...((test.version ?? 1) > 1
-        ? [{ text: `Version ${test.version} — supersedes an earlier completed test`, fontSize: 9, bold: true, color: BRAND, margin: [0, 0, 0, 10] } as Content]
+        ? [{
+            text: `Version ${test.version} — supersedes an earlier completed test${
+              amendmentBlock.length > 0 ? " (all changes are listed in the Amendment history section)" : ""
+            }`,
+            fontSize: 9, bold: true, color: BRAND, margin: [0, 0, 0, 10],
+          } as Content]
         : []),
       farmLines,
       sectionHeader("Machine configuration"),
@@ -273,8 +283,58 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
       ...(isLegacy ? [] : [sectionHeader("Visual checks"), ...visualBlock]),
       ...attachmentBlock,
       ...(attestRows.length > 0 ? [sectionHeader("Attestations"), ...attestRows] : []),
+      ...amendmentBlock,
     ],
   };
+}
+
+// The Amendment history page: one block per superseding version (ascending), each a table of
+// Section / Field / Previous / Amended. Starts on its own page — it's the audit appendix.
+function buildAmendmentBlock(test: LocalTest): Content[] {
+  const amendments = [...(test.amendments ?? [])].sort((a, b) => a.version - b.version);
+  if (amendments.length === 0) return [];
+
+  const out: Content[] = [
+    { ...(sectionHeader("Amendment history") as object), pageBreak: "before" } as Content,
+    {
+      text: "This test has been amended since it was first completed. Each version below lists every recorded change against the version it replaced. Earlier versions remain on record.",
+      fontSize: 9, color: MUTED, margin: [0, 0, 0, 6],
+    },
+  ];
+
+  for (const a of amendments) {
+    const supersedes = `supersedes version ${a.baseVersion}${
+      a.baseCompletedAt ? ` (completed ${fmtDate(a.baseCompletedAt)})` : ""
+    }`;
+    out.push({
+      text: `Version ${a.version} — completed ${fmtDate(a.amendedAt)}${a.amendedBy ? ` by ${a.amendedBy}` : ""} · ${supersedes}`,
+      fontSize: 10, bold: true, margin: [0, 8, 0, 2],
+    });
+
+    if (a.baseUnavailable) {
+      out.push({
+        text: "The superseded version was not available on the signing device, so a field-level comparison could not be recorded.",
+        fontSize: 9, color: FAIL,
+      });
+      continue;
+    }
+    if (a.changes.length === 0) {
+      out.push({ text: "Re-completed with no data changes.", fontSize: 9, color: MUTED });
+      continue;
+    }
+
+    const body: TableCell[][] = [
+      [th("Section"), th("Field"), th("Previous"), th("Amended")],
+      ...a.changes.map((c) => [
+        { text: c.section, fontSize: 9, color: MUTED } as TableCell,
+        { text: c.label, fontSize: 9 } as TableCell,
+        { text: c.from, fontSize: 9, color: MUTED } as TableCell,
+        { text: c.to, fontSize: 9, bold: true } as TableCell,
+      ]),
+    ];
+    out.push({ table: { widths: ["auto", "*", "*", "*"], body }, layout: "lightHorizontalLines" });
+  }
+  return out;
 }
 
 // Fault Summary block for a migrated test: recorded faults + section recommendations + comment,

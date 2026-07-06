@@ -154,7 +154,7 @@
     </script>
     @if (User.Identity?.IsAuthenticated == true)
     {
-        <script>window.__autorepTesterId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value));</script>
+        <script>window.__autorepTesterId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)); window.__autorepTesterName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(User.Identity?.Name));</script>
     }
     @await RenderSectionAsync("Scripts", required: false)
 </body>

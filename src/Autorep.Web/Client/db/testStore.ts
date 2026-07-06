@@ -41,6 +41,36 @@ export interface MeasurementRow {
   values: Record<string, string>;
 }
 
+/** One field-level difference recorded when a completed test is re-edited as a new version. */
+export interface FieldChange {
+  /** Report section the field belongs to (e.g. "Machine configuration"). */
+  section: string;
+  label: string;
+  /** Formatted previous value ("—" when the field was blank). */
+  from: string;
+  /** Formatted amended value ("—" when the field was cleared). */
+  to: string;
+}
+
+/** The audit record written when a superseding version is marked complete: what changed vs the
+ * version it replaced, when, and by whom. The chain is cumulative — each version carries every
+ * prior record — so a single synced test reprints its full amendment history on any device.
+ * In-progress edits are deliberately NOT audited; the trail starts once a test is complete. */
+export interface AmendmentRecord {
+  /** The version this record belongs to (the NEW version). */
+  version: number;
+  /** When the new version was marked complete (sign-off). */
+  amendedAt: string;
+  /** The signed-in account that signed off the amendment (login name/email). */
+  amendedBy?: string;
+  /** The version this one superseded. */
+  baseVersion: number;
+  baseCompletedAt?: string | null;
+  changes: FieldChange[];
+  /** True when the superseded version wasn't on-device at sign-off, so no diff could be taken. */
+  baseUnavailable?: boolean;
+}
+
 /** A Machine Test as held on-device (mirrors the server MachineTest + MachineConfiguration). */
 export interface LocalTest {
   /** Client-generated id (used for upsert-by-ClientId on sync). */
@@ -96,6 +126,9 @@ export interface LocalTest {
   /** Client id of the prior version this one supersedes — forms the history chain. Round-trips
    * through PayloadJson, so the server keeps every version as its own linked record. */
   supersedesId?: string;
+  /** Cumulative amendment history (one record per superseding version, appended at sign-off).
+   * Rendered as the final "Amendment history" page of the Test Summary report. */
+  amendments?: AmendmentRecord[];
 }
 
 /** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */
