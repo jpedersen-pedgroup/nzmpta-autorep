@@ -26,8 +26,8 @@ public class FarmsController : ControllerBase
 
     // List: the caller's farm book, cached on-device at app load so the wizard can resolve a
     // farm chosen while offline (including farms the office added since the last visit).
-    // Same visibility rule as the New-test picker: farms the caller's Testing Company set up or
-    // has tested — never the whole national list (farm PII scoping).
+    // Same visibility rule as the New-test picker — the shared FarmScope predicate — never the
+    // whole national list (farm PII scoping).
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
     {
@@ -44,11 +44,7 @@ public class FarmsController : ControllerBase
                 .Select(u => u.TestingCompanyId)
                 .FirstOrDefaultAsync(ct);
 
-            query = companyId != null
-                ? query.Where(x => x.CreatedByTestingCompanyId == companyId
-                    || _db.MachineTests.Any(t => t.FarmId == x.Id
-                        && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId)))
-                : query.Where(x => _db.MachineTests.Any(t => t.FarmId == x.Id && t.TesterId == testerId));
+            query = query.InCompanyScope(_db, companyId, testerId);
         }
 
         var farms = await query
