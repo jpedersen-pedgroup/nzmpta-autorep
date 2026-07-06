@@ -27,6 +27,11 @@ async function pushTest(t: LocalTest): Promise<void> {
     body: JSON.stringify({
       clientId: t.id,
       farmName: t.farmName,
+      // Farm identity so the server links the right farm within the tester's company scope
+      // (id from the picker, plus supply number + milk processor to disambiguate same names).
+      farmId: t.farmId ?? null,
+      farmSupplyNumber: t.farm?.supplyNumber ?? null,
+      farmMilkCompanyName: t.farm?.milkCompanyName ?? null,
       notes: t.notes ?? null,
       markedCompleteAt: t.markedCompleteAt ?? null,
       createdAt: t.createdAt,

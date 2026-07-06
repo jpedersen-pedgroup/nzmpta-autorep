@@ -34,7 +34,11 @@ public class SyncController : ControllerBase
     public record UploadTestRequest(
         Guid ClientId, string FarmName, string? Notes,
         DateTimeOffset? MarkedCompleteAt, DateTimeOffset? CreatedAt, ConfigDto? Config,
-        string? PayloadJson);
+        string? PayloadJson,
+        // Farm identity for linking (added later, so optional for older queued payloads):
+        // the FarmId the wizard was started with, plus the snapshot fields used to match an
+        // existing farm when there is no usable id.
+        Guid? FarmId = null, string? FarmSupplyNumber = null, string? FarmMilkCompanyName = null);
 
     public record TestSummaryDto(
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
@@ -63,7 +67,8 @@ public class SyncController : ControllerBase
         return Ok(dtos);
     }
 
-    // Push: upsert by ClientId (idempotent), creating/linking the Farm by name.
+    // Push: upsert by ClientId (idempotent), linking the Farm by id / farm identity within the
+    // tester's company scope (see ResolveFarmAsync), creating a company-tagged farm if needed.
     [HttpPost("tests")]
     public async Task<IActionResult> UploadTest([FromBody] UploadTestRequest req, CancellationToken ct)
     {
@@ -90,16 +95,7 @@ public class SyncController : ControllerBase
             return Ok(new { id = existing.Id, status = "updated" });
         }
 
-        var farm = await _db.Farms.FirstOrDefaultAsync(f => f.Name == req.FarmName, ct);
-        if (farm is null)
-        {
-            // Offline-created farm-by-name: tag the syncing tester's company so it shows in that
-            // company's farm picker (matches farms created via the New-test "add farm" modal).
-            var companyId = await _db.Users.Where(u => u.Id == testerId)
-                .Select(u => u.TestingCompanyId).FirstOrDefaultAsync(ct);
-            farm = new Farm { Name = req.FarmName, CreatedByTestingCompanyId = companyId };
-            _db.Farms.Add(farm);
-        }
+        var farm = await ResolveFarmAsync(req, testerId, ct);
 
         var test = new MachineTest
         {
@@ -140,6 +136,60 @@ public class SyncController : ControllerBase
             test.Configuration is null ? null : ToDto(test.Configuration),
             test.PayloadJson));
     }
+
+    // Links the synced test to a Farm, always within the tester's company scope so a sync push
+    // can never attach a test to (and thereby gain visibility of) another company's farm:
+    // 1. by the device's FarmId (set when the wizard was started from the picker), if in scope;
+    // 2. else by farm identity — name + supply number + milk processor — within scope, so two
+    //    companies' same-named farms stay separate while retries still find the right farm;
+    // 3. else a new farm is created, tagged with the syncing tester's company (matching farms
+    //    created via the New-test "add farm" modal).
+    // Deliberately does NOT filter on Farm.IsActive: a test may have been started in the field
+    // before the farm was deactivated, and the completed work must still land on the right farm
+    // rather than be stranded or duplicated. (New tests can't be *started* on inactive farms —
+    // the New-test page enforces that.)
+    private async Task<Farm> ResolveFarmAsync(UploadTestRequest req, string testerId, CancellationToken ct)
+    {
+        var companyId = await _db.Users.Where(u => u.Id == testerId)
+            .Select(u => u.TestingCompanyId).FirstOrDefaultAsync(ct);
+
+        if (req.FarmId is not null)
+        {
+            var byId = await _db.Farms.Where(f => f.Id == req.FarmId)
+                .InCompanyScope(_db, companyId, testerId)
+                .FirstOrDefaultAsync(ct);
+            if (byId is not null) return byId;
+        }
+
+        var name = req.FarmName.Trim();
+        var supply = Clean(req.FarmSupplyNumber);
+        var milk = Clean(req.FarmMilkCompanyName);
+
+        var byIdentity = _db.Farms.InCompanyScope(_db, companyId, testerId)
+            .Where(f => f.Name == name && f.SupplyNumber == supply);
+        byIdentity = milk is null
+            ? byIdentity.Where(f => f.MilkSupplyCompanyId == null)
+            : byIdentity.Where(f => f.MilkSupplyCompany != null && f.MilkSupplyCompany.Name == milk);
+        // Oldest first so retries pick the same row even if duplicate identities are in scope.
+        var match = await byIdentity.OrderBy(f => f.CreatedAt).FirstOrDefaultAsync(ct);
+        if (match is not null) return match;
+
+        var milkCompanyId = milk is null
+            ? null
+            : await _db.MilkSupplyCompanies.Where(c => c.Name == milk)
+                .Select(c => (Guid?)c.Id).FirstOrDefaultAsync(ct);
+        var farm = new Farm
+        {
+            Name = name,
+            SupplyNumber = supply,
+            MilkSupplyCompanyId = milkCompanyId,
+            CreatedByTestingCompanyId = companyId,
+        };
+        _db.Farms.Add(farm);
+        return farm;
+    }
+
+    private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     private static void ApplyConfig(MachineTest test, ConfigDto? dto)
     {

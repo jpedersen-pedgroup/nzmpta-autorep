@@ -51,11 +51,15 @@ public class NewModel : PageModel
     public async Task<IActionResult> OnPostAsync()
     {
         await LoadListsAsync();
-        // Only active farms appear in the picker; reject an inactive (or unknown) farm id
-        // from a stale page or crafted POST so deactivated farms can't get new tests.
+        // Only active farms in this company's scope appear in the picker; re-check both here so
+        // a stale page or crafted POST can't start a test against a deactivated farm or another
+        // company's farm (the picker's scoping must hold server-side, not just in the list).
         var farm = Input.FarmId is null
             ? null
-            : await _db.Farms.FirstOrDefaultAsync(f => f.Id == Input.FarmId && f.IsActive);
+            : await _db.Farms
+                .Where(f => f.Id == Input.FarmId && f.IsActive)
+                .InCompanyScope(_db, await CompanyIdAsync(), TesterId())
+                .FirstOrDefaultAsync();
         if (farm is null)
         {
             Errors.Add("Select an existing farm, or add a new one.");
@@ -74,12 +78,19 @@ public class NewModel : PageModel
         if (string.IsNullOrWhiteSpace(name))
             return BadRequest(new { error = "Farm name is required." });
 
+        // A tester without a Testing Company can't own the new farm, so it would fall outside
+        // every scope check (including this page's own OnPost) the moment it was created —
+        // refuse up front rather than strand an orphan farm row.
+        var companyId = await CompanyIdAsync();
+        if (companyId is null)
+            return BadRequest(new { error = "Your account isn't linked to a Testing Company, so it can't add farms. Ask your administrator." });
+
         var entity = new Farm
         {
             Name = name,
             // Tag the creating company so it appears in this company's farm picker straight away,
             // even before the first test is synced against it.
-            CreatedByTestingCompanyId = await CompanyIdAsync(),
+            CreatedByTestingCompanyId = companyId,
             SupplyNumber = Clean(farm.SupplyNumber),
             MilkSupplyCompanyId = farm.MilkSupplyCompanyId,
             RegionId = farm.RegionId,
@@ -97,28 +108,26 @@ public class NewModel : PageModel
         return new JsonResult(new { id = entity.Id, name = entity.Name, milkCompanyId = entity.MilkSupplyCompanyId });
     }
 
+    private string? TesterId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
     // The Testing Company the signed-in tester belongs to (scopes the farm picker).
     private async Task<Guid?> CompanyIdAsync()
     {
-        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var testerId = TesterId();
         return await _db.Users.Where(u => u.Id == testerId)
             .Select(u => u.TestingCompanyId).FirstOrDefaultAsync();
     }
 
     private async Task LoadListsAsync()
     {
-        // Only show farms this tester's company set up or has tested — not the whole national list.
-        var companyId = await CompanyIdAsync();
-        Farms = companyId is null
-            ? new List<FarmRow>()
-            : await _db.Farms
-                .Where(f => f.IsActive && (
-                    f.CreatedByTestingCompanyId == companyId
-                    || _db.MachineTests.Any(t => t.FarmId == f.Id
-                        && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId))))
-                .OrderBy(f => f.Name)
-                .Select(f => new FarmRow(f.Id, f.Name, f.MilkSupplyCompanyId))
-                .ToListAsync();
+        // Only show farms in this tester's company scope (set up or tested by the company —
+        // the shared FarmScope predicate) — not the whole national list.
+        Farms = await _db.Farms
+            .Where(f => f.IsActive)
+            .InCompanyScope(_db, await CompanyIdAsync(), TesterId())
+            .OrderBy(f => f.Name)
+            .Select(f => new FarmRow(f.Id, f.Name, f.MilkSupplyCompanyId))
+            .ToListAsync();
 
         var regions = await _db.Regions.Where(r => r.IsActive)
             .OrderBy(r => r.Island).ThenBy(r => r.SortOrder).ThenBy(r => r.Name).ToListAsync();

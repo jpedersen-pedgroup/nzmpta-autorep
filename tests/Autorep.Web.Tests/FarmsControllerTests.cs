@@ -69,6 +69,31 @@ public class FarmsControllerTests : IClassFixture<AuthedWebAppFactory>
         res.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    // The shared FarmScope predicate includes farms the company set up but hasn't tested yet,
+    // so the wizard can snapshot a freshly added farm before its first test is synced.
+    [Fact]
+    public async Task Get_returns_a_farm_created_by_the_testers_company_even_before_any_test()
+    {
+        Guid farmId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            var company = new TestingCompany { Name = "Created-By Co " + Guid.NewGuid() };
+            db.TestingCompanies.Add(company);
+            db.Users.Add(new Tester { Id = "tester-createdby-1", UserName = "tester-createdby-1", TestingCompanyId = company.Id });
+            var farm = new Farm { Name = "Freshly Added Farm", CreatedByTestingCompanyId = company.Id };
+            db.Farms.Add(farm); // deliberately no MachineTest yet
+            await db.SaveChangesAsync();
+            farmId = farm.Id;
+        }
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-createdby-1");
+        var dto = await client.GetFromJsonAsync<FarmResponse>($"/api/farms/{farmId}");
+
+        dto.Should().NotBeNull();
+        dto!.Name.Should().Be("Freshly Added Farm");
+    }
+
     [Fact]
     public async Task Get_returns_404_for_a_farm_the_tester_has_no_relationship_with()
     {

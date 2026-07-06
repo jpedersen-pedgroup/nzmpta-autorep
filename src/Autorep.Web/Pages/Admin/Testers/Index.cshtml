@@ -15,7 +15,7 @@
     </div>
 </div>
 
-@if (!Model.Testers.Any())
+@if (!Model.Testers.Any() && Model.CompanyId is null)
 {
     <div class="empty">
         <div class="empty__title">No testers yet</div>
@@ -25,48 +25,68 @@
 }
 else
 {
-    <div class="list-search">
+    <div class="list-filters">
+        <form method="get">
+            <select name="companyId" onchange="this.form.submit()" aria-label="Filter by company">
+                <option value="">All companies</option>
+                @foreach (var o in Model.CompanyOptions)
+                {
+                    <option value="@o.Value" selected="@o.Selected">@o.Text</option>
+                }
+            </select>
+        </form>
         <input type="search" data-table-filter="testers-table" placeholder="Search testers…" aria-label="Search testers" />
     </div>
-    <div class="table-wrap table-wrap--scroll">
-        <table class="table" id="testers-table">
-            <thead>
-                <tr>
-                    <th>Email</th>
-                    <th>Name</th>
-                    <th>Company</th>
-                    <th>Role</th>
-                    <th>Licence</th>
-                    <th>Status</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var t in Model.Testers)
-                {
+
+    if (!Model.Testers.Any())
+    {
+        <div class="empty">
+            <div class="empty__title">No matching testers</div>
+            <p class="empty__text">This company has no user accounts yet.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap table-wrap--scroll">
+            <table class="table" id="testers-table">
+                <thead>
                     <tr>
-                        <td>@t.Email</td>
-                        <td>@t.DisplayName</td>
-                        <td>@(t.CompanyName ?? "—")</td>
-                        <td>@t.RolesDisplay</td>
-                        <td>
-                            @if (t.LicenceExpiryDate is null) { <span class="badge">—</span> }
-                            else if (t.LicenceExpiryDate < today) { <span class="badge badge--danger">Expired @t.LicenceExpiryDate</span> }
-                            else if (t.LicenceExpiryDate < today.AddMonths(2)) { <span class="badge badge--warning">Expires @t.LicenceExpiryDate</span> }
-                            else { <span class="badge badge--success">@t.LicenceExpiryDate</span> }
-                        </td>
-                        <td>
-                            @if (t.IsActive) { <span class="badge badge--success">Active</span> }
-                            else { <span class="badge">Deactivated</span> }
-                        </td>
-                        <td><a class="btn btn--secondary" asp-page="/Admin/Testers/Edit" asp-route-id="@t.Id">Edit</a></td>
+                        <th>Email</th>
+                        <th>Name</th>
+                        <th>Company</th>
+                        <th>Role</th>
+                        <th>Licence</th>
+                        <th>Status</th>
+                        <th></th>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-    <div class="empty" data-table-empty="testers-table" hidden>
-        <div class="empty__title">No matching testers</div>
-        <p class="empty__text">Try a different search term.</p>
-    </div>
+                </thead>
+                <tbody>
+                    @foreach (var t in Model.Testers)
+                    {
+                        <tr>
+                            <td>@t.Email</td>
+                            <td>@t.DisplayName</td>
+                            <td>@(t.CompanyName ?? "—")</td>
+                            <td>@t.RolesDisplay</td>
+                            <td>
+                                @if (t.LicenceExpiryDate is null) { <span class="badge">—</span> }
+                                else if (t.LicenceExpiryDate < today) { <span class="badge badge--danger">Expired @t.LicenceExpiryDate</span> }
+                                else if (t.LicenceExpiryDate < today.AddMonths(2)) { <span class="badge badge--warning">Expires @t.LicenceExpiryDate</span> }
+                                else { <span class="badge badge--success">@t.LicenceExpiryDate</span> }
+                            </td>
+                            <td>
+                                @if (t.IsActive) { <span class="badge badge--success">Active</span> }
+                                else { <span class="badge">Deactivated</span> }
+                            </td>
+                            <td><a class="btn btn--secondary" asp-page="/Admin/Testers/Edit" asp-route-id="@t.Id">Edit</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="empty" data-table-empty="testers-table" hidden>
+            <div class="empty__title">No matching testers</div>
+            <p class="empty__text">Try a different search term.</p>
+        </div>
+    }
 }

@@ -118,25 +118,35 @@ public class EditModel : PageModel
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-    // Super-Administrator may edit any farm. A Company Administrator may edit a farm
-    // only if one of their company's testers has a completed test against it.
+    // Super-Administrator may edit any farm. A Company Administrator may edit a farm only if
+    // it is in their company's scope — set up or tested by the company (the shared FarmScope
+    // predicate, so the edit guard always agrees with the Farms list).
     private async Task<bool> CanEditAsync(Guid farmId)
     {
         if (User.IsInRole(Roles.SuperAdministrator)) return true;
         var me = await _users.GetUserAsync(User);
-        var companyId = me?.TestingCompanyId;
-        if (companyId is null) return false;
-        return await _db.MachineTests.AnyAsync(t =>
-            t.FarmId == farmId
-            && t.MarkedCompleteAt != null
-            && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId));
+        return await _db.Farms
+            .Where(f => f.Id == farmId)
+            .InCompanyScope(_db, me?.TestingCompanyId, me?.Id)
+            .AnyAsync();
     }
 
     private async Task PopulateAsync(Farm farm)
     {
         FarmName = farm.Name;
         UpdatedAt = farm.UpdatedAt;
-        TestCount = await _db.MachineTests.CountAsync(t => t.FarmId == farm.Id);
+        // Count the tests the viewer can actually reach: a Company Administrator's "View tests"
+        // deep link is pinned to their own company, so the count must match it.
+        if (User.IsInRole(Roles.SuperAdministrator))
+        {
+            TestCount = await _db.MachineTests.CountAsync(t => t.FarmId == farm.Id);
+        }
+        else
+        {
+            var companyId = (await _users.GetUserAsync(User))?.TestingCompanyId;
+            TestCount = await _db.MachineTests.CountAsync(t => t.FarmId == farm.Id
+                && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId));
+        }
         CollectionNotice = await _db.PrivacyContent.OrderByDescending(p => p.UpdatedAt)
             .Select(p => p.CollectionNotice).FirstOrDefaultAsync() ?? "";
         // Include the farm's current region even if it's since been deactivated, so an

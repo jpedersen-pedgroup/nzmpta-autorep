@@ -377,6 +377,28 @@ main {
 }
 .list-search input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,56,147,0.1); }
 
+/* Filter bar above list tables — a search box plus dropdown filters in one row. */
+.list-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
+.list-filters form { display: contents; }
+.list-filters input[type="search"],
+.list-filters select {
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  background: var(--surface);
+  color: var(--text);
+  min-height: 40px;
+}
+.list-filters input[type="search"] { flex: 1 1 220px; max-width: 340px; }
+.list-filters select { max-width: 260px; }
+.list-filters input:focus,
+.list-filters select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,56,147,0.1); }
+
+/* Clickable counts inside tables that cross-link to a filtered list page. */
+.table a.count-link { color: var(--brand); font-weight: 600; }
+.table a.count-link:hover { text-decoration: underline; }
+
 /* Inline checkbox group (e.g. multi-select roles). */
 .checkbox-group { display: flex; flex-direction: column; gap: var(--space-2); }
 .checkbox-group .form-check { margin-bottom: 0; }

@@ -50,6 +50,76 @@ public class AuthIntegrationTests : IClassFixture<AuthedWebAppFactory>
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    // The Farms Edit guard must hold on both directions of the shared FarmScope predicate:
+    // Forbid for an out-of-scope farm, OK for a farm the company set up but hasn't tested yet.
+    [Fact]
+    public async Task Farm_edit_forbids_a_company_admin_for_an_out_of_scope_farm_and_allows_their_own()
+    {
+        string adminId;
+        Guid foreignFarmId, ownUntestedFarmId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            var companyA = new TestingCompany { Name = "Edit-Guard Co A " + Guid.NewGuid() };
+            var companyB = new TestingCompany { Name = "Edit-Guard Co B " + Guid.NewGuid() };
+            db.TestingCompanies.AddRange(companyA, companyB);
+
+            var admin = new Tester { Id = Guid.NewGuid().ToString(), UserName = "eg-ca", Email = "eg-ca@x", TestingCompanyId = companyA.Id };
+            var testerB = new Tester { Id = Guid.NewGuid().ToString(), UserName = "eg-tb", Email = "eg-tb@x", TestingCompanyId = companyB.Id };
+            db.Users.AddRange(admin, testerB);
+
+            var foreignFarm = new Farm { Name = "ForeignFarm " + Guid.NewGuid() };
+            var ownUntestedFarm = new Farm { Name = "OwnUntestedFarm " + Guid.NewGuid(), CreatedByTestingCompanyId = companyA.Id };
+            db.Farms.AddRange(foreignFarm, ownUntestedFarm);
+            db.MachineTests.Add(new MachineTest { TesterId = testerB.Id, FarmId = foreignFarm.Id, MarkedCompleteAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+            adminId = admin.Id; foreignFarmId = foreignFarm.Id; ownUntestedFarmId = ownUntestedFarm.Id;
+        }
+
+        var client = _factory.CreateClientAs(Roles.CompanyAdministrator, adminId);
+
+        (await client.GetAsync($"/Admin/Farms/Edit/{foreignFarmId}")).StatusCode
+            .Should().Be(HttpStatusCode.Forbidden, "another company's farm must not be editable");
+        (await client.GetAsync($"/Admin/Farms/Edit/{ownUntestedFarmId}")).StatusCode
+            .Should().Be(HttpStatusCode.OK, "a farm the company set up (even untested) is in its scope");
+    }
+
+    // The All-tests farm deep-link heading must not disclose another company's farm name for a
+    // guessed farm id; a Super-Administrator still resolves any farm's name.
+    [Fact]
+    public async Task Admin_tests_farm_deep_link_hides_a_foreign_farms_name_from_a_company_admin()
+    {
+        string adminId;
+        Guid foreignFarmId;
+        string foreignFarmName = "SecretFarm " + Guid.NewGuid();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            var companyA = new TestingCompany { Name = "DeepLink Co A " + Guid.NewGuid() };
+            var companyB = new TestingCompany { Name = "DeepLink Co B " + Guid.NewGuid() };
+            db.TestingCompanies.AddRange(companyA, companyB);
+
+            var admin = new Tester { Id = Guid.NewGuid().ToString(), UserName = "dl-ca", Email = "dl-ca@x", TestingCompanyId = companyA.Id };
+            var testerB = new Tester { Id = Guid.NewGuid().ToString(), UserName = "dl-tb", Email = "dl-tb@x", TestingCompanyId = companyB.Id };
+            db.Users.AddRange(admin, testerB);
+
+            var foreignFarm = new Farm { Name = foreignFarmName };
+            db.Farms.Add(foreignFarm);
+            db.MachineTests.Add(new MachineTest { TesterId = testerB.Id, FarmId = foreignFarm.Id, MarkedCompleteAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+            adminId = admin.Id; foreignFarmId = foreignFarm.Id;
+        }
+
+        var companyAdmin = _factory.CreateClientAs(Roles.CompanyAdministrator, adminId);
+        var res = await companyAdmin.GetAsync($"/Admin/Tests?farmId={foreignFarmId}");
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await res.Content.ReadAsStringAsync()).Should().NotContain(foreignFarmName);
+
+        var superAdmin = _factory.CreateClientAs(Roles.SuperAdministrator);
+        var saRes = await superAdmin.GetAsync($"/Admin/Tests?farmId={foreignFarmId}");
+        (await saRes.Content.ReadAsStringAsync()).Should().Contain(foreignFarmName);
+    }
+
     // A Company Administrator sees only farms that one of their own company's testers has a
     // completed test against — not other companies' farms.
     [Fact]
