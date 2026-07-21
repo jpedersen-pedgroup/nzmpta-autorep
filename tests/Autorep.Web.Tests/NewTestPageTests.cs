@@ -1,12 +1,16 @@
 using System.Security.Claims;
 using Autorep.Web.Data;
+using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Pages.App.Tests;
+using Autorep.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Autorep.Web.Tests;
 
@@ -18,14 +22,42 @@ public class NewTestPageTests
             .UseInMemoryDatabase("newtest-" + Guid.NewGuid())
             .Options);
 
-    private static NewModel TesterModel(AutorepDbContext db)
+    private static NewModel TesterModel(AutorepDbContext db,
+        CapturingEmailSender? emails = null, params string[] extraRoles)
     {
-        var user = new ClaimsPrincipal(new ClaimsIdentity(
-            new[] { new Claim(ClaimTypes.NameIdentifier, "tester-1") }, "Test"));
-        return new NewModel(db)
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, "tester-1") };
+        claims.AddRange(extraRoles.Select(r => new Claim(ClaimTypes.Role, r)));
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+        var notifier = new FarmReviewNotifier(db, emails ?? new CapturingEmailSender(),
+            NullLogger<FarmReviewNotifier>.Instance);
+        return new NewModel(db, notifier)
         {
             PageContext = new PageContext { HttpContext = new DefaultHttpContext { User = user } }
         };
+    }
+
+    // Seeds a Company Administrator (with role rows, so the notifier can find them) in the
+    // given company.
+    private static async Task SeedCompanyAdminAsync(AutorepDbContext db, Guid companyId, string email)
+    {
+        var role = await db.Roles.FirstOrDefaultAsync(r => r.Name == Roles.CompanyAdministrator);
+        if (role is null)
+        {
+            role = new IdentityRole
+            {
+                Name = Roles.CompanyAdministrator,
+                NormalizedName = Roles.CompanyAdministrator.ToUpperInvariant(),
+            };
+            db.Roles.Add(role);
+        }
+        var admin = new Tester
+        {
+            Id = "admin-" + Guid.NewGuid(), UserName = email, Email = email,
+            DisplayName = "Admin", TestingCompanyId = companyId,
+        };
+        db.Users.Add(admin);
+        db.UserRoles.Add(new IdentityUserRole<string> { RoleId = role.Id, UserId = admin.Id });
+        await db.SaveChangesAsync();
     }
 
     // Seeds "tester-1" (the TesterModel principal) as a member of a fresh Testing Company,
@@ -117,6 +149,68 @@ public class NewTestPageTests
 
         var redirect = result.Should().BeOfType<RedirectToPageResult>().Subject;
         redirect.RouteValues!["farmId"].Should().Be(farm.Id);
+    }
+
+    // A plain Tester's field-created farm goes under review, and the company's administrators
+    // are emailed to look at it. The farm itself stays immediately usable.
+    [Fact]
+    public async Task CreateFarm_by_a_tester_is_flagged_for_review_and_notifies_the_company_admins()
+    {
+        using var db = NewDb();
+        var companyId = await SeedTesterCompanyAsync(db);
+        await SeedCompanyAdminAsync(db, companyId, "admin@testco.example");
+        var emails = new CapturingEmailSender();
+
+        var model = TesterModel(db, emails);
+        var result = await model.OnPostCreateFarmAsync(new NewModel.NewFarmModel { Name = "Field farm" });
+
+        result.Should().BeOfType<JsonResult>();
+        var farm = await db.Farms.SingleAsync(f => f.Name == "Field farm");
+        farm.PendingReviewSince.Should().NotBeNull();
+        farm.CreatedByTesterId.Should().Be("tester-1");
+        farm.IsActive.Should().BeTrue("a pending farm must stay usable for testing");
+
+        var mail = emails.All.Should().ContainSingle().Which;
+        mail.Email.Should().Be("admin@testco.example");
+        mail.Subject.Should().Contain("Field farm");
+    }
+
+    // One unreachable admin mailbox must not swallow the notification to the others — the
+    // send is guarded per recipient, not once around the whole loop.
+    [Fact]
+    public async Task CreateFarm_still_notifies_the_other_admins_when_one_send_fails()
+    {
+        using var db = NewDb();
+        var companyId = await SeedTesterCompanyAsync(db);
+        await SeedCompanyAdminAsync(db, companyId, "broken@testco.example");
+        await SeedCompanyAdminAsync(db, companyId, "ok@testco.example");
+        var emails = new CapturingEmailSender { FailFor = e => e == "broken@testco.example" };
+
+        var model = TesterModel(db, emails);
+        await model.OnPostCreateFarmAsync(new NewModel.NewFarmModel { Name = "Two admin farm" });
+
+        emails.All.Should().ContainSingle().Which.Email.Should().Be("ok@testco.example");
+        (await db.Farms.SingleAsync(f => f.Name == "Two admin farm"))
+            .PendingReviewSince.Should().NotBeNull("the flag must stand even when mail fails");
+    }
+
+    // A user who also holds an administrator role doesn't need a second pair of eyes: their
+    // farm is not flagged and no notification goes out.
+    [Fact]
+    public async Task CreateFarm_by_a_company_administrator_is_not_flagged_and_sends_no_mail()
+    {
+        using var db = NewDb();
+        var companyId = await SeedTesterCompanyAsync(db);
+        await SeedCompanyAdminAsync(db, companyId, "admin@testco.example");
+        var emails = new CapturingEmailSender();
+
+        var model = TesterModel(db, emails, Roles.CompanyAdministrator);
+        var result = await model.OnPostCreateFarmAsync(new NewModel.NewFarmModel { Name = "Admin farm" });
+
+        result.Should().BeOfType<JsonResult>();
+        var farm = await db.Farms.SingleAsync(f => f.Name == "Admin farm");
+        farm.PendingReviewSince.Should().BeNull();
+        emails.All.Should().BeEmpty();
     }
 
     [Fact]

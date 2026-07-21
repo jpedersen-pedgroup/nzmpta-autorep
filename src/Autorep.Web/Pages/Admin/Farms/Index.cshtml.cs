@@ -17,9 +17,10 @@ public class IndexModel : PageModel
         _users = users;
     }
 
-    public record Row(Guid Id, string Name, string? Region, string? MilkCompany, string? Town, bool IsActive, int TestCount);
+    public record Row(Guid Id, string Name, string? Region, string? MilkCompany, string? Town, bool IsActive, int TestCount, DateTimeOffset? PendingReviewSince);
     public IList<Row> Farms { get; private set; } = [];
     public bool ScopedView { get; private set; }
+    public int PendingReviewCount => Farms.Count(f => f.PendingReviewSince is not null);
 
     public async Task OnGetAsync()
     {
@@ -36,7 +37,8 @@ public class IndexModel : PageModel
             companyId = me?.TestingCompanyId;
             q = q.InCompanyScope(_db, companyId, me?.Id);
         }
-        q = q.OrderBy(f => f.Name);
+        // Farms awaiting review float to the top — this list doubles as the review queue.
+        q = q.OrderBy(f => f.PendingReviewSince == null).ThenBy(f => f.Name);
 
         // The Tests count matches the viewer's reach: a Company Administrator sees their own
         // company's tests on the farm (multi-company farms carry other companies' history too),
@@ -45,11 +47,13 @@ public class IndexModel : PageModel
             ? await q.Select(f => new Row(
                 f.Id, f.Name, f.Region!.Name, f.MilkSupplyCompany!.Name, f.Town, f.IsActive,
                 _db.MachineTests.Count(t => t.FarmId == f.Id
-                    && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId))))
+                    && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId)),
+                f.PendingReviewSince))
                 .ToListAsync()
             : await q.Select(f => new Row(
                 f.Id, f.Name, f.Region!.Name, f.MilkSupplyCompany!.Name, f.Town, f.IsActive,
-                _db.MachineTests.Count(t => t.FarmId == f.Id)))
+                _db.MachineTests.Count(t => t.FarmId == f.Id),
+                f.PendingReviewSince))
                 .ToListAsync();
     }
 }

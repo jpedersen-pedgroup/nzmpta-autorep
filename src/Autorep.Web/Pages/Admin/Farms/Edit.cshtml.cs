@@ -25,6 +25,8 @@ public class EditModel : PageModel
     public string FarmName { get; private set; } = "";
     public int TestCount { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
+    public DateTimeOffset? PendingReviewSince { get; private set; }
+    public string? PendingAddedBy { get; private set; }
     public List<SelectListItem> RegionOptions { get; private set; } = new();
     public SelectList MilkCompanyOptions { get; private set; } = default!;
     public List<string> Errors { get; } = new();
@@ -55,6 +57,35 @@ public class EditModel : PageModel
         if (farm is null) return NotFound();
         if (!await CanEditAsync(farm.Id)) return Forbid();
 
+        LoadInput(farm);
+        await PopulateAsync(farm);
+        return Page();
+    }
+
+    // Approve a field-created farm: clears the under-review flag. Anyone who can edit the farm
+    // (Super-Administrator, or a Company Administrator within scope) can approve it; the audit
+    // interceptor records who and when.
+    public async Task<IActionResult> OnPostApproveAsync()
+    {
+        var farm = await _db.Farms.FindAsync(Id);
+        if (farm is null) return NotFound();
+        if (!await CanEditAsync(farm.Id)) return Forbid();
+
+        if (farm.PendingReviewSince is not null)
+        {
+            farm.PendingReviewSince = null;
+            farm.UpdatedAt = DateTimeOffset.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+
+        Message = "Farm approved — it's no longer flagged as under review.";
+        LoadInput(farm);
+        await PopulateAsync(farm);
+        return Page();
+    }
+
+    private void LoadInput(Farm farm)
+    {
         Input = new InputModel
         {
             Name = farm.Name,
@@ -72,8 +103,6 @@ public class EditModel : PageModel
             Notes = farm.Notes,
             IsActive = farm.IsActive,
         };
-        await PopulateAsync(farm);
-        return Page();
     }
 
     public async Task<IActionResult> OnPostAsync()
@@ -135,6 +164,13 @@ public class EditModel : PageModel
     {
         FarmName = farm.Name;
         UpdatedAt = farm.UpdatedAt;
+        PendingReviewSince = farm.PendingReviewSince;
+        if (farm.PendingReviewSince is not null && farm.CreatedByTesterId is not null)
+        {
+            var creator = await _db.Users.Where(u => u.Id == farm.CreatedByTesterId)
+                .Select(u => new { u.DisplayName, u.UserName }).FirstOrDefaultAsync();
+            PendingAddedBy = string.IsNullOrWhiteSpace(creator?.DisplayName) ? creator?.UserName : creator!.DisplayName;
+        }
         // Count the tests the viewer can actually reach: a Company Administrator's "View tests"
         // deep link is pinned to their own company, so the count must match it.
         if (User.IsInRole(Roles.SuperAdministrator))
