@@ -23,6 +23,11 @@ public class AuthedWebAppFactory : WebApplicationFactory<Program>
         {
             services.AddDbContext<AutorepDbContext>(o => o.UseInMemoryDatabase(_dbName));
 
+            // Capture outgoing mail (farm-review notifications etc.) instead of logging it.
+            services.AddSingleton<CapturingEmailSender>();
+            services.AddSingleton<Microsoft.AspNetCore.Identity.UI.Services.IEmailSender>(
+                sp => sp.GetRequiredService<CapturingEmailSender>());
+
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
             services.Configure<AuthenticationOptions>(o =>
@@ -33,6 +38,9 @@ public class AuthedWebAppFactory : WebApplicationFactory<Program>
             });
         });
     }
+
+    public CapturingEmailSender Emails =>
+        Services.GetRequiredService<CapturingEmailSender>();
 
     public HttpClient CreateClientAs(string role, string? userId = null)
     {

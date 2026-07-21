@@ -16,6 +16,14 @@
     </div>
 </div>
 
+@if (Model.PendingReviewCount > 0)
+{
+    <div class="alert alert--warning">
+        <strong>@Model.PendingReviewCount farm@(Model.PendingReviewCount == 1 ? "" : "s") awaiting review</strong>
+        — added by testers in the field. They're listed first below: check the details, then approve from the farm's Edit page.
+    </div>
+}
+
 @if (!Model.Farms.Any())
 {
     <div class="empty">
@@ -42,7 +50,8 @@ else
                         <td class="td-muted">@(f.MilkCompany ?? "—")</td>
                         <td class="td-muted">@(f.Town ?? "—")</td>
                         <td>
-                            @if (f.IsActive) { <span class="badge badge--success">Active</span> }
+                            @if (f.PendingReviewSince is not null) { <span class="badge badge--warning">Under review</span> }
+                            else if (f.IsActive) { <span class="badge badge--success">Active</span> }
                             else { <span class="badge">Inactive</span> }
                         </td>
                         <td>@f.TestCount</td>

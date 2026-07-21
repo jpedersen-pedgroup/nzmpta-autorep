@@ -80,6 +80,13 @@
         {
             <p class="privacy-notice"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> @Model.CollectionNotice</p>
         }
+        @if (!User.IsInRole("CompanyAdministrator") && !User.IsInRole("SuperAdministrator"))
+        {
+            <p class="form-field__hint">
+                New farms are flagged for your Company Administrator to review — you can start
+                testing straight away.
+            </p>
+        }
         <div class="form-actions">
             <button type="button" class="btn" id="nf-create">Add farm</button>
             <button type="button" class="btn btn--secondary" id="nf-cancel">Cancel</button>

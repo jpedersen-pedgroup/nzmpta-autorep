@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,8 +20,13 @@ namespace Autorep.Web.Api;
 public class SyncController : ControllerBase
 {
     private readonly AutorepDbContext _db;
+    private readonly FarmReviewNotifier _reviewNotifier;
 
-    public SyncController(AutorepDbContext db) => _db = db;
+    public SyncController(AutorepDbContext db, FarmReviewNotifier reviewNotifier)
+    {
+        _db = db;
+        _reviewNotifier = reviewNotifier;
+    }
 
     public record ConfigDto(
         string PlantType, string? PlantSize, int ClusterCount, int? HerdSize, int? AtmosPressureSeaLevel,
@@ -119,6 +125,9 @@ public class SyncController : ControllerBase
         }
 
         var farm = await ResolveFarmAsync(req, testerId, ct);
+        // Whether ResolveFarmAsync minted a new farm row (vs linking an existing one) — checked
+        // before SaveChanges flips the state, so the review notification fires exactly once.
+        var farmCreated = _db.Entry(farm).State == EntityState.Added;
 
         var test = new MachineTest
         {
@@ -134,6 +143,10 @@ public class SyncController : ControllerBase
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
         await _db.SaveChangesAsync(ct);
+
+        if (farmCreated && farm.PendingReviewSince is not null)
+            await _reviewNotifier.NotifyPendingFarmAsync(farm,
+                $"{Request.Scheme}://{Request.Host}/Admin/Farms/Edit/{farm.Id}", ct);
 
         return CreatedAtAction(nameof(GetTest), new { id = test.Id },
             new { id = test.Id, status = "created" });
@@ -207,6 +220,13 @@ public class SyncController : ControllerBase
             SupplyNumber = supply,
             MilkSupplyCompanyId = milkCompanyId,
             CreatedByTestingCompanyId = companyId,
+            CreatedByTesterId = testerId,
+            // Field-created farms go under review by a Company Administrator (matching the
+            // New-test modal); a user who also holds an administrator role skips it.
+            PendingReviewSince =
+                User.IsInRole(Roles.CompanyAdministrator) || User.IsInRole(Roles.SuperAdministrator)
+                    ? null
+                    : DateTimeOffset.UtcNow,
         };
         _db.Farms.Add(farm);
         return farm;

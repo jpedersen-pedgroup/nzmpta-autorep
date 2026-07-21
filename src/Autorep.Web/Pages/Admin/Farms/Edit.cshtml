@@ -24,6 +24,21 @@
     <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
 }
 
+@if (Model.PendingReviewSince is not null)
+{
+    <div class="alert alert--warning" style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap">
+        <div style="flex:1;min-width:240px">
+            <strong>Under review.</strong>
+            This farm was added in the field@(Model.PendingAddedBy is not null ? $" by {Model.PendingAddedBy}" : "")
+            on @Model.PendingReviewSince.Value.ToLocalTime().ToString("dd MMM yyyy").
+            Check the details, correct anything that's wrong, then approve. Testing against it isn't held up.
+        </div>
+        <form method="post" asp-page-handler="Approve" style="margin:0">
+            <button type="submit" class="btn">Approve farm</button>
+        </form>
+    </div>
+}
+
 <form method="post">
     <div class="card form-tabs-card" style="max-width:760px">
         <div class="tabs" id="farm-tabs" role="tablist">

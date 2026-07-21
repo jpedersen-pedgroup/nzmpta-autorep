@@ -389,6 +389,91 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         bList.Single(t => t.ClientId == clientId).FarmName.Should().Be("B Farm");
     }
 
+    // Seeds a Company Administrator with real role rows so the review notifier can find them.
+    private async Task SeedCompanyAdminAsync(Guid companyId, string email)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var role = await db.Roles.FirstOrDefaultAsync(r => r.Name == Roles.CompanyAdministrator);
+        if (role is null)
+        {
+            role = new Microsoft.AspNetCore.Identity.IdentityRole
+            {
+                Name = Roles.CompanyAdministrator,
+                NormalizedName = Roles.CompanyAdministrator.ToUpperInvariant(),
+            };
+            db.Roles.Add(role);
+        }
+        var admin = new Tester
+        {
+            Id = "admin-" + Guid.NewGuid(), UserName = email, Email = email,
+            DisplayName = "Admin", TestingCompanyId = companyId,
+        };
+        db.Users.Add(admin);
+        db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<string>
+        {
+            RoleId = role.Id, UserId = admin.Id,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    // A farm minted by an offline sync push goes under review (matching the New-test modal)
+    // and the company's administrators are emailed — but only on the push that created it.
+    [Fact]
+    public async Task Upload_creating_a_farm_flags_it_for_review_and_notifies_once()
+    {
+        var companyId = await SeedTesterInCompanyAsync("tester-review-1", "Review Co");
+        var adminEmail = $"review-admin-{Guid.NewGuid()}@example.test";
+        await SeedCompanyAdminAsync(companyId, adminEmail);
+        var farmName = "Review Farm " + Guid.NewGuid();
+
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-review-1");
+        (await client.PostAsJsonAsync("/api/sync/tests", UploadPayload(Guid.NewGuid(), farmName)))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var farm = await WithDbAsync(db => db.Farms.SingleAsync(f => f.Name == farmName));
+        farm.PendingReviewSince.Should().NotBeNull();
+        farm.CreatedByTesterId.Should().Be("tester-review-1");
+
+        var mail = _factory.Emails.All.Should()
+            .ContainSingle(m => m.Subject.Contains(farmName)).Which;
+        mail.Email.Should().Be(adminEmail);
+        mail.HtmlMessage.Should().Contain($"/Admin/Farms/Edit/{farm.Id}");
+
+        // A second push against the same farm identity links the existing farm: no re-flag
+        // of an approved farm, no second notification.
+        await WithDbAsync(async db =>
+        {
+            var f = await db.Farms.SingleAsync(x => x.Name == farmName);
+            f.PendingReviewSince = null; // admin approved in the meantime
+            await db.SaveChangesAsync();
+            return 0;
+        });
+        (await client.PostAsJsonAsync("/api/sync/tests", UploadPayload(Guid.NewGuid(), farmName)))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        (await WithDbAsync(db => db.Farms.SingleAsync(f => f.Name == farmName)))
+            .PendingReviewSince.Should().BeNull("linking an existing farm must not re-flag it");
+        _factory.Emails.All.Should().ContainSingle(m => m.Subject.Contains(farmName));
+    }
+
+    // A tester who also holds an administrator role reviews their own farms by definition.
+    [Fact]
+    public async Task Upload_by_an_administrator_tester_creates_the_farm_unflagged()
+    {
+        await SeedTesterInCompanyAsync("tester-admin-review-1", "Admin-Review Co");
+        var farmName = "Admin Review Farm " + Guid.NewGuid();
+
+        var client = _factory.CreateClientAs(
+            $"{Roles.Tester},{Roles.CompanyAdministrator}", "tester-admin-review-1");
+        (await client.PostAsJsonAsync("/api/sync/tests", UploadPayload(Guid.NewGuid(), farmName)))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var farm = await WithDbAsync(db => db.Farms.SingleAsync(f => f.Name == farmName));
+        farm.PendingReviewSince.Should().BeNull();
+        _factory.Emails.All.Should().NotContain(m => m.Subject.Contains(farmName));
+    }
+
     [Fact]
     public async Task Delta_pull_filters_by_watermark_and_updates_reenter_the_stream()
     {

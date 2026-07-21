@@ -119,6 +119,14 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             farm.HasIndex(f => f.Name);
             farm.HasIndex(f => f.SupplyNumber);
             farm.HasIndex(f => f.IsActive);
+            farm.HasIndex(f => f.PendingReviewSince);
+
+            // Provenance for the review flow. SetNull so removing a tester account never takes
+            // the farms they set up (or the review queue) down with it.
+            farm.HasOne(f => f.CreatedByTester)
+                .WithMany()
+                .HasForeignKey(f => f.CreatedByTesterId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Reference-data lookups (nullable). Restrict so a lookup row that is in
             // use by a Farm can't be deleted out from under it.

@@ -48,6 +48,16 @@ public class Farm
     /// Null for legacy/migrated farms and farms created by an unaffiliated Super-Administrator.</summary>
     public Guid? CreatedByTestingCompanyId { get; set; }
 
+    /// <summary>The user who set this farm up (New-test modal or offline sync push) — provenance
+    /// for the review flow. Null for legacy/migrated and admin-portal farms.</summary>
+    public string? CreatedByTesterId { get; set; }
+    public Tester? CreatedByTester { get; set; }
+
+    /// <summary>Set when a plain Tester (not a Company Administrator) sets the farm up in the
+    /// field; cleared when a Company Administrator approves the details. Non-null = "under
+    /// review". Review gates data quality only — a pending farm is fully usable for testing.</summary>
+    public DateTimeOffset? PendingReviewSince { get; set; }
+
     /// <summary>Soft enable/disable so retired farms drop out of pickers without losing history.</summary>
     public bool IsActive { get; set; } = true;
 

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Autorep.Web.Data;
+using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -11,7 +13,12 @@ namespace Autorep.Web.Pages.App.Tests;
 public class NewModel : PageModel
 {
     private readonly AutorepDbContext _db;
-    public NewModel(AutorepDbContext db) => _db = db;
+    private readonly FarmReviewNotifier _reviewNotifier;
+    public NewModel(AutorepDbContext db, FarmReviewNotifier reviewNotifier)
+    {
+        _db = db;
+        _reviewNotifier = reviewNotifier;
+    }
 
     [BindProperty] public InputModel Input { get; set; } = new();
     public List<string> Errors { get; } = new();
@@ -91,6 +98,11 @@ public class NewModel : PageModel
             // Tag the creating company so it appears in this company's farm picker straight away,
             // even before the first test is synced against it.
             CreatedByTestingCompanyId = companyId,
+            CreatedByTesterId = TesterId(),
+            // A plain Tester's field-created farm goes under review by a Company Administrator;
+            // an administrator adding a farm needs no second pair of eyes. Either way the farm
+            // is usable for testing immediately.
+            PendingReviewSince = IsAdministrator() ? null : DateTimeOffset.UtcNow,
             SupplyNumber = Clean(farm.SupplyNumber),
             MilkSupplyCompanyId = farm.MilkSupplyCompanyId,
             RegionId = farm.RegionId,
@@ -105,10 +117,21 @@ public class NewModel : PageModel
         };
         _db.Farms.Add(entity);
         await _db.SaveChangesAsync();
+
+        if (entity.PendingReviewSince is not null)
+            await _reviewNotifier.NotifyPendingFarmAsync(entity, ReviewUrl(entity.Id));
+
         return new JsonResult(new { id = entity.Id, name = entity.Name, milkCompanyId = entity.MilkSupplyCompanyId });
     }
 
     private string? TesterId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    // A user can hold Tester alongside an administrator role; administrators' farms skip review.
+    private bool IsAdministrator() =>
+        User.IsInRole(Roles.CompanyAdministrator) || User.IsInRole(Roles.SuperAdministrator);
+
+    private string ReviewUrl(Guid farmId) =>
+        $"{Request.Scheme}://{Request.Host}/Admin/Farms/Edit/{farmId}";
 
     // The Testing Company the signed-in tester belongs to (scopes the farm picker).
     private async Task<Guid?> CompanyIdAsync()

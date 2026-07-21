@@ -15,6 +15,17 @@
         <div class="tile__title">All tests</div>
         <div class="tile__desc">Browse every machine test synced from the field.</div>
     </a>
+    <a class="tile" asp-page="/Admin/Farms/Index">
+        <div class="tile__icon"><i class="fa-solid fa-cow" aria-hidden="true"></i></div>
+        <div class="tile__title">Farms</div>
+        <div class="tile__desc">
+            Farm details, contacts and status.
+            @if (Model.PendingFarmCount > 0)
+            {
+                <span class="badge badge--warning">@Model.PendingFarmCount awaiting review</span>
+            }
+        </div>
+    </a>
     <a class="tile" asp-page="/Admin/Testers/Index">
         <div class="tile__icon"><i class="fa-solid fa-users" aria-hidden="true"></i></div>
         <div class="tile__title">Testers</div>

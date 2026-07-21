@@ -91,6 +91,9 @@ else
         "No email transport configured: set Graph:SendingMailbox (via Key Vault) in Production.");
 }
 
+// Emails Company Administrators when a tester sets up a farm in the field (review flow).
+builder.Services.AddScoped<FarmReviewNotifier>();
+
 // JWT for the sync API (sits alongside cookie auth used by Razor Pages).
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddScoped<JwtTokenService>();
