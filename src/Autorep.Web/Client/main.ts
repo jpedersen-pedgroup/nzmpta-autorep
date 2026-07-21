@@ -6,6 +6,7 @@ import { initEquipment } from "./standards/equipmentSync";
 import { initFaultCatalog } from "./standards/faultCatalogSync";
 import { initPrivacy } from "./standards/privacySync";
 import { initFarms } from "./sync/farmsSync";
+import { initCalibration } from "./sync/calibrationSync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
 import { purgeStaleLocalData } from "./db/testStore";
@@ -37,7 +38,7 @@ const isTesterPage =
   document.getElementById("test-list-root") !== null ||
   (wizardHost !== null && !wizardHost.getAttribute("data-server-test"));
 const referenceSyncs = [initStandards, initEquipment, initFaultCatalog, initPrivacy];
-if (isTesterPage) referenceSyncs.push(initFarms);
+if (isTesterPage) referenceSyncs.push(initFarms, initCalibration);
 void purgeStaleLocalData()
   .then(() => Promise.allSettled(referenceSyncs.map((sync) => sync())))
   .finally(mountApps);

@@ -83,6 +83,51 @@
                 <button type="submit" class="btn">Save licence</button>
             </div>
         </form>
+
+        <h3 class="section-title">Equipment calibration</h3>
+        <p style="color:var(--text-muted)">
+            Maintained by the tester in the app — expiry dates for their own instruments.
+            Approaching (&le; 6 weeks) or expired calibration warns the tester but never blocks testing.
+        </p>
+        @{
+            var calToday = DateOnly.FromDateTime(DateTime.UtcNow);
+            var calibration = new (string Label, DateOnly? Date)[]
+            {
+                ("Air-flow meters", Model.EditingUser?.CalAirFlowMetersExpiry),
+                ("Pulsator testers", Model.EditingUser?.CalPulsatorTestersExpiry),
+                ("Vacuum gauges", Model.EditingUser?.CalVacuumGaugesExpiry),
+            };
+        }
+        <div class="form-grid">
+            @foreach (var (label, date) in calibration)
+            {
+                <div>
+                    <span style="color:var(--text-muted);font-size:0.8125rem">@label</span>
+                    <div>
+                        @if (date is null)
+                        {
+                            <span>—</span>
+                        }
+                        else
+                        {
+                            @date.Value.ToString("dd MMM yyyy")
+                            @if (date.Value < calToday)
+                            {
+                                <span class="badge badge--danger">expired</span>
+                            }
+                            else if (date.Value.DayNumber - calToday.DayNumber <= 42)
+                            {
+                                <span class="badge badge--warning">due soon</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--success">current</span>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
     </div>
 
     <div class="tab-panel form-tabs-card__panel" id="tester-panel-security" hidden>

@@ -32,4 +32,12 @@ public class Tester : IdentityUser
     public string? TermsAcceptedVersion { get; set; }
     public DateTimeOffset? TermsAcceptedAt { get; set; }
     public DateOnly? TermsAcceptedLicenceExpiry { get; set; }
+
+    // Test-equipment calibration expiry dates. These belong to the Tester (their own
+    // instruments travel with them farm to farm), NOT to a farm or test — the wizard stamps
+    // a snapshot into the test record at sign-off for the printed report. Maintained by the
+    // tester in the PWA. Approaching/overdue calibration warns but never blocks testing.
+    public DateOnly? CalAirFlowMetersExpiry { get; set; }
+    public DateOnly? CalPulsatorTestersExpiry { get; set; }
+    public DateOnly? CalVacuumGaugesExpiry { get; set; }
 }

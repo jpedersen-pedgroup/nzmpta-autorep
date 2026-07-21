@@ -109,6 +109,7 @@ public sealed class MigrationRunner
         }
         counts.Add(MigrateFarms(logicals, q, ids));
         counts.Add(MigrateTests(src, logicals, q, ids));
+        SeedTesterCalibration();
 
         // --- reports ---
         var csvPath = Path.Combine(_o.OutputDir, "data-quality.csv");
@@ -578,6 +579,45 @@ public sealed class MigrationRunner
                 p[PayloadKey[table]] = list.Select(Clean).ToList();
 
         return JsonSerializer.Serialize(p, Json);
+    }
+
+    // ---------------------------------------------------------------- tester calibration seed
+    // Calibration expiry dates are TESTER-profile data in the new model — the legacy app
+    // captured them per-test on the farm-info form. Once the tests have landed, fill each
+    // tester's profile columns from their most recent test that recorded a value for that
+    // instrument (new-format payloads at $.calX, legacy payloads at $.farmInfo.DateX; legacy
+    // zero-dates are placeholders). Fills NULLs only, so a re-run never overwrites dates a
+    // tester has since maintained themselves. Mirrors the TesterCalibrationDates EF migration,
+    // which seeds environments migrated before this step existed.
+    private void SeedTesterCalibration()
+    {
+        var fields = new (string Column, string NewPath, string LegacyPath)[]
+        {
+            ("CalAirFlowMetersExpiry", "$.calAirFlowMeters", "$.farmInfo.DateAirFlowMeters"),
+            ("CalPulsatorTestersExpiry", "$.calPulsatorTesters", "$.farmInfo.DatePulsatorTesters"),
+            ("CalVacuumGaugesExpiry", "$.calVacuumGauges", "$.farmInfo.DateVacuumGauges"),
+        };
+        using var ctx = NewContext();
+        var seeded = 0;
+        foreach (var (column, newPath, legacyPath) in fields)
+        {
+            seeded += ctx.Database.ExecuteSqlRaw($@"
+UPDATE u SET {column} = src.D
+FROM AspNetUsers u
+CROSS APPLY (
+    SELECT TOP 1 TRY_CONVERT(date, COALESCE(
+        JSON_VALUE(t.PayloadJson, '{newPath}'),
+        JSON_VALUE(t.PayloadJson, '{legacyPath}'))) AS D
+    FROM MachineTests t
+    WHERE t.TesterId = u.Id AND ISJSON(t.PayloadJson) = 1
+      AND TRY_CONVERT(date, COALESCE(
+        JSON_VALUE(t.PayloadJson, '{newPath}'),
+        JSON_VALUE(t.PayloadJson, '{legacyPath}'))) > '1900-01-01'
+    ORDER BY t.CreatedAt DESC
+) src
+WHERE u.{column} IS NULL;");
+        }
+        Console.WriteLine($"  Tester calibration profiles: {seeded:n0} field(s) seeded from latest tests.");
     }
 
     // ---------------------------------------------------------------- satellite loaders

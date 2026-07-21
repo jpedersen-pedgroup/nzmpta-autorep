@@ -10,6 +10,8 @@ import { preStartSections, runningSectionsFor } from "../wizard/visualChecklist"
 import { resolveWizard } from "../wizard/wizardStepResolver";
 import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
 import { getPrivacyContent } from "../config/privacyContent";
+import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
+import { getCachedCalibration } from "../sync/calibrationSync";
 
 const BRAND = "#003893";
 const MUTED = "#64748b";
@@ -32,14 +34,23 @@ function fmtDate(iso?: string | null): string {
   return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString("en-NZ");
 }
 
+/** A calibration expiry as dd/mm/yyyy — the stamped snapshot, else the tester's live profile. */
+function calDate(stamped?: string | null, fallback?: string | null): string {
+  const iso = stamped ?? fallback;
+  return iso ? formatDisplayDate(iso) : "—";
+}
+
 const th = (text: string): TableCell => ({ text, bold: true, fontSize: 8, color: MUTED });
 
 function sectionHeader(text: string): Content {
   return { text, fontSize: 12, bold: true, color: BRAND, margin: [0, 14, 0, 4] };
 }
 
-/** Builds the pdfmake document definition for the Test Summary. Pure — unit-testable. */
-export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
+/** Builds the pdfmake document definition for the Test Summary. Pure — unit-testable.
+ * `calibrationFallback` is the tester's live profile calibration, used only for a test that
+ * hasn't been stamped yet (a report previewed before sign-off); a completed test always
+ * reprints its own stamped snapshot. */
+export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: CalibrationDates): TDocumentDefinitions {
   const config = test.config;
   const summary = aggregate(buildFaultInputs(test));
   const completed = fmtDate(test.markedCompleteAt);
@@ -67,7 +78,11 @@ export function buildTestSummaryDoc(test: LocalTest): TDocumentDefinitions {
           { text: `Completed: ${completed}`, fontSize: 10 },
           { text: `Farmer: ${farm?.farmerName ?? "—"} · ${farm?.contactPhone ?? "—"}`, fontSize: 9, color: MUTED },
           {
-            text: `Calibration expiry — airflow: ${test.calAirFlowMeters ?? "—"} · pulsator: ${test.calPulsatorTesters ?? "—"} · vacuum: ${test.calVacuumGauges ?? "—"}`,
+            text:
+              "Calibration expiry — " +
+              `airflow: ${calDate(test.calAirFlowMeters, calibrationFallback?.airFlowMeters)} · ` +
+              `pulsator: ${calDate(test.calPulsatorTesters, calibrationFallback?.pulsatorTesters)} · ` +
+              `vacuum: ${calDate(test.calVacuumGauges, calibrationFallback?.vacuumGauges)}`,
             fontSize: 9, color: MUTED,
           },
         ],
@@ -413,8 +428,11 @@ export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
   const name = `Test Summary - ${(test.farm?.name ?? test.farmName ?? "farm").replace(/[^\w\- ]+/g, "")} - ${
     (test.markedCompleteAt ?? test.updatedAt).slice(0, 10)
   }.pdf`;
+  // A report previewed before sign-off has no stamped calibration yet — fall back to the
+  // tester's current profile so the preview matches what sign-off will record.
+  const calibration = test.markedCompleteAt ? undefined : await getCachedCalibration().catch(() => undefined);
   const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
-    buildTestSummaryDoc(test),
+    buildTestSummaryDoc(test, calibration),
   );
 
   if (test.pulsationPdf) {

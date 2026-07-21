@@ -7,6 +7,7 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { allTests, deleteTest, putTest, type LocalTest } from "../db/testStore";
 import { syncAll } from "../sync/syncClient";
+import { CalibrationPanel } from "./CalibrationPanel";
 import { showToast } from "./toast";
 
 export function mountTestList(root: HTMLElement): void {
@@ -105,7 +106,11 @@ function TestListApp() {
 
   return (
     <div>
-      <div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-3)">
+      {/* The tester's equipment calibration — profile data that follows the tester, with the
+          6-week renewal highlight and the expired red alert (testing itself is never blocked). */}
+      <CalibrationPanel />
+
+      <div style="display:flex;justify-content:flex-end;margin:var(--space-4) 0 var(--space-3)">
         <button class="btn btn--secondary btn--sm" disabled={syncing} onClick={() => void doSync()}>
           {syncing ? "Syncing…" : "Sync now"}
         </button>
