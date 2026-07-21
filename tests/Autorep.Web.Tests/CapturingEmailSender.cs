@@ -11,8 +11,14 @@ public class CapturingEmailSender : IEmailSender
     private readonly List<Sent> _sent = new();
     public IReadOnlyList<Sent> All { get { lock (_sent) return _sent.ToList(); } }
 
+    /// <summary>When set, sending to a matching recipient throws — stands in for a bad address
+    /// or a throttled transport.</summary>
+    public Func<string, bool>? FailFor { get; set; }
+
     public Task SendEmailAsync(string email, string subject, string htmlMessage)
     {
+        if (FailFor?.Invoke(email) == true)
+            throw new InvalidOperationException($"Simulated transport failure for {email}.");
         lock (_sent) _sent.Add(new Sent(email, subject, htmlMessage));
         return Task.CompletedTask;
     }

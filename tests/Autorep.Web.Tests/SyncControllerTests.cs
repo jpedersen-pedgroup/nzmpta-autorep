@@ -389,20 +389,20 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         bList.Single(t => t.ClientId == clientId).FarmName.Should().Be("B Farm");
     }
 
-    // Seeds a Company Administrator with real role rows so the review notifier can find them.
-    private async Task SeedCompanyAdminAsync(Guid companyId, string email)
+    // Seeds an administrator with real role rows so the review notifier can find them.
+    private async Task SeedAdminAsync(string role, string email, Guid? companyId)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
-        var role = await db.Roles.FirstOrDefaultAsync(r => r.Name == Roles.CompanyAdministrator);
-        if (role is null)
+        var roleRow = await db.Roles.FirstOrDefaultAsync(r => r.Name == role);
+        if (roleRow is null)
         {
-            role = new Microsoft.AspNetCore.Identity.IdentityRole
+            roleRow = new Microsoft.AspNetCore.Identity.IdentityRole
             {
-                Name = Roles.CompanyAdministrator,
-                NormalizedName = Roles.CompanyAdministrator.ToUpperInvariant(),
+                Name = role,
+                NormalizedName = role.ToUpperInvariant(),
             };
-            db.Roles.Add(role);
+            db.Roles.Add(roleRow);
         }
         var admin = new Tester
         {
@@ -412,7 +412,7 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         db.Users.Add(admin);
         db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<string>
         {
-            RoleId = role.Id, UserId = admin.Id,
+            RoleId = roleRow.Id, UserId = admin.Id,
         });
         await db.SaveChangesAsync();
     }
@@ -424,7 +424,7 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
     {
         var companyId = await SeedTesterInCompanyAsync("tester-review-1", "Review Co");
         var adminEmail = $"review-admin-{Guid.NewGuid()}@example.test";
-        await SeedCompanyAdminAsync(companyId, adminEmail);
+        await SeedAdminAsync(Roles.CompanyAdministrator, adminEmail, companyId);
         var farmName = "Review Farm " + Guid.NewGuid();
 
         var client = _factory.CreateClientAs(Roles.Tester, "tester-review-1");
@@ -455,6 +455,32 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         (await WithDbAsync(db => db.Farms.SingleAsync(f => f.Name == farmName)))
             .PendingReviewSince.Should().BeNull("linking an existing farm must not re-flag it");
         _factory.Emails.All.Should().ContainSingle(m => m.Subject.Contains(farmName));
+    }
+
+    // A farm set up by a tester with no Testing Company matches neither arm of FarmScope, so no
+    // Company Administrator can ever see it in the review queue. It must escalate to the
+    // Super-Administrators rather than sit flagged with nobody told.
+    [Fact]
+    public async Task Upload_by_a_companyless_tester_escalates_the_review_to_super_administrators()
+    {
+        var superEmail = $"super-{Guid.NewGuid()}@example.test";
+        await SeedAdminAsync(Roles.SuperAdministrator, superEmail, companyId: null);
+        var farmName = "Orphan Review Farm " + Guid.NewGuid();
+
+        // No Users row for this tester, so they resolve to a null TestingCompanyId.
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-orphan-review-1");
+        (await client.PostAsJsonAsync("/api/sync/tests", UploadPayload(Guid.NewGuid(), farmName)))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var farm = await WithDbAsync(db => db.Farms.SingleAsync(f => f.Name == farmName));
+        farm.PendingReviewSince.Should().NotBeNull();
+        farm.CreatedByTestingCompanyId.Should().BeNull();
+
+        var mail = _factory.Emails.All.Should()
+            .ContainSingle(m => m.Subject.Contains(farmName)).Which;
+        mail.Email.Should().Be(superEmail);
+        mail.HtmlMessage.Should().Contain("NZMPTA administrator",
+            "the Super-Admin should be told why this one reached them");
     }
 
     // A tester who also holds an administrator role reviews their own farms by definition.

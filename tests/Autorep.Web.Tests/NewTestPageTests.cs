@@ -40,12 +40,16 @@ public class NewTestPageTests
     // given company.
     private static async Task SeedCompanyAdminAsync(AutorepDbContext db, Guid companyId, string email)
     {
-        var role = new IdentityRole
+        var role = await db.Roles.FirstOrDefaultAsync(r => r.Name == Roles.CompanyAdministrator);
+        if (role is null)
         {
-            Name = Roles.CompanyAdministrator,
-            NormalizedName = Roles.CompanyAdministrator.ToUpperInvariant(),
-        };
-        db.Roles.Add(role);
+            role = new IdentityRole
+            {
+                Name = Roles.CompanyAdministrator,
+                NormalizedName = Roles.CompanyAdministrator.ToUpperInvariant(),
+            };
+            db.Roles.Add(role);
+        }
         var admin = new Tester
         {
             Id = "admin-" + Guid.NewGuid(), UserName = email, Email = email,
@@ -169,6 +173,25 @@ public class NewTestPageTests
         var mail = emails.All.Should().ContainSingle().Which;
         mail.Email.Should().Be("admin@testco.example");
         mail.Subject.Should().Contain("Field farm");
+    }
+
+    // One unreachable admin mailbox must not swallow the notification to the others — the
+    // send is guarded per recipient, not once around the whole loop.
+    [Fact]
+    public async Task CreateFarm_still_notifies_the_other_admins_when_one_send_fails()
+    {
+        using var db = NewDb();
+        var companyId = await SeedTesterCompanyAsync(db);
+        await SeedCompanyAdminAsync(db, companyId, "broken@testco.example");
+        await SeedCompanyAdminAsync(db, companyId, "ok@testco.example");
+        var emails = new CapturingEmailSender { FailFor = e => e == "broken@testco.example" };
+
+        var model = TesterModel(db, emails);
+        await model.OnPostCreateFarmAsync(new NewModel.NewFarmModel { Name = "Two admin farm" });
+
+        emails.All.Should().ContainSingle().Which.Email.Should().Be("ok@testco.example");
+        (await db.Farms.SingleAsync(f => f.Name == "Two admin farm"))
+            .PendingReviewSince.Should().NotBeNull("the flag must stand even when mail fails");
     }
 
     // A user who also holds an administrator role doesn't need a second pair of eyes: their
