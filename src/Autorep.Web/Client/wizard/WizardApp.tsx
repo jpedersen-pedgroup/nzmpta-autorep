@@ -30,8 +30,10 @@ import { ReviewSignOffStep } from "./ReviewSignOffStep";
 import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll } from "../sync/syncClient";
+import { getCachedCalibration } from "../sync/calibrationSync";
+import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
+import { CalibrationAlert, CalibrationPanel } from "../ui/CalibrationPanel";
 import { showToast } from "../ui/toast";
-import { DatePicker } from "../ui/DatePicker";
 import {
   applyCheckAll,
   checklistComplete,
@@ -82,6 +84,9 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
         base.recordedRecommendations = adapted.recordedRecommendations;
         base.recordedVisualFaults = adapted.recordedVisualFaults;
         base.clusterRows = adapted.clusterRows;
+        base.calAirFlowMeters = adapted.calAirFlowMeters;
+        base.calPulsatorTesters = adapted.calPulsatorTesters;
+        base.calVacuumGauges = adapted.calVacuumGauges;
       } else {
         Object.assign(base, parsed as Partial<LocalTest>);
       }
@@ -173,7 +178,21 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // The tester's own equipment calibration dates (profile data, cached on-device) — drives the
+  // renewal banner while testing. Not loaded on the admin read-only view (no tester profile).
+  const [calDates, setCalDates] = useState<CalibrationDates | null>(null);
   const online = useServerOnline();
+
+  useEffect(() => {
+    if (serverTestId) return;
+    let active = true;
+    void getCachedCalibration().then((c) => {
+      if (active) setCalDates(c);
+    });
+    return () => {
+      active = false;
+    };
+  }, [serverTestId]);
 
   useEffect(() => {
     let active = true;
@@ -322,6 +341,20 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
     if (readonly) return;
     const now = new Date().toISOString();
 
+    // Stamp the tester's CURRENT profile calibration dates into the test record at sign-off —
+    // the report's frozen snapshot of equipment state at test time. A superseding version keeps
+    // the dates carried from the version it amends (the original test date's truth), and a
+    // missing profile value never blanks a previously stamped/entered one.
+    let calStamp: Partial<LocalTest> = {};
+    if (!test.supersedesId) {
+      const cal = await getCachedCalibration();
+      calStamp = {
+        calAirFlowMeters: cal.airFlowMeters ?? test.calAirFlowMeters ?? null,
+        calPulsatorTesters: cal.pulsatorTesters ?? test.calPulsatorTesters ?? null,
+        calVacuumGauges: cal.vacuumGauges ?? test.calVacuumGauges ?? null,
+      };
+    }
+
     // Re-edit of a completed test: fix the amendment record (what changed vs the superseded
     // version, when, by whom) at sign-off, appended to the cumulative chain the copy carried
     // forward. Replaces any same-version record so a repeated sign-off can't double-log.
@@ -338,6 +371,7 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
     await persist({
       markedCompleteAt: now,
       amendments,
+      ...calStamp,
       syncState: "local-only",
       attestations: [
         ...test.attestations,
@@ -390,6 +424,12 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
         </div>
       )}
 
+      {/* Renewal warning for the tester's own equipment while testing — informational only,
+          never a gate. The Setup step shows it inside the calibration panel instead. */}
+      {!serverTestId && !readonly && calDates && current !== "Setup" && (
+        <CalibrationAlert dates={calDates} />
+      )}
+
       <div class="wizard">
         <nav class="wizard__rail">
           {plan.steps.map((s, i) => (
@@ -418,33 +458,44 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
         <div class="wizard__content">
           <div class="wizard__panel" key={current}>
           {current === "Setup" && (
-            <div class="card">
-              <div class="card__title">Farm &amp; details</div>
-              <div class="form-grid">
-                {farmField("Farm", test.farm?.name ?? test.farmName)}
-                {farmField("Supply number", test.farm?.supplyNumber)}
-                {farmField("Milk supply company", test.farm?.milkCompanyName)}
-                {farmField("Region", test.farm?.regionName)}
-                {farmField("Address", farmAddress(test.farm))}
-                {farmField("RAPID number", test.farm?.rapidNumber)}
-                {farmField("Farmer", test.farm?.farmerName)}
-                {farmField("Phone", test.farm?.contactPhone)}
-                {farmField("Email", test.farm?.contactEmail)}
+            <>
+              <div class="card">
+                <div class="card__title">Farm &amp; details</div>
+                <div class="form-grid">
+                  {farmField("Farm", test.farm?.name ?? test.farmName)}
+                  {farmField("Supply number", test.farm?.supplyNumber)}
+                  {farmField("Milk supply company", test.farm?.milkCompanyName)}
+                  {farmField("Region", test.farm?.regionName)}
+                  {farmField("Address", farmAddress(test.farm))}
+                  {farmField("RAPID number", test.farm?.rapidNumber)}
+                  {farmField("Farmer", test.farm?.farmerName)}
+                  {farmField("Phone", test.farm?.contactPhone)}
+                  {farmField("Email", test.farm?.contactEmail)}
+                </div>
+                <p style="color:var(--text-muted);font-size:0.8125rem;margin-top:var(--space-4)">
+                  Farm details are managed in the admin area.
+                </p>
               </div>
-              <p style="color:var(--text-muted);font-size:0.8125rem;margin-top:var(--space-4)">
-                Farm details are managed in the admin area.
-              </p>
 
-              <div class="card__title" style="margin-top:var(--space-5)">
-                Calibration expiry dates{" "}
-                <small class="card__hint">Your test equipment — air-flow meters, pulsator testers, vacuum gauges.</small>
-              </div>
-              <div class="form-grid">
-                {calDateField("Air-flow meters", test.calAirFlowMeters, (v) => void persistEdit({ calAirFlowMeters: v }))}
-                {calDateField("Pulsator testers", test.calPulsatorTesters, (v) => void persistEdit({ calPulsatorTesters: v }))}
-                {calDateField("Vacuum gauges", test.calVacuumGauges, (v) => void persistEdit({ calVacuumGauges: v }))}
-              </div>
-            </div>
+              {/* Calibration belongs to the TESTER, not this farm/test. Editable tests show the
+                  live profile panel (edits update the profile and every future test); completed
+                  and migrated tests show the snapshot frozen into the record at sign-off. */}
+              {readonly ? (
+                <div class="card">
+                  <div class="card__title">
+                    Calibration expiry dates{" "}
+                    <small class="card__hint">The tester's equipment, as recorded for this test.</small>
+                  </div>
+                  <div class="form-grid">
+                    {farmField("Air-flow meters", calSnapshot(test.calAirFlowMeters))}
+                    {farmField("Pulsator testers", calSnapshot(test.calPulsatorTesters))}
+                    {farmField("Vacuum gauges", calSnapshot(test.calVacuumGauges))}
+                  </div>
+                </div>
+              ) : (
+                <CalibrationPanel onChanged={setCalDates} />
+              )}
+            </>
           )}
 
           {current === "MachineConfiguration" && (
@@ -597,13 +648,8 @@ function farmField(label: string, value?: string | null) {
   );
 }
 
-function calDateField(label: string, value: string | null | undefined, onChange: (v: string | null) => void) {
-  return (
-    <div class="form-field">
-      <label>{label}</label>
-      <DatePicker value={value} onChange={onChange} />
-    </div>
-  );
+function calSnapshot(iso: string | null | undefined): string | null {
+  return iso ? formatDisplayDate(iso) : null;
 }
 
 function farmAddress(f?: FarmSnapshot): string | null {

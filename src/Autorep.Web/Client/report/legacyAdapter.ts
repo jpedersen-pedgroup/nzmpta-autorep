@@ -141,6 +141,11 @@ export interface AdaptedReadings {
   recordedVisualFaults: string[];
   /** Per-cluster rows (ISO 13) as recorded — total air / leakage / air-vent per unit. */
   clusterRows: MeasurementRow[];
+  /** Tester equipment calibration expiry dates as recorded on the legacy test (its farm-info
+   * form captured them per-test; they are tester-profile data in the new model). ISO yyyy-mm-dd. */
+  calAirFlowMeters?: string | null;
+  calPulsatorTesters?: string | null;
+  calVacuumGauges?: string | null;
 }
 
 /** Parse a legacy *E value (a string) to a number; returns null for blank / non-numeric. */
@@ -162,6 +167,16 @@ function text(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
   return s === "" ? null : s;
+}
+
+/** ISO yyyy-mm-dd date part from a legacy date value ("2027-01-27T00:00:00"); null for blanks
+ * and the legacy zero-date placeholder (0001-01-01, stored where no date was entered). */
+function isoDate(v: unknown): string | null {
+  const s = text(v);
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (!m || Number(m[1]) <= 1900) return null;
+  return `${m[1]}-${m[2]}-${m[3]}`;
 }
 
 /**
@@ -231,8 +246,13 @@ export function adaptLegacyReadings(payload: Record<string, unknown> | null | un
     });
   }
 
+  const farmInfo = payload.farmInfo as Record<string, unknown> | undefined;
+
   return {
     readings, verdicts, comment: commentStr, recordedRecommendations,
     recordedVisualFaults: [...faultSet], clusterRows,
+    calAirFlowMeters: isoDate(farmInfo?.DateAirFlowMeters),
+    calPulsatorTesters: isoDate(farmInfo?.DatePulsatorTesters),
+    calVacuumGauges: isoDate(farmInfo?.DateVacuumGauges),
   };
 }

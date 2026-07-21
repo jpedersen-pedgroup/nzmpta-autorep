@@ -31,8 +31,13 @@ table in the database" yet; that's the planned reference-data milestone.
   flushing pulsation system (→ cleaning reserve governs)
 - **Catalog-backed dropdowns:** pulsator brand → model · shell · front liner · back liner ·
   milkline size · pulsator configuration · atmospheric pressure
-- **Other:** plant size text, last BMCC, calibration expiry dates (air-flow meters, pulsator
-  testers, vacuum gauges — on the Setup step)
+- **Other:** plant size text, last BMCC
+
+**Not machine configuration:** equipment calibration expiry dates (air-flow meters, pulsator
+testers, vacuum gauges) belong to the **Tester's profile**, not the farm or the test — the
+instruments travel with the tester. They are maintained in the app (My tests / Setup step),
+warn at 6 weeks out and red-alert once expired (never blocking a test), and are stamped into
+the test record at sign-off so the report shows equipment state at test time.
 
 ## 3. Catalogs (seeded from the legacy database)
 
@@ -51,7 +56,7 @@ table in the database" yet; that's the planned reference-data milestone.
 
 | Step | Content | ISO groups |
 |---|---|---|
-| 1. Farm & Your Details | farm snapshot + calibration expiry dates | — |
+| 1. Farm & Your Details | farm snapshot + the tester's own equipment calibration (profile data, editable here) | — |
 | 2. Machine Configuration & Ancillary | §2 above (4 tabs) | — |
 | 3. Visual Faults — Pre-Start | 18 checks + belt sizes (vacuum pumps, releaser groups) | Part One |
 | 4. Visual Faults — Running | 18–20 groups, ~70 checks + data fields | Part Two |

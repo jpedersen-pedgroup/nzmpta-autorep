@@ -100,7 +100,10 @@ export interface LocalTest {
   pulsationPdf?: PulsationAttachment | null;
   /** Visual Faults — Running: guards installed on pulsators. */
   guardsOnPulsators?: boolean;
-  /** Tester equipment calibration expiry dates (ISO date strings), shown with the farm details. */
+  /** Snapshot of the TESTER's equipment calibration expiry dates (ISO date strings). These are
+   * tester-profile data (see calibrationSync), stamped into the record at sign-off so the
+   * printed report reflects equipment state at test time. Superseding versions carry the base
+   * version's values; migrated legacy tests carry the dates recorded on the legacy test. */
   calAirFlowMeters?: string | null;
   calPulsatorTesters?: string | null;
   calVacuumGauges?: string | null;

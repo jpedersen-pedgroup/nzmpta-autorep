@@ -27,6 +27,33 @@ function sampleTest(): LocalTest {
   };
 }
 
+describe("buildTestSummaryDoc — calibration", () => {
+  it("reprints the stamped snapshot on a completed test, ignoring the live profile", () => {
+    const t = sampleTest();
+    t.calAirFlowMeters = "2027-01-27";
+    const json = JSON.stringify(
+      buildTestSummaryDoc(t, { airFlowMeters: "2030-01-01" }).content,
+    );
+    expect(json).toContain("airflow: 27/01/2027");
+    expect(json).not.toContain("01/01/2030");
+  });
+
+  it("falls back to the tester's profile when the test has no stamp yet (pre-sign-off preview)", () => {
+    const t = sampleTest();
+    const json = JSON.stringify(
+      buildTestSummaryDoc(t, { airFlowMeters: "2027-03-04", vacuumGauges: "2027-05-06" }).content,
+    );
+    expect(json).toContain("airflow: 04/03/2027");
+    expect(json).toContain("vacuum: 06/05/2027");
+    expect(json).toContain("pulsator: —");
+  });
+
+  it("shows an em dash when neither a stamp nor a profile date exists", () => {
+    const json = JSON.stringify(buildTestSummaryDoc(sampleTest()).content);
+    expect(json).toContain("airflow: — · pulsator: — · vacuum: —");
+  });
+});
+
 describe("buildTestSummaryDoc", () => {
   it("builds a document with the core sections and farm name", () => {
     const doc = buildTestSummaryDoc(sampleTest());
