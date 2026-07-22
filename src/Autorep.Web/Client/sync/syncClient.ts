@@ -10,6 +10,7 @@ import { allTests, getTest, putTest, getReference, putReference, type LocalTest 
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
+import { warmReportGenerator } from "../report/generatorChunks";
 
 interface TestSummaryDto {
   clientId: string;
@@ -203,5 +204,12 @@ export async function syncAll(): Promise<SyncResult> {
     }
   }
   const pulled = await pullTests();
+
+  // A sync just succeeded, so the connection is real and the tester is almost certainly not
+  // stuck in a paddock. That is the moment to pull down the report generator's lazy chunks, so
+  // printing works on-farm later on a device that has never printed before. Deliberately not
+  // awaited: it is ~2.4 MB and no one should wait on it to see their tests.
+  void warmReportGenerator();
+
   return { pushed, failed, pulled };
 }

@@ -8,7 +8,7 @@
 // Rewritten by tools/stamp-sw.mjs on every client build with a fingerprint of the bundle — do not
 // edit by hand. The static cache below is cache-first and matched with ignoreSearch, so renaming
 // this cache is the ONLY thing that retires a previous build's assets.
-const CACHE_VERSION = 'autorep-355a1c8c7136';
+const CACHE_VERSION = 'autorep-8f236cb750f7';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 const APP_SHELL = [
