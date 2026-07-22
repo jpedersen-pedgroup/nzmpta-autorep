@@ -50,8 +50,11 @@ export interface WizardOptions {
   id?: string;
   farmId?: string;
   farmName?: string;
-  /** Admin read-only view: fetch this test from the server (not IndexedDB) and render it read-only. */
+  /** Read-only server view (admin "view any test", or a tester reading a company colleague's
+   * test): fetch this test from the server, not IndexedDB, and never write it to this device. */
   serverTestId?: string;
+  /** Where "Back" returns to from a server view — the admin list or the Company tests list. */
+  backHref?: string;
 }
 
 export function mountWizard(root: HTMLElement, opts: WizardOptions): void {
@@ -66,13 +69,18 @@ interface ServerTestDto {
   config: MachineConfiguration | null;
   payloadJson: string | null;
   testerName: string | null;
+  isMine: boolean;
 }
 
-/** Build a read-only LocalTest from a server fetch (admin view). Migrated legacy payloads are
- * adapted to readings + as-recorded verdicts; new-format payloads rehydrate directly. */
+/** Build a read-only LocalTest from a server fetch. Migrated legacy payloads are adapted to
+ * readings + as-recorded verdicts; new-format payloads rehydrate wholesale — the payload IS a
+ * serialised LocalTest, so it is spread rather than field-listed (the same rehydration the sync
+ * pull does). Field-listing here previously dropped the farm snapshot, the attached pulsation PDF
+ * and the calibration dates, so the view showed "—" for the farm block and the report lost its
+ * analyser pages. Server-authoritative fields are then overridden on top. */
 function localTestFromServer(dto: ServerTestDto): LocalTest {
   const now = new Date().toISOString();
-  const base: Partial<LocalTest> = {};
+  let base: Partial<LocalTest> = {};
   if (dto.payloadJson) {
     try {
       const parsed = JSON.parse(dto.payloadJson) as Record<string, unknown>;
@@ -88,28 +96,23 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
         base.calPulsatorTesters = adapted.calPulsatorTesters;
         base.calVacuumGauges = adapted.calVacuumGauges;
       } else {
-        Object.assign(base, parsed as Partial<LocalTest>);
+        base = parsed as unknown as Partial<LocalTest>;
       }
     } catch {
       /* fall through to a minimal shell */
     }
   }
   return {
+    ...base,
     id: dto.id,
-    farmName: dto.farmName,
+    farmName: dto.farmName || base.farmName || "",
     config: dto.config ?? base.config ?? defaultMachineConfiguration(),
     currentStep: "Setup",
     visualFaults: base.visualFaults ?? {},
     attestations: base.attestations ?? [],
     readings: base.readings ?? {},
-    verdicts: base.verdicts,
     recommendations: base.recommendations ?? {},
     dataFields: base.dataFields ?? {},
-    pulsatorRows: base.pulsatorRows,
-    clusterRows: base.clusterRows,
-    notes: base.notes,
-    recordedRecommendations: base.recordedRecommendations,
-    recordedVisualFaults: base.recordedVisualFaults,
     createdAt: dto.createdAt,
     updatedAt: now,
     markedCompleteAt: dto.markedCompleteAt,
@@ -117,8 +120,6 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
     everUploaded: true,
     readonly: true,
     version: typeof base.version === "number" ? base.version : 1,
-    supersedesId: typeof base.supersedesId === "string" ? base.supersedesId : undefined,
-    amendments: Array.isArray(base.amendments) ? base.amendments : undefined,
   };
 }
 
@@ -173,9 +174,15 @@ function computeCompleted(t: LocalTest): Set<WizardStep> {
   return done;
 }
 
-function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
+/** Why a server-fetched test isn't on screen. Distinguishing these matters in the field: "you're
+ * offline" is recoverable and the tester should wait, "not found" never will be. */
+type LoadFailure = "offline" | "notfound" | "failed";
+
+function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LoadFailure | null>(null);
+  const [colleagueName, setColleagueName] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
   // The tester's own equipment calibration dates (profile data, cached on-device) — drives the
@@ -197,15 +204,26 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
   useEffect(() => {
     let active = true;
     void (async () => {
-      // Admin read-only view: load the test from the server, never IndexedDB.
+      // Read-only server view: load the test over the network, never IndexedDB.
       if (serverTestId) {
         try {
+          setError(null);
           const res = await fetch(`/api/tests/${serverTestId}`, { headers: { Accept: "application/json" } });
-          if (!res.ok) throw new Error(String(res.status));
+          // 404 covers both "gone" and "not yours" — the API deliberately doesn't distinguish, so
+          // neither does this message.
+          if (res.status === 404) throw new Error("notfound");
+          if (!res.ok) throw new Error("failed");
           const dto = (await res.json()) as ServerTestDto;
-          if (active) setTest(localTestFromServer(dto));
-        } catch {
-          if (active) setError("This test could not be loaded.");
+          if (active) {
+            setTest(localTestFromServer(dto));
+            // Only a colleague's name is worth surfacing — naming yourself on your own test is
+            // noise, and would word the read-only banner as if someone else owned it.
+            setColleagueName(dto.isMine ? null : dto.testerName);
+          }
+        } catch (e) {
+          if (!active) return;
+          const reason = e instanceof Error ? e.message : "";
+          setError(reason === "notfound" ? "notfound" : navigator.onLine ? "failed" : "offline");
         }
         return;
       }
@@ -239,9 +257,40 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
     return () => {
       active = false;
     };
-  }, [id, farmId, farmName, serverTestId]);
+  }, [id, farmId, farmName, serverTestId, reloadKey]);
 
-  if (error) return <div class="card">{error}</div>;
+  if (error) {
+    const back = backHref ?? "/App/Tests/Index";
+    return (
+      <div class="card empty">
+        {error === "notfound" ? (
+          <>
+            <h2>You can't open this test</h2>
+            <p>It may have been removed, or it belongs to a tester outside your company.</p>
+          </>
+        ) : error === "offline" ? (
+          <>
+            <h2>This test isn't on your device</h2>
+            <p>
+              Company tests are read from the server, so you'll need a connection to open this one.
+              Nothing has been lost — try again once you have signal.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2>Couldn't load this test</h2>
+            <p>The server didn't answer. Your connection may have dropped.</p>
+          </>
+        )}
+        <div class="form-actions">
+          {error !== "notfound" && (
+            <button class="btn" onClick={() => setReloadKey((k) => k + 1)}>Try again</button>
+          )}
+          <a class="btn btn--secondary" href={back}>Back</a>
+        </div>
+      </div>
+    );
+  }
   if (!test) return <div class="card">Loading test…</div>;
 
   const persist = async (patch: Partial<LocalTest>) => {
@@ -401,13 +450,21 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
           <h1>{test.farmName || "New machine test"}</h1>
           <p>
             <span class={online ? "badge badge--success" : "badge badge--warning"}>
-              {online ? "Online" : "Offline — saved on device"}
+              {/* "saved on device" would be a lie for a server view — this test isn't stored here. */}
+              {online ? "Online" : serverTestId ? "Offline — this test isn't saved here" : "Offline — saved on device"}
             </span>
+            {serverTestId && colleagueName && <> <span class="badge">Tested by {colleagueName}</span></>}
             {(test.version ?? 1) > 1 && <> <span class="badge">Version {test.version}</span></>}
           </p>
         </div>
         <div class="page-header__actions">
-          <a class="btn btn--danger-soft btn--sm" href={serverTestId ? "/Admin/Tests" : "/App/Tests/Index"}>Exit</a>
+          {/* Nothing was changed on a server view, so it's "Back", not "Exit". */}
+          <a
+            class={serverTestId ? "btn btn--secondary btn--sm" : "btn btn--danger-soft btn--sm"}
+            href={serverTestId ? backHref ?? "/Admin/Tests" : "/App/Tests/Index"}
+          >
+            {serverTestId ? "Back" : "Exit"}
+          </a>
         </div>
       </div>
 
@@ -417,11 +474,21 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
         </div>
       )}
 
+      {/* Someone else's test is neutral news — nothing is wrong and nothing you expected to do is
+          blocked — so it reads as info, not a warning. Your own frozen test keeps the warning. */}
       {readonly && (
-        <div class="alert alert--warning">
-          📄 <strong>Read-only</strong> — this test can't be edited here. Pass/fail is shown as
-          recorded at the time of testing.
-        </div>
+        serverTestId && colleagueName ? (
+          <div class="alert alert--info">
+            👁 <strong>{colleagueName}'s test</strong> — read-only. You're viewing your company's test
+            history; only {colleagueName.split(" ")[0]} can edit this test. Pass/fail is shown as
+            recorded at the time of testing.
+          </div>
+        ) : (
+          <div class="alert alert--warning">
+            📄 <strong>Read-only</strong> — this test can't be edited here. Pass/fail is shown as
+            recorded at the time of testing.
+          </div>
+        )
       )}
 
       {/* Renewal warning for the tester's own equipment while testing — informational only,
@@ -591,6 +658,8 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
               completed={completed}
               syncing={syncing}
               generating={generating}
+              isServerView={Boolean(serverTestId)}
+              colleagueName={colleagueName}
               onMarkComplete={() => void markComplete()}
               onResync={() => void runSync("Re-synced")}
               onDownloadReport={() => {

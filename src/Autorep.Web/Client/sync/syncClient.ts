@@ -51,6 +51,10 @@ async function pushTest(t: LocalTest): Promise<void> {
       markedCompleteAt: t.markedCompleteAt ?? null,
       createdAt: t.createdAt,
       config: t.config,
+      // Version chain, mirrored out of the payload into its own columns so the server can hide
+      // superseded versions from the company-wide list without parsing (and loading) the payload.
+      version: t.version ?? 1,
+      supersedesClientId: t.supersedesId ?? null,
       // The full rich capture round-trips as JSON so a re-download rehydrates exactly.
       payloadJson: JSON.stringify(t),
     }),

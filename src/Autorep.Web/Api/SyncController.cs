@@ -44,7 +44,11 @@ public class SyncController : ControllerBase
         // Farm identity for linking (added later, so optional for older queued payloads):
         // the FarmId the wizard was started with, plus the snapshot fields used to match an
         // existing farm when there is no usable id.
-        Guid? FarmId = null, string? FarmSupplyNumber = null, string? FarmMilkCompanyName = null);
+        Guid? FarmId = null, string? FarmSupplyNumber = null, string? FarmMilkCompanyName = null,
+        // Version chain, mirrored out of PayloadJson into columns so the server can filter
+        // superseded versions without materialising the payload. Optional: a device queued
+        // before these existed still pushes successfully and lands as v1.
+        int? Version = null, Guid? SupersedesClientId = null);
 
     public record TestSummaryDto(
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
@@ -119,12 +123,18 @@ public class SyncController : ControllerBase
             existing.MarkedCompleteAt = req.MarkedCompleteAt;
             existing.PayloadJson = req.PayloadJson;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
+            existing.Version = req.Version ?? existing.Version;
+            existing.SupersedesClientId = req.SupersedesClientId ?? existing.SupersedesClientId;
+            // TestingCompanyId is deliberately NOT re-stamped: it records the company the work was
+            // done for. Re-deriving it here would drag a tester's old tests into their new company
+            // the first time they re-synced after a transfer.
             ApplyConfig(existing, req.Config);
             await _db.SaveChangesAsync(ct);
             return Ok(new { id = existing.Id, status = "updated" });
         }
 
-        var farm = await ResolveFarmAsync(req, testerId, ct);
+        var companyId = await CompanyOfAsync(testerId, ct);
+        var farm = await ResolveFarmAsync(req, testerId, companyId, ct);
         // Whether ResolveFarmAsync minted a new farm row (vs linking an existing one) — checked
         // before SaveChanges flips the state, so the review notification fires exactly once.
         var farmCreated = _db.Entry(farm).State == EntityState.Added;
@@ -133,12 +143,15 @@ public class SyncController : ControllerBase
         {
             ClientId = req.ClientId,
             TesterId = testerId,
+            TestingCompanyId = companyId,
             FarmId = farm.Id,
             Farm = farm,
             Notes = req.Notes,
             MarkedCompleteAt = req.MarkedCompleteAt,
             CreatedAt = req.CreatedAt ?? DateTimeOffset.UtcNow,
             PayloadJson = req.PayloadJson,
+            Version = req.Version ?? 1,
+            SupersedesClientId = req.SupersedesClientId,
         };
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
@@ -184,11 +197,9 @@ public class SyncController : ControllerBase
     // before the farm was deactivated, and the completed work must still land on the right farm
     // rather than be stranded or duplicated. (New tests can't be *started* on inactive farms —
     // the New-test page enforces that.)
-    private async Task<Farm> ResolveFarmAsync(UploadTestRequest req, string testerId, CancellationToken ct)
+    private async Task<Farm> ResolveFarmAsync(
+        UploadTestRequest req, string testerId, Guid? companyId, CancellationToken ct)
     {
-        var companyId = await _db.Users.Where(u => u.Id == testerId)
-            .Select(u => u.TestingCompanyId).FirstOrDefaultAsync(ct);
-
         if (req.FarmId is not null)
         {
             var byId = await _db.Farms.Where(f => f.Id == req.FarmId)
@@ -233,6 +244,13 @@ public class SyncController : ControllerBase
     }
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    /// <summary>The tester's Testing Company. There is no company claim on either auth scheme, so
+    /// this is always a lookup — deliberately, since a claim would stay stale for the lifetime of
+    /// the cookie/token after a transfer or deactivation.</summary>
+    private Task<Guid?> CompanyOfAsync(string testerId, CancellationToken ct) =>
+        _db.Users.Where(u => u.Id == testerId)
+            .Select(u => u.TestingCompanyId).FirstOrDefaultAsync(ct);
 
     private static void ApplyConfig(MachineTest test, ConfigDto? dto)
     {

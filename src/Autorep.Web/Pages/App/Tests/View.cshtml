@@ -1,0 +1,14 @@
+@page "{id:guid}"
+@model Autorep.Web.Pages.App.Tests.ViewModel
+@{
+    ViewData["Title"] = "View test";
+}
+
+@* Read-only view of a test held on the server — a colleague's completed test from Company tests,
+   or one of the tester's own. The wizard bundle sees data-server-test and fetches /api/tests/{id}
+   instead of IndexedDB, so nothing here is ever written to this device's store. *@
+<div id="wizard-root" data-server-test="@Model.Id" data-back="/App/Tests/Company"></div>
+
+@section Scripts {
+    <script type="module" src="~/js/dist/autorep.js" asp-append-version="true"></script>
+}

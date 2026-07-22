@@ -9,6 +9,7 @@ import { initFarms } from "./sync/farmsSync";
 import { initCalibration } from "./sync/calibrationSync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
+import { mountCompanyTestList } from "./ui/CompanyTestListApp";
 import { purgeStaleLocalData } from "./db/testStore";
 
 function mountApps(): void {
@@ -19,13 +20,18 @@ function mountApps(): void {
       id: params.get("id") ?? undefined,
       farmId: params.get("farmId") ?? undefined,
       farmName: params.get("farmName") ?? undefined,
-      // Admin read-only view: fetch the test from the server instead of IndexedDB.
+      // Read-only server view (admin, or a tester reading a company colleague's test): fetch the
+      // test from the server instead of IndexedDB.
       serverTestId: wizardRoot.getAttribute("data-server-test") ?? undefined,
+      backHref: wizardRoot.getAttribute("data-back") ?? undefined,
     });
   }
 
   const listRoot = document.getElementById("test-list-root");
   if (listRoot) mountTestList(listRoot);
+
+  const companyListRoot = document.getElementById("company-test-list-root");
+  if (companyListRoot) mountCompanyTestList(companyListRoot);
 }
 
 // Purge any other tester's locally-cached data first (shared-device isolation), THEN load the

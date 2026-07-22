@@ -1,0 +1,23 @@
+@page
+@{
+    ViewData["Title"] = "Company tests";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Company tests</h1>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn btn--secondary" asp-page="/App/Tests/Index">My tests</a>
+    </div>
+</div>
+
+@* Rendered client-side from /api/tests. Deliberately NOT backed by IndexedDB — colleagues' tests
+   are read online and never cached on this device (see Client/ui/CompanyTestListApp.tsx). The
+   subtitle names the company, so it's rendered by the component rather than here: this shell may
+   be served from the service-worker cache and must not carry stale per-user text. *@
+<div id="company-test-list-root"></div>
+
+@section Scripts {
+    <script type="module" src="~/js/dist/autorep.js" asp-append-version="true"></script>
+}
