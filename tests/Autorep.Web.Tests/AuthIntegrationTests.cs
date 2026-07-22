@@ -3,10 +3,56 @@ using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using FluentAssertions;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Autorep.Web.Tests;
+
+// Uses the real Identity cookie pipeline (not the TestAuthHandler), because the behaviour under
+// test is exactly what the cookie handler does with an unauthenticated request.
+public class ApiChallengeTests : IClassFixture<WebAppFactory>
+{
+    private readonly WebAppFactory _factory;
+    public ApiChallengeTests(WebAppFactory factory) => _factory = factory;
+
+    private HttpClient Client() =>
+        _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+    // An expired cookie used to redirect /api to the login page. `fetch` follows redirects and
+    // turns a POST into a GET, so the sync push landed on a 200 HTML login page and read as
+    // success — marking the tester's test uploaded when the server never received it.
+    [Theory]
+    [InlineData("/api/sync/tests")]
+    [InlineData("/api/farms")]
+    [InlineData("/api/profile/calibration")]
+    public async Task Api_answers_401_rather_than_redirecting_to_login(string path)
+    {
+        var res = await Client().GetAsync(path);
+
+        res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        res.Headers.Location.Should().BeNull("an API caller must never be sent to a login page");
+    }
+
+    [Fact]
+    public async Task Api_post_answers_401_rather_than_redirecting()
+    {
+        var res = await Client().PostAsync("/api/sync/tests",
+            new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
+
+        res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // The page flow must keep redirecting — only /api changed.
+    [Fact]
+    public async Task Pages_still_redirect_to_login()
+    {
+        var res = await Client().GetAsync("/App/Tests");
+
+        res.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        res.Headers.Location!.OriginalString.Should().Contain("/Account/Login");
+    }
+}
 
 public class AuthIntegrationTests : IClassFixture<AuthedWebAppFactory>
 {

@@ -47,7 +47,7 @@
 
 ### M2 — Tester PWA core (offline + sync)
 - [x] ✅ PWA installable — web manifest + service worker registered (`wwwroot/manifest.webmanifest`, `sw.js`, `js/pwa-register.js`)
-- [x] ✅ Service worker caches **app shell** for offline UI (`sw.js`)
+- [ ] 🟡 Service worker caches **app shell** for offline UI (`sw.js`) — static assets only. **No page HTML is cached, so every tester page navigation fails offline**; a failed navigation now returns a generated offline card (22 Jul 2026). The identity-free shell that makes this tick honest is scoped in `plans/offline-tester-app.md`
 - [x] ✅ Sync endpoints `POST /api/sync/tests` (upsert by ClientId, idempotent, **now carries Machine Configuration**) + `GET /api/sync/tests` (pull) (`Api/SyncController.cs`) — 9 Jun
 - [x] 🟡 IndexedDB local storage — **tests done** (`Client/db/testStore.ts`, `LocalTest` store); reference data still to come
 - [ ] 🟡 Reference-data **logos offline** — service worker now runtime-caches `/api/milk-companies/{id}/logo` (viewed logos available offline). M2 still needs: **pre-cache all active logos on sync** (so unseen ones work too) + render tester pages offline so cached logos actually display

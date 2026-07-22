@@ -40,5 +40,18 @@ const isTesterPage =
 const referenceSyncs = [initStandards, initEquipment, initFaultCatalog, initPrivacy];
 if (isTesterPage) referenceSyncs.push(initFarms, initCalibration);
 void purgeStaleLocalData()
-  .then(() => Promise.allSettled(referenceSyncs.map((sync) => sync())))
+  .then((purge) => {
+    if (purge.retained) {
+      // Their tests exist nowhere but this device, so someone has to sign back in and sync.
+      const n = purge.retained.unsyncedCount;
+      void import("./ui/toast").then(({ showToast }) =>
+        showToast(
+          `The previous tester still has ${n} unsynced test${n === 1 ? "" : "s"} on this device. ` +
+            `${n === 1 ? "It" : "They"} can't be sent from your account — have them sign in and sync.`,
+          "error",
+        ),
+      );
+    }
+    return Promise.allSettled(referenceSyncs.map((sync) => sync()));
+  })
   .finally(mountApps);

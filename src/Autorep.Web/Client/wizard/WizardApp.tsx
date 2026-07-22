@@ -29,7 +29,7 @@ import { ClusterStep } from "./ClusterStep";
 import { ReviewSignOffStep } from "./ReviewSignOffStep";
 import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
-import { syncAll } from "../sync/syncClient";
+import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
 import { CalibrationAlert, CalibrationPanel } from "../ui/CalibrationPanel";
@@ -306,9 +306,19 @@ function WizardApp({ id, farmId, farmName, serverTestId }: WizardOptions) {
       const r = await syncAll();
       const fresh = await getTest(test.id);
       if (fresh) setTest(fresh);
-      showToast(`${msg} — synced (${r.pushed} pushed, ${r.pulled} pulled).`, "success");
-    } catch {
-      showToast(`${msg} — saved; will sync when back online.`, "info");
+      if (fresh && fresh.syncState === "local-only") {
+        // This test is still unsent even though the sync ran — don't claim it synced.
+        showToast(`${msg} — saved here, but it couldn't be sent. It'll retry on the next sync.`, "error");
+      } else {
+        showToast(`${msg} — synced (${r.pushed} pushed, ${r.pulled} pulled).`, "success");
+      }
+    } catch (e) {
+      showToast(
+        e instanceof SessionExpiredError
+          ? `${msg} — saved here, but you've been signed out. Sign in again to sync.`
+          : `${msg} — saved; will sync when back online.`,
+        e instanceof SessionExpiredError ? "error" : "info",
+      );
     } finally {
       setSyncing(false);
     }

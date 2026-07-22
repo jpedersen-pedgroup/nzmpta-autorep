@@ -32,12 +32,36 @@ const WATERMARK_KEY = "testPullWatermark";
 
 export interface SyncResult {
   pushed: number;
+  /** Tests whose push failed. The rest of the sync still ran — a stuck test must never wedge it. */
+  failed: number;
   pulled: number;
+}
+
+/** Thrown when the server answered, but as "you are not signed in" rather than as the API.
+ * Distinct from an unreachable server: the fix is signing in again, not waiting for signal. */
+export class SessionExpiredError extends Error {
+  constructor() {
+    super("Session expired");
+    this.name = "SessionExpiredError";
+  }
+}
+
+/**
+ * Guards against an authentication redirect being read as success. The server now answers 401 on
+ * /api (see Program.cs), but `redirect: "manual"` means that even a misconfigured or proxied
+ * redirect surfaces as an opaque response instead of `fetch` silently following it to a 200 HTML
+ * login page — which would otherwise mark a test uploaded that the server never received.
+ */
+function assertApiResponse(res: Response): void {
+  if (res.status === 401 || res.status === 403 || res.type === "opaqueredirect" || res.redirected) {
+    throw new SessionExpiredError();
+  }
 }
 
 async function pushTest(t: LocalTest): Promise<void> {
   const res = await fetch("/api/sync/tests", {
     method: "POST",
+    redirect: "manual",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       clientId: t.id,
@@ -55,6 +79,7 @@ async function pushTest(t: LocalTest): Promise<void> {
       payloadJson: JSON.stringify(t),
     }),
   });
+  assertApiResponse(res);
   if (!res.ok) throw new Error(`Push failed (${res.status})`);
   await putTest({ ...t, syncState: "uploaded", everUploaded: true });
 }
@@ -68,7 +93,8 @@ async function pullTests(): Promise<number> {
   }
 
   const url = since ? `/api/sync/tests?since=${encodeURIComponent(since)}` : "/api/sync/tests";
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await fetch(url, { headers: { Accept: "application/json" }, redirect: "manual" });
+  assertApiResponse(res);
   if (!res.ok) throw new Error(`Pull failed (${res.status})`);
   const { watermark, tests: remote } = (await res.json()) as PullResponse;
 
@@ -157,12 +183,21 @@ export async function syncAll(): Promise<SyncResult> {
   await flushCalibration();
   const locals = await allTests();
   let pushed = 0;
+  let failed = 0;
   for (const t of locals) {
-    if (t.syncState === "local-only") {
+    if (t.syncState !== "local-only") continue;
+    try {
       await pushTest(t);
       pushed++;
+    } catch (e) {
+      // One test the server won't take (oversized payload, validation, a transient 5xx) must not
+      // block the tests behind it or the pull — after an offline day the queue is long and this
+      // is exactly when a bad one shows up. An expired session is different: nothing else will
+      // succeed either, so stop and let the caller prompt for sign-in.
+      if (e instanceof SessionExpiredError) throw e;
+      failed++;
     }
   }
   const pulled = await pullTests();
-  return { pushed, pulled };
+  return { pushed, failed, pulled };
 }
