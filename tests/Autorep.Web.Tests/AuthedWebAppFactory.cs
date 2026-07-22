@@ -42,11 +42,14 @@ public class AuthedWebAppFactory : WebApplicationFactory<Program>
     public CapturingEmailSender Emails =>
         Services.GetRequiredService<CapturingEmailSender>();
 
-    public HttpClient CreateClientAs(string role, string? userId = null)
+    /// <param name="claims">Extra "type=value" claims, semicolon-separated — the real principal
+    /// factory doesn't run behind the test scheme, so claims it would stamp are supplied here.</param>
+    public HttpClient CreateClientAs(string role, string? userId = null, string? claims = null)
     {
         var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         client.DefaultRequestHeaders.Add(TestAuthHandler.RoleHeader, role);
         if (userId is not null) client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, userId);
+        if (claims is not null) client.DefaultRequestHeaders.Add(TestAuthHandler.ClaimsHeader, claims);
         return client;
     }
 }

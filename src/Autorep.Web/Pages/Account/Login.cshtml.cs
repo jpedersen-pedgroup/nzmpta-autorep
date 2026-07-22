@@ -62,31 +62,30 @@ public class LoginModel : PageModel
         {
             await WriteLoginAuditAsync(Input.Email, user?.Id, "success");
 
-            // Expired Tester licence — checked only AFTER a correct password, so the message can't be
-            // used to enumerate accounts. Pure testers only; multi-role admins keep access.
-            if (user is not null)
-            {
-                var roles = await _users.GetRolesAsync(user);
-                var isPureTester = roles.Contains(Roles.Tester)
-                    && !roles.Contains(Roles.SuperAdministrator)
-                    && !roles.Contains(Roles.CompanyAdministrator);
-                if (isPureTester && user.LicenceExpiryDate is { } expiry
-                    && expiry < DateOnly.FromDateTime(DateTime.UtcNow))
-                {
-                    await _signIn.SignOutAsync();
-                    await WriteLoginAuditAsync(Input.Email, user.Id, "licence-expired");
-                    ErrorMessage = "Your tester licence has expired. Contact NZMPTA to renew.";
-                    return Page();
-                }
-            }
-
-            // Forced password reset path: sign back out and route through ResetPassword.
+            // Forced password reset path: sign back out and route through ResetPassword. Ahead of
+            // the licence branch below, so a temporary password can never be parlayed into a
+            // sync-only session.
             if (user is not null && user.ForcedPasswordResetRequired)
             {
                 await _signIn.SignOutAsync();
                 var token = await _users.GeneratePasswordResetTokenAsync(user);
                 return RedirectToPage("/Account/ResetPassword",
                     new { email = user.Email, token });
+            }
+
+            // Expired Tester licence — checked only AFTER a correct password, so it can't be used
+            // to enumerate accounts. The session STANDS: TesterClaimsPrincipalFactory has already
+            // marked it sync-only, so every tester surface is closed to it and the flush page is
+            // all that remains. Signing them out instead would strand any capture still queued on
+            // their device — only the tester it belongs to can ever push it.
+            if (user is not null)
+            {
+                var roles = await _users.GetRolesAsync(user);
+                if (LicenceScope.IsSyncOnly(user.LicenceExpiryDate, roles, DateOnly.FromDateTime(DateTime.UtcNow)))
+                {
+                    await WriteLoginAuditAsync(Input.Email, user.Id, "licence-expired-sync-only");
+                    return RedirectToPage("/Account/FinishSync");
+                }
             }
 
             // Terms acceptance gate: require (re-)acceptance when the current terms version differs

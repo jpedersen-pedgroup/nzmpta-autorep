@@ -62,6 +62,8 @@ builder.Services
         opts.Tokens.AuthenticatorTokenProvider = TokenOptions.DefaultAuthenticatorProvider;
     })
     .AddEntityFrameworkStores<AutorepDbContext>()
+    // Marks a lapsed Tester's principal sync-only on every sign-in path (see LicenceScope).
+    .AddClaimsPrincipalFactory<TesterClaimsPrincipalFactory>()
     .AddDefaultTokenProviders();
 
 builder.Services.ConfigureApplicationCookie(opts =>
@@ -152,7 +154,11 @@ builder.Services.AddAuthentication()
 
 builder.Services.AddAuthorization(opts =>
 {
-    opts.AddPolicy("TesterArea", p => p.RequireRole(Roles.Tester));
+    // The tester app proper. A lapsed licence keeps a session but not this: it can reach only
+    // /Account/FinishSync, which flushes work already captured on the device.
+    opts.AddPolicy("TesterArea", p => p
+        .RequireRole(Roles.Tester)
+        .RequireAssertion(ctx => !ctx.User.HasClaim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly)));
     opts.AddPolicy("AdminArea",
         p => p.RequireRole(Roles.SuperAdministrator, Roles.CompanyAdministrator));
     // Super-Administrator-only surfaces.
