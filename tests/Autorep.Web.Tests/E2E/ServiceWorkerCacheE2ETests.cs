@@ -50,36 +50,74 @@ public class ServiceWorkerCacheE2ETests : IClassFixture<E2EWebAppFactory>, IAsyn
     [Fact]
     public async Task Service_worker_precaches_the_app_shell_and_serves_it_for_versioned_urls()
     {
+        // Plain HTTP on purpose: Chromium blocks service workers on an origin with a certificate
+        // error, and the dev cert is untrusted on CI. localhost over HTTP is a secure context.
         await using var context = await _browser.NewContextAsync(new()
         {
-            BaseURL = _factory.BaseUrl,
-            IgnoreHTTPSErrors = true,
+            BaseURL = _factory.BaseUrlHttp,
         });
         var page = await context.NewPageAsync();
+        // Every wait below is bounded. An unbounded one here does not fail the test, it hangs the
+        // whole CI job until the workflow times out.
+        page.SetDefaultTimeout(30_000);
 
         await page.GotoAsync("/Account/Login");
-        // Registration is deferred to window load, then install/activate is async.
-        await page.EvaluateAsync("() => navigator.serviceWorker.ready");
-        await page.WaitForFunctionAsync(
-            "async () => (await caches.keys()).some((k) => k.startsWith('autorep-') " +
-            "&& !k.includes('logos') && !k.includes('fontawesome'))",
-            null,
-            new PageWaitForFunctionOptions { Timeout = 15_000 });
 
+        // Poll for an activated worker rather than awaiting navigator.serviceWorker.ready, which
+        // never settles when registration was refused and would therefore hang rather than fail.
+        await page.WaitForFunctionAsync(
+            @"async () => {
+                if (!('serviceWorker' in navigator)) return false;
+                const reg = await navigator.serviceWorker.getRegistration();
+                return !!(reg && reg.active);
+            }",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+
+        // Wait for the shell to be fully POPULATED, not merely for a cache to exist — precaching
+        // is asynchronous, so "a cache named autorep-* is present" is true a moment before its
+        // entries are. Swallow the timeout: the assertions below say exactly what was missing,
+        // which a bare timeout would not.
+        try
+        {
+            await page.WaitForFunctionAsync(
+                @"async (expected) => {
+                    const names = await caches.keys();
+                    const shell = names.find((k) => k.startsWith('autorep-')
+                        && !k.includes('logos') && !k.includes('fontawesome'));
+                    if (!shell) return false;
+                    const cache = await caches.open(shell);
+                    const have = new Set((await cache.keys()).map((r) => new URL(r.url).pathname));
+                    return expected.every((e) => have.has(e));
+                }",
+                Expected,
+                new PageWaitForFunctionOptions { Timeout = 30_000 });
+        }
+        catch (TimeoutException)
+        {
+            // Deliberately ignored — reported in detail below.
+        }
+
+        // Every key is always present (null rather than undefined, which JSON.stringify drops)
+        // so a failure reports what the browser actually had instead of a missing-key error.
         var json = await page.EvaluateAsync<string>(@"async () => {
             const names = await caches.keys();
             const shell = names.find((k) => k.startsWith('autorep-')
-                && !k.includes('logos') && !k.includes('fontawesome'));
-            const cache = await caches.open(shell);
-            const entries = (await cache.keys()).map((r) => new URL(r.url).pathname);
+                && !k.includes('logos') && !k.includes('fontawesome')) ?? null;
+            const entries = shell
+                ? (await (await caches.open(shell)).keys()).map((r) => new URL(r.url).pathname)
+                : [];
             // The page asks for assets with a cache-busting query today and may again; the
             // precached bare entry must still answer, or the precache is dead weight.
             const versioned = await caches.match(
                 new Request(location.origin + '/css/site.css?v=probe'), { ignoreSearch: true });
-            return JSON.stringify({ shell, entries, versionedHit: !!versioned });
+            return JSON.stringify({ names, shell, entries, versionedHit: !!versioned });
         }");
 
         var result = JsonDocument.Parse(json).RootElement;
+        Assert.True(result.GetProperty("shell").ValueKind == JsonValueKind.String,
+            $"no app-shell cache was found. Browser reported: {json}");
+
         var cacheName = result.GetProperty("shell").GetString()!;
         var entries = result.GetProperty("entries").EnumerateArray()
             .Select(e => e.GetString()!).ToHashSet();

@@ -27,6 +27,9 @@ public class E2EWebAppFactory : WebApplicationFactory<Program>
     private string _dbName = $"autorep-e2e-{Guid.NewGuid()}";
 
     public string BaseUrl { get; private set; } = "";
+    /// <summary>Same host over plain HTTP. Use this for anything needing a secure context the
+    /// dev certificate can't provide on CI — service workers, notably.</summary>
+    public string BaseUrlHttp { get; private set; } = "";
     public Guid FarmId { get; private set; }
     public const string AdminEmail = "e2e-admin@local";
     public const string AdminPassword = "E2EPassword123!";
@@ -49,14 +52,19 @@ public class E2EWebAppFactory : WebApplicationFactory<Program>
         // The base class needs a (TestServer) host built from the builder.
         var testHost = builder.Build();
 
-        // A real Kestrel host on a dynamic HTTPS port for the browser.
-        builder.ConfigureWebHost(b => b.UseKestrel().UseUrls("https://127.0.0.1:0"));
+        // A real Kestrel host on dynamic ports for the browser. HTTP is bound alongside HTTPS
+        // because the dev certificate is trusted on a developer machine but NOT on a CI runner,
+        // and Chromium refuses to register a service worker on any origin with a certificate
+        // error — so a SW test over HTTPS passes locally and hangs forever in CI. localhost is a
+        // potentially-trustworthy origin, so plain HTTP gives those tests a working secure context.
+        builder.ConfigureWebHost(b => b.UseKestrel().UseUrls("https://127.0.0.1:0", "http://127.0.0.1:0"));
         _kestrelHost = builder.Build();
         _kestrelHost.Start();
 
         var addresses = _kestrelHost.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()!;
-        BaseUrl = addresses.Addresses.First();
+        BaseUrl = addresses.Addresses.First(a => a.StartsWith("https:", StringComparison.Ordinal));
+        BaseUrlHttp = addresses.Addresses.First(a => a.StartsWith("http:", StringComparison.Ordinal));
 
         SeedAsync(_kestrelHost.Services).GetAwaiter().GetResult();
 
