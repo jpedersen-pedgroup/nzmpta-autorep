@@ -90,9 +90,29 @@ These were live bugs. They lost tester work, and every "you have N unsynced test
 
 The current precache list mostly does not work, and the biggest offline asset (the PDF generator) is never precached. Fixing this is a prerequisite for a cached shell surviving a deploy, and it independently delivers offline printing, which is an explicit NZMPTA requirement (`plans/build-checklist.md:88`).
 
-- [ ] **`caches.match(event.request, { ignoreSearch: true })`** at `sw.js:135`. This alone makes the three dead precache entries (`sw.js:13,14,19`) live, and makes a cached shell survive a `?v=` change.
-- [ ] **Drop `asp-append-version` from the shell assets** the SW owns: `_Layout.cshtml:33` (FA css), `_Layout.cshtml:120` (`pwa-register.js`), `_BrandHead.cshtml:37` (`site.css`), `Pages/App/Tests/Index.cshtml:21` and `Pages/App/Tests/Wizard.cshtml:13` (`autorep.js`). Versioning moves to `CACHE_VERSION`.
-- [ ] **Build-stamp `CACHE_VERSION`.** It is a hand-typed literal at `sw.js:8` (`'autorep-v7'`) and neither `build` nor `build:prod` in `package.json:8-9` touches it. A deploy that changes the bundle without a manual bump ships stale assets silently. Add a small node step that runs after esbuild, reads the metafile, and rewrites a token in `sw.js` with a build hash — wire it into both scripts so CI and local stay in step.
+> **ORDERING CORRECTION (22 Jul 2026, verified in-browser).** The next three bullets are **one
+> atomic change**, not three independent ones. `ignoreSearch` is *not* safe on its own: the static
+> branch is cache-first, so once `/js/dist/autorep.js` is cached, `ignoreSearch` would match it for
+> every future `?v=` and the device would serve that build **forever**. Today `asp-append-version`
+> is the only thing invalidating it — a new deploy mints a new URL, misses the cache, and refetches.
+> So `ignoreSearch` may only land together with build-stamped `CACHE_VERSION` (which invalidates the
+> whole cache per deploy) and the removal of `asp-append-version`. Doing them in any other order
+> either breaks deploys or achieves nothing.
+>
+> Confirmed live: after one load, `autorep-v7` holds `/css/site.css` **and**
+> `/css/site.css?v=…` — the precached copy is dead weight and the runtime copy is what actually
+> serves. Same for `pwa-register.js`. So the three "dead" entries are not merely unused, they are
+> duplicated on disk.
+
+- [ ] **Atomically:** `caches.match(event.request, { ignoreSearch: true })` at the static branch **+**
+      build-stamp `CACHE_VERSION` **+** drop `asp-append-version` from the shell assets the SW owns —
+      `_Layout.cshtml:33` (FA css), `_Layout.cshtml:121` (`pwa-register.js`), `_BrandHead.cshtml:37`
+      (`site.css`), `Pages/App/Tests/Index.cshtml:22`, `Pages/App/Tests/Wizard.cshtml:13` and
+      `Pages/Account/FinishSync.cshtml:37-38` (`autorep.js`, **six** call sites, not five — FinishSync
+      was added by the licence sync-only work). `CACHE_VERSION` is a hand-typed literal at `sw.js:8`
+      and neither `build` nor `build:prod` touches it, so a deploy currently ships stale assets
+      silently unless someone remembers to bump it. Add a node step after esbuild that reads the
+      metafile and rewrites a token in `sw.js`; wire it into both scripts so CI and local stay in step.
 - [ ] **Emit a chunk manifest and precache the PDF chunks.** Chunk names are content-hashed (`--chunk-names=chunks/[name]-[hash]`) so the list must be generated. Current on-disk dev sizes: `pdfmake-EIRMY33F.js` 2,848,921 B, `vfs_fonts-OBOSLEIK.js` 855,025 B, `es-R5OKT6RQ.js` 830,410 B (prod/minified is roughly 2.4 MB total). **Recommendation:** do not precache on `install` — that is 2.4 MB blocking the first load on rural mobile data. Instead **warm them in the background after the first successful `syncAll()`**, and show a "ready to print offline" state. Gate on `navigator.connection.saveData` if present (unverified support on iPad Safari — treat as best-effort).
 - [ ] **Replace `cache.addAll(APP_SHELL).catch(()=>{})`** (`sw.js:57`) with per-URL `cache.add` in a `Promise.allSettled`, logging failures. `addAll` is atomic: one 404 silently precaches nothing, and adding a shell HTML entry is exactly the kind of entry that goes missing after a deploy.
 - [ ] **Recover from a 404 instead of returning an empty 504.** `sw.js:145` returns `new Response('', {status:504})` for any miss; for `<script type="module">` that is a silent blank page. Distinguish a network failure (offline → serve cached or fail loudly) from a 404 (deleted hash → `registration.update()` + one-time reload).

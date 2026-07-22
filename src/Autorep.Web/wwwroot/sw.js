@@ -54,7 +54,13 @@ function offlineResponse() {
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL).catch(() => {}))
+    caches.open(CACHE_VERSION).then(async (cache) => {
+      // Per URL rather than cache.addAll, which is atomic: one renamed or half-deployed asset
+      // would silently leave the ENTIRE shell uncached, and the old code swallowed that.
+      const results = await Promise.allSettled(APP_SHELL.map((asset) => cache.add(asset)));
+      const failed = APP_SHELL.filter((_, i) => results[i].status === 'rejected');
+      if (failed.length) console.warn('[sw] app shell entries failed to precache:', failed);
+    })
   );
   self.skipWaiting();
 });
@@ -136,13 +142,26 @@ self.addEventListener('fetch', (event) => {
         cached ||
         fetch(event.request)
           .then((resp) => {
+            // A 404 on a fingerprinted asset means a deploy replaced it while this client was
+            // still running the old document. Fetch the new worker rather than leaving the tab
+            // pointing at a build whose chunks no longer exist.
+            if (resp && resp.status === 404) void self.registration.update();
             if (resp && resp.ok && (resp.type === 'basic' || resp.type === 'default')) {
               const clone = resp.clone();
               caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
             }
             return resp;
           })
-          .catch(() => new Response('', { status: 504 }))
+          // Offline and never cached. An empty body made a module script fail with nothing to
+          // act on — a blank page and a silent console; say which asset is missing instead.
+          .catch(() => new Response(
+            `/* offline: ${url.pathname} has never been cached on this device */`,
+            {
+              status: 504,
+              statusText: 'Offline and not cached',
+              headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+            }
+          ))
       )
     );
   }
