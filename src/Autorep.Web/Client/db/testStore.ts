@@ -149,6 +149,7 @@ interface AutorepDB extends DBSchema {
 const DB_PREFIX = "autorep";
 const DB_VERSION = 2; // v2: + reference store (synced standards / catalogs)
 const LAST_TESTER_KEY = "autorep:lastTesterId";
+const KNOWN_TESTERS_KEY = "autorep:knownTesterIds";
 
 function currentTesterId(): string | null {
   const id = (globalThis as { __autorepTesterId?: unknown }).__autorepTesterId;
@@ -170,13 +171,22 @@ function deleteDatabase(name: string): Promise<void> {
   });
 }
 
-export interface PurgeResult {
-  /** A previous tester's database was kept because it still holds unsynced tests. */
-  retained?: { testerId: string; unsyncedCount: number };
+export interface RetainedTester {
+  testerId: string;
+  /** null when the database could not be read, so its contents are unknown. */
+  unsyncedCount: number | null;
 }
 
-/** Unsynced tests in a named database, 0 if it is absent or unreadable. */
-async function countUnsyncedIn(name: string): Promise<number> {
+export interface PurgeResult {
+  /** Previous testers whose databases were kept because they may still hold unsynced tests. */
+  retained?: RetainedTester[];
+}
+
+/** Unsynced tests in a named database. Returns null when that cannot be determined — callers must
+ * treat null as "may hold work", never as zero. This count is the only thing standing between a
+ * transient IndexedDB failure (storage pressure, a blocked versionchange, a half-finished upgrade)
+ * and deleting a tester's only copy of a day's captures, so it must fail closed. */
+async function countUnsyncedIn(name: string): Promise<number | null> {
   try {
     // No version argument: open whatever is there rather than triggering an upgrade.
     const database = await openDB<AutorepDB>(name);
@@ -188,8 +198,40 @@ async function countUnsyncedIn(name: string): Promise<number> {
       database.close();
     }
   } catch {
-    return 0;
+    return null;
   }
+}
+
+/** Every tester who has held a database on this device. Tracked explicitly rather than inferred
+ * from a single "last tester" slot: with one slot, a third tester signing in hides the second
+ * tester's queued work entirely, and it never gets counted, warned about or cleaned up. */
+function readKnownTesters(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(KNOWN_TESTERS_KEY) ?? "[]") as unknown;
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+async function previousTesterIds(current: string): Promise<string[]> {
+  const ids = new Set(readKnownTesters());
+  const last = localStorage.getItem(LAST_TESTER_KEY);
+  if (last) ids.add(last);
+  try {
+    // Picks up databases the tracked list has lost (cleared localStorage, an older build).
+    if (typeof indexedDB.databases === "function") {
+      for (const info of await indexedDB.databases()) {
+        const name = info?.name ?? "";
+        if (name.startsWith(`${DB_PREFIX}_`)) ids.add(name.slice(DB_PREFIX.length + 1));
+      }
+    }
+  } catch {
+    // Enumeration unsupported or refused — the tracked list stands on its own.
+  }
+  ids.delete(current);
+  ids.delete("");
+  return [...ids];
 }
 
 /** Deletes a previous tester's local database when a different tester signs in on this device, so
@@ -207,21 +249,29 @@ export async function purgeStaleLocalData(): Promise<PurgeResult> {
   try {
     const current = currentTesterId();
     if (current === null) return {};
-    const last = localStorage.getItem(LAST_TESTER_KEY) ?? "";
-    if (last === current) return {};
 
-    await deleteDatabase(DB_PREFIX); // drop the legacy shared DB if it exists
-    if (last) {
-      const unsyncedCount = await countUnsyncedIn(`${DB_PREFIX}_${last}`);
-      if (unsyncedCount > 0) {
-        // Leave LAST_TESTER_KEY pointing at the outgoing tester so the check runs again next load
-        // and the database is cleaned up once that work has synced.
-        return { retained: { testerId: last, unsyncedCount } };
+    // The legacy unnamespaced database predates per-tester naming, so guard it the same way.
+    if ((await countUnsyncedIn(DB_PREFIX)) === 0) await deleteDatabase(DB_PREFIX);
+
+    const retained: RetainedTester[] = [];
+    const stillKnown = [current];
+    for (const testerId of await previousTesterIds(current)) {
+      const unsyncedCount = await countUnsyncedIn(`${DB_PREFIX}_${testerId}`);
+      if (unsyncedCount === null || unsyncedCount > 0) {
+        retained.push({ testerId, unsyncedCount });
+        stillKnown.push(testerId); // keep checking it until that work is synced
+        continue;
       }
-      await deleteDatabase(`${DB_PREFIX}_${last}`);
+      await deleteDatabase(`${DB_PREFIX}_${testerId}`);
     }
+
     localStorage.setItem(LAST_TESTER_KEY, current);
-    return {};
+    try {
+      localStorage.setItem(KNOWN_TESTERS_KEY, JSON.stringify([...new Set(stillKnown)]));
+    } catch {
+      // Storage full or disabled — enumeration still finds the databases next time.
+    }
+    return retained.length > 0 ? { retained } : {};
   } catch {
     return {};
   }

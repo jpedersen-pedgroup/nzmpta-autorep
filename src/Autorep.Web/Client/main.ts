@@ -47,13 +47,20 @@ const referenceSyncs = [initStandards, initEquipment, initFaultCatalog, initPriv
 if (isTesterPage) referenceSyncs.push(initFarms, initCalibration);
 void purgeStaleLocalData()
   .then((purge) => {
-    if (purge.retained) {
-      // Their tests exist nowhere but this device, so someone has to sign back in and sync.
-      const n = purge.retained.unsyncedCount;
+    if (purge.retained?.length) {
+      // That work exists nowhere but this device, and only its owner can send it — a test is
+      // attributed to whoever is signed in, so it can never be flushed from this account.
+      const known = purge.retained.filter((r) => r.unsyncedCount !== null);
+      const total = known.reduce((sum, r) => sum + (r.unsyncedCount ?? 0), 0);
+      const unreadable = purge.retained.length - known.length;
+      const parts: string[] = [];
+      if (total > 0) parts.push(`${total} unsynced test${total === 1 ? "" : "s"}`);
+      if (unreadable > 0) parts.push(`data that couldn't be read`);
       void import("./ui/toast").then(({ showToast }) =>
         showToast(
-          `The previous tester still has ${n} unsynced test${n === 1 ? "" : "s"} on this device. ` +
-            `${n === 1 ? "It" : "They"} can't be sent from your account — have them sign in and sync.`,
+          `This device still holds ${parts.join(" and ")} from ` +
+            `${purge.retained!.length === 1 ? "another tester" : `${purge.retained!.length} other testers`}. ` +
+            "It can't be sent from your account — they need to sign in and sync.",
           "error",
         ),
       );

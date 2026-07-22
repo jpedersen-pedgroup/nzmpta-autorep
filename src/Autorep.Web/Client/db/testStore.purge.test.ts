@@ -1,7 +1,7 @@
 // Kept in its own file: purgeStaleLocalData deletes databases by name, which would pull the
 // ground out from under the shared store the other testStore specs use.
 import "fake-indexeddb/auto";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { openDB } from "idb";
 
 const LAST_TESTER_KEY = "autorep:lastTesterId";
@@ -49,8 +49,21 @@ async function remainingTests(name: string): Promise<number> {
 const { purgeStaleLocalData } = await import("./testStore");
 
 describe("purgeStaleLocalData", () => {
-  beforeEach(() => {
+  // Each case must start from a clean device: the purge now enumerates every autorep_* database,
+  // so a leftover from an earlier case would legitimately show up in the next one's result.
+  beforeEach(async () => {
     localStorage.clear();
+    for (const info of await indexedDB.databases()) {
+      if (!info.name?.startsWith("autorep")) continue;
+      await new Promise<void>((resolve) => {
+        const req = indexedDB.deleteDatabase(info.name!);
+        req.onsuccess = req.onerror = req.onblocked = () => resolve();
+      });
+    }
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // Identity is server-rendered, so "unknown" means "not established yet" — not "nobody". Purging
@@ -75,10 +88,8 @@ describe("purgeStaleLocalData", () => {
 
     const result = await purgeStaleLocalData();
 
-    expect(result.retained).toEqual({ testerId: "tester-a", unsyncedCount: 1 });
+    expect(result.retained).toEqual([{ testerId: "tester-a", unsyncedCount: 1 }]);
     expect(await remainingTests("autorep_tester-a")).toBe(1);
-    // Left pointing at the outgoing tester so the check runs again once that work has synced.
-    expect(localStorage.getItem(LAST_TESTER_KEY)).toBe("tester-a");
   });
 
   it("deletes a previous tester's database once everything has synced", async () => {
@@ -91,5 +102,41 @@ describe("purgeStaleLocalData", () => {
     expect(result.retained).toBeUndefined();
     expect(await remainingTests("autorep_tester-c")).toBe(0);
     expect(localStorage.getItem(LAST_TESTER_KEY)).toBe("tester-d");
+  });
+
+  // The guard must fail CLOSED. Returning 0 from an unreadable database would hand the delete
+  // path a licence to destroy the very work it exists to protect.
+  it("keeps a database it cannot read rather than assuming it is empty", async () => {
+    await seedTesterDb("tester-e", "local-only");
+    localStorage.setItem(LAST_TESTER_KEY, "tester-e");
+    setCurrentTester("tester-f");
+
+    const open = indexedDB.open.bind(indexedDB);
+    const spy = vi.spyOn(indexedDB, "open").mockImplementation(((name: string, version?: number) => {
+      if (name === "autorep_tester-e") throw new DOMException("simulated", "UnknownError");
+      return open(name, version);
+    }) as typeof indexedDB.open);
+
+    const result = await purgeStaleLocalData();
+    spy.mockRestore();
+
+    expect(result.retained).toEqual([{ testerId: "tester-e", unsyncedCount: null }]);
+    expect(await remainingTests("autorep_tester-e")).toBe(1);
+  });
+
+  // With a single "last tester" slot, a third sign-in hid the second tester's queue entirely:
+  // it was never counted, never warned about, and never cleaned up.
+  it("checks every previous tester on the device, not just the most recent", async () => {
+    await seedTesterDb("tester-g", "local-only");
+    await seedTesterDb("tester-h", "local-only");
+    localStorage.setItem(LAST_TESTER_KEY, "tester-h");
+    setCurrentTester("tester-i");
+
+    const result = await purgeStaleLocalData();
+
+    const ids = (result.retained ?? []).map((r) => r.testerId).sort();
+    expect(ids).toEqual(["tester-g", "tester-h"]);
+    expect(await remainingTests("autorep_tester-g")).toBe(1);
+    expect(await remainingTests("autorep_tester-h")).toBe(1);
   });
 });
