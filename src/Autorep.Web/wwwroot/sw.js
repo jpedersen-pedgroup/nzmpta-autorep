@@ -5,7 +5,10 @@
 // should PROACTIVELY pre-cache all active milk-company logos on reference-data sync (not just
 // ones already viewed) and render the tester pages offline so cached logos actually display.
 
-const CACHE_VERSION = 'autorep-v7';
+// Rewritten by tools/stamp-sw.mjs on every client build with a fingerprint of the bundle — do not
+// edit by hand. The static cache below is cache-first and matched with ignoreSearch, so renaming
+// this cache is the ONLY thing that retires a previous build's assets.
+const CACHE_VERSION = 'autorep-355a1c8c7136';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 const APP_SHELL = [
@@ -17,7 +20,13 @@ const APP_SHELL = [
   '/img/logo-mpnz-white.svg',
   '/img/logo-mpnz-lockup.svg',
   '/lib/fontawesome/css/all.min.css',
-  '/lib/fontawesome/webfonts/fa-solid-900.woff2'
+  '/lib/fontawesome/webfonts/fa-solid-900.woff2',
+  // Brand type. latin-ext carries the macron vowels in Māori farm and place names, so it is as
+  // load-bearing as latin — see the @font-face rules in site.css.
+  '/lib/fonts/montserrat-latin.woff2',
+  '/lib/fonts/montserrat-latin-ext.woff2',
+  '/lib/fonts/opensans-latin.woff2',
+  '/lib/fonts/opensans-latin-ext.woff2'
 ];
 
 // Served when a page navigation fails offline. Generated here rather than precached because page
@@ -28,6 +37,9 @@ const OFFLINE_HTML = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Offline &middot; NZMPTA AutoRep</title>
 <style>
+  /* Open Sans is precached and self-hosted, so this actually resolves offline now. */
+  @font-face { font-family:'Open Sans'; font-style:normal; font-weight:400 700; font-display:swap;
+    src:url('/lib/fonts/opensans-latin.woff2') format('woff2'); }
   body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
     background:#EEF3FA; color:#333333;
     font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
@@ -136,9 +148,14 @@ self.addEventListener('fetch', (event) => {
 
   // Same-origin static assets: cache-first, populating the cache on first fetch so the app
   // bundle and lazy chunks (e.g. the PDF generator) keep working offline.
+  //
+  // ignoreSearch so a precached '/css/site.css' still answers a '?v=' request — without it the
+  // precache was dead weight and each asset sat in the cache twice. This is only safe because
+  // CACHE_VERSION is stamped from the bundle at build time: a cache-first match that ignores the
+  // query string would otherwise pin a device to whatever build it cached first, forever.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(event.request).then((cached) =>
+      caches.match(event.request, { ignoreSearch: true }).then((cached) =>
         cached ||
         fetch(event.request)
           .then((resp) => {

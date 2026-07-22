@@ -5,8 +5,9 @@
   "type": "module",
   "description": "AutoRep PWA client: shared TypeScript modules (Wizard Step Resolver, Pass/Fail Calculator, Sync Client) + the offline Preact wizard backed by IndexedDB. Bundled with esbuild, tested with Vitest.",
   "scripts": {
-    "build": "esbuild Client/main.ts --bundle --splitting --format=esm --jsx=automatic --jsx-import-source=preact --outdir=wwwroot/js/dist --entry-names=autorep --chunk-names=chunks/[name]-[hash]",
-    "build:prod": "esbuild Client/main.ts --bundle --minify --splitting --format=esm --jsx=automatic --jsx-import-source=preact --outdir=wwwroot/js/dist --entry-names=autorep --chunk-names=chunks/[name]-[hash]",
+    "build": "esbuild Client/main.ts --bundle --splitting --format=esm --jsx=automatic --jsx-import-source=preact --outdir=wwwroot/js/dist --entry-names=autorep --chunk-names=chunks/[name]-[hash] --metafile=obj/esbuild-meta.json && npm run stamp-sw",
+    "build:prod": "esbuild Client/main.ts --bundle --minify --splitting --format=esm --jsx=automatic --jsx-import-source=preact --outdir=wwwroot/js/dist --entry-names=autorep --chunk-names=chunks/[name]-[hash] --metafile=obj/esbuild-meta.json && npm run stamp-sw",
+    "stamp-sw": "node tools/stamp-sw.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
