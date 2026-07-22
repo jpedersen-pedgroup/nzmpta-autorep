@@ -17,7 +17,13 @@ public class IndexModel : PageModel
             return Redirect("/Admin");
 
         if (User.IsInRole(Roles.Tester))
-            return Redirect("/App");
+        {
+            // A lapsed licence can't reach /App, so send them where they can still act: the page
+            // that flushes tests captured before it expired. This is also the PWA's start_url.
+            return Redirect(User.HasClaim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly)
+                ? "/Account/FinishSync"
+                : "/App");
+        }
 
         return Redirect("/Account/AccessDenied");
     }

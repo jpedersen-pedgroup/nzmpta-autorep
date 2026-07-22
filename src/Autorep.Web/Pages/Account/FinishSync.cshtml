@@ -1,0 +1,40 @@
+@page
+@model Autorep.Web.Pages.Account.FinishSyncModel
+@{
+    ViewData["Title"] = "Send your tests";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Send your tests · NZMPTA AutoRep</title>
+    <partial name="_BrandHead" />
+</head>
+<body class="auth-layout">
+    <div class="auth-card">
+        <div class="auth-card__logo">
+            <img class="auth-card__logo-img auth-card__logo-img--lockup" src="~/img/logo-mpnz-lockup.svg" alt="MPNZ — Milking & Pumping since 1932" />
+        </div>
+        <h1 class="auth-card__title auth-card__title--solo">Your licence has expired</h1>
+
+        <p>
+            You can't start new tests until NZMPTA renews your licence. You can still send any tests
+            already saved on this device — they're only on here, so please send them now.
+        </p>
+
+        @* The bundle keys off this root. It reads the same on-device store the wizard writes to. *@
+        <div id="sync-only-root"></div>
+
+        <form method="post" asp-page="/Account/Logout" style="margin-top:1.5rem">
+            <button type="submit" class="btn btn--secondary btn--full">Sign out</button>
+        </form>
+    </div>
+    @* Namespaces the on-device database to this tester — without it the page would look in the
+       wrong store and report no tests waiting. Matches _Layout's contract. *@
+    <script>window.__autorepTesterId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value));</script>
+    <script type="module" src="~/js/dist/autorep.js" asp-append-version="true"></script>
+    <script src="~/js/pwa-register.js" asp-append-version="true"></script>
+</body>
+</html>

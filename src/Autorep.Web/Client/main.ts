@@ -9,6 +9,7 @@ import { initFarms } from "./sync/farmsSync";
 import { initCalibration } from "./sync/calibrationSync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
+import { mountSyncOnly } from "./ui/SyncOnlyApp";
 import { mountCompanyTestList } from "./ui/CompanyTestListApp";
 import { purgeStaleLocalData } from "./db/testStore";
 
@@ -29,6 +30,10 @@ function mountApps(): void {
 
   const listRoot = document.getElementById("test-list-root");
   if (listRoot) mountTestList(listRoot);
+
+  // Lapsed licence: the only tester surface still reachable (/Account/FinishSync).
+  const syncOnlyRoot = document.getElementById("sync-only-root");
+  if (syncOnlyRoot) mountSyncOnly(syncOnlyRoot);
 
   const companyListRoot = document.getElementById("company-test-list-root");
   if (companyListRoot) mountCompanyTestList(companyListRoot);
