@@ -32,7 +32,9 @@ public class IntegrationTests : IClassFixture<WebAppFactory>
     {
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var res = await client.GetAsync("/api/address/suggest?q=victoria");
-        ((int)res.StatusCode).Should().BeOneOf(302, 401);
+        // 401, never a redirect: an /api caller that follows a 302 to the login page reads the
+        // resulting 200 HTML as success (see ApiChallengeTests).
+        res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

@@ -67,17 +67,18 @@ Full reasoning in §5. The phases below assume these answers.
 
 Each phase is independently shippable and useful on its own. Phases 0 and 1 are prerequisites for Phase 2 being *safe*, but they both deliver value even if Phase 2 never lands.
 
-### Phase 0 — Stop the bleeding (sync + purge correctness)
+### Phase 0 — Stop the bleeding (sync + purge correctness) ✅ DONE 22 Jul 2026
 
-These are live bugs today. They lose tester work, and every "you have N unsynced tests" indicator added later is untrustworthy until they are fixed.
+These were live bugs. They lost tester work, and every "you have N unsynced tests" indicator added later would have been untrustworthy until they were fixed.
 
-- [ ] **Return 401/403 from `/api/*` instead of a 302 to login.** Add `CookieAuthenticationEvents.OnRedirectToLogin`/`OnRedirectToAccessDenied` in `ConfigureApplicationCookie` (`Program.cs:66-74`) that returns a status code when `context.Request.Path` starts with `/api`. Today an expired cookie makes `fetch` follow the redirect (POST→GET), land on a 200 HTML login page, so `res.ok` is **true** at `syncClient.ts:58` and the test is flipped to `syncState:"uploaded", everUploaded:true` at `:59`. That test can then never be re-pushed (`syncClient.ts:161`) nor deleted (`TestListApp.tsx:31-33`) and displays as synced. The server never got it.
-- [ ] **Belt and braces on the client:** `redirect:"manual"` (or assert `content-type: application/json`) on both `pushTest` (`syncClient.ts:39`) and `pullTests` (`syncClient.ts:71`); surface a distinct "your session expired — sign in again to sync" state rather than the generic toast at `TestListApp.tsx:53-57`.
-- [ ] **Don't abort the whole sync on one bad push.** `syncClient.ts:158-166` is a bare `for` loop where `pushTest` throws; one rejected payload blocks every later push *and* the pull, permanently. Collect per-test failures, continue the loop, always run `pullTests()`, and return `{pushed, failed, pulled}` so the UI can say which test is stuck.
-- [ ] **Harden `purgeStaleLocalData()`** (`testStore.ts:177-188`): no-op when `currentTesterId()` is null. Today `current` falls back to `""` at `:179`, `last === current` fails at `:181`, and `:183` deletes `autorep_<lastTesterId>` — every unsynced test on the device. This is the single landmine that makes any shell work destructive, and it is a two-line fix that should land regardless.
-- [ ] **Don't silently destroy unsynced work on a genuine tester handover.** Before `deleteDatabase` at `:183`, open the outgoing DB and count `syncState === "local-only"`. If any exist, do not delete — surface a blocking "Tester X has N unsynced tests on this device; connect and sync before switching accounts" screen. (Rename the function; it is no longer a silent purge.)
-- [ ] **Give `fetchFarm` a timeout and a broader fallback.** `farms.ts:26` → add the 5 s `AbortController` pattern from `connectivity.ts:11-20`; fall back to `getCachedFarm` on 401/403/5xx as well as on throw, but **keep 404 authoritative** (the comment at `farms.ts:27-29` is deliberate — a 404 means out-of-scope, don't resurrect it).
-- [ ] Tests: xUnit for the 401-on-`/api` behaviour; Vitest for the push-loop continue-on-failure, the redirect detection, and the purge guard (`Client/db/testStore.test.ts` already exists as a home for the last one).
+- [x] **Return 401/403 from `/api/*` instead of a 302 to login.** Add `CookieAuthenticationEvents.OnRedirectToLogin`/`OnRedirectToAccessDenied` in `ConfigureApplicationCookie` (`Program.cs:66-74`) that returns a status code when `context.Request.Path` starts with `/api`. Today an expired cookie makes `fetch` follow the redirect (POST→GET), land on a 200 HTML login page, so `res.ok` is **true** at `syncClient.ts:58` and the test is flipped to `syncState:"uploaded", everUploaded:true` at `:59`. That test can then never be re-pushed (`syncClient.ts:161`) nor deleted (`TestListApp.tsx:31-33`) and displays as synced. The server never got it.
+- [x] **Belt and braces on the client:** `redirect:"manual"` (or assert `content-type: application/json`) on both `pushTest` (`syncClient.ts:39`) and `pullTests` (`syncClient.ts:71`); surface a distinct "your session expired — sign in again to sync" state rather than the generic toast at `TestListApp.tsx:53-57`.
+- [x] **Don't abort the whole sync on one bad push.** `syncClient.ts:158-166` is a bare `for` loop where `pushTest` throws; one rejected payload blocks every later push *and* the pull, permanently. Collect per-test failures, continue the loop, always run `pullTests()`, and return `{pushed, failed, pulled}` so the UI can say which test is stuck.
+- [x] **Harden `purgeStaleLocalData()`** (`testStore.ts:177-188`): no-op when `currentTesterId()` is null. Today `current` falls back to `""` at `:179`, `last === current` fails at `:181`, and `:183` deletes `autorep_<lastTesterId>` — every unsynced test on the device. This is the single landmine that makes any shell work destructive, and it is a two-line fix that should land regardless.
+- [x] **Don't silently destroy unsynced work on a genuine tester handover.** Done, but with a toast rather than a blocking screen and without renaming the function: it still purges in the normal case, so the name still fits, and a blocking screen belongs with the Phase 2 shell chrome rather than bolted onto startup. `purgeStaleLocalData` now returns `PurgeResult { retained? }` and `main.ts` warns. **Deliberate trade recorded:** the outgoing tester's cached farm PII stays on disk until their work syncs — irreversible data loss outranks cache hygiene, and the data sits under a DB name the incoming session never opens.
+- [x] **Give `fetchFarm` a timeout and a broader fallback.** `farms.ts:26` → add the 5 s `AbortController` pattern from `connectivity.ts:11-20`; fall back to `getCachedFarm` on 401/403/5xx as well as on throw, but **keep 404 authoritative** (the comment at `farms.ts:27-29` is deliberate — a 404 means out-of-scope, don't resurrect it).
+- [x] Tests: `ApiChallengeTests` (401 on three `/api` routes incl. POST; pages still redirect) over `WebAppFactory`, since `AuthedWebAppFactory`'s test handler bypasses the cookie pipeline and would prove nothing. New `Client/sync/syncClient.test.ts` (continue-on-failure, the followed-redirect regression, 401) and `Client/db/testStore.purge.test.ts` (own file — purging deletes databases the other specs share).
+- [x] **Fixed in passing:** `WebAppFactory` hard-coded one InMemory database name, so a second fixture instance re-seeded the same store and made `Reference_data_is_seeded_on_startup` depend on how many classes used the factory. Now per-instance, matching `AuthedWebAppFactory`. `Address_proxy_rejects_anonymous` tightened from `BeOneOf(302, 401)` to exactly 401.
 
 **Files:** `Program.cs`, `Client/sync/syncClient.ts`, `Client/db/testStore.ts`, `Client/farms.ts`, `Client/ui/TestListApp.tsx`, `tests/Autorep.Web.Tests/AuthIntegrationTests.cs`, `Client/db/testStore.test.ts` (+ new `Client/sync/syncClient.test.ts`).
 **Estimate: 2–3 days.**
@@ -164,18 +165,28 @@ Everything above *adds* to the same origin's storage. This phase makes that surv
 
 ---
 
-### Phase 5 — Offline farm creation *(conditional — do not start without an NZMPTA answer)*
+### Phase 5 — Offline farm creation — ~~CONDITIONAL~~ **CUT (22 Jul 2026)**
 
-Blocked on the open question at `plans/build-checklist.md:175`: do testers create farms on-farm, or does the office load them first? If the answer is "office first", **delete this phase**.
+**Decided: farm creation stays online-only.** Josh confirmed with a tester that farms are not set
+up on-farm without signal, which closes the open question at `plans/build-checklist.md:175`. This
+phase is **not being built** — it was the single highest blow-up risk in the plan (6–10 days) and
+removing it takes the total from 25–40 days down to 19–30.
 
-- [ ] `GET /api/regions` (no `RegionsController` exists — verified by directory listing of `Api/`) and `GET /api/milk-companies` list (`Api/MilkCompaniesController.cs` is 25 lines with only `[HttpGet("{id:guid}/logo")]`). Both `{version, items}`. Note `Region` has no `UpdatedAt` column, so either add one or accept that a rename never propagates.
-- [ ] Two reference syncs mirroring `equipmentSync.ts`, registered in `main.ts:40-41`.
-- [ ] Client-minted farm id (`crypto.randomUUID()`, as `WizardApp.tsx:125` already does for tests), a new `pendingFarms` IndexedDB store, and a `DB_VERSION` bump from 2 (`testStore.ts:150`) **with a migration path for devices holding unsynced work**.
-- [ ] Extend `UploadTestRequest` (`SyncController.cs:41-47`) and `ResolveFarmAsync` (`:192-232`) to carry region / address / RAPID / farmer contact instead of today's three fields, preserving `PendingReviewSince` and the `FarmReviewNotifier`.
-- [ ] Decide how a locally-minted farm id reconciles with the server-assigned one when a **second** test is captured at the same farm before syncing. This is the part most likely to blow up.
+Consequences to hold onto, since they are now permanent design constraints rather than temporary gaps:
 
-**Estimate: 6–10 days.** Highest single-item blow-up risk in the plan.
-**Interim (free, already works):** a test pushed for an unknown farm already creates a company-tagged, review-flagged farm from name + supply number + milk company (`SyncController.ResolveFarmAsync`). That degraded path may be acceptable given tester-created farms go through admin review anyway.
+- **The add-farm modal stays a live `fetch`.** It must fail *honestly* offline rather than showing
+  the current bare "Could not add farm." — see Phase 3, which now carries that item.
+- **`SyncController.ResolveFarmAsync` still mints farms** and must NOT be removed. It is not a
+  user-facing creation path; it is the safety net that stops completed field work being stranded
+  when a pushed test cannot be linked. It correctly flags those farms for review
+  (`PendingReviewSince` + `FarmReviewNotifier`, PR #35), which is exactly why that work mattered.
+  So "online-only" is a product rule, not an enforceable invariant.
+- **No `/api/regions` or `/api/milk-companies` list endpoints are needed.** Neither exists today
+  and neither is now required, because the only surface that wanted them offline was the modal.
+- **No `pendingFarms` store and no `DB_VERSION` bump.** The IndexedDB schema stays at v2, which
+  removes the migration-path risk for devices holding unsynced work.
+- **A tester still needs signal once, at the start of a visit,** to pick a farm that is not yet in
+  their cached book. Phase 3 narrows that to genuinely-new farms only.
 
 ---
 
@@ -296,9 +307,8 @@ CI already runs Vitest + typecheck and E2E as its own job (`.github/workflows/ap
 | 3 — Client-rendered New-test page | 4–6 | Removes the PII objection outright |
 | 4 — Storage durability | 3–5 | Gate on real-device UAT |
 | Playwright offline harness | 2–3 | Could be folded into Phase 2 |
-| **Subtotal (Phases 0–4)** | **19–30 days** | |
-| 5 — Offline farm creation *(conditional)* | 6–10 | Only if NZMPTA says testers create farms on-farm |
-| **With Phase 5** | **25–40 days** | |
+| **Total (Phases 0–4)** | **19–30 days** | |
+| ~~5 — Offline farm creation~~ | ~~6–10~~ | **CUT 22 Jul 2026** — tester confirmed farms are set up online only |
 
 **Contract position.** The build is M1–M6 + O1 + O2 + O3 (~$43,750). Essentially all of this is **already-contracted M2**, not new scope:
 

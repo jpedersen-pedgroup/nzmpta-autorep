@@ -4,6 +4,7 @@ using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
@@ -71,6 +72,26 @@ builder.Services.ConfigureApplicationCookie(opts =>
     opts.SlidingExpiration = true;
     opts.Cookie.HttpOnly = true;
     opts.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+
+    // API calls must fail with a status code, never a redirect to the login page. `fetch`
+    // follows redirects by default and turns a POST into a GET, so an expired cookie would
+    // otherwise land the sync push on a 200 HTML login page — which reads as success and marks
+    // the tester's test uploaded when the server never received it. Pages keep redirecting.
+    opts.Events.OnRedirectToLogin = ctx => ApiAwareChallenge(ctx, StatusCodes.Status401Unauthorized);
+    opts.Events.OnRedirectToAccessDenied = ctx => ApiAwareChallenge(ctx, StatusCodes.Status403Forbidden);
+
+    static Task ApiAwareChallenge(
+        Microsoft.AspNetCore.Authentication.RedirectContext<CookieAuthenticationOptions> ctx,
+        int statusCode)
+    {
+        if (ctx.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Response.StatusCode = statusCode;
+            return Task.CompletedTask;
+        }
+        ctx.Response.Redirect(ctx.RedirectUri);
+        return Task.CompletedTask;
+    }
 });
 
 // Email sender: Graph when a sending mailbox is configured; otherwise the log-only sender is

@@ -170,20 +170,60 @@ function deleteDatabase(name: string): Promise<void> {
   });
 }
 
-/** Deletes a previous tester's local database when a different tester (or none) uses this device,
- * so cached tests + farm PII never leak across accounts on a shared device. Call once at startup
- * before any store access. Best-effort — never blocks app start (per-tester DB naming is the
- * primary isolation). */
-export async function purgeStaleLocalData(): Promise<void> {
+export interface PurgeResult {
+  /** A previous tester's database was kept because it still holds unsynced tests. */
+  retained?: { testerId: string; unsyncedCount: number };
+}
+
+/** Unsynced tests in a named database, 0 if it is absent or unreadable. */
+async function countUnsyncedIn(name: string): Promise<number> {
   try {
-    const current = currentTesterId() ?? "";
-    const last = localStorage.getItem(LAST_TESTER_KEY) ?? "";
-    if (last === current) return;
-    await deleteDatabase(DB_PREFIX); // drop the legacy shared DB if it exists
-    if (last) await deleteDatabase(`${DB_PREFIX}_${last}`);
-    localStorage.setItem(LAST_TESTER_KEY, current);
+    // No version argument: open whatever is there rather than triggering an upgrade.
+    const database = await openDB<AutorepDB>(name);
+    try {
+      if (!database.objectStoreNames.contains("tests")) return 0;
+      const all = await database.getAll("tests");
+      return all.filter((t) => t?.syncState === "local-only").length;
+    } finally {
+      database.close();
+    }
   } catch {
-    /* ignore */
+    return 0;
+  }
+}
+
+/** Deletes a previous tester's local database when a different tester signs in on this device, so
+ * cached tests + farm PII never leak across accounts. Call once at startup before any store
+ * access. Best-effort — never blocks app start (per-tester DB naming is the primary isolation).
+ *
+ * Two things it deliberately will NOT do:
+ *  - Purge when the current tester is unknown. Identity arrives from the server, so "unknown"
+ *    means "not established yet", not "nobody" — deleting on that basis would wipe a tester's
+ *    queued work every time the page rendered without it.
+ *  - Delete a database holding unsynced tests. That work exists nowhere else, so it outranks the
+ *    cache hygiene this function exists for; the outgoing tester's cached data stays on disk
+ *    under a name the incoming session never opens. The caller is told so it can warn someone. */
+export async function purgeStaleLocalData(): Promise<PurgeResult> {
+  try {
+    const current = currentTesterId();
+    if (current === null) return {};
+    const last = localStorage.getItem(LAST_TESTER_KEY) ?? "";
+    if (last === current) return {};
+
+    await deleteDatabase(DB_PREFIX); // drop the legacy shared DB if it exists
+    if (last) {
+      const unsyncedCount = await countUnsyncedIn(`${DB_PREFIX}_${last}`);
+      if (unsyncedCount > 0) {
+        // Leave LAST_TESTER_KEY pointing at the outgoing tester so the check runs again next load
+        // and the database is cleaned up once that work has synced.
+        return { retained: { testerId: last, unsyncedCount } };
+      }
+      await deleteDatabase(`${DB_PREFIX}_${last}`);
+    }
+    localStorage.setItem(LAST_TESTER_KEY, current);
+    return {};
+  } catch {
+    return {};
   }
 }
 

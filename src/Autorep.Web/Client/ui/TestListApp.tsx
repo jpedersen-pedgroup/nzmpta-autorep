@@ -6,7 +6,7 @@
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { allTests, deleteTest, putTest, type LocalTest } from "../db/testStore";
-import { syncAll } from "../sync/syncClient";
+import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { showToast } from "./toast";
 
@@ -49,10 +49,23 @@ function TestListApp() {
     try {
       const r = await syncAll();
       await reload();
-      showToast(`Synced — ${r.pushed} pushed, ${r.pulled} pulled.`, "success");
-    } catch {
+      if (r.failed > 0) {
+        // The rest of the sync did run — say so, so this doesn't read as "nothing synced".
+        showToast(
+          `Synced ${r.pushed}, pulled ${r.pulled} — but ${r.failed} test${r.failed === 1 ? "" : "s"} ` +
+            `couldn't be sent. ${r.failed === 1 ? "It's" : "They're"} still saved here; try again, ` +
+            "and contact NZMPTA if it keeps failing.",
+          "error",
+        );
+      } else {
+        showToast(`Synced — ${r.pushed} pushed, ${r.pulled} pulled.`, "success");
+      }
+    } catch (e) {
+      await reload();
       showToast(
-        "Couldn't reach the server — your changes are saved on this device and will sync when you're back online.",
+        e instanceof SessionExpiredError
+          ? "You've been signed out, so nothing could be synced. Sign in again — your work is safe on this device."
+          : "Couldn't reach the server — your changes are saved on this device and will sync when you're back online.",
         "error",
       );
     } finally {
