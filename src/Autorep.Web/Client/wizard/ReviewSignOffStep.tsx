@@ -31,6 +31,13 @@ interface Props {
   syncing: boolean;
   /** True while the report PDF is being generated/merged — shows the busy overlay. */
   generating: boolean;
+  /** Read-only view of a test held on the server (an admin's, or a colleague's). Hides the actions
+   * that only make sense for a test on this device: syncing (it would run the VIEWER's own
+   * push/pull from inside someone else's record) and attaching/removing the analyser PDF. */
+  isServerView?: boolean;
+  /** Who performed the test, when that isn't the viewer. Shown on a server view in place of the
+   * local sync state, which means nothing for a record held on the server. */
+  colleagueName?: string | null;
   onMarkComplete: () => void;
   onResync: () => void;
   onDownloadReport: () => void;
@@ -45,6 +52,8 @@ export function ReviewSignOffStep({
   completed,
   syncing,
   generating,
+  isServerView,
+  colleagueName,
   onMarkComplete,
   onResync,
   onDownloadReport,
@@ -114,8 +123,12 @@ export function ReviewSignOffStep({
             <span class="attach-chip__icon">📄</span>
             <span class="attach-chip__name">{test.pulsationPdf.name}</span>
             <span class="attach-chip__size">{fmtSize(test.pulsationPdf.size)} · appended to the report</span>
-            <button class="attach-chip__remove" title="Remove attachment" onClick={onRemovePdf}>×</button>
+            {!isServerView && (
+              <button class="attach-chip__remove" title="Remove attachment" onClick={onRemovePdf}>×</button>
+            )}
           </div>
+        ) : isServerView ? (
+          <p class="td-muted" style="margin:0">None attached.</p>
         ) : (
           <div
             class={"dropzone" + (dragOver ? " is-over" : "")}
@@ -151,16 +164,22 @@ export function ReviewSignOffStep({
         {isComplete ? (
           <div class="signoff-complete">
             <p>
-              ✓ Marked complete {fmtDate(test.markedCompleteAt)} · sync:{" "}
-              <strong>{test.syncState === "uploaded" ? "synced" : test.syncState}</strong>
+              ✓ Completed {fmtDate(test.markedCompleteAt)}
+              {isServerView ? (
+                colleagueName ? <> · tested by <strong>{colleagueName}</strong></> : null
+              ) : (
+                <> · sync: <strong>{test.syncState === "uploaded" ? "synced" : test.syncState}</strong></>
+              )}
             </p>
             <div class="form-actions">
               <button class="btn" disabled={generating} onClick={onDownloadReport}>
                 {generating ? "Generating…" : "Download report (PDF)"}
               </button>
-              <button class="btn btn--secondary" disabled={syncing} onClick={onResync}>
-                {syncing ? "Syncing…" : "Sync again"}
-              </button>
+              {!isServerView && (
+                <button class="btn btn--secondary" disabled={syncing} onClick={onResync}>
+                  {syncing ? "Syncing…" : "Sync again"}
+                </button>
+              )}
             </div>
           </div>
         ) : (

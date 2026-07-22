@@ -63,8 +63,11 @@ public class IndexModel : PageModel
                 .ToListAsync();
         }
 
-        if (scopeCompanyId is not null)
-            query = query.Where(t => t.Tester != null && t.Tester.TestingCompanyId == scopeCompanyId);
+        // Scoped on the company stamped on the test, not the owner's current company, so admins and
+        // testers share one definition of "our tests" — and a tester who transfers in doesn't bring
+        // their previous employer's work with them.
+        if (scopeCompanyId is { } companyId)
+            query = query.InCompany(companyId);
 
         // Tester dropdown, narrowed to the scoped company when one applies.
         IQueryable<Tester> testerQuery = _db.Users;

@@ -41,6 +41,15 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             .IsUnique()
             .HasFilter("[ClientId] IS NOT NULL");
 
+        // Company tests list: "completed tests done for this company, newest first".
+        builder.Entity<MachineTest>()
+            .HasIndex(t => new { t.TestingCompanyId, t.MarkedCompleteAt });
+
+        // "Has a later version of this tester's test superseded it?" — the subquery behind
+        // TestScope.CurrentVersionsOnly.
+        builder.Entity<MachineTest>()
+            .HasIndex(t => new { t.TesterId, t.SupersedesClientId });
+
         builder.Entity<MachineConfiguration>(cfg =>
         {
             cfg.HasIndex(c => c.MachineTestId).IsUnique();

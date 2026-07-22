@@ -183,6 +183,16 @@ function TestListApp() {
         </div>
       )}
 
+      {/* Catches the tester at the moment they've scrolled their own list and not found what they
+          wanted. Deliberately not a count of company tests — that would need a network call on the
+          one page that has to work perfectly offline. */}
+      {tests.length > 0 && (
+        <p class="td-muted" style="margin-top:var(--space-4);font-size:0.8125rem">
+          Looking for a colleague's test? Try <a href="/App/Tests/Company">Company tests</a> (needs a
+          connection).
+        </p>
+      )}
+
       {deleting && (
         <div
           class="modal-overlay open"

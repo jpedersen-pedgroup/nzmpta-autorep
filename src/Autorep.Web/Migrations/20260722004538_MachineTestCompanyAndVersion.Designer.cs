@@ -4,6 +4,7 @@ using Autorep.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Autorep.Web.Migrations
 {
     [DbContext(typeof(AutorepDbContext))]
-    partial class AutorepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722004538_MachineTestCompanyAndVersion")]
+    partial class MachineTestCompanyAndVersion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -123,9 +126,6 @@ namespace Autorep.Web.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("CreatedByTesterId")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<Guid?>("CreatedByTestingCompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -147,9 +147,6 @@ namespace Autorep.Web.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTimeOffset?>("PendingReviewSince")
-                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("PostCode")
                         .HasMaxLength(10)
@@ -175,15 +172,11 @@ namespace Autorep.Web.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedByTesterId");
-
                     b.HasIndex("IsActive");
 
                     b.HasIndex("MilkSupplyCompanyId");
 
                     b.HasIndex("Name");
-
-                    b.HasIndex("PendingReviewSince");
 
                     b.HasIndex("RegionId");
 
@@ -649,15 +642,6 @@ namespace Autorep.Web.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
-                    b.Property<DateOnly?>("CalAirFlowMetersExpiry")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("CalPulsatorTestersExpiry")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("CalVacuumGaugesExpiry")
-                        .HasColumnType("date");
-
                     b.Property<string>("CertificateNo")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -934,11 +918,6 @@ namespace Autorep.Web.Migrations
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.Farm", b =>
                 {
-                    b.HasOne("Autorep.Web.Domain.Entities.Tester", "CreatedByTester")
-                        .WithMany()
-                        .HasForeignKey("CreatedByTesterId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Autorep.Web.Domain.Entities.MilkSupplyCompany", "MilkSupplyCompany")
                         .WithMany()
                         .HasForeignKey("MilkSupplyCompanyId")
@@ -948,8 +927,6 @@ namespace Autorep.Web.Migrations
                         .WithMany()
                         .HasForeignKey("RegionId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("CreatedByTester");
 
                     b.Navigation("MilkSupplyCompany");
 
