@@ -34,7 +34,7 @@
     @* Namespaces the on-device database to this tester — without it the page would look in the
        wrong store and report no tests waiting. Matches _Layout's contract. *@
     <script>window.__autorepTesterId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value));</script>
-    <script type="module" src="~/js/dist/autorep.js" asp-append-version="true"></script>
-    <script src="~/js/pwa-register.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/dist/autorep.js"></script>
+    <script src="~/js/pwa-register.js"></script>
 </body>
 </html>

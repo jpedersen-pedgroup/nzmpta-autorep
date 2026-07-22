@@ -90,19 +90,60 @@ These were live bugs. They lost tester work, and every "you have N unsynced test
 
 The current precache list mostly does not work, and the biggest offline asset (the PDF generator) is never precached. Fixing this is a prerequisite for a cached shell surviving a deploy, and it independently delivers offline printing, which is an explicit NZMPTA requirement (`plans/build-checklist.md:88`).
 
-- [ ] **`caches.match(event.request, { ignoreSearch: true })`** at `sw.js:135`. This alone makes the three dead precache entries (`sw.js:13,14,19`) live, and makes a cached shell survive a `?v=` change.
-- [ ] **Drop `asp-append-version` from the shell assets** the SW owns: `_Layout.cshtml:33` (FA css), `_Layout.cshtml:120` (`pwa-register.js`), `_BrandHead.cshtml:37` (`site.css`), `Pages/App/Tests/Index.cshtml:21` and `Pages/App/Tests/Wizard.cshtml:13` (`autorep.js`). Versioning moves to `CACHE_VERSION`.
-- [ ] **Build-stamp `CACHE_VERSION`.** It is a hand-typed literal at `sw.js:8` (`'autorep-v7'`) and neither `build` nor `build:prod` in `package.json:8-9` touches it. A deploy that changes the bundle without a manual bump ships stale assets silently. Add a small node step that runs after esbuild, reads the metafile, and rewrites a token in `sw.js` with a build hash — wire it into both scripts so CI and local stay in step.
-- [ ] **Emit a chunk manifest and precache the PDF chunks.** Chunk names are content-hashed (`--chunk-names=chunks/[name]-[hash]`) so the list must be generated. Current on-disk dev sizes: `pdfmake-EIRMY33F.js` 2,848,921 B, `vfs_fonts-OBOSLEIK.js` 855,025 B, `es-R5OKT6RQ.js` 830,410 B (prod/minified is roughly 2.4 MB total). **Recommendation:** do not precache on `install` — that is 2.4 MB blocking the first load on rural mobile data. Instead **warm them in the background after the first successful `syncAll()`**, and show a "ready to print offline" state. Gate on `navigator.connection.saveData` if present (unverified support on iPad Safari — treat as best-effort).
-- [ ] **Replace `cache.addAll(APP_SHELL).catch(()=>{})`** (`sw.js:57`) with per-URL `cache.add` in a `Promise.allSettled`, logging failures. `addAll` is atomic: one 404 silently precaches nothing, and adding a shell HTML entry is exactly the kind of entry that goes missing after a deploy.
-- [ ] **Recover from a 404 instead of returning an empty 504.** `sw.js:145` returns `new Response('', {status:504})` for any miss; for `<script type="module">` that is a silent blank page. Distinguish a network failure (offline → serve cached or fail loudly) from a 404 (deleted hash → `registration.update()` + one-time reload).
-- [ ] **Wrap the lazy imports** at `Client/report/testSummaryPdf.ts:418-421,440` in try/catch with a real message ("this device hasn't downloaded the report generator yet — connect once and it'll work offline afterwards").
-- [ ] **Self-host Montserrat + Open Sans** under `wwwroot/lib/fonts`, replace the Google Fonts `<link>` at `_BrandHead.cshtml:17-19` with local `@font-face`, add the woff2 to `APP_SHELL`. Cosmetic, but the generated offline card at `sw.js:32` already asks for a font it can never have, and it removes a third-party origin from every page load. Also add the three remaining vendored FA woff2 files (only `fa-solid-900` is precached, `sw.js:20`).
-- [ ] Playwright: after one online load, assert the expected cache keys exist; assert an offline `import()` of the PDF path succeeds after the warm.
+> **ORDERING CORRECTION (22 Jul 2026, verified in-browser).** The next three bullets are **one
+> atomic change**, not three independent ones. `ignoreSearch` is *not* safe on its own: the static
+> branch is cache-first, so once `/js/dist/autorep.js` is cached, `ignoreSearch` would match it for
+> every future `?v=` and the device would serve that build **forever**. Today `asp-append-version`
+> is the only thing invalidating it — a new deploy mints a new URL, misses the cache, and refetches.
+> So `ignoreSearch` may only land together with build-stamped `CACHE_VERSION` (which invalidates the
+> whole cache per deploy) and the removal of `asp-append-version`. Doing them in any other order
+> either breaks deploys or achieves nothing.
+>
+> Confirmed live: after one load, `autorep-v7` holds `/css/site.css` **and**
+> `/css/site.css?v=…` — the precached copy is dead weight and the runtime copy is what actually
+> serves. Same for `pwa-register.js`. So the three "dead" entries are not merely unused, they are
+> duplicated on disk.
+
+- [x] **Atomically:** `caches.match(event.request, { ignoreSearch: true })` at the static branch **+**
+      build-stamp `CACHE_VERSION` **+** drop `asp-append-version` from the shell assets the SW owns —
+      `_Layout.cshtml:33` (FA css), `_Layout.cshtml:121` (`pwa-register.js`), `_BrandHead.cshtml:37`
+      (`site.css`), `Pages/App/Tests/Index.cshtml:22`, `Pages/App/Tests/Wizard.cshtml:13` and
+      `Pages/Account/FinishSync.cshtml:37-38` (`autorep.js`, **six** call sites, not five — FinishSync
+      was added by the licence sync-only work). `CACHE_VERSION` is a hand-typed literal at `sw.js:8`
+      and neither `build` nor `build:prod` touches it, so a deploy currently ships stale assets
+      silently unless someone remembers to bump it. Add a node step after esbuild that reads the
+      metafile and rewrites a token in `sw.js`; wire it into both scripts so CI and local stay in step.
+- [ ] ⏸ **DEFERRED (offline printing, cut from this pass at Josh's direction).** **Emit a chunk manifest and precache the PDF chunks.** Chunk names are content-hashed (`--chunk-names=chunks/[name]-[hash]`) so the list must be generated. Current on-disk dev sizes: `pdfmake-EIRMY33F.js` 2,848,921 B, `vfs_fonts-OBOSLEIK.js` 855,025 B, `es-R5OKT6RQ.js` 830,410 B (prod/minified is roughly 2.4 MB total). **Recommendation:** do not precache on `install` — that is 2.4 MB blocking the first load on rural mobile data. Instead **warm them in the background after the first successful `syncAll()`**, and show a "ready to print offline" state. Gate on `navigator.connection.saveData` if present (unverified support on iPad Safari — treat as best-effort).
+- [x] **Replace `cache.addAll(APP_SHELL).catch(()=>{})`** (`sw.js:57`) with per-URL `cache.add` in a `Promise.allSettled`, logging failures. `addAll` is atomic: one 404 silently precaches nothing, and adding a shell HTML entry is exactly the kind of entry that goes missing after a deploy.
+- [x] **Recover from a 404 instead of returning an empty 504.** `sw.js:145` returns `new Response('', {status:504})` for any miss; for `<script type="module">` that is a silent blank page. Distinguish a network failure (offline → serve cached or fail loudly) from a 404 (deleted hash → `registration.update()` + one-time reload).
+- [ ] ⏸ **DEFERRED (offline printing).** **Wrap the lazy imports** at `Client/report/testSummaryPdf.ts:418-421,440` in try/catch with a real message ("this device hasn't downloaded the report generator yet — connect once and it'll work offline afterwards").
+- [x] **Self-host Montserrat + Open Sans** under `wwwroot/lib/fonts`, replace the Google Fonts `<link>` at `_BrandHead.cshtml:17-19` with local `@font-face`, add the woff2 to `APP_SHELL`. Cosmetic, but the generated offline card at `sw.js:32` already asks for a font it can never have, and it removes a third-party origin from every page load. Also add the three remaining vendored FA woff2 files (only `fa-solid-900` is precached, `sw.js:20`).
+- [x] Playwright: after one online load, assert the expected cache keys exist; assert an offline `import()` of the PDF path succeeds after the warm.
 
 **Files:** `wwwroot/sw.js`, `package.json`, a new build script under `src/Autorep.Web/`, `Pages/Shared/_Layout.cshtml`, `Pages/Shared/_BrandHead.cshtml`, `Pages/App/Tests/Index.cshtml`, `Pages/App/Tests/Wizard.cshtml`, `Client/report/testSummaryPdf.ts`, `wwwroot/lib/fonts/*`.
 **Estimate: 3–5 days** (the build stamping + manifest is the uncertain half).
 **Ships:** a tester who has synced once can print a report on-farm with no signal, on a device that has never printed before; assets keep working across deploys; the app renders branded offline instead of unstyled.
+
+**STATUS 22 Jul 2026 — everything except offline printing is DONE.** Notes for whoever picks up
+the remainder:
+
+- `asp-append-version` turned out to have **11 occurrences across 10 files**, not the five listed —
+  other sessions added `App/Tests/Company.cshtml`, `App/Tests/View.cshtml` and
+  `Admin/Tests/View.cshtml` meanwhile. All removed.
+- `tools/stamp-sw.mjs` is wired into both `build` and `build:prod`, reads
+  `obj/esbuild-meta.json` (outside `wwwroot`, so it is never served), and **exits non-zero** if the
+  `CACHE_VERSION` line ever stops matching — a silent no-op there would ship a stale cache with no
+  other symptom. Deterministic: verified that editing a client file changes the stamp and reverting
+  restores it, so a no-op rebuild leaves the tree clean.
+- Fonts are **variable**, so one woff2 per family per subset covers every weight — 4 files, 180 KB.
+  `latin-ext` is **not** optional: precomposed macron vowels (ā ē ī ō ū, from U+0100) live there and
+  Māori names run right through NZ farm data. Verified live: both families load from local files,
+  macrons render, and there are now **zero** requests to `fonts.googleapis.com`/`gstatic.com`.
+- The remaining vendored FA woff2 files (`fa-brands-400`, `fa-regular-400`, `fa-v4compatibility`)
+  were deliberately **not** added to `APP_SHELL` — the app renders `fa-solid` classes, and quota on
+  iPadOS is a live concern (Phase 4). Add them only if a surface actually needs them.
+- Verified after a clean install: 13 shell entries present, `/css/site.css` now appears **once**
+  rather than twice, and a `?v=` request matches the precached bare entry.
 
 ---
 
