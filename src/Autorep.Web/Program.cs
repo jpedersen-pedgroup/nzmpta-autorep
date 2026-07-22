@@ -219,7 +219,14 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Not in Testing: the browser-driven E2E host binds plain HTTP so service-worker specs get a
+// secure context (127.0.0.1 is potentially trustworthy, and Chromium refuses to register a worker
+// on an origin whose certificate doesn't validate — which the dev certificate never does on CI).
+// Redirecting would bounce those requests straight back to the untrusted HTTPS origin.
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();
 
 app.UseRouting();
