@@ -2,6 +2,7 @@
 // offline. pdfmake (+ Roboto fonts) loads as a lazy chunk only when a report is requested.
 import type { Content, TDocumentDefinitions, TableCell } from "pdfmake/interfaces";
 import type { LocalTest } from "../db/testStore";
+import { loadPdfLib, loadPdfMake } from "./generatorChunks";
 import { aggregate } from "../faults/faultAggregator";
 import { buildFaultInputs } from "../faults/buildFaults";
 import { allReadingSections } from "../passfail/standards";
@@ -416,12 +417,7 @@ function pdfBuffer(created: CreatedPdf): Promise<Uint8Array> {
 /** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
  * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use. */
 export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
-  const [pdfMakeModule, vfsModule] = await Promise.all([
-    import("pdfmake/build/pdfmake"),
-    import("pdfmake/build/vfs_fonts"),
-  ]);
-  const pdfMake = (pdfMakeModule as { default?: unknown }).default ?? pdfMakeModule;
-  const vfs = (vfsModule as { default?: unknown }).default ?? vfsModule;
+  const { pdfMake, vfs } = await loadPdfMake();
   // pdfmake 0.3.x: register the Roboto virtual file system.
   (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
 
@@ -437,7 +433,7 @@ export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
 
   if (test.pulsationPdf) {
     try {
-      const { PDFDocument } = await import("pdf-lib");
+      const { PDFDocument } = await loadPdfLib();
       const summaryDoc = await PDFDocument.load(await pdfBuffer(created));
       const attachDoc = await PDFDocument.load(base64ToBytes(test.pulsationPdf.base64));
       const pages = await summaryDoc.copyPages(attachDoc, attachDoc.getPageIndices());

@@ -28,6 +28,7 @@ import { PulsatorStep } from "./PulsatorStep";
 import { ClusterStep } from "./ClusterStep";
 import { ReviewSignOffStep } from "./ReviewSignOffStep";
 import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
+import { ReportGeneratorUnavailableError } from "../report/generatorChunks";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { getCachedCalibration } from "../sync/calibrationSync";
@@ -675,7 +676,16 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
               onDownloadReport={() => {
                 setGenerating(true);
                 void downloadTestSummaryPdf(test)
-                  .catch(() => showToast("Could not generate the report on this device.", "error"))
+                  .catch((e) =>
+                    // A missing generator chunk is recoverable and the tester can act on it —
+                    // don't bury it under the generic message.
+                    showToast(
+                      e instanceof ReportGeneratorUnavailableError
+                        ? e.message
+                        : "Could not generate the report on this device.",
+                      "error",
+                    ),
+                  )
                   .finally(() => setGenerating(false));
               }}
               onAttachPdf={(file) => void attachPulsationPdf(file)}
