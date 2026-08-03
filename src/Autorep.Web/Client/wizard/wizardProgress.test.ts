@@ -8,7 +8,9 @@ import {
   subsFor,
 } from "./wizardProgress";
 import { applyCheckAll, preStartSections, runningSectionsFor } from "./visualChecklist";
-import { testRecordSections } from "../passfail/standards";
+import { additionalTestSections, testRecordSections } from "../passfail/standards";
+import { buildFaultInputs } from "../faults/buildFaults";
+import { resolveWizard } from "./wizardStepResolver";
 import { defaultMachineConfiguration, type MachineConfiguration } from "./types";
 import type { LocalTest } from "../db/testStore";
 
@@ -29,6 +31,40 @@ function makeTest(over: Partial<LocalTest> = {}, config: Partial<MachineConfigur
     syncState: "local-only",
     ...over,
   };
+}
+
+/** A test with every REQUIRED step complete. Individual Cluster Tests is deliberately left
+ * untouched — it is the optional step these resume-target tests are about. */
+function allRequiredDone(over: Partial<LocalTest> = {}): LocalTest {
+  const config: MachineConfiguration = { ...defaultMachineConfiguration(), clusterCount: 24 };
+  const checklists = [
+    ...preStartSections(config.hasReleaserPump),
+    ...runningSectionsFor(runningSectionKeys(config)),
+  ];
+  // Two passes: a few reading sections widen once other readings are present, so collect the keys
+  // again against the filled map rather than assuming one pass sees them all.
+  const keysFor = (readings: Record<string, number>) =>
+    [...testRecordSections(config, readings), ...additionalTestSections(config, readings)].flatMap((s) =>
+      s.readings.map((r) => r.key),
+    );
+  let readings = Object.fromEntries(keysFor({}).map((k) => [k, 42]));
+  readings = Object.fromEntries(keysFor(readings).map((k) => [k, 42]));
+
+  const base = makeTest(
+    {
+      visualFaults: applyCheckAll(checklists, {}),
+      readings,
+      pulsatorRows: [{ id: "p1", unit: "1", values: { rate: "60" } }],
+      ...over,
+    },
+    config,
+  );
+  // Readings that fail their standard become faults, and Fault Summary isn't done until every one
+  // carries a recommendation — derive them rather than guessing which of the 42s fail.
+  const recommendations = Object.fromEntries(
+    buildFaultInputs(base).flatMap((f) => (f.key ? [[f.key, "Replace."] as const] : [])),
+  );
+  return { ...base, recommendations: { ...recommendations, ...(over.recommendations ?? {}) } };
 }
 
 describe("wizard progress", () => {
@@ -120,6 +156,46 @@ describe("wizard progress", () => {
     });
     expect(overallProgress(done).requiredCount).toBeGreaterThan(0);
     expect(overallProgress(done).pct).toBeGreaterThan(0);
+  });
+
+  it("the fixture really does complete every required step", () => {
+    // Guards the two tests below: if allRequiredDone() silently stopped completing something, they
+    // would still pass while proving nothing about optional steps.
+    const t = allRequiredDone();
+    const done = computeCompleted(t);
+    const required = resolveWizard(t.config).steps.filter((s) => !s.isOptional && s.step !== "ReviewSignOff");
+    expect(required.filter((s) => !done.has(s.step)).map((s) => s.step)).toEqual([]);
+    expect(done.has("IndividualClusterTest")).toBe(false);
+  });
+
+  it("stops offering a resume step once every required one is done", () => {
+    // Individual Cluster Tests is optional and untouched, so it is not what the test still needs —
+    // the shells read a null here as "ready to sign off".
+    const t = allRequiredDone();
+    const progress = overallProgress(t);
+    expect(progress.pct).toBe(100);
+    expect(progress.firstIncomplete).toBeNull();
+  });
+
+  it("skips an optional step to reach a required one further down the plan", () => {
+    // Individual Cluster Tests sits AHEAD of Fault Summary, so a resume target that merely took the
+    // first incomplete step would point at the untouched optional one and leave the real gap.
+    const plan = resolveWizard({ ...defaultMachineConfiguration(), clusterCount: 24 });
+    const order = plan.steps.map((s) => s.step);
+    expect(order.indexOf("IndividualClusterTest")).toBeLessThan(order.indexOf("FaultSummary"));
+
+    // A logged fault with no recommendation is what leaves Fault Summary incomplete.
+    const faulted = preStartSections(false)[0].items.filter((i) => !i.data)[0];
+    const t = allRequiredDone();
+    const withGap: LocalTest = {
+      ...t,
+      visualFaults: { ...t.visualFaults, [faulted.key]: { status: "fault", severity: "Major" } },
+      recommendations: Object.fromEntries(
+        Object.entries(t.recommendations).filter(([k]) => k !== faulted.key),
+      ),
+    };
+    expect(computeCompleted(withGap).has("FaultSummary")).toBe(false);
+    expect(overallProgress(withGap).firstIncomplete?.step).toBe("FaultSummary");
   });
 
   it("splits paginated steps into sub-sections and leaves the rest single", () => {

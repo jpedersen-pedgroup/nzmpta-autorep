@@ -148,14 +148,19 @@ export interface OverallProgress {
   pct: number;
   doneCount: number;
   requiredCount: number;
-  /** The step to resume at — first incomplete, or null when only sign-off is left. Comes from a
-   * plan resolved here, so it is equal to but not the same object as the caller's plan entry:
-   * compare on `.step`, never by identity or indexOf. */
+  /** The first incomplete REQUIRED step — what the shells offer as "resume"/"next up" — or null
+   * when only sign-off is left. Optional steps are skipped: a tester reaches those by choosing
+   * them, and Individual Cluster Tests sits ahead of Fault Summary in the plan, so including it
+   * would point at an untouched optional step while a required one behind it went unfinished.
+   *
+   * Comes from a plan resolved here, so it is equal to but not the same object as the caller's
+   * plan entry: compare on `.step`, never by identity or indexOf. */
   firstIncomplete: ResolvedWizardStep | null;
 }
 
-/** Headline progress. Optional steps and Review & Sign-Off are excluded from the denominator —
- * an optional step left undone shouldn't hold the bar below 100%. */
+/** Headline progress. Optional steps and Review & Sign-Off are excluded — an optional step left
+ * undone shouldn't hold the bar below 100%, nor claim to be what the test needs next. Both the
+ * percentage and the resume target read from the same `required` list so they can't disagree. */
 export function overallProgress(t: LocalTest): OverallProgress {
   const plan = resolveWizard(t.config);
   const completed = computeCompleted(t);
@@ -165,7 +170,7 @@ export function overallProgress(t: LocalTest): OverallProgress {
     pct: required.length === 0 ? 0 : Math.round((doneCount / required.length) * 100),
     doneCount,
     requiredCount: required.length,
-    firstIncomplete: plan.steps.find((s) => !completed.has(s.step) && s.step !== "ReviewSignOff") ?? null,
+    firstIncomplete: required.find((s) => !completed.has(s.step)) ?? null,
   };
 }
 
