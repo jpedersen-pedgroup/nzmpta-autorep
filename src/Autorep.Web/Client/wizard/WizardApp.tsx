@@ -1,7 +1,11 @@
-// The offline Tester wizard (Preact). Reads/writes a LocalTest in IndexedDB, renders the
-// resolver-driven step rail, and re-resolves live as the Machine Configuration changes — no
-// server round-trip. This is the offline replacement for the server-rendered Wizard page.
-import { render } from "preact";
+// The offline Tester wizard (Preact). Reads/writes a LocalTest in IndexedDB and re-resolves the
+// step plan live as the Machine Configuration changes — no server round-trip. This is the offline
+// replacement for the server-rendered Wizard page.
+//
+// This module owns the test and every handler that mutates it; the chrome around it belongs to a
+// shell (see ./shells) chosen by the tester from the header cog. Shells arrange steps, they never
+// collect data — so switching layout mid-test can't change what's recorded.
+import { render, type VNode } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { resolveWizard } from "./wizardStepResolver";
 import {
@@ -11,37 +15,27 @@ import {
   type VisualFaultEntry,
   type WizardStep,
 } from "./types";
-import { allTests, getTest, putTest, type FarmSnapshot, type LocalTest } from "../db/testStore";
+import { allTests, getTest, putTest, type LocalTest } from "../db/testStore";
 import { fetchFarm } from "../farms";
 import { buildAmendmentRecord } from "../versioning/amendments";
 import { useServerOnline } from "../connectivity";
-import { MachineConfigStep } from "./MachineConfigStep";
-import { ReadingsStep } from "./ReadingsStep";
-import {
-  additionalTestSections,
-  testRecordSections,
-} from "../passfail/standards";
-import { FaultSummaryStep } from "./FaultSummaryStep";
-import { buildFaultInputs } from "../faults/buildFaults";
-import { VisualFaultsStep } from "./VisualFaultsStep";
-import { PulsatorStep } from "./PulsatorStep";
-import { ClusterStep } from "./ClusterStep";
-import { ReviewSignOffStep } from "./ReviewSignOffStep";
 import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
 import { ReportGeneratorUnavailableError } from "../report/generatorChunks";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { getCachedCalibration } from "../sync/calibrationSync";
-import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
-import { CalibrationAlert, CalibrationPanel } from "../ui/CalibrationPanel";
+import type { CalibrationDates } from "../calibration/status";
+import { CalibrationAlert } from "../ui/CalibrationPanel";
+import { LayoutMenu } from "../ui/LayoutMenu";
 import { showToast } from "../ui/toast";
-import {
-  applyCheckAll,
-  checklistComplete,
-  preStartSections,
-  runningSectionsFor,
-  type ChecklistSection,
-} from "./visualChecklist";
+import { applyCheckAll, type ChecklistSection } from "./visualChecklist";
+import { computeCompleted } from "./wizardProgress";
+import type { StepContext } from "./WizardSteps";
+import { getLayout, setLayout } from "./layoutPreference";
+import { RailShell } from "./shells/RailShell";
+import { ScrollShell } from "./shells/ScrollShell";
+import { HubShell } from "./shells/HubShell";
+import { DEFAULT_LAYOUT, type ShellProps, type WizardLayout } from "./shells/types";
 
 const ATTESTATION_TEXT =
   "I have inspected all items in this section and confirm they have been seen, tested and are in order.";
@@ -145,39 +139,15 @@ function newLocalTest(farmId?: string, farmName?: string): LocalTest {
   };
 }
 
-function computeCompleted(t: LocalTest): Set<WizardStep> {
-  const done = new Set<WizardStep>();
-  if (t.farmName.trim().length > 0) done.add("Setup");
-  if (t.config.clusterCount > 0) done.add("MachineConfiguration");
-  if (checklistComplete(preStartSections(t.config.hasReleaserPump), t.visualFaults)) {
-    done.add("VisualFaultsPreStart");
-  }
-  const runningKeys = resolveWizard(t.config).steps.find((s) => s.step === "VisualFaultsRunning")?.sections ?? [];
-  if (checklistComplete(runningSectionsFor(runningKeys), t.visualFaults)) {
-    done.add("VisualFaultsRunning");
-  }
-  if (testRecordSections(t.config, t.readings).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
-    done.add("TestRecord");
-  }
-  if (additionalTestSections(t.config, t.readings).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
-    done.add("AdditionalTests");
-  }
-  if ((t.pulsatorRows ?? []).length > 0) {
-    done.add("PulsatorTest");
-  }
-  if ((t.clusterRows ?? []).length > 0) {
-    done.add("IndividualClusterTest");
-  }
-  const faults = buildFaultInputs(t);
-  if (faults.every((f) => f.key != null && (t.recommendations[f.key] ?? "").trim().length > 0)) {
-    done.add("FaultSummary");
-  }
-  return done;
-}
-
 /** Why a server-fetched test isn't on screen. Distinguishing these matters in the field: "you're
  * offline" is recoverable and the tester should wait, "not found" never will be. */
 type LoadFailure = "offline" | "notfound" | "failed";
+
+const SHELLS: Record<WizardLayout, (props: ShellProps) => VNode> = {
+  rail: RailShell,
+  scroll: ScrollShell,
+  hub: HubShell,
+};
 
 function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
@@ -189,7 +159,18 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   // The tester's own equipment calibration dates (profile data, cached on-device) — drives the
   // renewal banner while testing. Not loaded on the admin read-only view (no tester profile).
   const [calDates, setCalDates] = useState<CalibrationDates | null>(null);
+  // Read once — the preference only changes through the header cog, which sets both at once.
+  const [layout, setLayoutState] = useState<WizardLayout>(() => getLayout());
   const online = useServerOnline();
+
+  // The scroll and hub layouts bring their own header, so the standard app header (rendered by
+  // _Layout, outside this mount root) has to stand down. A body class is the only lever that
+  // reaches it, and it keeps switching instant rather than needing a page load.
+  useEffect(() => {
+    const chromeless = layout !== "rail";
+    document.body.classList.toggle("wizard-chromeless", chromeless);
+    return () => document.body.classList.remove("wizard-chromeless");
+  }, [layout]);
 
   useEffect(() => {
     if (serverTestId) return;
@@ -444,41 +425,51 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   const plan = resolveWizard(test.config);
   const current = test.currentStep as WizardStep;
   const completed = computeCompleted(test);
-  const idx = plan.steps.findIndex((s) => s.step === current);
-  const prev = idx > 0 ? plan.steps[idx - 1].step : null;
-  const next = idx >= 0 && idx < plan.steps.length - 1 ? plan.steps[idx + 1].step : null;
-  const currentStep = plan.steps[idx] ?? plan.steps[0];
 
-  const preStart = preStartSections(test.config.hasReleaserPump);
-  const running = runningSectionsFor(currentStep.sections);
-  const attestedSectionsFor = (step: WizardStep) =>
-    test.attestations.filter((a) => a.step === step && a.section).map((a) => a.section!);
+  // Everything a step body needs, built once and handed to whichever shell is active. Handlers are
+  // the same ones the rail has always used — a layout can reorder steps on screen but not change
+  // what any of them writes.
+  const ctx: StepContext = {
+    test,
+    readonly,
+    plan,
+    completed,
+    serverTestId,
+    colleagueName,
+    syncing,
+    generating,
+    calDates,
+    onCalDatesChanged: setCalDates,
+    setConfig: (patch) => void setConfig(patch),
+    setVisualFault: (key, entry) => void setVisualFault(key, entry),
+    setReading: (key, value) => void setReading(key, value),
+    setRecommendation: (key, value) => void setRecommendation(key, value),
+    setDataField: (key, value) => void setDataField(key, value),
+    checkAllSection: (step, section) => void checkAllSection(step, section),
+    persistEdit: (patch) => void persistEdit(patch),
+    onMarkComplete: () => void markComplete(),
+    onResync: () => void runSync("Re-synced"),
+    onDownloadReport: () => {
+      setGenerating(true);
+      void downloadTestSummaryPdf(test)
+        .catch((e) =>
+          // A missing generator chunk is recoverable and the tester can act on it — don't bury it
+          // under the generic message.
+          showToast(
+            e instanceof ReportGeneratorUnavailableError
+              ? e.message
+              : "Could not generate the report on this device.",
+            "error",
+          ),
+        )
+        .finally(() => setGenerating(false));
+    },
+    onAttachPdf: (file) => void attachPulsationPdf(file),
+    onRemovePdf: () => void persistEdit({ pulsationPdf: null, syncState: "local-only" }),
+  };
 
-  return (
-    <div>
-      <div class="page-header page-header--wizard">
-        <div class="page-header__heading">
-          <h1>{test.farmName || "New machine test"}</h1>
-          <p>
-            <span class={online ? "badge badge--success" : "badge badge--warning"}>
-              {/* "saved on device" would be a lie for a server view — this test isn't stored here. */}
-              {online ? "Online" : serverTestId ? "Offline — this test isn't saved here" : "Offline — saved on device"}
-            </span>
-            {serverTestId && colleagueName && <> <span class="badge">Tested by {colleagueName}</span></>}
-            {(test.version ?? 1) > 1 && <> <span class="badge">Version {test.version}</span></>}
-          </p>
-        </div>
-        <div class="page-header__actions">
-          {/* Nothing was changed on a server view, so it's "Back", not "Exit". */}
-          <a
-            class={serverTestId ? "btn btn--secondary btn--sm" : "btn btn--danger-soft btn--sm"}
-            href={serverTestId ? backHref ?? "/Admin/Tests" : "/App/Tests/Index"}
-          >
-            {serverTestId ? "Back" : "Exit"}
-          </a>
-        </div>
-      </div>
-
+  const banners = (
+    <>
       {plan.isShortTest && (
         <div class="alert alert--warning">
           ⚠️ <strong>Short test</strong> — ISO ports unavailable, so only the essential tests are required.
@@ -487,8 +478,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
 
       {/* Someone else's test is neutral news — nothing is wrong and nothing you expected to do is
           blocked — so it reads as info, not a warning. Your own frozen test keeps the warning. */}
-      {readonly && (
-        serverTestId && colleagueName ? (
+      {readonly &&
+        (serverTestId && colleagueName ? (
           <div class="alert alert--info">
             👁 <strong>{colleagueName}'s test</strong> — read-only. You're viewing your company's test
             history; only {colleagueName.split(" ")[0]} can edit this test. Pass/fail is shown as
@@ -499,250 +490,37 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
             📄 <strong>Read-only</strong> — this test can't be edited here. Pass/fail is shown as
             recorded at the time of testing.
           </div>
-        )
-      )}
+        ))}
 
-      {/* Renewal warning for the tester's own equipment while testing — informational only,
-          never a gate. The Setup step shows it inside the calibration panel instead. */}
-      {!serverTestId && !readonly && calDates && current !== "Setup" && (
-        <CalibrationAlert dates={calDates} />
-      )}
-
-      <div class="wizard">
-        <nav class="wizard__rail">
-          {plan.steps.map((s, i) => (
-            <a
-              key={s.step}
-              class={
-                "wizard__step" +
-                (s.step === current ? " is-current" : "") +
-                (completed.has(s.step) ? " is-complete" : "")
-              }
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                void go(s.step);
-              }}
-            >
-              <span class="wizard__num">{i + 1}</span>
-              <span class="wizard__step-labels">
-                <span class="wizard__step-title">{s.title}</span>
-                {s.isOptional && <span class="wizard__opt">optional</span>}
-              </span>
-            </a>
-          ))}
-        </nav>
-
-        <div class="wizard__content">
-          <div class="wizard__panel" key={current}>
-          {current === "Setup" && (
-            <>
-              <div class="card">
-                <div class="card__title">Farm &amp; details</div>
-                <div class="form-grid">
-                  {farmField("Farm", test.farm?.name ?? test.farmName)}
-                  {farmField("Supply number", test.farm?.supplyNumber)}
-                  {farmField("Milk supply company", test.farm?.milkCompanyName)}
-                  {farmField("Region", test.farm?.regionName)}
-                  {farmField("Address", farmAddress(test.farm))}
-                  {farmField("RAPID number", test.farm?.rapidNumber)}
-                  {farmField("Farmer", test.farm?.farmerName)}
-                  {farmField("Phone", test.farm?.contactPhone)}
-                  {farmField("Email", test.farm?.contactEmail)}
-                </div>
-                <p style="color:var(--text-muted);font-size:0.8125rem;margin-top:var(--space-4)">
-                  Farm details are managed in the admin area.
-                </p>
-              </div>
-
-              {/* Calibration belongs to the TESTER, not this farm/test. Editable tests show the
-                  live profile panel (edits update the profile and every future test); completed
-                  and migrated tests show the snapshot frozen into the record at sign-off. */}
-              {readonly ? (
-                <div class="card">
-                  <div class="card__title">
-                    Calibration expiry dates{" "}
-                    <small class="card__hint">The tester's equipment, as recorded for this test.</small>
-                  </div>
-                  <div class="form-grid">
-                    {farmField("Air-flow meters", calSnapshot(test.calAirFlowMeters))}
-                    {farmField("Pulsator testers", calSnapshot(test.calPulsatorTesters))}
-                    {farmField("Vacuum gauges", calSnapshot(test.calVacuumGauges))}
-                  </div>
-                </div>
-              ) : (
-                <CalibrationPanel onChanged={setCalDates} />
-              )}
-            </>
-          )}
-
-          {current === "MachineConfiguration" && (
-            <MachineConfigStep config={test.config} onChange={(patch) => void setConfig(patch)} />
-          )}
-
-          {current === "VisualFaultsPreStart" && (
-            <VisualFaultsStep
-              title="Visual faults — pre-start"
-              sections={preStart}
-              entries={test.visualFaults}
-              onSetEntry={(k, e) => void setVisualFault(k, e)}
-              onCheckAll={(secKey) => {
-                const sec = preStart.find((s) => s.key === secKey);
-                if (sec) void checkAllSection("VisualFaultsPreStart", sec);
-              }}
-              attestedSections={attestedSectionsFor("VisualFaultsPreStart")}
-              dataValues={test.dataFields ?? {}}
-              onSetData={(k, v) => void setDataField(k, v)}
-            />
-          )}
-
-          {current === "VisualFaultsRunning" && (
-            <VisualFaultsStep
-              title="Visual faults — running"
-              sections={running}
-              entries={test.visualFaults}
-              onSetEntry={(k, e) => void setVisualFault(k, e)}
-              onCheckAll={(secKey) => {
-                const sec = running.find((s) => s.key === secKey);
-                if (sec) void checkAllSection("VisualFaultsRunning", sec);
-              }}
-              attestedSections={attestedSectionsFor("VisualFaultsRunning")}
-              dataValues={test.dataFields ?? {}}
-              onSetData={(k, v) => void setDataField(k, v)}
-              guards={{ value: test.guardsOnPulsators ?? false, onChange: (v) => void persistEdit({ guardsOnPulsators: v }) }}
-            />
-          )}
-
-          {current === "TestRecord" && (
-            <ReadingsStep
-              title="Test Record"
-              hint="Enter readings — pass/fail is live against the standard for this machine."
-              sections={testRecordSections(test.config, test.readings)}
-              readings={test.readings}
-              onSetReading={(k, v) => void setReading(k, v)}
-              readonly={readonly}
-              storedVerdicts={test.verdicts}
-            />
-          )}
-
-          {current === "AdditionalTests" && (
-            <ReadingsStep
-              title="Additional Tests"
-              hint="Only the sections relevant to this machine's ancillaries are shown."
-              sections={additionalTestSections(test.config, test.readings)}
-              readings={test.readings}
-              onSetReading={(k, v) => void setReading(k, v)}
-              readonly={readonly}
-              storedVerdicts={test.verdicts}
-            />
-          )}
-
-          {current === "PulsatorTest" && (
-            <PulsatorStep
-              config={test.config}
-              rows={test.pulsatorRows ?? []}
-              onRows={(rows) => void persistEdit({ pulsatorRows: rows })}
-              readings={test.readings}
-              onSetReading={(k, v) => void setReading(k, v)}
-              readonly={readonly}
-              storedVerdicts={test.verdicts}
-            />
-          )}
-
-          {current === "IndividualClusterTest" && (
-            <ClusterStep
-              config={test.config}
-              rows={test.clusterRows ?? []}
-              onRows={(rows) => void persistEdit({ clusterRows: rows })}
-              readonly={readonly}
-            />
-          )}
-
-          {current === "FaultSummary" && (
-            <FaultSummaryStep test={test} onSetRecommendation={(k, v) => void setRecommendation(k, v)} />
-          )}
-
-          {current === "ReviewSignOff" && (
-            <ReviewSignOffStep
-              test={test}
-              steps={plan.steps}
-              completed={completed}
-              syncing={syncing}
-              generating={generating}
-              isServerView={Boolean(serverTestId)}
-              colleagueName={colleagueName}
-              onMarkComplete={() => void markComplete()}
-              onResync={() => void runSync("Re-synced")}
-              onDownloadReport={() => {
-                setGenerating(true);
-                void downloadTestSummaryPdf(test)
-                  .catch((e) =>
-                    // A missing generator chunk is recoverable and the tester can act on it —
-                    // don't bury it under the generic message.
-                    showToast(
-                      e instanceof ReportGeneratorUnavailableError
-                        ? e.message
-                        : "Could not generate the report on this device.",
-                      "error",
-                    ),
-                  )
-                  .finally(() => setGenerating(false));
-              }}
-              onAttachPdf={(file) => void attachPulsationPdf(file)}
-              onRemovePdf={() => void persistEdit({ pulsationPdf: null, syncState: "local-only" })}
-            />
-          )}
-
-          {current !== "Setup" &&
-            current !== "MachineConfiguration" &&
-            current !== "VisualFaultsPreStart" &&
-            current !== "VisualFaultsRunning" &&
-            current !== "TestRecord" &&
-            current !== "AdditionalTests" &&
-            current !== "PulsatorTest" &&
-            current !== "IndividualClusterTest" &&
-            current !== "FaultSummary" &&
-            current !== "ReviewSignOff" && (
-              <div class="card">
-                <div class="card__title">
-                  {currentStep.title} <small class="card__hint">Offline data entry for this step is coming next.</small>
-                </div>
-                {currentStep.sections.length > 0 && (
-                  <ul style="margin-top:var(--space-2)">
-                    {currentStep.sections.map((sec) => (
-                      <li key={sec} style="padding:2px 0;font-size:0.9rem">• {sec}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div class="wizard__nav">
-            <div>{prev && <button class="btn btn--secondary" onClick={() => void go(prev)}>‹ Back</button>}</div>
-            <div>{next && <button class="btn" onClick={() => void go(next)}>Next ›</button>}</div>
-          </div>
-        </div>
-      </div>
-    </div>
+      {/* Renewal warning for the tester's own equipment while testing — informational only, never a
+          gate. The Setup step shows it inside the calibration panel instead. */}
+      {!serverTestId && !readonly && calDates && current !== "Setup" && <CalibrationAlert dates={calDates} />}
+    </>
   );
-}
 
-function farmField(label: string, value?: string | null) {
+  const Shell = SHELLS[layout] ?? SHELLS[DEFAULT_LAYOUT];
   return (
-    <div>
-      <span style="color:var(--text-muted);font-size:0.8125rem">{label}</span>
-      <div>{value && value.length > 0 ? value : "—"}</div>
-    </div>
+    <Shell
+      ctx={ctx}
+      current={current}
+      onGo={(step) => void go(step)}
+      online={online}
+      layoutMenu={
+        <LayoutMenu
+          value={layout}
+          onChange={(next) => {
+            setLayout(next);
+            setLayoutState(next);
+          }}
+        />
+      }
+      banners={banners}
+      // "saved on device" would be a lie for a server view — this test isn't stored here.
+      connectionLabel={
+        online ? "Online" : serverTestId ? "Offline — this test isn't saved here" : "Offline — saved on device"
+      }
+      exitHref={serverTestId ? backHref ?? "/Admin/Tests" : "/App/Tests/Index"}
+      exitLabel={serverTestId ? "Back" : "Exit"}
+    />
   );
-}
-
-function calSnapshot(iso: string | null | undefined): string | null {
-  return iso ? formatDisplayDate(iso) : null;
-}
-
-function farmAddress(f?: FarmSnapshot): string | null {
-  if (!f) return null;
-  const parts = [f.addressLine1, f.addressLine2, f.town, f.postCode].filter((p): p is string => Boolean(p));
-  return parts.length > 0 ? parts.join(", ") : null;
 }

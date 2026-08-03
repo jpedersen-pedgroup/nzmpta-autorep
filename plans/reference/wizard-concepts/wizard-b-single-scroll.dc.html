@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&amp;family=Open+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body { margin: 0; background: #eef3fa; }
+input, select, button { font-family: 'Open Sans', system-ui, sans-serif; }
+input:focus, select:focus { outline: none; border-color: #003893 !important; box-shadow: 0 0 0 3px rgba(0,56,147,0.12); }
+</style>
+</helmet>
+<div style="min-height:100vh;font-family:'Open Sans',system-ui,sans-serif;font-size:16px;line-height:1.5;color:#333333">
+
+  <div style="position:sticky;top:0;z-index:50;background:#003893;color:#fff;box-shadow:0 2px 8px rgba(0,20,60,0.25)">
+    <div style="max-width:1080px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:16px">
+      <img src="assets/logo-mpnz-white.svg" alt="" style="height:26px;width:auto;display:block">
+      <div style="min-width:0">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ farmName }}</div>
+        <div style="font-size:12px;color:#afbcdb">Machine test · one continuous record</div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="text-align:right">
+        <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:16px;line-height:1.2">{{ progressPct }}%</div>
+        <div style="font-size:11.5px;color:#afbcdb;white-space:nowrap">{{ progressLabel }}</div>
+      </div>
+      <button style="background:transparent;color:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.35);padding:6px 14px;min-height:36px;font-size:13.5px;border-radius:8px;cursor:pointer;white-space:nowrap" style-hover="background:rgba(255,255,255,0.1)">Save &amp; exit</button>
+    </div>
+    <div style="height:4px;background:rgba(255,255,255,0.15)">
+      <div style="height:100%;background:#10b981;width:{{ progressPct }}%;transition:width 0.3s ease"></div>
+    </div>
+    <div style="background:#fff;border-bottom:1px solid #e5e7eb">
+      <div style="max-width:1080px;margin:0 auto;padding:8px 24px;display:flex;gap:6px;overflow-x:auto">
+        <sc-for list="{{ chips }}" as="c" hint-placeholder-count="10">
+          <button onClick="{{ c.onClick }}" style="flex:none;display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.color }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+            <span style="width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:{{ c.numBg }};color:{{ c.numColor }}">{{ c.num }}</span>
+            {{ c.label }}
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <main style="max-width:1080px;margin:0 auto;padding:28px 24px 120px;box-sizing:border-box">
+    <sc-if value="{{ loaded }}" hint-placeholder-val="{{ false }}">
+
+      <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="10">
+        <div id="{{ b.domId }}" style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,0.05);margin-bottom:20px;overflow:hidden">
+          <div onClick="{{ b.onToggle }}" style="display:flex;align-items:center;gap:14px;padding:18px 24px;background:{{ b.headBg }};cursor:pointer;border-bottom:1px solid {{ b.headBorder }}" style-hover="background:#f3f6fb">
+            <span style="width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;font-family:'Montserrat',sans-serif;font-size:15px;font-weight:700;background:{{ b.numBg }};color:{{ b.numColor }}">{{ b.numLabel }}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:700;color:#0f2557">{{ b.title }}<sc-if value="{{ b.isOptional }}" hint-placeholder-val="{{ false }}"><span style="margin-left:8px;font-size:11px;color:#f59e0b;text-transform:uppercase;letter-spacing:0.05em;font-family:'Open Sans',sans-serif">optional</span></sc-if></div>
+              <div style="font-size:13px;color:#6b7280">{{ b.subtitle }}</div>
+            </div>
+            <span style="flex:none;display:inline-flex;align-items:center;padding:3px 12px;border-radius:999px;font-size:12px;font-weight:600;background:{{ b.stateBg }};color:{{ b.stateColor }}">{{ b.stateLabel }}</span>
+            <span style="flex:none;color:#9ca3af;font-size:14px;transform:rotate({{ b.chev }});transition:transform 0.15s ease">▾</span>
+          </div>
+          <sc-if value="{{ b.isOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 24px 24px">
+
+            <sc-if value="{{ b.isSetup }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px 20px">
+                <sc-for list="{{ b.farmFields }}" as="f" hint-placeholder-count="9">
+                  <div><span style="color:#6b7280;font-size:12.5px">{{ f.label }}</span><div style="font-size:15px">{{ f.value }}</div></div>
+                </sc-for>
+              </div>
+              <p style="color:#6b7280;font-size:13px;margin:14px 0 0">Farm details are managed in the admin area. Calibration expiry dates are set on your profile.</p>
+            </sc-if>
+
+            <sc-if value="{{ b.isConfig }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0 20px">
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Plant type</label>
+                  <select data-k="plantType" onChange="{{ onCfgSelect }}" value="{{ cfg.plantType }}" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff;min-height:48px">
+{{ plantTypeOptionEls }}</select></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Plant size</label>
+                  <input type="text" data-k="plantSize" onInput="{{ onCfgText }}" value="{{ cfg.plantSize }}" placeholder="e.g. 30 a-side" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;min-height:48px"></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Cluster count</label>
+                  <input type="number" data-k="clusterCount" onInput="{{ onCfgNumber }}" value="{{ cfg.clusterCount }}" min="0" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;min-height:48px"></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Herd size</label>
+                  <input type="number" data-k="herdSize" onInput="{{ onCfgNumber }}" value="{{ cfg.herdSize }}" min="0" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;min-height:48px"></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Milkline size (mm)</label>
+                  <select data-k="milklineSize" onChange="{{ onCfgSelect }}" value="{{ cfg.milklineSize }}" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff;min-height:48px">
+{{ milklineOptionEls }}</select></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Atmospheric pressure (kPa)</label>
+                  <select data-k="atmosPressureSeaLevel" onChange="{{ onCfgNumSelect }}" value="{{ cfg.atmosPressureSeaLevel }}" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff;min-height:48px">
+{{ atmosOptionEls }}</select></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">No. of vacuum pumps</label>
+                  <input type="number" data-k="numberOfVacuumPumps" onInput="{{ onCfgNumber }}" value="{{ cfg.numberOfVacuumPumps }}" min="0" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;min-height:48px"></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Pulsator brand</label>
+                  <select data-k="pulsatorBrand" onChange="{{ onPulsatorBrand }}" value="{{ cfg.pulsatorBrand }}" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff;min-height:48px">
+{{ brandOptionEls }}</select></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Pulsator type</label>
+                  <select data-k="pulsatorModel" onChange="{{ onCfgSelect }}" value="{{ cfg.pulsatorModel }}" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff;min-height:48px">
+{{ modelOptionEls }}</select></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">No. of pulsators</label>
+                  <input type="number" data-k="pulsatorCount" onInput="{{ onCfgNumber }}" value="{{ cfg.pulsatorCount }}" min="0" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;min-height:48px"></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Front liner</label>
+                  <select data-k="linerModel" onChange="{{ onCfgSelect }}" value="{{ cfg.linerModel }}" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff;min-height:48px">
+{{ linerOptionEls }}</select></div>
+                <div style="margin-bottom:16px"><label style="display:block;font-size:13.5px;font-weight:600;margin-bottom:6px">Shell</label>
+                  <select data-k="shellModel" onChange="{{ onCfgSelect }}" value="{{ cfg.shellModel }}" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff;min-height:48px">
+{{ shellOptionEls }}</select></div>
+              </div>
+              <div style="margin-top:4px;padding-top:16px;border-top:1px dashed #e5e7eb">
+                <div style="font-size:13.5px;font-weight:600;margin-bottom:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-size:12px">Fitted equipment — steps below adapt automatically</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <sc-for list="{{ ancillaryToggles }}" as="t" hint-placeholder-count="10">
+                    <button data-k="{{ t.key }}" onClick="{{ onCfgToggleChip }}" style="display:flex;align-items:center;gap:8px;padding:10px 16px;min-height:44px;border-radius:999px;border:1.5px solid {{ t.border }};background:{{ t.bg }};color:{{ t.color }};font-size:14px;font-weight:600;cursor:pointer">
+                      <span style="width:16px;height:16px;border-radius:50%;border:1.5px solid {{ t.dotBorder }};background:{{ t.dotBg }};display:grid;place-items:center;color:#fff;font-size:10px;line-height:1">{{ t.tick }}</span>
+                      {{ t.label }}
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ b.isChecklist }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ b.showGuards }}" hint-placeholder-val="{{ false }}">
+                <label style="display:flex;align-items:center;gap:12px;margin:0 0 14px;cursor:pointer;font-size:15px;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fafbfc"><input type="checkbox" onChange="{{ onGuards }}" checked="{{ guardsOn }}" style="width:20px;height:20px"><span style="font-weight:600">Guards installed on pulsators</span><span style="color:#6b7280;font-size:13px">— safety-critical, carried to the report</span></label>
+              </sc-if>
+              <sc-for list="{{ b.sections }}" as="sec" hint-placeholder-count="2">
+                <div style="margin-bottom:18px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+                    <div style="font-weight:700;font-size:14.5px;color:#0f2557">{{ sec.title }}</div>
+                    <div style="flex:1;height:1px;background:#e5e7eb"></div>
+                    <span style="font-size:12px;color:#6b7280;white-space:nowrap">{{ sec.doneLabel }}</span>
+                    <button data-sec="{{ sec.key }}" onClick="{{ onCheckAllClick }}" style="flex:none;background:{{ sec.checkAllBg }};color:{{ sec.checkAllColor }};border:1.5px dashed {{ sec.checkAllBorder }};border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;min-height:36px">✓ Check all{{ sec.attestedSuffix }}</button>
+                  </div>
+                  <sc-for list="{{ sec.items }}" as="it" hint-placeholder-count="6">
+                    <div>
+                      <div style="display:flex;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid #f3f4f6">
+                        <div style="flex:1;font-size:15px">{{ it.label }}</div>
+                        <sc-if value="{{ it.isData }}" hint-placeholder-val="{{ false }}">
+                          <input type="text" data-key="{{ it.key }}" onInput="{{ onDataField }}" value="{{ it.dataValue }}" placeholder="{{ it.unit }}" style="flex:none;width:150px;border:1.5px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:14px;box-sizing:border-box;min-height:42px">
+                        </sc-if>
+                        <sc-if value="{{ it.isCheck }}" hint-placeholder-val="{{ true }}">
+                          <div style="display:flex;gap:0;flex:none;border:1.5px solid #d1d5db;border-radius:10px;overflow:hidden">
+                            <button data-key="{{ it.key }}" onClick="{{ onItemOk }}" style="border:none;background:{{ it.okBg }};color:{{ it.okColor }};padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;min-height:44px;min-width:64px">OK</button>
+                            <button data-key="{{ it.key }}" onClick="{{ onItemFault }}" style="border:none;border-left:1.5px solid #d1d5db;background:{{ it.badBg }};color:{{ it.badColor }};padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer;min-height:44px;min-width:64px">Fault</button>
+                          </div>
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{ it.faultOpen }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;margin:6px 0 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px">
+                          <sc-if value="{{ it.hasObs }}" hint-placeholder-val="{{ false }}">
+                            <select data-key="{{ it.key }}" onChange="{{ onItemObs }}" value="{{ it.observation }}" style="flex:1 1 100%;padding:9px 12px;border:1.5px solid #fecaca;border-radius:8px;font-size:14px;background:#fff;min-height:42px">
+{{ it.obsOptionEls }}</select>
+                          </sc-if>
+                          <div style="display:flex;gap:0;flex:none;border:1.5px solid #fecaca;border-radius:8px;overflow:hidden;background:#fff">
+                            <sc-for list="{{ it.sevOptions }}" as="sv" hint-placeholder-count="3">
+                              <button data-key="{{ it.key }}" data-sev="{{ sv.value }}" onClick="{{ onItemSeverityBtn }}" style="border:none;background:{{ sv.bg }};color:{{ sv.color }};padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;min-height:42px">{{ sv.value }}</button>
+                            </sc-for>
+                          </div>
+                          <input type="text" data-key="{{ it.key }}" onInput="{{ onItemNote }}" value="{{ it.note }}" placeholder="Note (optional)" style="flex:1;min-width:140px;padding:9px 12px;border:1.5px solid #fecaca;border-radius:8px;font-size:14px;min-height:42px;box-sizing:border-box">
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </sc-if>
+
+            <sc-if value="{{ b.isReadings }}" hint-placeholder-val="{{ false }}">
+              <sc-for list="{{ b.groups }}" as="grp" hint-placeholder-count="3">
+                <div style="margin-bottom:18px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+                    <div style="font-weight:700;font-size:14.5px;color:#0f2557">{{ grp.title }}</div>
+                    <div style="flex:1;height:1px;background:#e5e7eb"></div>
+                    <span style="font-size:12px;color:#6b7280;white-space:nowrap">{{ grp.doneLabel }}</span>
+                  </div>
+                  <sc-for list="{{ grp.rows }}" as="r" hint-placeholder-count="5">
+                    <div style="display:flex;align-items:center;gap:14px;padding:7px 0;border-bottom:1px solid #f3f4f6">
+                      <div style="flex:1;font-size:15px">{{ r.label }}
+                        <sc-if value="{{ r.hasHint }}" hint-placeholder-val="{{ false }}"><span style="display:block;font-size:12.5px;color:#6b7280">{{ r.hint }}</span></sc-if>
+                      </div>
+                      <input type="number" step="any" inputmode="decimal" data-key="{{ r.key }}" onInput="{{ onReading }}" value="{{ r.value }}" style="width:130px;flex:none;padding:11px 12px;border:1.5px solid {{ r.inputBorder }};background:{{ r.inputBg }};border-radius:10px;font-size:17px;font-weight:600;text-align:right;box-sizing:border-box;min-height:48px">
+                      <span style="width:48px;font-size:13px;color:#6b7280">{{ r.unit }}</span>
+                      <span style="min-width:56px;text-align:center;font-size:12px;font-weight:700;letter-spacing:0.03em;padding:5px 8px;border-radius:8px;box-sizing:border-box;background:{{ r.pfBg }};color:{{ r.pfColor }}">{{ r.pfLabel }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </sc-if>
+
+            <sc-if value="{{ b.isRows }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                <button data-kind="{{ b.rowKind }}" onClick="{{ onAddRow }}" style="background:#fff;color:#333;border:1.5px solid #d1d5db;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px" style-hover="background:#f3f4f6">＋ Add {{ b.rowUnitLower }}</button>
+                <button data-kind="{{ b.rowKind }}" onClick="{{ onFillAll }}" style="background:#fff;color:#333;border:1.5px solid #d1d5db;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px" style-hover="background:#f3f4f6">Enter all ({{ b.rowSuggested }})</button>
+                <sc-if value="{{ b.hasRows }}" hint-placeholder-val="{{ false }}">
+                  <button data-kind="{{ b.rowKind }}" onClick="{{ onClearRows }}" style="background:#fff;color:#333;border:1.5px solid #d1d5db;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px" style-hover="background:#f3f4f6">Clear</button>
+                </sc-if>
+              </div>
+              <sc-if value="{{ b.hasRows }}" hint-placeholder-val="{{ false }}">
+                <div style="overflow-x:auto">
+                  <table style="width:100%;border-collapse:collapse;font-size:14px">
+                    <thead><tr>
+                      <th style="text-align:left;font-weight:600;color:#6b7280;padding:6px;border-bottom:1px solid #e5e7eb;white-space:nowrap">{{ b.rowUnitLabel }}</th>
+                      <sc-for list="{{ b.rowCols }}" as="c" hint-placeholder-count="7">
+                        <th style="text-align:left;font-weight:600;color:#6b7280;padding:6px;border-bottom:1px solid #e5e7eb;white-space:nowrap">{{ c.label }}</th>
+                      </sc-for>
+                      <th></th>
+                    </tr></thead>
+                    <tbody>
+                      <sc-for list="{{ b.rowRows }}" as="row" hint-placeholder-count="3">
+                        <tr>
+                          <td style="padding:4px 5px;border-bottom:1px solid #f3f4f6"><input data-kind="{{ b.rowKind }}" data-row="{{ row.id }}" onInput="{{ onRowUnit }}" value="{{ row.unit }}" style="width:52px;border:1.5px solid #d1d5db;border-radius:8px;padding:9px 8px;font-size:14px;box-sizing:border-box;min-height:42px"></td>
+                          <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="7">
+                            <td style="padding:4px 5px;border-bottom:1px solid #f3f4f6"><input type="number" inputmode="decimal" data-kind="{{ b.rowKind }}" data-row="{{ row.id }}" data-col="{{ cell.col }}" onInput="{{ onRowCell }}" value="{{ cell.value }}" style="width:100%;min-width:68px;border:1.5px solid {{ cell.border }};background:{{ cell.bg }};border-radius:8px;padding:9px 8px;font-size:14px;box-sizing:border-box;min-height:42px"></td>
+                          </sc-for>
+                          <td style="padding:4px 5px;border-bottom:1px solid #f3f4f6"><button data-kind="{{ b.rowKind }}" data-row="{{ row.id }}" onClick="{{ onRemoveRow }}" title="Remove" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:18px;line-height:1;padding:6px 8px">×</button></td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </sc-if>
+              <sc-if value="{{ b.noRows }}" hint-placeholder-val="{{ true }}">
+                <p style="color:#6b7280;margin:6px 0 0;font-size:14.5px">No {{ b.rowUnitLower }} rows yet — add faulty units only, or "Enter all".</p>
+              </sc-if>
+              <sc-if value="{{ b.showPulsSummary }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb">
+                  <sc-for list="{{ b.pulsStats }}" as="st" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:14px">
+                      <span style="font-weight:700">{{ st.label }}</span>
+                      <span style="color:#6b7280">{{ st.range }}</span>
+                      <sc-if value="{{ st.hasBadge }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:12px;font-weight:700;letter-spacing:0.03em;padding:4px 9px;border-radius:8px;background:{{ st.bg }};color:{{ st.color }}">{{ st.badge }}</span>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </sc-if>
+
+            <sc-if value="{{ b.isFaults }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ b.noFaults }}" hint-placeholder-val="{{ false }}">
+                <p style="color:#6b7280;margin:0;font-size:14.5px">No faults recorded yet — the machine has passed every check so far.</p>
+              </sc-if>
+              <sc-for list="{{ b.faultGroups }}" as="g" hint-placeholder-count="2">
+                <div style="margin-bottom:16px">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                    <span style="font-weight:700;font-size:15px">{{ g.component }}</span>
+                    <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:{{ g.badgeBg }};color:{{ g.badgeColor }}">{{ g.severity }}</span>
+                  </div>
+                  <sc-for list="{{ g.faults }}" as="f" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #f3f4f6">
+                      <div style="flex:1;font-size:14.5px;display:flex;align-items:center;gap:8px">
+                        <span style="width:8px;height:8px;border-radius:50%;flex:none;background:{{ f.dotColor }}"></span>
+                        {{ f.description }}
+                      </div>
+                      <input type="text" data-key="{{ f.key }}" onInput="{{ onRecommendation }}" value="{{ f.rec }}" placeholder="Recommendation…" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff;min-height:42px;box-sizing:border-box">
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </sc-if>
+
+            <sc-if value="{{ b.isSignoff }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+                <div><span style="color:#6b7280;font-size:13px">Farm</span><div style="font-weight:600">{{ farmName }}</div></div>
+                <div><span style="color:#6b7280;font-size:13px">Plant</span><div style="font-weight:600">{{ plantSummary }}</div></div>
+                <div><span style="color:#6b7280;font-size:13px">Faults</span><div style="font-weight:600">{{ faultTotalLabel }}</div></div>
+                <div><span style="color:#6b7280;font-size:13px">Steps complete</span><div style="font-weight:600">{{ progressLabel }}</div></div>
+              </div>
+              <div style="margin-top:16px">
+                <div style="color:#6b7280;font-size:13px;margin-bottom:4px">Pulsation analyser report (PDF)</div>
+                <sc-if value="{{ hasAttachment }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:8px;border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px;background:#fafbfc;font-size:14px">
+                    <span>📄</span><span style="font-weight:600">Pulsation-Analysis.pdf</span>
+                    <span style="color:#6b7280;font-size:13px">1.2 MB · appended to the report</span>
+                    <button onClick="{{ onRemoveAttachment }}" style="margin-left:auto;border:none;background:none;color:#ef4444;font-size:17px;line-height:1;cursor:pointer;padding:0 5px">×</button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ noAttachment }}" hint-placeholder-val="{{ true }}">
+                  <div onClick="{{ onAttach }}" style="border:2px dashed #d1d5db;border-radius:10px;padding:18px;text-align:center;color:#6b7280;font-size:14px;cursor:pointer" style-hover="border-color:#003893;background:rgba(0,56,147,0.04);color:#333">Drop the pulsation PDF here, or click to browse — it's appended to the Test Summary report.</div>
+                </sc-if>
+              </div>
+              <div style="margin-top:18px;padding-top:16px;border-top:1px solid #e5e7eb">
+                <sc-if value="{{ isComplete }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
+                    <p style="margin:0">✓ Marked complete {{ completedAtLabel }} · sync: <strong>synced</strong></p>
+                    <div style="display:flex;gap:8px;margin-top:12px">
+                      <button onClick="{{ onDownloadReport }}" style="background:#003893;color:#fff;border:1px solid #003893;border-radius:10px;padding:11px 20px;font-size:15px;font-weight:600;cursor:pointer;min-height:48px" style-hover="background:#002d78">Download report (PDF)</button>
+                      <button onClick="{{ onReopen }}" style="background:#fff;color:#333;border:1.5px solid #d1d5db;border-radius:10px;padding:11px 20px;font-size:15px;font-weight:600;cursor:pointer;min-height:48px" style-hover="background:#f3f4f6">Reopen (demo)</button>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ notComplete }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:14px;align-items:flex-start">
+                    <label style="display:flex;align-items:center;gap:12px;cursor:pointer;font-size:15px"><input type="checkbox" onChange="{{ onAttest }}" checked="{{ attested }}" style="width:20px;height:20px"><span>I confirm this test has been completed and the results are accurate.</span></label>
+                    <button onClick="{{ onMarkComplete }}" disabled="{{ notAttested }}" style="background:{{ completeBtnBg }};color:#fff;border:1px solid {{ completeBtnBg }};border-radius:10px;padding:12px 22px;font-size:16px;font-weight:700;cursor:pointer;min-height:52px;opacity:{{ completeBtnOpacity }}">Mark as complete &amp; sync</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+          </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </sc-if>
+
+    <sc-if value="{{ notLoaded }}" hint-placeholder-val="{{ true }}">
+      <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;color:#6b7280">Loading test…</div>
+    </sc-if>
+  </main>
+
+  <div style="position:fixed;left:0;right:0;bottom:0;z-index:60;background:#12295e;color:#fff;box-shadow:0 -4px 16px rgba(15,37,87,0.3)">
+    <div style="max-width:1080px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:18px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700;background:{{ critBg }};color:{{ critColor }}">{{ faultCritical }} critical</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700;background:{{ majBg }};color:{{ majColor }}">{{ faultMajor }} major</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700;background:rgba(255,255,255,0.12);color:#e5e7eb">{{ faultMinor }} minor</span>
+      </div>
+      <div style="flex:1;font-size:13px;color:#afbcdb">{{ nextUpLabel }}</div>
+      <button onClick="{{ onJumpNext }}" style="background:#10b981;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14.5px;font-weight:700;cursor:pointer;min-height:44px;white-space:nowrap" style-hover="background:#0ea371">{{ jumpLabel }}</button>
+    </div>
+  </div>
+
+  <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onModalOverlay }}" style="position:fixed;inset:0;z-index:100;background:rgba(17,24,39,0.5);display:flex;align-items:flex-start;justify-content:center;padding:32px 12px;overflow-y:auto">
+      <div style="background:#fff;border-radius:12px;padding:24px;width:100%;max-width:560px;box-shadow:0 10px 20px -5px rgba(0,0,0,0.1)">
+        <div style="font-family:'Montserrat',sans-serif;font-size:20px;font-weight:700;margin-bottom:12px">Confirm: check all as verified</div>
+        <p style="margin:0 0 8px">"I have inspected all items in this section and confirm they have been seen, tested and are in order."</p>
+        <p style="color:#6b7280;font-size:13px;margin:0">Recorded as an attestation on this test. You can still amend individual items afterwards.</p>
+        <div style="display:flex;gap:6px;margin-top:24px;padding-top:24px;border-top:1px solid #e5e7eb">
+          <button onClick="{{ onConfirmCheckAll }}" style="background:#003893;color:#fff;border:1px solid #003893;border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px" style-hover="background:#002d78">I confirm</button>
+          <button onClick="{{ onCancelCheckAll }}" style="background:#fff;color:#333;border:1px solid #d1d5db;border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px" style-hover="background:#f3f4f6">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;top:120px;right:24px;z-index:200;background:#333;color:#fff;padding:12px 16px;border-radius:8px;box-shadow:0 10px 20px -5px rgba(0,0,0,0.2);font-size:14px;max-width:360px">{{ toastMsg }}</div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1280, &quot;height&quot;: 860}}">
+class Component extends DCLogic {
+  state = {
+    loaded: false,
+    visualFaults: {}, dataFields: {}, readings: {}, recommendations: {},
+    pulsatorRows: [], clusterRows: [], attestations: [],
+    guards: false, attested: false, completedAt: null, hasAttachment: false,
+    confirmingSection: null, confirmingStep: null, toast: null, activeChip: 0,
+    openSteps: null, // null until first render → seeded with the first incomplete step
+    config: null,
+  };
+
+  async componentDidMount() {
+    const mod = await import("./assets/wizard-data.js");
+    this.W = mod;
+    await mod.loadCatalogs();
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("nzmpta-wizard-b") || "null"); } catch {}
+    const config = (saved && saved.config) || mod.defaultMachineConfiguration();
+    this.setState({ loaded: true, config, ...(saved ? {
+      visualFaults: saved.visualFaults ?? {}, dataFields: saved.dataFields ?? {},
+      readings: saved.readings ?? {}, recommendations: saved.recommendations ?? {},
+      pulsatorRows: saved.pulsatorRows ?? [], clusterRows: saved.clusterRows ?? [],
+      attestations: saved.attestations ?? [], guards: saved.guards ?? false,
+      completedAt: saved.completedAt ?? null, hasAttachment: saved.hasAttachment ?? false,
+    } : {}) });
+    this._onScroll = () => {
+      const ids = this._sectionIds ?? [];
+      let active = 0;
+      for (let i = 0; i < ids.length; i++) {
+        const el = document.getElementById(ids[i]);
+        if (el && el.getBoundingClientRect().top < 180) active = i;
+      }
+      if (active !== this.state.activeChip) this.setState({ activeChip: active });
+    };
+    window.addEventListener("scroll", this._onScroll, { passive: true });
+  }
+  componentWillUnmount() { window.removeEventListener("scroll", this._onScroll); }
+
+  persist(patch) {
+    this.setState(patch, () => {
+      const s = this.state;
+      try {
+        localStorage.setItem("nzmpta-wizard-b", JSON.stringify({
+          config: s.config, visualFaults: s.visualFaults, dataFields: s.dataFields,
+          readings: s.readings, recommendations: s.recommendations, pulsatorRows: s.pulsatorRows,
+          clusterRows: s.clusterRows, attestations: s.attestations, guards: s.guards,
+          completedAt: s.completedAt, hasAttachment: s.hasAttachment,
+        }));
+      } catch {}
+    });
+  }
+
+  toast(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => this.setState({ toast: null }), 3200);
+  }
+
+  // Build <option> elements in logic (sc-for inside <select> is ejected by the HTML parser).
+  optEls(list, placeholder) {
+    const els = list.map((o) => {
+      const value = typeof o === "object" ? o.value : o;
+      const label = typeof o === "object" ? o.label : o;
+      return React.createElement("option", { key: String(value), value: String(value) }, String(label));
+    });
+    return placeholder != null ? [React.createElement("option", { key: "__ph", value: "" }, placeholder), ...els] : els;
+  }
+
+  jumpTo(domId) {
+    const el = document.getElementById(domId);
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
+  }
+
+  /** Expand a step card (keeps others as they are), then scroll to it. */
+  expandAndJump(stepKey) {
+    this.setState({ openSteps: { ...(this.state.openSteps ?? {}), [stepKey]: true } }, () => {
+      setTimeout(() => this.jumpTo("sec-" + stepKey), 30);
+    });
+  }
+
+  setEntry(key, entry) {
+    const visualFaults = { ...this.state.visualFaults };
+    if (entry) visualFaults[key] = entry; else delete visualFaults[key];
+    this.persist({ visualFaults });
+  }
+
+  renderVals() {
+    const s = this.state, W = this.W;
+    if (!s.loaded || !W) return { loaded: false, notLoaded: true, chips: [], farmName: "", progressPct: 0, progressLabel: "", faultCritical: 0, faultMajor: 0, faultMinor: 0, critBg: "rgba(255,255,255,0.12)", critColor: "#e5e7eb", majBg: "rgba(255,255,255,0.12)", majColor: "#e5e7eb", nextUpLabel: "", jumpLabel: "…", onJumpNext: () => {}, blocks: [], toastVisible: false, confirmOpen: false };
+    const cfg = s.config;
+    const plan = W.resolveWizard(cfg);
+    const completed = W.computeCompleted(s, cfg);
+    const summary = W.buildFaultSummary(s, cfg);
+    const pf = (verdict) => verdict === "pass"
+      ? { pfBg: "#dcfce7", pfColor: "#166534", pfLabel: "PASS", inputBorder: "#bbf7d0", inputBg: "#f0fdf4" }
+      : verdict === "fail" ? { pfBg: "#fee2e2", pfColor: "#991b1b", pfLabel: "FAIL", inputBorder: "#ef4444", inputBg: "#fef2f2" }
+      : { pfBg: "#f3f4f6", pfColor: "#9ca3af", pfLabel: "—", inputBorder: "#d1d5db", inputBg: "#fff" };
+
+    const required = plan.steps.filter((x) => !x.isOptional && x.step !== "ReviewSignOff");
+    const doneCount = required.filter((x) => completed.has(x.step)).length;
+    const progressPct = Math.round((doneCount / required.length) * 100);
+
+    this._sectionIds = plan.steps.map((x) => "sec-" + x.step);
+
+    const chips = plan.steps.map((st, i) => {
+      const active = i === s.activeChip;
+      const done = completed.has(st.step);
+      const SHORT = { Setup: "Farm", MachineConfiguration: "Machine", VisualFaultsPreStart: "Pre-start", VisualFaultsRunning: "Running", TestRecord: "Test record", AdditionalTests: "Additional", PulsatorTest: "Pulsators", IndividualClusterTest: "Clusters", FaultSummary: "Faults", ReviewSignOff: "Sign-off" };
+      return {
+        num: done ? "✓" : String(i + 1), label: SHORT[st.step] ?? st.title,
+        bg: active ? "#003893" : "#fff", color: active ? "#fff" : done ? "#166534" : "#6b7280",
+        border: active ? "#003893" : done ? "#bbf7d0" : "#e5e7eb",
+        numBg: active ? "rgba(255,255,255,0.2)" : done ? "#10b981" : "#f3f4f6",
+        numColor: active ? "#fff" : done ? "#fff" : "#6b7280",
+        onClick: () => this.expandAndJump(st.step),
+      };
+    });
+
+    // ---- shared handlers ----
+    const setCfg = (patch) => this.persist({ config: { ...this.state.config, ...patch } });
+    const vals = {
+      loaded: true, notLoaded: false,
+      farmName: W.DEMO_FARM.name, chips, progressPct,
+      progressLabel: `${doneCount} of ${required.length} required steps`,
+      faultCritical: summary.critical, faultMajor: summary.major, faultMinor: summary.minor,
+      critBg: summary.critical > 0 ? "#ef4444" : "rgba(255,255,255,0.12)", critColor: summary.critical > 0 ? "#fff" : "#e5e7eb",
+      majBg: summary.major > 0 ? "#f59e0b" : "rgba(255,255,255,0.12)", majColor: summary.major > 0 ? "#3b2604" : "#e5e7eb",
+      faultTotalLabel: `${summary.total} (${summary.critical} critical · ${summary.major} major · ${summary.minor} minor)`,
+      toastVisible: s.toast != null, toastMsg: s.toast,
+      confirmOpen: s.confirmingSection != null,
+      cfg, plantTypes: W.PLANT_TYPES, milklineSizes: W.MILKLINE_SIZES, atmosOptions: W.ATMOS_PRESSURES,
+      pulsatorBrands: W.pulsatorBrands(), pulsatorModels: W.pulsatorModelsForBrand(cfg.pulsatorBrand),
+      shells: W.catalogs.shells, liners: W.catalogs.liners,
+      plantTypeOptionEls: this.optEls(W.PLANT_TYPES),
+      milklineOptionEls: this.optEls(W.MILKLINE_SIZES),
+      atmosOptionEls: this.optEls(W.ATMOS_PRESSURES.map((a) => ({ value: a.kpa, label: `${a.kpa} kPa` }))),
+      brandOptionEls: this.optEls(W.pulsatorBrands(), "— select —"),
+      modelOptionEls: this.optEls(W.pulsatorModelsForBrand(cfg.pulsatorBrand), "— select —"),
+      linerOptionEls: this.optEls(W.catalogs.liners, "— select —"),
+      shellOptionEls: this.optEls(W.catalogs.shells, "— select —"),
+      onCfgText: (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.value || null }),
+      onCfgNumber: (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.value === "" ? 0 : Number(e.currentTarget.value) }),
+      onCfgSelect: (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.value || null }),
+      onCfgNumSelect: (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.value === "" ? null : Number(e.currentTarget.value) }),
+      onPulsatorBrand: (e) => {
+        const brand = e.currentTarget.value || null;
+        const models = W.pulsatorModelsForBrand(brand);
+        setCfg({ pulsatorBrand: brand, pulsatorModel: models.length === 1 ? models[0] : null });
+      },
+      onCfgToggleChip: (e) => setCfg({ [e.currentTarget.dataset.k]: !this.state.config[e.currentTarget.dataset.k] }),
+      guardsOn: s.guards,
+      onGuards: (e) => this.persist({ guards: e.currentTarget.checked }),
+      onDataField: (ev) => {
+        const dataFields = { ...this.state.dataFields };
+        const v = ev.currentTarget.value;
+        if (v.trim() === "") delete dataFields[ev.currentTarget.dataset.key]; else dataFields[ev.currentTarget.dataset.key] = v;
+        this.persist({ dataFields });
+      },
+      onItemOk: (ev) => {
+        const k = ev.currentTarget.dataset.key, e = this.state.visualFaults[k];
+        this.setEntry(k, e?.status === "ok" ? null : { status: "ok" });
+      },
+      onItemFault: (ev) => {
+        const k = ev.currentTarget.dataset.key, e = this.state.visualFaults[k];
+        if (e?.status === "fault") return this.setEntry(k, null);
+        this.setEntry(k, { status: "fault", severity: "Major" });
+      },
+      onItemObs: (ev) => this.setEntry(ev.currentTarget.dataset.key, { ...this.state.visualFaults[ev.currentTarget.dataset.key], observation: ev.currentTarget.value || undefined }),
+      onItemSeverityBtn: (ev) => this.setEntry(ev.currentTarget.dataset.key, { ...this.state.visualFaults[ev.currentTarget.dataset.key], severity: ev.currentTarget.dataset.sev }),
+      onItemNote: (ev) => this.setEntry(ev.currentTarget.dataset.key, { ...this.state.visualFaults[ev.currentTarget.dataset.key], note: ev.currentTarget.value }),
+      onReading: (ev) => {
+        const readings = { ...this.state.readings };
+        const v = ev.currentTarget.value;
+        if (v === "" || Number.isNaN(Number(v))) delete readings[ev.currentTarget.dataset.key];
+        else readings[ev.currentTarget.dataset.key] = Number(v);
+        this.persist({ readings });
+      },
+      onRecommendation: (ev) => {
+        const recommendations = { ...this.state.recommendations };
+        const v = ev.currentTarget.value;
+        if (v.trim() === "") delete recommendations[ev.currentTarget.dataset.key];
+        else recommendations[ev.currentTarget.dataset.key] = v;
+        this.persist({ recommendations });
+      },
+      onCheckAllClick: (ev) => this.setState({ confirmingSection: ev.currentTarget.dataset.sec }),
+      onModalOverlay: (e) => { if (e.target === e.currentTarget) this.setState({ confirmingSection: null }); },
+      onCancelCheckAll: () => this.setState({ confirmingSection: null }),
+      onConfirmCheckAll: () => {
+        const all = [...W.preStartSections(cfg.hasReleaserPump), ...W.runningSectionsFor(W.runningSectionKeys(cfg))];
+        const sec = all.find((x) => x.key === this.state.confirmingSection);
+        if (sec) {
+          this.persist({
+            visualFaults: W.applyCheckAll([sec], this.state.visualFaults),
+            attestations: [...this.state.attestations, { section: sec.key, attestedAt: new Date().toISOString(), text: W.ATTESTATION_TEXT }],
+            confirmingSection: null,
+          });
+        } else this.setState({ confirmingSection: null });
+      },
+    };
+
+    // row-table handlers (kind: puls | clus)
+    const rowsOf = (kind) => (kind === "puls" ? this.state.pulsatorRows : this.state.clusterRows);
+    const setRowsOf = (kind, next) => this.persist({ [kind === "puls" ? "pulsatorRows" : "clusterRows"]: next });
+    vals.onAddRow = (ev) => { const k = ev.currentTarget.dataset.kind, rows = rowsOf(k); setRowsOf(k, [...rows, { id: crypto.randomUUID(), unit: String(rows.length + 1), values: {} }]); };
+    vals.onFillAll = (ev) => {
+      const k = ev.currentTarget.dataset.kind;
+      const n = k === "puls" ? (cfg.pulsatorCount || 0) : (cfg.clusterCount || 0);
+      setRowsOf(k, Array.from({ length: n }, (_, i) => ({ id: crypto.randomUUID(), unit: String(i + 1), values: {} })));
+    };
+    vals.onClearRows = (ev) => setRowsOf(ev.currentTarget.dataset.kind, []);
+    vals.onRemoveRow = (ev) => { const k = ev.currentTarget.dataset.kind; setRowsOf(k, rowsOf(k).filter((r) => r.id !== ev.currentTarget.dataset.row)); };
+    vals.onRowUnit = (ev) => { const k = ev.currentTarget.dataset.kind; setRowsOf(k, rowsOf(k).map((r) => r.id === ev.currentTarget.dataset.row ? { ...r, unit: ev.currentTarget.value } : r)); };
+    vals.onRowCell = (ev) => {
+      const k = ev.currentTarget.dataset.kind, { row, col } = ev.currentTarget.dataset;
+      setRowsOf(k, rowsOf(k).map((r) => r.id === row ? { ...r, values: { ...r.values, [col]: ev.currentTarget.value } } : r));
+    };
+
+    // ---- sign-off vals ----
+    const PLANT_LABELS = { HerringboneLowline: "Herringbone (lowline)", HerringboneHighline: "Herringbone (highline)", Rotary: "Rotary", Other: "Other" };
+    vals.plantSummary = `${PLANT_LABELS[cfg.plantType]} · ${cfg.clusterCount || "—"} clusters`;
+    vals.hasAttachment = s.hasAttachment; vals.noAttachment = !s.hasAttachment;
+    vals.onAttach = () => { this.persist({ hasAttachment: true }); this.toast("Attached Pulsation-Analysis.pdf."); };
+    vals.onRemoveAttachment = () => this.persist({ hasAttachment: false });
+    vals.isComplete = !!s.completedAt; vals.notComplete = !s.completedAt;
+    vals.completedAtLabel = s.completedAt ? new Date(s.completedAt).toLocaleString() : "";
+    vals.attested = s.attested; vals.notAttested = !s.attested;
+    vals.completeBtnBg = s.attested ? "#10b981" : "#003893";
+    vals.completeBtnOpacity = s.attested ? "1" : "0.5";
+    vals.onAttest = (e) => this.setState({ attested: e.currentTarget.checked });
+    vals.onMarkComplete = () => {
+      if (!this.state.attested) return;
+      this.persist({ completedAt: new Date().toISOString() });
+      this.toast("Test marked complete — synced (1 pushed, 0 pulled).");
+    };
+    vals.onDownloadReport = () => this.toast("In the real app this generates the Final Report PDF on-device.");
+    vals.onReopen = () => this.persist({ completedAt: null });
+
+    // ---- bottom bar next-up ----
+    const firstIncomplete = plan.steps.find((x) => !completed.has(x.step) && x.step !== "ReviewSignOff");
+    vals.nextUpLabel = firstIncomplete ? `Next up: ${firstIncomplete.title}` : "All required steps complete — review and sign off.";
+    vals.jumpLabel = firstIncomplete ? "Jump to next" : "Go to sign-off";
+    vals.onJumpNext = () => this.expandAndJump(firstIncomplete ? firstIncomplete.step : "ReviewSignOff");
+
+    // Collapsible step cards: only open cards mount their body (keeps the page light).
+    // Seeded once with the first incomplete step; the user can open any number of cards.
+    const openSteps = s.openSteps ?? { [(firstIncomplete ?? plan.steps[plan.steps.length - 1]).step]: true };
+
+    // ---- blocks ----
+    const stateBadge = (st) => completed.has(st.step)
+      ? { stateBg: "#dcfce7", stateColor: "#166534", stateLabel: "Complete" }
+      : st.isOptional ? { stateBg: "#f3f4f6", stateColor: "#6b7280", stateLabel: "Optional" }
+      : { stateBg: "#fef3c7", stateColor: "#92400e", stateLabel: "In progress" };
+
+    const SUBTITLES = {
+      Setup: "Who and where — pre-filled from the farm record.",
+      MachineConfiguration: "Declare what's fitted; irrelevant checks below disappear.",
+      VisualFaultsPreStart: "Part one — before the machine is started.",
+      VisualFaultsRunning: "Part two — with the machine running.",
+      TestRecord: "ISO groups 1–9 · live pass/fail against this machine's standards.",
+      AdditionalTests: "ISO 10–12 + only the ancillaries this machine has.",
+      PulsatorTest: "Per-pulsator rates and ratios with live spread checks.",
+      IndividualClusterTest: "ISO 13 · per-cluster air admission, leakage, vent.",
+      FaultSummary: "Everything you flagged, in one place — add recommendations.",
+      ReviewSignOff: "Final check, attestation, and mark-as-complete.",
+    };
+
+    vals.blocks = plan.steps.map((st, i) => {
+      const isOpen = !!openSteps[st.step];
+      const base = {
+        domId: "sec-" + st.step, numLabel: completed.has(st.step) ? "✓" : String(i + 1),
+        title: st.title, subtitle: SUBTITLES[st.step] ?? "", isOptional: st.isOptional,
+        headBg: completed.has(st.step) ? "#f7fdf9" : "#fafbfc",
+        numBg: completed.has(st.step) ? "#10b981" : "#0f2557", numColor: "#fff",
+        isOpen, chev: isOpen ? "180deg" : "0deg",
+        headBorder: isOpen ? "#e5e7eb" : "transparent",
+        onToggle: () => this.setState({ openSteps: { ...openSteps, [st.step]: !isOpen } }),
+        ...stateBadge(st),
+        isSetup: false, isConfig: false, isChecklist: false, isReadings: false, isRows: false, isFaults: false, isSignoff: false,
+      };
+      if (st.step === "Setup") {
+        const F = W.DEMO_FARM;
+        return { ...base, isSetup: true, farmFields: [
+          { label: "Farm", value: F.name }, { label: "Supply number", value: F.supplyNumber },
+          { label: "Milk supply company", value: F.milkCompanyName }, { label: "Region", value: F.regionName },
+          { label: "Address", value: F.address }, { label: "RAPID number", value: F.rapidNumber },
+          { label: "Farmer", value: F.farmerName }, { label: "Phone", value: F.contactPhone },
+          { label: "Email", value: F.contactEmail },
+        ]};
+      }
+      if (st.step === "MachineConfiguration") return { ...base, isConfig: true };
+      if (st.step === "VisualFaultsPreStart" || st.step === "VisualFaultsRunning") {
+        const sections = st.step === "VisualFaultsPreStart"
+          ? W.preStartSections(cfg.hasReleaserPump)
+          : W.runningSectionsFor(W.runningSectionKeys(cfg));
+        return { ...base, isChecklist: true, showGuards: st.step === "VisualFaultsRunning",
+          sections: sections.map((sec) => {
+            const checkItems = sec.items.filter((it) => !it.data);
+            const done = checkItems.filter((it) => s.visualFaults[it.key]?.status !== undefined).length;
+            const attested = s.attestations.some((a) => a.section === sec.key);
+            const complete = done === checkItems.length && checkItems.length > 0;
+            return {
+              key: sec.key, title: sec.title,
+              doneLabel: `${done}/${checkItems.length}`,
+              attestedSuffix: attested ? " · attested" : "",
+              checkAllBg: complete ? "#f0fdf4" : "#fff", checkAllColor: complete ? "#166534" : "#0f2557",
+              checkAllBorder: complete ? "#bbf7d0" : "#afbcdb",
+              items: sec.items.map((it) => {
+                const e = s.visualFaults[it.key];
+                const okOn = e?.status === "ok", badOn = e?.status === "fault";
+                const obs = W.observationsFor(it.lookup);
+                const sev = e?.severity ?? "Major";
+                return {
+                  key: it.key, label: it.label, isData: !!it.data, isCheck: !it.data,
+                  dataValue: s.dataFields[it.key] ?? "", unit: it.unit ?? "",
+                  okBg: okOn ? "#10b981" : "#fff", okColor: okOn ? "#fff" : "#6b7280",
+                  badBg: badOn ? "#ef4444" : "#fff", badColor: badOn ? "#fff" : "#6b7280",
+                  faultOpen: badOn, hasObs: obs.length > 0, obsOptionEls: this.optEls(obs, "— select or type fault —"),
+                  observation: e?.observation ?? "", note: e?.note ?? "",
+                  sevOptions: ["Critical", "Major", "Minor"].map((v) => ({
+                    value: v, bg: sev === v ? (v === "Critical" ? "#ef4444" : v === "Major" ? "#f59e0b" : "#6b7280") : "#fff",
+                    color: sev === v ? "#fff" : "#6b7280",
+                  })),
+                };
+              }),
+            };
+          }),
+        };
+      }
+      if (st.step === "TestRecord" || st.step === "AdditionalTests") {
+        const secList = st.step === "TestRecord" ? W.testRecordSections(cfg, s.readings) : W.additionalTestSections(cfg, s.readings);
+        return { ...base, isReadings: true, groups: secList.map((sec) => {
+          const done = sec.readings.filter((r) => s.readings[r.key] != null).length;
+          return {
+            title: sec.title, doneLabel: `${done}/${sec.readings.length}`,
+            rows: sec.readings.map((r) => ({
+              key: r.key, label: r.label, unit: r.unit, hint: r.hint ?? "", hasHint: !!r.hint,
+              value: s.readings[r.key] ?? "",
+              ...pf(W.evaluate(s.readings[r.key], r.rule)),
+            })),
+          };
+        })};
+      }
+      if (st.step === "PulsatorTest" || st.step === "IndividualClusterTest") {
+        const isPuls = st.step === "PulsatorTest";
+        const rows = isPuls ? s.pulsatorRows : s.clusterRows;
+        const cols = isPuls ? W.pulsatorColumns() : W.clusterColumns(cfg);
+        const block = { ...base, isRows: true, rowKind: isPuls ? "puls" : "clus",
+          rowUnitLabel: isPuls ? "Pulsator" : "Cluster", rowUnitLower: isPuls ? "pulsator" : "cluster",
+          rowSuggested: isPuls ? (cfg.pulsatorCount || 0) : (cfg.clusterCount || 0),
+          hasRows: rows.length > 0, noRows: rows.length === 0,
+          rowCols: cols.map((c) => ({ label: c.label + (c.unit ? ` (${c.unit})` : "") })),
+          rowRows: rows.map((r) => ({
+            id: r.id, unit: r.unit,
+            cells: cols.map((c) => {
+              const raw = r.values[c.key] ?? "";
+              const failed = c.rule && raw !== "" && W.evaluate(raw, c.rule) === "fail";
+              return { col: c.key, value: raw, border: failed ? "#ef4444" : "#d1d5db", bg: failed ? "#fef2f2" : "#fff" };
+            }),
+          })),
+          showPulsSummary: false,
+        };
+        if (isPuls && rows.length > 0) {
+          const sum = W.pulsatorSummary(rows);
+          const fmt = (n) => (n == null ? "—" : String(n));
+          block.showPulsSummary = true;
+          block.pulsStats = [
+            { label: "Rate", range: `${fmt(sum.slowestRate)}–${fmt(sum.fastestRate)} ppm`, hasBadge: sum.rateSpread != null,
+              badge: `spread ${sum.rateSpread} ppm ${sum.rateSpreadOk ? "≤" : ">"} ${W.PULSATION_LIMITS.rateSpreadMax}`,
+              bg: sum.rateSpreadOk ? "#dcfce7" : "#fee2e2", color: sum.rateSpreadOk ? "#166534" : "#991b1b" },
+            { label: "Ratio", range: `${fmt(sum.lowestRatio)}–${fmt(sum.highestRatio)} %`, hasBadge: sum.ratioSpread != null,
+              badge: `spread ${sum.ratioSpread} % ${sum.ratioSpreadOk ? "≤" : ">"} ${W.PULSATION_LIMITS.ratioSpreadMax}`,
+              bg: sum.ratioSpreadOk ? "#dcfce7" : "#fee2e2", color: sum.ratioSpreadOk ? "#166534" : "#991b1b" },
+            { label: "Limp", range: "", hasBadge: sum.worstLimp != null,
+              badge: `worst ${sum.worstLimp}% ${sum.limpOk ? "≤" : ">"} ${W.PULSATION_LIMITS.limpMax}%`,
+              bg: sum.limpOk ? "#dcfce7" : "#fee2e2", color: sum.limpOk ? "#166534" : "#991b1b" },
+          ];
+        }
+        return block;
+      }
+      if (st.step === "FaultSummary") {
+        const sevBadge = (sev) => sev === "Critical" ? { badgeBg: "#fee2e2", badgeColor: "#991b1b" }
+          : sev === "Major" ? { badgeBg: "#fef3c7", badgeColor: "#92400e" } : { badgeBg: "#f3f4f6", badgeColor: "#6b7280" };
+        return { ...base, isFaults: true, noFaults: summary.total === 0,
+          faultGroups: summary.groups.map((g) => ({
+            component: g.component, severity: g.severity, ...sevBadge(g.severity),
+            faults: g.faults.map((f) => ({
+              key: f.key, description: f.description, rec: s.recommendations[f.key] ?? "",
+              dotColor: f.severity === "Critical" ? "#ef4444" : f.severity === "Major" ? "#f59e0b" : "#9ca3af",
+            })),
+          })),
+        };
+      }
+      return { ...base, isSignoff: true };
+    });
+
+    // config block extra: ancillary chips
+    vals.ancillaryToggles = [
+      { key: "flushingPulsationSystem", label: "Flushing pulsation" }, { key: "hasPulsatorStopSystem", label: "Pulsator-stop" },
+      { key: "linerVented", label: "Vented liners" }, { key: "vsdFitted", label: "VSD" },
+      { key: "isoPortsAvailable", label: "ISO test ports" }, { key: "hasAcr", label: "ACRs" },
+      { key: "hasBailGates", label: "Bail gates" }, { key: "hasMilkMeters", label: "Milk meters" },
+      { key: "hasTeatSprayer", label: "Teat sprayer" }, { key: "hasBackingGate", label: "Backing gate" },
+      { key: "hasReleaserPump", label: "Releaser pump" },
+    ].map((t) => {
+      const on = !!cfg[t.key];
+      return { ...t, tick: on ? "✓" : "",
+        bg: on ? "rgba(0,56,147,0.06)" : "#fff", color: on ? "#003893" : "#6b7280",
+        border: on ? "#003893" : "#d1d5db",
+        dotBg: on ? "#003893" : "#fff", dotBorder: on ? "#003893" : "#d1d5db" };
+    });
+
+    return vals;
+  }
+}
+
+</script>
+</body>
+</html>

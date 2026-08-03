@@ -12,6 +12,7 @@ import { mountTestList } from "./ui/TestListApp";
 import { mountSyncOnly } from "./ui/SyncOnlyApp";
 import { mountCompanyTestList } from "./ui/CompanyTestListApp";
 import { purgeStaleLocalData } from "./db/testStore";
+import { purgeOtherTesterLayouts } from "./wizard/layoutPreference";
 
 function mountApps(): void {
   const wizardRoot = document.getElementById("wizard-root");
@@ -50,6 +51,7 @@ const isTesterPage =
   (wizardHost !== null && !wizardHost.getAttribute("data-server-test"));
 const referenceSyncs = [initStandards, initEquipment, initFaultCatalog, initPrivacy];
 if (isTesterPage) referenceSyncs.push(initFarms, initCalibration);
+purgeOtherTesterLayouts();
 void purgeStaleLocalData()
   .then((purge) => {
     if (purge.retained?.length) {

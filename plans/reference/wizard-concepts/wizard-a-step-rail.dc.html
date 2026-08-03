@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&amp;family=Open+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body { margin: 0; background: #eef3fa; }
+@keyframes wizfade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+input, select, button { font-family: 'Open Sans', system-ui, sans-serif; }
+input:focus, select:focus { outline: none; border-color: #003893 !important; box-shadow: 0 0 0 3px rgba(0,56,147,0.1); }
+</style>
+</helmet>
+<div style="min-height:100vh;font-family:'Open Sans',system-ui,sans-serif;font-size:16px;line-height:1.5;color:#333333;display:flex;flex-direction:column">
+
+  <header style="background:#003893;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.06);position:sticky;top:0;z-index:10">
+    <div style="max-width:1200px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px;font-weight:600;font-size:17px;font-family:'Montserrat',sans-serif">
+        <img src="assets/logo-mpnz-white.svg" alt="" style="height:30px;width:auto;display:block">
+        <span>AutoRep App</span>
+      </div>
+      <nav style="display:flex;align-items:center;gap:4px;flex:1;margin-left:24px">
+        <a href="#" style="color:rgba(255,255,255,0.75);padding:6px 12px;border-radius:8px;font-size:15px;font-weight:500;text-decoration:none" style-hover="background:rgba(255,255,255,0.1);color:#fff">Home</a>
+        <a href="#" style="color:#fff;padding:6px 12px;border-radius:8px;font-size:15px;font-weight:500;text-decoration:none;background:rgba(255,255,255,0.1)">My tests</a>
+        <a href="#" style="color:rgba(255,255,255,0.75);padding:6px 12px;border-radius:8px;font-size:15px;font-weight:500;text-decoration:none" style-hover="background:rgba(255,255,255,0.1);color:#fff">New test</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:12px;font-size:14px;color:rgba(255,255,255,0.85)">
+        <span style="width:28px;height:28px;background:rgba(255,255,255,0.15);border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:12px;color:#fff">D</span>
+        <span>dave@milktest.co.nz</span>
+        <button style="background:transparent;color:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.3);padding:6px 14px;min-height:36px;font-size:14px;border-radius:8px;cursor:pointer" style-hover="background:rgba(255,255,255,0.1)">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main style="flex:1;width:100%;max-width:1200px;margin:0 auto;padding:32px 24px;box-sizing:border-box">
+    <sc-if value="{{ loaded }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:32px">
+        <div>
+          <h1 style="margin:0;font-family:'Montserrat',sans-serif;font-size:30px;font-weight:700;letter-spacing:-0.025em;color:#003893;line-height:1.2">{{ farmName }}</h1>
+          <p style="color:#6b7280;margin:6px 0 0;font-size:15px">
+            <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;background:#f0fdf4;color:#166534">Online</span>
+          </p>
+        </div>
+        <button style="background:#fff;color:#b91c1c;border:1px solid #fecaca;padding:6px 12px;min-height:32px;font-size:13px;font-weight:500;border-radius:8px;cursor:pointer" style-hover="background:#fef2f2">Exit</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:280px 1fr;gap:24px;align-items:start">
+        <nav style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:6px;position:sticky;top:24px;height:650px;overflow-y:auto;box-sizing:border-box">
+          <sc-for list="{{ steps }}" as="s" hint-placeholder-count="10">
+            <a href="#" onClick="{{ s.onClick }}" style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;color:#333;text-decoration:none;background:{{ s.rowBg }}" style-hover="background:#f3f4f6">
+              <span style="width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;background:{{ s.numBg }};color:{{ s.numColor }}">{{ s.num }}</span>
+              <span style="display:block">
+                <span style="font-size:14px;font-weight:500;display:block;line-height:1.35">{{ s.title }}</span>
+                <sc-if value="{{ s.isOptional }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:11px;color:#f59e0b;text-transform:uppercase;letter-spacing:0.04em">optional</span>
+                </sc-if>
+              </span>
+            </a>
+          </sc-for>
+        </nav>
+
+        <div style="display:flex;flex-direction:column;min-width:0;height:650px">
+          <div style="flex:1 1 auto;min-height:0;overflow-y:auto;animation:wizfade 0.18s ease">
+
+            <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-height:100%;box-sizing:border-box">
+                <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin-bottom:12px">Farm &amp; details</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 20px">
+                  <sc-for list="{{ farmFields }}" as="f" hint-placeholder-count="9">
+                    <div>
+                      <span style="color:#6b7280;font-size:13px">{{ f.label }}</span>
+                      <div style="font-size:15px">{{ f.value }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <p style="color:#6b7280;font-size:13px;margin:16px 0 0">Farm details are managed in the admin area.</p>
+                <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin:20px 0 12px">Calibration expiry dates <span style="font-family:'Open Sans',sans-serif;font-weight:400;font-size:13px;color:#6b7280;margin-left:6px">Your test equipment — air-flow meters, pulsator testers, vacuum gauges.</span></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">
+                  <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Air-flow meters</label>
+                    <input type="date" data-k="calAirFlow" onInput="{{ onCalDate }}" value="{{ calAirFlow }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;color:#333;min-height:42px">
+                  </div>
+                  <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Pulsator testers</label>
+                    <input type="date" data-k="calPulsator" onInput="{{ onCalDate }}" value="{{ calPulsator }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;color:#333;min-height:42px">
+                  </div>
+                  <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Vacuum gauges</label>
+                    <input type="date" data-k="calVacuum" onInput="{{ onCalDate }}" value="{{ calVacuum }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;color:#333;min-height:42px">
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isConfig }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-height:100%;box-sizing:border-box">
+                <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin-bottom:12px">Machine configuration <span style="font-family:'Open Sans',sans-serif;font-weight:400;font-size:13px;color:#6b7280;margin-left:6px">Changes save immediately and re-resolve the steps on the left.</span></div>
+                <div style="display:flex;gap:2px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;overflow-x:auto">
+                  <sc-for list="{{ cfgTabs }}" as="t" hint-placeholder-count="4">
+                    <button onClick="{{ t.onClick }}" style="padding:6px 12px;border:0;border-bottom:2px solid {{ t.border }};background:none;color:{{ t.color }};font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap">{{ t.label }}</button>
+                  </sc-for>
+                </div>
+
+                <sc-if value="{{ cfgTabPlant }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;animation:wizfade 0.15s ease">
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Plant type</label>
+                      <select data-k="plantType" onChange="{{ onCfgSelect }}" value="{{ cfg.plantType }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ plantTypeOptionEls }}</select></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Plant size</label>
+                      <input type="text" data-k="plantSize" onInput="{{ onCfgText }}" value="{{ cfg.plantSize }}" placeholder="e.g. 30 a-side" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;min-height:42px"></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Cluster count</label>
+                      <input type="number" data-k="clusterCount" onInput="{{ onCfgNumber }}" value="{{ cfg.clusterCount }}" min="0" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;min-height:42px"></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Herd size</label>
+                      <input type="number" data-k="herdSize" onInput="{{ onCfgNumber }}" value="{{ cfg.herdSize }}" min="0" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;min-height:42px"></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Milkline size (mm)</label>
+                      <select data-k="milklineSize" onChange="{{ onCfgSelect }}" value="{{ cfg.milklineSize }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ milklineOptionEls }}</select></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Atmospheric pressure (kPa)</label>
+                      <select data-k="atmosPressureSeaLevel" onChange="{{ onCfgNumSelect }}" value="{{ cfg.atmosPressureSeaLevel }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ atmosOptionEls }}</select></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Last BMCC</label>
+                      <input type="text" data-k="lastBmcc" onInput="{{ onCfgText }}" value="{{ cfg.lastBmcc }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;min-height:42px"></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">No. of vacuum pumps</label>
+                      <input type="number" data-k="numberOfVacuumPumps" onInput="{{ onCfgNumber }}" value="{{ cfg.numberOfVacuumPumps }}" min="0" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;min-height:42px"></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Pump lubrication</label>
+                      <select data-k="pumpLubrication" onChange="{{ onCfgSelect }}" value="{{ cfg.pumpLubrication }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ pumpLubeOptionEls }}</select></div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ cfgTabPulsation }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;animation:wizfade 0.15s ease">
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Pulsator brand</label>
+                      <select data-k="pulsatorBrand" onChange="{{ onPulsatorBrand }}" value="{{ cfg.pulsatorBrand }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ brandOptionEls }}</select></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Pulsator type</label>
+                      <select data-k="pulsatorModel" onChange="{{ onCfgSelect }}" value="{{ cfg.pulsatorModel }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ modelOptionEls }}</select></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">No. of pulsators</label>
+                      <input type="number" data-k="pulsatorCount" onInput="{{ onCfgNumber }}" value="{{ cfg.pulsatorCount }}" min="0" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;min-height:42px"></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Pulsator configuration</label>
+                      <select data-k="pulsatorConfiguration" onChange="{{ onCfgSelect }}" value="{{ cfg.pulsatorConfiguration }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ pulsConfigOptionEls }}</select></div>
+                    <label style="display:flex;align-items:center;gap:12px;margin-bottom:12px;cursor:pointer;font-size:15px"><input type="checkbox" data-k="flushingPulsationSystem" onChange="{{ onCfgBool }}" checked="{{ cfg.flushingPulsationSystem }}" style="width:18px;height:18px"><span>Flushing pulsation system</span></label>
+                    <label style="display:flex;align-items:center;gap:12px;margin-bottom:12px;cursor:pointer;font-size:15px"><input type="checkbox" data-k="hasPulsatorStopSystem" onChange="{{ onCfgBool }}" checked="{{ cfg.hasPulsatorStopSystem }}" style="width:18px;height:18px"><span>Pulsator-stop system</span></label>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ cfgTabCluster }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;animation:wizfade 0.15s ease">
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Claw</label>
+                      <input type="text" data-k="clawModel" onInput="{{ onCfgText }}" value="{{ cfg.clawModel }}" placeholder="Enter claw" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;min-height:42px"></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Shell</label>
+                      <select data-k="shellModel" onChange="{{ onCfgSelect }}" value="{{ cfg.shellModel }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ shellOptionEls }}</select></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Front liner</label>
+                      <select data-k="linerModel" onChange="{{ onCfgSelect }}" value="{{ cfg.linerModel }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ linerOptionEls }}</select></div>
+                    <div style="margin-bottom:16px"><label style="display:block;font-size:14px;font-weight:500;margin-bottom:6px">Back liner</label>
+                      <select data-k="backLiner" onChange="{{ onCfgSelect }}" value="{{ cfg.backLiner }}" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;background:#fff;min-height:42px">
+{{ linerOptionEls }}</select></div>
+                    <label style="display:flex;align-items:center;gap:12px;margin-bottom:12px;cursor:pointer;font-size:15px"><input type="checkbox" data-k="linerVented" onChange="{{ onCfgBool }}" checked="{{ cfg.linerVented }}" style="width:18px;height:18px"><span>Vented liners</span></label>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ cfgTabAncillary }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;animation:wizfade 0.15s ease">
+                    <sc-for list="{{ ancillaryToggles }}" as="t" hint-placeholder-count="8">
+                      <label style="display:flex;align-items:center;gap:12px;margin-bottom:12px;cursor:pointer;font-size:15px"><input type="checkbox" data-k="{{ t.key }}" onChange="{{ onCfgBool }}" checked="{{ t.checked }}" style="width:18px;height:18px"><span>{{ t.label }}</span></label>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isChecklist }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-height:100%;box-sizing:border-box">
+                <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin-bottom:12px">{{ checklistTitle }} <span style="font-family:'Open Sans',sans-serif;font-weight:400;font-size:13px;color:#6b7280;margin-left:6px">Mark each item OK, or log a fault. Items left blank are assumed not present.</span></div>
+                <sc-if value="{{ showGuards }}" hint-placeholder-val="{{ false }}">
+                  <label style="display:flex;align-items:center;gap:12px;margin-bottom:12px;cursor:pointer;font-size:15px"><input type="checkbox" onChange="{{ onGuards }}" checked="{{ guardsOn }}" style="width:18px;height:18px"><span>Guards installed on pulsators</span></label>
+                </sc-if>
+                <div style="display:flex;gap:2px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;overflow-x:auto">
+                  <sc-for list="{{ checklistTabs }}" as="t" hint-placeholder-count="4">
+                    <button onClick="{{ t.onClick }}" style="padding:6px 12px;border:0;border-bottom:2px solid {{ t.border }};background:none;color:{{ t.color }};font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap">{{ t.label }}</button>
+                  </sc-for>
+                </div>
+                <div style="animation:wizfade 0.15s ease">
+                  <sc-for list="{{ checklistItems }}" as="it" hint-placeholder-count="8">
+                    <div>
+                      <div style="display:flex;gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb">
+                        <div style="flex:1;font-size:15px">{{ it.label }}</div>
+                        <sc-if value="{{ it.isData }}" hint-placeholder-val="{{ false }}">
+                          <input type="text" data-key="{{ it.key }}" onInput="{{ onDataField }}" value="{{ it.dataValue }}" placeholder="{{ it.unit }}" style="flex:none;width:144px;border:1px solid #d1d5db;border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box">
+                        </sc-if>
+                        <sc-if value="{{ it.isCheck }}" hint-placeholder-val="{{ true }}">
+                          <div style="display:flex;gap:6px;flex:none">
+                            <button data-key="{{ it.key }}" onClick="{{ onItemOk }}" style="border:1px solid {{ it.okBorder }};background:{{ it.okBg }};color:{{ it.okColor }};border-radius:6px;padding:6px 13px;font-size:13px;cursor:pointer">OK</button>
+                            <button data-key="{{ it.key }}" onClick="{{ onItemFault }}" style="border:1px solid {{ it.badBorder }};background:{{ it.badBg }};color:{{ it.badColor }};border-radius:6px;padding:6px 13px;font-size:13px;cursor:pointer">Fault</button>
+                          </div>
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{ it.faultOpen }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0 12px">
+                          <sc-if value="{{ it.hasObs }}" hint-placeholder-val="{{ false }}">
+                            <select data-key="{{ it.key }}" onChange="{{ onItemObs }}" value="{{ it.observation }}" style="flex:1 1 100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;background:#fff">
+{{ it.obsOptionEls }}</select>
+                          </sc-if>
+                          <select data-key="{{ it.key }}" onChange="{{ onItemSeverity }}" value="{{ it.severity }}" style="width:130px;flex:none;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;background:#fff">
+                            <option value="Critical">Critical</option>
+                            <option value="Major">Major</option>
+                            <option value="Minor">Minor</option>
+                          </select>
+                          <input type="text" data-key="{{ it.key }}" onInput="{{ onItemNote }}" value="{{ it.note }}" placeholder="Note (optional)" style="flex:1;min-width:128px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px">
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                  <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+                    <button onClick="{{ onCheckAllClick }}" style="background:#fff;color:#333;border:1px solid #d1d5db;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;min-height:32px" style-hover="background:#f3f4f6">✓ Check all as verified{{ attestedSuffix }}</button>
+                    <sc-if value="{{ sectionComplete }}" hint-placeholder-val="{{ false }}">
+                      <span style="color:#10b981;font-size:13px">Section complete</span>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isReadings }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-height:100%;box-sizing:border-box">
+                <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin-bottom:12px">{{ readingsTitle }} <span style="font-family:'Open Sans',sans-serif;font-weight:400;font-size:13px;color:#6b7280;margin-left:6px">{{ readingsHint }}</span></div>
+                <div style="display:flex;gap:2px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;overflow-x:auto">
+                  <sc-for list="{{ readingsTabs }}" as="t" hint-placeholder-count="6">
+                    <button onClick="{{ t.onClick }}" style="padding:6px 12px;border:0;border-bottom:2px solid {{ t.border }};background:none;color:{{ t.color }};font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap">{{ t.label }}</button>
+                  </sc-for>
+                </div>
+                <div style="animation:wizfade 0.15s ease">
+                  <sc-for list="{{ readingRows }}" as="r" hint-placeholder-count="5">
+                    <div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #e5e7eb">
+                      <div style="flex:1;font-size:15px">{{ r.label }}
+                        <sc-if value="{{ r.hasHint }}" hint-placeholder-val="{{ false }}"><span style="display:block;font-size:12px;color:#6b7280">{{ r.hint }}</span></sc-if>
+                      </div>
+                      <input type="number" step="any" data-key="{{ r.key }}" onInput="{{ onReading }}" value="{{ r.value }}" style="width:110px;flex:none;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box">
+                      <span style="width:46px;font-size:13px;color:#6b7280">{{ r.unit }}</span>
+                      <span style="min-width:52px;text-align:center;font-size:11.5px;font-weight:700;letter-spacing:0.03em;padding:3px 8px;border-radius:6px;box-sizing:border-box;background:{{ r.pfBg }};color:{{ r.pfColor }}">{{ r.pfLabel }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isRowStep }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;box-shadow:0 1px 2px rgba(0,0,0,0.04);box-sizing:border-box">
+                <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin-bottom:12px">{{ rowStepTitle }} <span style="font-family:'Open Sans',sans-serif;font-weight:400;font-size:13px;color:#6b7280;margin-left:6px">{{ rowStepHint }}</span></div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+                  <button onClick="{{ onAddRow }}" style="background:#fff;color:#333;border:1px solid #d1d5db;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;min-height:32px" style-hover="background:#f3f4f6">＋ Add {{ rowUnitLower }}</button>
+                  <button onClick="{{ onFillAll }}" style="background:#fff;color:#333;border:1px solid #d1d5db;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;min-height:32px" style-hover="background:#f3f4f6">Enter all ({{ rowSuggested }})</button>
+                  <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ onClearRows }}" style="background:#fff;color:#333;border:1px solid #d1d5db;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;min-height:32px" style-hover="background:#f3f4f6">Clear</button>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ false }}">
+                  <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+                      <thead><tr>
+                        <th style="text-align:left;font-weight:600;color:#6b7280;padding:5px 6px;border-bottom:1px solid #e5e7eb;white-space:nowrap">{{ rowUnitLabel }}</th>
+                        <sc-for list="{{ rowCols }}" as="c" hint-placeholder-count="7">
+                          <th style="text-align:left;font-weight:600;color:#6b7280;padding:5px 6px;border-bottom:1px solid #e5e7eb;white-space:nowrap">{{ c.label }}</th>
+                        </sc-for>
+                        <th></th>
+                      </tr></thead>
+                      <tbody>
+                        <sc-for list="{{ rowRows }}" as="row" hint-placeholder-count="3">
+                          <tr>
+                            <td style="padding:3px 5px;border-bottom:1px solid #e5e7eb"><input data-row="{{ row.id }}" onInput="{{ onRowUnit }}" value="{{ row.unit }}" style="width:48px;border:1px solid #d1d5db;border-radius:6px;padding:5px 6px;font-size:13.5px;box-sizing:border-box"></td>
+                            <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="7">
+                              <td style="padding:3px 5px;border-bottom:1px solid #e5e7eb"><input type="number" data-row="{{ row.id }}" data-col="{{ cell.col }}" onInput="{{ onRowCell }}" value="{{ cell.value }}" style="width:100%;min-width:64px;border:1px solid {{ cell.border }};background:{{ cell.bg }};border-radius:6px;padding:5px 6px;font-size:13.5px;box-sizing:border-box"></td>
+                            </sc-for>
+                            <td style="padding:3px 5px;border-bottom:1px solid #e5e7eb"><button data-row="{{ row.id }}" onClick="{{ onRemoveRow }}" title="Remove" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:17px;line-height:1;padding:0 5px">×</button></td>
+                          </tr>
+                        </sc-for>
+                      </tbody>
+                    </table>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ noRows }}" hint-placeholder-val="{{ true }}">
+                  <p style="color:#6b7280;margin:6px 0 0;font-size:14.5px">No {{ rowUnitLower }} rows yet — add faulty units only, or "Enter all".</p>
+                </sc-if>
+                <sc-if value="{{ showPulsSummary }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb">
+                    <sc-for list="{{ pulsStats }}" as="st" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:6px;font-size:14px">
+                        <span style="font-weight:600">{{ st.label }}</span>
+                        <span style="color:#6b7280">{{ st.range }}</span>
+                        <sc-if value="{{ st.hasBadge }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-size:11.5px;font-weight:700;letter-spacing:0.03em;padding:3px 8px;border-radius:6px;background:{{ st.bg }};color:{{ st.color }}">{{ st.badge }}</span>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+              <sc-if value="{{ isPulsator }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;box-shadow:0 1px 2px rgba(0,0,0,0.04);margin-top:12px;box-sizing:border-box">
+                  <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin-bottom:12px">Pulsator &amp; ancillary readings <span style="font-family:'Open Sans',sans-serif;font-weight:400;font-size:13px;color:#6b7280;margin-left:6px">ISO 14–15 air consumption + airline stability.</span></div>
+                  <div style="display:flex;gap:2px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;overflow-x:auto">
+                    <sc-for list="{{ pulsReadingTabs }}" as="t" hint-placeholder-count="3">
+                      <button onClick="{{ t.onClick }}" style="padding:6px 12px;border:0;border-bottom:2px solid {{ t.border }};background:none;color:{{ t.color }};font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap">{{ t.label }}</button>
+                    </sc-for>
+                  </div>
+                  <sc-for list="{{ pulsReadingRows }}" as="r" hint-placeholder-count="4">
+                    <div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #e5e7eb">
+                      <div style="flex:1;font-size:15px">{{ r.label }}
+                        <sc-if value="{{ r.hasHint }}" hint-placeholder-val="{{ false }}"><span style="display:block;font-size:12px;color:#6b7280">{{ r.hint }}</span></sc-if>
+                      </div>
+                      <input type="number" step="any" data-key="{{ r.key }}" onInput="{{ onReading }}" value="{{ r.value }}" style="width:110px;flex:none;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box">
+                      <span style="width:46px;font-size:13px;color:#6b7280">{{ r.unit }}</span>
+                      <span style="min-width:52px;text-align:center;font-size:11.5px;font-weight:700;letter-spacing:0.03em;padding:3px 8px;border-radius:6px;box-sizing:border-box;background:{{ r.pfBg }};color:{{ r.pfColor }}">{{ r.pfLabel }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </sc-if>
+
+            <sc-if value="{{ isFaults }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-height:100%;box-sizing:border-box">
+                <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin-bottom:12px">Fault Summary &amp; Recommendations <span style="font-family:'Open Sans',sans-serif;font-weight:400;font-size:13px;color:#6b7280;margin-left:6px">Carried from the visual checks and failed readings — add a recommendation for each.</span></div>
+                <div style="display:flex;gap:6px;margin:12px 0 16px;flex-wrap:wrap">
+                  <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;background:#fef2f2;color:#991b1b">{{ faultCritical }} critical</span>
+                  <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;background:#fef3c7;color:#92400e">{{ faultMajor }} major</span>
+                  <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;background:#f3f4f6;color:#6b7280">{{ faultMinor }} minor</span>
+                </div>
+                <sc-if value="{{ noFaults }}" hint-placeholder-val="{{ false }}">
+                  <p style="color:#6b7280;margin-top:12px;font-size:14.5px">No faults recorded yet — the machine has passed every check so far.</p>
+                </sc-if>
+                <sc-for list="{{ faultGroups }}" as="g" hint-placeholder-count="2">
+                  <div style="margin-bottom:16px">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                      <span style="font-weight:600;font-size:15px">{{ g.component }}</span>
+                      <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;background:{{ g.badgeBg }};color:{{ g.badgeColor }}">{{ g.severity }}</span>
+                    </div>
+                    <sc-for list="{{ g.faults }}" as="f" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #e5e7eb">
+                        <div style="flex:1;font-size:14.5px;display:flex;align-items:center;gap:6px">
+                          <span style="width:8px;height:8px;border-radius:50%;flex:none;background:{{ f.dotColor }}"></span>
+                          {{ f.description }}
+                        </div>
+                        <input type="text" data-key="{{ f.key }}" onInput="{{ onRecommendation }}" value="{{ f.rec }}" placeholder="Recommendation…" style="flex:1;min-width:0;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;background:#fff">
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isSignoff }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-height:100%;box-sizing:border-box;display:flex;flex-direction:column">
+                <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:600;margin-bottom:12px">Review &amp; sign-off <span style="font-family:'Open Sans',sans-serif;font-weight:400;font-size:13px;color:#6b7280;margin-left:6px">Check the test over, then mark it complete to sync.</span></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:6px">
+                  <div><span style="color:#6b7280;font-size:13px">Farm</span><div>{{ farmName }}</div></div>
+                  <div><span style="color:#6b7280;font-size:13px">Plant</span><div>{{ plantSummary }}</div></div>
+                  <div><span style="color:#6b7280;font-size:13px">Pulsators</span><div>{{ pulsatorCount }}</div></div>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+                  <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;background:#fef2f2;color:#991b1b">{{ faultCritical }} critical</span>
+                  <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;background:#fef3c7;color:#92400e">{{ faultMajor }} major</span>
+                  <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;background:#f3f4f6;color:#6b7280">{{ faultMinor }} minor</span>
+                </div>
+                <div style="margin-top:16px;display:grid;gap:3px">
+                  <sc-for list="{{ signoffSteps }}" as="s" hint-placeholder-count="9">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:14px">
+                      <span style="width:10px;height:10px;border-radius:50%;flex:none;background:{{ s.dotColor }}"></span>
+                      {{ s.title }}{{ s.suffix }}
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="margin-top:16px">
+                  <div style="color:#6b7280;font-size:13px;margin-bottom:4px">Pulsation analyser report (PDF)</div>
+                  <sc-if value="{{ hasAttachment }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:center;gap:6px;border:1px solid #e5e7eb;border-radius:6px;padding:6px 12px;background:#fff;font-size:14px">
+                      <span>📄</span>
+                      <span style="font-weight:600">Pulsation-Analysis.pdf</span>
+                      <span style="color:#6b7280;font-size:13px">1.2 MB · appended to the report</span>
+                      <button onClick="{{ onRemoveAttachment }}" title="Remove attachment" style="margin-left:auto;border:none;background:none;color:#ef4444;font-size:17px;line-height:1;cursor:pointer;padding:0 5px">×</button>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ noAttachment }}" hint-placeholder-val="{{ true }}">
+                    <div onClick="{{ onAttach }}" style="border:2px dashed #d1d5db;border-radius:6px;padding:16px;text-align:center;color:#6b7280;font-size:14px;cursor:pointer" style-hover="border-color:#003893;background:rgba(0,56,147,0.04);color:#333">
+                      Drop the pulsation PDF here, or click to browse — it's appended to the Test Summary report.
+                    </div>
+                  </sc-if>
+                </div>
+                <div style="flex:none;margin-top:auto;padding-top:12px;border-top:1px solid #e5e7eb">
+                  <sc-if value="{{ isComplete }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">
+                      <p style="margin:0">✓ Marked complete {{ completedAtLabel }} · sync: <strong>synced</strong></p>
+                      <div style="display:flex;gap:6px;margin-top:12px">
+                        <button onClick="{{ onDownloadReport }}" style="background:#003893;color:#fff;border:1px solid #003893;border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px" style-hover="background:#002d78">Download report (PDF)</button>
+                        <button onClick="{{ onReopen }}" style="background:#fff;color:#333;border:1px solid #d1d5db;border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px" style-hover="background:#f3f4f6">Reopen (demo)</button>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ notComplete }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+                      <label style="display:flex;align-items:center;gap:12px;cursor:pointer;font-size:15px"><input type="checkbox" onChange="{{ onAttest }}" checked="{{ attested }}" style="width:18px;height:18px"><span>I confirm this test has been completed and the results are accurate.</span></label>
+                      <button onClick="{{ onMarkComplete }}" disabled="{{ notAttested }}" style="background:{{ completeBtnBg }};color:#fff;border:1px solid {{ completeBtnBg }};border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px;opacity:{{ completeBtnOpacity }}">Mark as complete &amp; sync</button>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+
+          </div>
+
+          <div style="display:flex;justify-content:space-between;margin-top:20px">
+            <div>
+              <sc-if value="{{ hasPrev }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ onPrev }}" style="background:#fff;color:#333;border:1px solid #d1d5db;border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px" style-hover="background:#f3f4f6">‹ Back</button>
+              </sc-if>
+            </div>
+            <div>
+              <sc-if value="{{ hasNext }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ onNext }}" style="background:#003893;color:#fff;border:1px solid #003893;border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px" style-hover="background:#002d78">Next ›</button>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ notLoaded }}" hint-placeholder-val="{{ true }}">
+      <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;color:#6b7280">Loading test…</div>
+    </sc-if>
+  </main>
+
+  <footer style="padding:12px 24px;text-align:center;font-size:13px;color:#9ca3af;border-top:1px solid #e5e7eb;background:#fff">© 2026 NZMPTA · Built by Pedersen Group</footer>
+
+  <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onModalOverlay }}" style="position:fixed;inset:0;z-index:100;background:rgba(17,24,39,0.5);display:flex;align-items:flex-start;justify-content:center;padding:32px 12px;overflow-y:auto">
+      <div style="background:#fff;border-radius:12px;padding:24px;width:100%;max-width:560px;box-shadow:0 10px 20px -5px rgba(0,0,0,0.1)">
+        <div style="font-family:'Montserrat',sans-serif;font-size:20px;font-weight:700;margin-bottom:12px">Confirm: check all as verified</div>
+        <p style="margin:0 0 8px">"I have inspected all items in this section and confirm they have been seen, tested and are in order."</p>
+        <p style="color:#6b7280;font-size:13px;margin:0">Recorded as an attestation on this test. You can still amend individual items afterwards.</p>
+        <div style="display:flex;gap:6px;margin-top:24px;padding-top:24px;border-top:1px solid #e5e7eb">
+          <button onClick="{{ onConfirmCheckAll }}" style="background:#003893;color:#fff;border:1px solid #003893;border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px" style-hover="background:#002d78">I confirm</button>
+          <button onClick="{{ onCancelCheckAll }}" style="background:#fff;color:#333;border:1px solid #d1d5db;border-radius:8px;padding:10px 18px;font-size:15px;font-weight:500;cursor:pointer;min-height:42px" style-hover="background:#f3f4f6">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;top:24px;right:24px;z-index:200;background:#333;color:#fff;padding:12px 16px;border-radius:8px;box-shadow:0 10px 20px -5px rgba(0,0,0,0.2);font-size:14px;max-width:360px">{{ toastMsg }}</div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1280, &quot;height&quot;: 860}, &quot;accent&quot;: {&quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#003893&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;options&quot;: [&quot;#003893&quot;, &quot;#1b54c2&quot;, &quot;#0e7490&quot;], &quot;section&quot;: &quot;Theme&quot;}}">
+class Component extends DCLogic {
+  state = {
+    loaded: false,
+    currentStep: "Setup",
+    tabs: {},            // per-step active tab index
+    visualFaults: {},
+    dataFields: {},
+    readings: {},
+    recommendations: {},
+    pulsatorRows: [],
+    clusterRows: [],
+    attestations: [],
+    guards: false,
+    attested: false,
+    completedAt: null,
+    hasAttachment: false,
+    confirmingSection: null,
+    toast: null,
+    calAirFlow: "2026-11-01", calPulsator: "2026-09-15", calVacuum: "2027-02-01",
+    config: null,
+  };
+
+  async componentDidMount() {
+    const mod = await import("./assets/wizard-data.js");
+    this.W = mod;
+    await mod.loadCatalogs();
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("nzmpta-wizard-a") || "null"); } catch {}
+    const config = (saved && saved.config) || mod.defaultMachineConfiguration();
+    this.setState({ loaded: true, config, ...(saved ? {
+      currentStep: saved.currentStep ?? "Setup", visualFaults: saved.visualFaults ?? {},
+      dataFields: saved.dataFields ?? {}, readings: saved.readings ?? {},
+      recommendations: saved.recommendations ?? {}, pulsatorRows: saved.pulsatorRows ?? [],
+      clusterRows: saved.clusterRows ?? [], attestations: saved.attestations ?? [],
+      guards: saved.guards ?? false, completedAt: saved.completedAt ?? null,
+      hasAttachment: saved.hasAttachment ?? false,
+    } : {}) });
+  }
+
+  persist(patch) {
+    this.setState(patch, () => {
+      const s = this.state;
+      try {
+        localStorage.setItem("nzmpta-wizard-a", JSON.stringify({
+          currentStep: s.currentStep, config: s.config, visualFaults: s.visualFaults,
+          dataFields: s.dataFields, readings: s.readings, recommendations: s.recommendations,
+          pulsatorRows: s.pulsatorRows, clusterRows: s.clusterRows, attestations: s.attestations,
+          guards: s.guards, completedAt: s.completedAt, hasAttachment: s.hasAttachment,
+        }));
+      } catch {}
+    });
+  }
+
+  toast(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => this.setState({ toast: null }), 3200);
+  }
+
+  // Build <option> elements in logic (sc-for inside <select> is ejected by the HTML parser).
+  optEls(list, placeholder) {
+    const els = list.map((o) => {
+      const value = typeof o === "object" ? o.value : o;
+      const label = typeof o === "object" ? o.label : o;
+      return React.createElement("option", { key: String(value), value: String(value) }, String(label));
+    });
+    return placeholder != null ? [React.createElement("option", { key: "__ph", value: "" }, placeholder), ...els] : els;
+  }
+
+  go(step) { this.persist({ currentStep: step }); }
+  tabFor(step) { return this.state.tabs[step] ?? 0; }
+  setTab(step, i) { this.setState({ tabs: { ...this.state.tabs, [step]: i } }); }
+
+  // ----- checklist helpers -----
+  activeChecklistSections() {
+    const W = this.W, c = this.state.config;
+    if (this.state.currentStep === "VisualFaultsPreStart") return W.preStartSections(c.hasReleaserPump);
+    return W.runningSectionsFor(W.runningSectionKeys(c));
+  }
+
+  setEntry(key, entry) {
+    const visualFaults = { ...this.state.visualFaults };
+    if (entry) visualFaults[key] = entry; else delete visualFaults[key];
+    this.persist({ visualFaults });
+  }
+
+  renderVals() {
+    const s = this.state, W = this.W;
+    if (!s.loaded || !W) return { loaded: false, notLoaded: true };
+    const cfg = s.config;
+    const BRAND = this.props.accent ?? "#003893";
+    const plan = W.resolveWizard(cfg);
+    const completed = W.computeCompleted(s, cfg);
+    const idx = plan.steps.findIndex((x) => x.step === s.currentStep);
+    const cur = plan.steps[idx] ?? plan.steps[0];
+    const summary = W.buildFaultSummary(s, cfg);
+    const pf = (verdict) => verdict === "pass"
+      ? { pfBg: "#f0fdf4", pfColor: "#166534", pfLabel: "PASS" }
+      : verdict === "fail" ? { pfBg: "#fef2f2", pfColor: "#991b1b", pfLabel: "FAIL" }
+      : { pfBg: "#f3f4f6", pfColor: "#9ca3af", pfLabel: "—" };
+
+    const steps = plan.steps.map((st, i) => ({
+      num: i + 1, title: st.title, isOptional: st.isOptional,
+      rowBg: st.step === s.currentStep ? "rgba(0,56,147,0.06)" : "transparent",
+      numBg: st.step === s.currentStep ? BRAND : completed.has(st.step) ? "#10b981" : "#f3f4f6",
+      numColor: st.step === s.currentStep || completed.has(st.step) ? "#fff" : "#6b7280",
+      onClick: (e) => { e.preventDefault(); this.go(st.step); },
+    }));
+
+    const vals = {
+      loaded: true, notLoaded: false,
+      farmName: W.DEMO_FARM.name,
+      steps,
+      hasPrev: idx > 0, hasNext: idx < plan.steps.length - 1,
+      onPrev: () => this.go(plan.steps[idx - 1].step),
+      onNext: () => this.go(plan.steps[idx + 1].step),
+      isSetup: cur.step === "Setup",
+      isConfig: cur.step === "MachineConfiguration",
+      isChecklist: cur.step === "VisualFaultsPreStart" || cur.step === "VisualFaultsRunning",
+      isReadings: cur.step === "TestRecord" || cur.step === "AdditionalTests",
+      isRowStep: cur.step === "PulsatorTest" || cur.step === "IndividualClusterTest",
+      isPulsator: cur.step === "PulsatorTest",
+      isFaults: cur.step === "FaultSummary",
+      isSignoff: cur.step === "ReviewSignOff",
+      confirmOpen: s.confirmingSection != null,
+      toastVisible: s.toast != null, toastMsg: s.toast,
+      faultCritical: summary.critical, faultMajor: summary.major, faultMinor: summary.minor,
+      onModalOverlay: (e) => { if (e.target === e.currentTarget) this.setState({ confirmingSection: null }); },
+      onCancelCheckAll: () => this.setState({ confirmingSection: null }),
+      onConfirmCheckAll: () => {
+        const secs = this.activeChecklistSections();
+        const sec = secs.find((x) => x.key === s.confirmingSection);
+        if (sec) {
+          this.persist({
+            visualFaults: W.applyCheckAll([sec], s.visualFaults),
+            attestations: [...s.attestations, { step: s.currentStep, section: sec.key, attestedAt: new Date().toISOString(), text: W.ATTESTATION_TEXT }],
+            confirmingSection: null,
+          });
+        } else this.setState({ confirmingSection: null });
+      },
+    };
+
+    // ---- Setup ----
+    if (vals.isSetup) {
+      const F = W.DEMO_FARM;
+      vals.farmFields = [
+        { label: "Farm", value: F.name }, { label: "Supply number", value: F.supplyNumber },
+        { label: "Milk supply company", value: F.milkCompanyName }, { label: "Region", value: F.regionName },
+        { label: "Address", value: F.address }, { label: "RAPID number", value: F.rapidNumber },
+        { label: "Farmer", value: F.farmerName }, { label: "Phone", value: F.contactPhone },
+        { label: "Email", value: F.contactEmail },
+      ];
+      vals.calAirFlow = s.calAirFlow; vals.calPulsator = s.calPulsator; vals.calVacuum = s.calVacuum;
+      vals.onCalDate = (e) => this.setState({ [e.currentTarget.dataset.k]: e.currentTarget.value });
+    }
+
+    // ---- Machine config ----
+    if (vals.isConfig) {
+      const t = this.tabFor("MachineConfiguration");
+      const labels = ["Plant", "Pulsation", "Cluster & liners", "Ancillary equipment"];
+      vals.cfgTabs = labels.map((label, i) => ({
+        label, border: i === t ? BRAND : "transparent", color: i === t ? BRAND : "#6b7280",
+        onClick: () => this.setTab("MachineConfiguration", i),
+      }));
+      vals.cfgTabPlant = t === 0; vals.cfgTabPulsation = t === 1; vals.cfgTabCluster = t === 2; vals.cfgTabAncillary = t === 3;
+      vals.cfg = cfg;
+      vals.plantTypes = W.PLANT_TYPES; vals.pumpLubes = W.PUMP_LUBRICATION;
+      vals.milklineSizes = W.MILKLINE_SIZES; vals.atmosOptions = W.ATMOS_PRESSURES;
+      vals.pulsatorBrands = W.pulsatorBrands();
+      vals.pulsatorModels = W.pulsatorModelsForBrand(cfg.pulsatorBrand);
+      vals.pulsatorConfigs = W.PULSATOR_CONFIGS;
+      vals.shells = W.catalogs.shells; vals.liners = W.catalogs.liners;
+      vals.plantTypeOptionEls = this.optEls(W.PLANT_TYPES);
+      vals.milklineOptionEls = this.optEls(W.MILKLINE_SIZES);
+      vals.atmosOptionEls = this.optEls(W.ATMOS_PRESSURES.map((a) => ({ value: a.kpa, label: `${a.kpa} kPa` })));
+      vals.pumpLubeOptionEls = this.optEls(W.PUMP_LUBRICATION);
+      vals.brandOptionEls = this.optEls(W.pulsatorBrands(), "— select —");
+      vals.modelOptionEls = this.optEls(W.pulsatorModelsForBrand(cfg.pulsatorBrand), "— select —");
+      vals.pulsConfigOptionEls = this.optEls(W.PULSATOR_CONFIGS, "— select —");
+      vals.shellOptionEls = this.optEls(W.catalogs.shells, "— select —");
+      vals.linerOptionEls = this.optEls(W.catalogs.liners, "— select —");
+      const setCfg = (patch) => this.persist({ config: { ...this.state.config, ...patch } });
+      vals.onCfgText = (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.value || null });
+      vals.onCfgNumber = (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.value === "" ? 0 : Number(e.currentTarget.value) });
+      vals.onCfgSelect = (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.value || null });
+      vals.onCfgNumSelect = (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.value === "" ? null : Number(e.currentTarget.value) });
+      vals.onCfgBool = (e) => setCfg({ [e.currentTarget.dataset.k]: e.currentTarget.checked });
+      vals.onPulsatorBrand = (e) => {
+        const brand = e.currentTarget.value || null;
+        const models = W.pulsatorModelsForBrand(brand);
+        setCfg({ pulsatorBrand: brand, pulsatorModel: models.length === 1 ? models[0] : null });
+      };
+      vals.ancillaryToggles = [
+        { key: "vsdFitted", label: "Variable speed drive (VSD)", checked: cfg.vsdFitted },
+        { key: "isoPortsAvailable", label: "ISO test ports available", checked: cfg.isoPortsAvailable },
+        { key: "hasAcr", label: "Automatic cluster removers (ACRs)", checked: cfg.hasAcr },
+        { key: "hasBailGates", label: "Bail gates", checked: cfg.hasBailGates },
+        { key: "hasMilkMeters", label: "Milk meters", checked: cfg.hasMilkMeters },
+        { key: "hasTeatSprayer", label: "Teat sprayer", checked: cfg.hasTeatSprayer },
+        { key: "hasBackingGate", label: "Backing gate", checked: cfg.hasBackingGate },
+        { key: "hasReleaserPump", label: "Releaser pump", checked: cfg.hasReleaserPump },
+      ];
+    }
+
+    // ---- Checklist steps ----
+    if (vals.isChecklist) {
+      const sections = this.activeChecklistSections();
+      const t = Math.min(this.tabFor(cur.step), sections.length - 1);
+      const sec = sections[t];
+      vals.checklistTitle = cur.step === "VisualFaultsPreStart" ? "Visual faults — pre-start" : "Visual faults — running";
+      vals.showGuards = cur.step === "VisualFaultsRunning";
+      vals.guardsOn = s.guards;
+      vals.onGuards = (e) => this.persist({ guards: e.currentTarget.checked });
+      vals.checklistTabs = sections.map((x, i) => ({
+        label: x.title, border: i === t ? BRAND : "transparent", color: i === t ? BRAND : "#6b7280",
+        onClick: () => this.setTab(cur.step, i),
+      }));
+      const attested = s.attestations.some((a) => a.step === cur.step && a.section === sec.key);
+      vals.attestedSuffix = attested ? " · attested" : "";
+      vals.sectionComplete = W.checklistComplete([sec], s.visualFaults);
+      vals.onCheckAllClick = () => this.setState({ confirmingSection: sec.key });
+      vals.checklistItems = sec.items.map((it) => {
+        const e = s.visualFaults[it.key];
+        const okOn = e?.status === "ok", badOn = e?.status === "fault";
+        const obs = W.observationsFor(it.lookup);
+        return {
+          key: it.key, label: it.label, isData: !!it.data, isCheck: !it.data,
+          dataValue: s.dataFields[it.key] ?? "", unit: it.unit ?? "",
+          okBg: okOn ? "#f0fdf4" : "#fff", okBorder: okOn ? "#bbf7d0" : "#d1d5db", okColor: okOn ? "#166534" : "#333",
+          badBg: badOn ? "#fef2f2" : "#fff", badBorder: badOn ? "#fecaca" : "#d1d5db", badColor: badOn ? "#991b1b" : "#333",
+          faultOpen: badOn, hasObs: obs.length > 0, obsOptionEls: this.optEls(obs, "— select or type fault —"),
+          observation: e?.observation ?? "", severity: e?.severity ?? "Major", note: e?.note ?? "",
+        };
+      });
+      vals.onDataField = (ev) => {
+        const dataFields = { ...s.dataFields };
+        const v = ev.currentTarget.value;
+        if (v.trim() === "") delete dataFields[ev.currentTarget.dataset.key]; else dataFields[ev.currentTarget.dataset.key] = v;
+        this.persist({ dataFields });
+      };
+      vals.onItemOk = (ev) => {
+        const k = ev.currentTarget.dataset.key, e = s.visualFaults[k];
+        this.setEntry(k, e?.status === "ok" ? null : { status: "ok" });
+      };
+      vals.onItemFault = (ev) => {
+        const k = ev.currentTarget.dataset.key, e = s.visualFaults[k];
+        if (e?.status === "fault") return this.setEntry(k, null);
+        const item = sec.items.find((x) => x.key === k);
+        const obs = W.observationsFor(item?.lookup);
+        this.setEntry(k, obs.length === 1 ? { status: "fault", observation: obs[0], severity: "Major" } : { status: "fault", severity: "Major" });
+      };
+      vals.onItemObs = (ev) => {
+        const k = ev.currentTarget.dataset.key;
+        this.setEntry(k, { ...s.visualFaults[k], observation: ev.currentTarget.value || undefined });
+      };
+      vals.onItemSeverity = (ev) => {
+        const k = ev.currentTarget.dataset.key;
+        this.setEntry(k, { ...s.visualFaults[k], severity: ev.currentTarget.value });
+      };
+      vals.onItemNote = (ev) => {
+        const k = ev.currentTarget.dataset.key;
+        this.setEntry(k, { ...s.visualFaults[k], note: ev.currentTarget.value });
+      };
+    }
+
+    // ---- Readings steps (Test Record / Additional) ----
+    const readingHandler = (ev) => {
+      const readings = { ...this.state.readings };
+      const v = ev.currentTarget.value;
+      if (v === "" || Number.isNaN(Number(v))) delete readings[ev.currentTarget.dataset.key];
+      else readings[ev.currentTarget.dataset.key] = Number(v);
+      this.persist({ readings });
+    };
+    vals.onReading = readingHandler;
+    const rowsFor = (secList, t) => {
+      const sec = secList[Math.min(t, secList.length - 1)];
+      return sec.readings.map((r) => ({
+        key: r.key, label: r.label, unit: r.unit, hint: r.hint ?? "", hasHint: !!r.hint,
+        value: s.readings[r.key] ?? "",
+        ...pf(W.evaluate(s.readings[r.key], r.rule)),
+      }));
+    };
+    if (vals.isReadings) {
+      const secList = cur.step === "TestRecord" ? W.testRecordSections(cfg, s.readings) : W.additionalTestSections(cfg, s.readings);
+      const t = Math.min(this.tabFor(cur.step), secList.length - 1);
+      vals.readingsTitle = cur.step === "TestRecord" ? "Test Record" : "Additional Tests";
+      vals.readingsHint = cur.step === "TestRecord"
+        ? "Enter readings — pass/fail is live against the standard for this machine."
+        : "Only the sections relevant to this machine's ancillaries are shown.";
+      vals.readingsTabs = secList.map((x, i) => ({
+        label: x.title, border: i === t ? BRAND : "transparent", color: i === t ? BRAND : "#6b7280",
+        onClick: () => this.setTab(cur.step, i),
+      }));
+      vals.readingRows = rowsFor(secList, t);
+    }
+
+    // ---- Row-table steps ----
+    if (vals.isRowStep) {
+      const isPuls = cur.step === "PulsatorTest";
+      const rows = isPuls ? s.pulsatorRows : s.clusterRows;
+      const rowsKey = isPuls ? "pulsatorRows" : "clusterRows";
+      const cols = isPuls ? W.pulsatorColumns() : W.clusterColumns(cfg);
+      const suggested = isPuls ? (cfg.pulsatorCount || 0) : (cfg.clusterCount || 0);
+      vals.rowStepTitle = isPuls ? "Pulsator test results" : "Individual cluster tests";
+      vals.rowStepHint = isPuls
+        ? `Add faulty pulsators, or "Enter all". Rate spread ≤ ${W.PULSATION_LIMITS.rateSpreadMax} ppm, ratio spread ≤ ${W.PULSATION_LIMITS.ratioSpreadMax}%.`
+        : `Optional · ISO 13. Total ≤ ${cfg.linerVented ? "35 (vented)" : "12"}, leakage ≤ 2, air vent ≥ 4 L/min.`;
+      vals.rowUnitLabel = isPuls ? "Pulsator" : "Cluster";
+      vals.rowUnitLower = isPuls ? "pulsator" : "cluster";
+      vals.rowSuggested = suggested;
+      vals.hasRows = rows.length > 0; vals.noRows = rows.length === 0;
+      vals.rowCols = cols.map((c) => ({ label: c.label + (c.unit ? ` (${c.unit})` : "") }));
+      vals.rowRows = rows.map((r) => ({
+        id: r.id, unit: r.unit,
+        cells: cols.map((c) => {
+          const raw = r.values[c.key] ?? "";
+          const failed = c.rule && raw !== "" && W.evaluate(raw, c.rule) === "fail";
+          return { col: c.key, value: raw, border: failed ? "#ef4444" : "#d1d5db", bg: failed ? "#fef2f2" : "#fff" };
+        }),
+      }));
+      const setRows = (next) => this.persist({ [rowsKey]: next });
+      vals.onAddRow = () => setRows([...rows, { id: crypto.randomUUID(), unit: String(rows.length + 1), values: {} }]);
+      vals.onFillAll = () => setRows(Array.from({ length: suggested }, (_, i) => ({ id: crypto.randomUUID(), unit: String(i + 1), values: {} })));
+      vals.onClearRows = () => setRows([]);
+      vals.onRemoveRow = (ev) => setRows(rows.filter((r) => r.id !== ev.currentTarget.dataset.row));
+      vals.onRowUnit = (ev) => setRows(rows.map((r) => r.id === ev.currentTarget.dataset.row ? { ...r, unit: ev.currentTarget.value } : r));
+      vals.onRowCell = (ev) => {
+        const { row, col } = ev.currentTarget.dataset;
+        setRows(rows.map((r) => r.id === row ? { ...r, values: { ...r.values, [col]: ev.currentTarget.value } } : r));
+      };
+      if (isPuls) {
+        const sum = W.pulsatorSummary(rows);
+        const fmt = (n) => (n == null ? "—" : String(n));
+        vals.showPulsSummary = rows.length > 0;
+        vals.pulsStats = [
+          { label: "Rate", range: `${fmt(sum.slowestRate)}–${fmt(sum.fastestRate)} ppm`, hasBadge: sum.rateSpread != null,
+            badge: `spread ${sum.rateSpread} ppm ${sum.rateSpreadOk ? "≤" : ">"} ${W.PULSATION_LIMITS.rateSpreadMax}`,
+            bg: sum.rateSpreadOk ? "#f0fdf4" : "#fef2f2", color: sum.rateSpreadOk ? "#166534" : "#991b1b" },
+          { label: "Ratio", range: `${fmt(sum.lowestRatio)}–${fmt(sum.highestRatio)} %`, hasBadge: sum.ratioSpread != null,
+            badge: `spread ${sum.ratioSpread} % ${sum.ratioSpreadOk ? "≤" : ">"} ${W.PULSATION_LIMITS.ratioSpreadMax}`,
+            bg: sum.ratioSpreadOk ? "#f0fdf4" : "#fef2f2", color: sum.ratioSpreadOk ? "#166534" : "#991b1b" },
+          { label: "Limp", range: "", hasBadge: sum.worstLimp != null,
+            badge: `worst ${sum.worstLimp}% ${sum.limpOk ? "≤" : ">"} ${W.PULSATION_LIMITS.limpMax}%`,
+            bg: sum.limpOk ? "#f0fdf4" : "#fef2f2", color: sum.limpOk ? "#166534" : "#991b1b" },
+        ];
+        const pSecs = W.pulsatorSections(cfg, s.readings);
+        const pt = Math.min(this.tabFor("PulsatorReadings"), pSecs.length - 1);
+        vals.pulsReadingTabs = pSecs.map((x, i) => ({
+          label: x.title, border: i === pt ? BRAND : "transparent", color: i === pt ? BRAND : "#6b7280",
+          onClick: () => this.setTab("PulsatorReadings", i),
+        }));
+        vals.pulsReadingRows = rowsFor(pSecs, pt);
+      }
+    }
+
+    // ---- Fault summary ----
+    if (vals.isFaults) {
+      vals.noFaults = summary.total === 0;
+      const sevBadge = (sev) => sev === "Critical" ? { badgeBg: "#fef2f2", badgeColor: "#991b1b" }
+        : sev === "Major" ? { badgeBg: "#fef3c7", badgeColor: "#92400e" } : { badgeBg: "#f3f4f6", badgeColor: "#6b7280" };
+      vals.faultGroups = summary.groups.map((g) => ({
+        component: g.component, severity: g.severity, ...sevBadge(g.severity),
+        faults: g.faults.map((f) => ({
+          key: f.key, description: f.description, rec: s.recommendations[f.key] ?? "",
+          dotColor: f.severity === "Critical" ? "#ef4444" : f.severity === "Major" ? "#f59e0b" : "#9ca3af",
+        })),
+      }));
+      vals.onRecommendation = (ev) => {
+        const recommendations = { ...s.recommendations };
+        const v = ev.currentTarget.value;
+        if (v.trim() === "") delete recommendations[ev.currentTarget.dataset.key];
+        else recommendations[ev.currentTarget.dataset.key] = v;
+        this.persist({ recommendations });
+      };
+    }
+
+    // ---- Sign-off ----
+    if (vals.isSignoff) {
+      const PLANT_LABELS = { HerringboneLowline: "Herringbone (lowline)", HerringboneHighline: "Herringbone (highline)", Rotary: "Rotary", Other: "Other" };
+      vals.plantSummary = `${PLANT_LABELS[cfg.plantType]} · ${cfg.clusterCount || "—"} clusters`;
+      vals.pulsatorCount = cfg.pulsatorCount || "—";
+      vals.signoffSteps = plan.steps.filter((x) => x.step !== "ReviewSignOff").map((x) => ({
+        title: x.title, suffix: x.isOptional ? " (optional)" : "",
+        dotColor: completed.has(x.step) ? "#10b981" : x.isOptional ? "#d1d5db" : "#fecaca",
+      }));
+      vals.hasAttachment = s.hasAttachment; vals.noAttachment = !s.hasAttachment;
+      vals.onAttach = () => { this.persist({ hasAttachment: true }); this.toast("Attached Pulsation-Analysis.pdf — it will be appended to the report."); };
+      vals.onRemoveAttachment = () => this.persist({ hasAttachment: false });
+      vals.isComplete = !!s.completedAt; vals.notComplete = !s.completedAt;
+      vals.completedAtLabel = s.completedAt ? new Date(s.completedAt).toLocaleString() : "";
+      vals.attested = s.attested; vals.notAttested = !s.attested;
+      vals.completeBtnBg = s.attested ? "#10b981" : BRAND;
+      vals.completeBtnOpacity = s.attested ? "1" : "0.5";
+      vals.onAttest = (e) => this.setState({ attested: e.currentTarget.checked });
+      vals.onMarkComplete = () => {
+        if (!this.state.attested) return;
+        this.persist({ completedAt: new Date().toISOString() });
+        this.toast("Test marked complete — synced (1 pushed, 0 pulled).");
+      };
+      vals.onDownloadReport = () => this.toast("In the real app this generates the Final Report PDF on-device.");
+      vals.onReopen = () => this.persist({ completedAt: null });
+    }
+
+    return vals;
+  }
+}
+
+</script>
+</body>
+</html>
