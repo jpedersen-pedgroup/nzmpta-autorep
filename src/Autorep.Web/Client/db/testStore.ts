@@ -151,7 +151,9 @@ const DB_VERSION = 2; // v2: + reference store (synced standards / catalogs)
 const LAST_TESTER_KEY = "autorep:lastTesterId";
 const KNOWN_TESTERS_KEY = "autorep:knownTesterIds";
 
-function currentTesterId(): string | null {
+/** The signed-in tester's id, injected by _Layout. null means identity isn't established yet —
+ * never that nobody is signed in — so callers must treat it as "don't know", not "no one". */
+export function currentTesterId(): string | null {
   const id = (globalThis as { __autorepTesterId?: unknown }).__autorepTesterId;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
