@@ -1665,11 +1665,23 @@ main {
 }
 .hubw__back:hover { background: var(--bg); border-color: var(--brand); }
 .hubw__focus-ident { flex: 1; min-width: 0; }
-.hubw__focus-title { font-family: var(--font-heading); font-weight: 700; font-size: 1.0625rem; color: var(--brand); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Farm · Step n of m. Only the farm gets min-width:0 and the ellipsis, so a long farm name gives up
-   its characters and the step position always survives whole. */
-.hubw__focus-crumb { display: flex; align-items: baseline; min-width: 0; font-size: 0.78125rem; color: var(--text-muted); }
-.hubw__focus-farm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+/* Line 1, the farm: same treatment the rail gives its h1 and the scroll bar gives its farm, so all
+   three layouts identify the test the same way. */
+.hubw__focus-farm {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  color: var(--brand);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Line 2, step · position. Not the muted 12.5px this line used to be — demoting the farm off the
+   top line is not a reason to make the step hard to read, so the step name keeps 600 weight and
+   full-strength ink and only the position sits back in grey. */
+.hubw__focus-crumb { display: flex; align-items: baseline; min-width: 0; font-size: 0.8125rem; color: var(--text-muted); }
+.hubw__focus-step { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
 .hubw__focus-pos { flex: none; white-space: nowrap; }
 .hubw__focus-pos::before { content: "·"; margin: 0 6px; color: var(--text-subtle); }
 .hubw__dots { display: flex; gap: 4px; align-items: center; }
@@ -1714,7 +1726,7 @@ main {
   .hubw__stats { gap: var(--space-5); }
   .scrollw__foot-inner, .hubw__focus-foot-inner { gap: var(--space-3); }
   .scrollw__nextup { display: none; }
-  /* First thing out of the focus bar's crumb: the section count is a nicety, and the farm name it
+  /* First thing out of the focus bar's crumb: the section count is a nicety, and the step name it
      was squeezing is not. Everything else in that bar holds on until 600 (below). */
   .hubw__focus-subcount { display: none; }
   .hubw__main { padding: 0 var(--space-3); }
@@ -1725,8 +1737,8 @@ main {
 }
 
 /* Phone only. The focus bar can't hold everything here — Overview + ten dots + the cog leave the
-   ident nothing, and the farm, as the one part that shrinks, collapsed to zero. The section count
-   has already gone at 900; here the dots follow (Overview and the Prev/Next footer both cover
+   ident nothing, and whichever line has to shrink ends up at zero width. The section count has
+   already gone at 900; here the dots follow (Overview and the Prev/Next footer both cover
    navigation) and so does the word "Overview". Deliberately not at 900 with the count: a tablet has
    room for the dots, and that's the device this layout is most used on. */
 @media (max-width: 600px) {
