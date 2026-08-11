@@ -108,7 +108,10 @@ export function ScrollShell({
         </div>
       </div>
 
-      <main class="scrollw__main">
+      {/* A div, not a <main>: _Layout already owns the document's one <main>, and a nested second
+          one both breaks the landmark and picks up the global main rule's column and padding —
+          which is what left the test content inset from the bars above and below it. */}
+      <div class="scrollw__main">
         {banners}
 
         {plan.steps.map((s, i) => {
@@ -156,7 +159,7 @@ export function ScrollShell({
             </section>
           );
         })}
-      </main>
+      </div>
 
       <div class="wizard-shell__bar-foot scrollw__foot">
         <div class="scrollw__foot-inner">
