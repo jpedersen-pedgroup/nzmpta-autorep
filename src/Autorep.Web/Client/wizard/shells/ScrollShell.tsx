@@ -1,7 +1,7 @@
 // Layout B — single scroll. The whole test is one page of collapsible blocks, so a Tester who
-// works from the paper order can move up and down freely instead of stepping through panels. It
-// supplies its own compact header (the standard app nav is hidden while this layout is active),
-// with a chip strip for jumping and a fixed footer showing what's still outstanding.
+// works from the paper order can move up and down freely instead of stepping through panels. Its
+// own chrome is a sticky test bar with a chip strip for jumping and a bar at the foot showing
+// what's still outstanding; the app header and centred column above it are the standard ones.
 import { useState } from "preact/hooks";
 import { renderStep } from "../WizardSteps";
 import {
@@ -16,6 +16,15 @@ import type { WizardStep } from "../types";
 import type { ShellProps } from "./types";
 
 const blockId = (step: WizardStep) => `wz-block-${step}`;
+
+/** What a jump has to clear: the app header and this layout's own bar are both pinned to the top of
+ * the viewport, so a block scrolled to y=0 would land underneath them. Measured rather than a fixed
+ * figure — both heights move with the viewport width and with how the chip strip wraps. */
+function stickyOffset(): number {
+  const height = (selector: string) =>
+    document.querySelector(selector)?.getBoundingClientRect().height ?? 0;
+  return height(".app-header") + height(".scrollw__bar") + 12;
+}
 
 export function ScrollShell({
   ctx,
@@ -43,7 +52,10 @@ export function ScrollShell({
     // Let the block expand before measuring where it landed.
     requestAnimationFrame(() => {
       const el = document.getElementById(blockId(step));
-      if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
+      if (el) {
+        const top = el.getBoundingClientRect().top + window.scrollY - stickyOffset();
+        window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      }
     });
   };
 
@@ -51,9 +63,9 @@ export function ScrollShell({
 
   return (
     <div class="wizard-shell wizard-shell--scroll">
-      <div class="scrollw__bar">
+      <div class="wizard-shell__bar-top scrollw__bar">
         <div class="scrollw__bar-inner">
-          <img class="scrollw__logo" src="/img/logo-mpnz-white.svg" alt="" width="88" height="30" />
+          {/* No logo or nav here — the app header directly above already carries both. */}
           <div class="scrollw__ident">
             <div class="scrollw__farm">{test.farmName || "New machine test"}</div>
             <div class="scrollw__sub">
@@ -146,7 +158,7 @@ export function ScrollShell({
         })}
       </main>
 
-      <div class="scrollw__foot">
+      <div class="wizard-shell__bar-foot scrollw__foot">
         <div class="scrollw__foot-inner">
           <div class="scrollw__counts">
             <span class={"scrollw__count" + (faults.critical > 0 ? " is-critical" : "")}>

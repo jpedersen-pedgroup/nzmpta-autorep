@@ -50,8 +50,8 @@ export function LayoutMenu({ value, onChange }: Props) {
       <button
         type="button"
         ref={triggerRef}
-        // Styled in currentColor so it reads correctly on the rail's light page header and on the
-        // scroll/hub dark bars without the caller having to say which it is.
+        // Styled in currentColor so it reads correctly on a light page header and on the hub's
+        // dark hero alike, without the caller having to say which it is sitting on.
         class="layout-menu__trigger"
         aria-haspopup="menu"
         aria-expanded={open}

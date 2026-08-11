@@ -5,10 +5,12 @@
 // should PROACTIVELY pre-cache all active milk-company logos on reference-data sync (not just
 // ones already viewed) and render the tester pages offline so cached logos actually display.
 
-// Rewritten by tools/stamp-sw.mjs on every client build with a fingerprint of the bundle — do not
-// edit by hand. The static cache below is cache-first and matched with ignoreSearch, so renaming
-// this cache is the ONLY thing that retires a previous build's assets.
-const CACHE_VERSION = 'autorep-a98c9c64cf37';
+// Rewritten by tools/stamp-sw.mjs on every client build with a fingerprint of the bundle and of the
+// APP_SHELL files below — do not edit by hand. The static cache is cache-first and matched with
+// ignoreSearch, so renaming this cache is the ONLY thing that retires a previous build's assets.
+// The stamper reads APP_SHELL out of this file, and every entry must be a real file under wwwroot
+// so it can be hashed; a served route would build green and then never cache-bust.
+const CACHE_VERSION = 'autorep-c3c9fdfa8d0b';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 const APP_SHELL = [
@@ -151,8 +153,9 @@ self.addEventListener('fetch', (event) => {
   //
   // ignoreSearch so a precached '/css/site.css' still answers a '?v=' request — without it the
   // precache was dead weight and each asset sat in the cache twice. This is only safe because
-  // CACHE_VERSION is stamped from the bundle at build time: a cache-first match that ignores the
-  // query string would otherwise pin a device to whatever build it cached first, forever.
+  // CACHE_VERSION is stamped at build time from the bundle AND the contents of every APP_SHELL
+  // asset: a cache-first match that ignores the query string would otherwise pin a device to
+  // whatever build it cached first, forever.
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(event.request, { ignoreSearch: true }).then((cached) =>
