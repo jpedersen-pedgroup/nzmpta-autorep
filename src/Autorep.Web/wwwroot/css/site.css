@@ -1666,7 +1666,12 @@ main {
 .hubw__back:hover { background: var(--bg); border-color: var(--brand); }
 .hubw__focus-ident { flex: 1; min-width: 0; }
 .hubw__focus-title { font-family: var(--font-heading); font-weight: 700; font-size: 1.0625rem; color: var(--brand); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hubw__focus-crumb { font-size: 0.78125rem; color: var(--text-muted); }
+/* Farm · Step n of m. Only the farm gets min-width:0 and the ellipsis, so a long farm name gives up
+   its characters and the step position always survives whole. */
+.hubw__focus-crumb { display: flex; align-items: baseline; min-width: 0; font-size: 0.78125rem; color: var(--text-muted); }
+.hubw__focus-farm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+.hubw__focus-pos { flex: none; white-space: nowrap; }
+.hubw__focus-pos::before { content: "·"; margin: 0 6px; color: var(--text-subtle); }
 .hubw__dots { display: flex; gap: 4px; align-items: center; }
 .hubw__dot-btn { width: 10px; height: 10px; border: 0; border-radius: 999px; background: var(--border-strong); padding: 0; cursor: pointer; transition: width 0.15s ease; }
 .hubw__dot-btn.is-complete { background: var(--success); }
@@ -1709,9 +1714,30 @@ main {
   .hubw__stats { gap: var(--space-5); }
   .scrollw__foot-inner, .hubw__focus-foot-inner { gap: var(--space-3); }
   .scrollw__nextup { display: none; }
+  /* First thing out of the focus bar's crumb: the section count is a nicety, and the farm name it
+     was squeezing is not. Everything else in that bar holds on until 600 (below). */
+  .hubw__focus-subcount { display: none; }
   .hubw__main { padding: 0 var(--space-3); }
   .hubw__hero-bar, .hubw__hero-body { padding-left: var(--space-5); padding-right: var(--space-5); }
   .hubw__focus-bar, .scrollw__bar-inner, .scrollw__chips,
   .scrollw__foot-inner, .hubw__focus-foot-inner { padding-left: var(--space-4); padding-right: var(--space-4); }
   .hubw__cards { grid-template-columns: 1fr; }
+}
+
+/* Phone only. The focus bar can't hold everything here — Overview + ten dots + the cog leave the
+   ident nothing, and the farm, as the one part that shrinks, collapsed to zero. The section count
+   has already gone at 900; here the dots follow (Overview and the Prev/Next footer both cover
+   navigation) and so does the word "Overview". Deliberately not at 900 with the count: a tablet has
+   room for the dots, and that's the device this layout is most used on. */
+@media (max-width: 600px) {
+  .hubw__dots { display: none; }
+  .hubw__back-label { display: none; }
+  /* min-width, not just padding: a lone chevron is ~9px wide and would leave a target well under
+     44px on the one device where the whole layout is meant to be used in gloves. */
+  .hubw__back {
+    min-width: 44px;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+    font-size: 1.125rem;
+  }
 }
