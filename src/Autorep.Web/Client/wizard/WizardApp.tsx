@@ -25,6 +25,7 @@ import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { getCachedCalibration } from "../sync/calibrationSync";
 import type { CalibrationDates } from "../calibration/status";
+import { useAppHeaderOffset } from "../ui/appHeaderOffset";
 import { CalibrationAlert } from "../ui/CalibrationPanel";
 import { LayoutMenu } from "../ui/LayoutMenu";
 import { showToast } from "../ui/toast";
@@ -163,14 +164,11 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   const [layout, setLayoutState] = useState<WizardLayout>(() => getLayout());
   const online = useServerOnline();
 
-  // The scroll and hub layouts bring their own header, so the standard app header (rendered by
-  // _Layout, outside this mount root) has to stand down. A body class is the only lever that
-  // reaches it, and it keeps switching instant rather than needing a page load.
-  useEffect(() => {
-    const chromeless = layout !== "rail";
-    document.body.classList.toggle("wizard-chromeless", chromeless);
-    return () => document.body.classList.remove("wizard-chromeless");
-  }, [layout]);
+  // Every layout keeps the app's own header and centred column — a Tester shouldn't have to
+  // re-learn the nav because they changed how the steps are arranged. Shells own the chrome
+  // *inside* that column, and the sticky bars two of them add have to clear the sticky app
+  // header, which is what this measures.
+  useAppHeaderOffset();
 
   useEffect(() => {
     if (serverTestId) return;

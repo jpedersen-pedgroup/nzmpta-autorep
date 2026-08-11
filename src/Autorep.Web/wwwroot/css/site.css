@@ -84,6 +84,10 @@
   --space-12: 3rem;
   --space-16: 4rem;
 
+  /* Height of the sticky app header, so a page's own sticky bar can start below it. Measured and
+     overwritten on <html> by useAppHeaderOffset; 0 is the signed-out (headerless) case. */
+  --app-header-h: 0px;
+
   /* Radius + shadow */
   --radius-sm:  0.375rem;
   --radius:     0.5rem;
@@ -101,7 +105,10 @@
 
 /* ----- Reset ---------------------------------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; }
+html { height: 100%; }
+/* body is min-height: 100vh below, deliberately NOT height: 100% — a fixed-height body caps its own
+   box at one viewport, and a sticky child can only stick inside its container, so the app header
+   used to come unstuck partway down any long page. */
 body, h1, h2, h3, h4, h5, h6, p, ul, ol, figure { margin: 0; padding: 0; }
 ul, ol { list-style: none; }
 a { color: inherit; text-decoration: none; }
@@ -1248,21 +1255,38 @@ main {
 
 /* ==========================================================================
    Tester-selectable wizard layouts — step rail (default), single scroll, task hub.
-   The rail reuses the .wizard rules above; the other two bring their own chrome.
+   The rail reuses the .wizard rules above; the other two bring their own in-page bars.
    ========================================================================== */
 
-/* The scroll and hub layouts supply their own header, so the app header stands down and <main>
-   gives up its column and padding so they can run edge to edge. The licence banner deliberately
-   stays put — an expiring licence outranks a layout preference. */
-body.wizard-chromeless .app-header,
-body.wizard-chromeless .app-footer { display: none; }
-body.wizard-chromeless main { max-width: none; padding: 0; }
+/* All three run inside the app's standard header, footer and centred <main> column: the layout
+   choice changes how the steps are arranged, never the nav a Tester uses everywhere else. So a
+   shell's own bars are column-width, not viewport-width, and the sticky ones start below the
+   equally-sticky app header (--app-header-h, measured by useAppHeaderOffset). They also sit BELOW
+   the app header in the stack, so the mobile burger menu opens over them rather than under. */
+/* z-index 5: over the test (step bodies contain positioned children that would otherwise paint over
+   a bar earlier in the DOM), but under the app header's 10, so the mobile burger dropdown opens on
+   top of the bar rather than behind it. The cost is that a sticky bar is a stacking context, so the
+   layout cog's popover is capped at 5 too — fine because it only ever opens downwards, away from
+   the header, at any viewport tall enough to run a test on. */
+.wizard-shell__bar-top {
+  position: sticky;
+  top: var(--app-header-h);
+  z-index: 5;
+}
+/* Sticky rather than fixed: the bar pins to the bottom of the viewport while the test scrolls, then
+   comes to rest at the end of it — so it never covers the last step, and never covers the app
+   footer either. Fixed would need the page to reserve height for it in both places. */
+.wizard-shell__bar-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
 
 /* --- Layout cog + pop-out (all three layouts) --- */
 .layout-menu { position: relative; display: inline-flex; }
 .layout-menu__trigger {
-  /* currentColor so one style reads correctly on the rail's light page header and on the
-     scroll/hub dark bars. */
+  /* currentColor so one style reads correctly on a light page header and on the hub's dark hero. */
   display: grid;
   place-items: center;
   width: 36px;
@@ -1314,59 +1338,61 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
 }
 
 /* --- Layout B: single scroll --- */
-.wizard-shell--scroll { display: flex; flex-direction: column; min-height: 100vh; }
+.wizard-shell--scroll { display: flex; flex-direction: column; }
+/* A light card, not a second brand-blue band: it pins directly under the app header, and two blue
+   bands stacked read as one oversized header. */
 .scrollw__bar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: var(--brand);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(0,20,60,0.25);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: var(--space-5);
 }
 .scrollw__bar-inner {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: var(--space-3) var(--space-6);
+  padding: var(--space-3) var(--space-5);
   display: flex;
   align-items: center;
   gap: var(--space-4);
 }
-.scrollw__logo { flex: none; display: block; height: 26px; width: auto; }
 .scrollw__ident { min-width: 0; flex: 1; }
 .scrollw__farm {
   font-family: var(--font-heading);
   font-weight: 700;
   font-size: 1rem;
   line-height: 1.2;
+  color: var(--brand);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.scrollw__sub { font-size: 0.75rem; color: var(--brand-pale); }
+.scrollw__sub { font-size: 0.75rem; color: var(--text-muted); }
 .scrollw__headline { text-align: right; }
-.scrollw__pct { font-family: var(--font-heading); font-weight: 700; font-size: 1rem; line-height: 1.2; }
+.scrollw__pct { font-family: var(--font-heading); font-weight: 700; font-size: 1rem; line-height: 1.2; color: var(--brand); }
 .scrollw__exit {
   flex: none;
   padding: 0.375rem 0.875rem;
   min-height: 36px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(255,255,255,0.35);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  color: rgba(255,255,255,0.9);
+  color: var(--brand);
   font-size: 0.8125rem;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
 }
-.scrollw__exit:hover { background: rgba(255,255,255,0.1); color: #fff; }
-.scrollw__track { height: 4px; background: rgba(255,255,255,0.15); }
+.scrollw__exit:hover { background: var(--surface-alt); border-color: var(--brand); }
+.scrollw__track { height: 4px; background: var(--surface-alt); }
 .scrollw__fill { height: 100%; background: var(--success); transition: width 0.3s ease; }
 .scrollw__chips {
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   display: flex;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-6);
+  padding: var(--space-2) var(--space-5);
   overflow-x: auto;
 }
 .scrollw__chip {
@@ -1400,7 +1426,7 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
 .scrollw__chip.is-complete .scrollw__chip-num { background: var(--success); color: #fff; }
 .scrollw__chip.is-current .scrollw__chip-num { background: rgba(255,255,255,0.2); color: #fff; }
 
-.scrollw__main { max-width: 1080px; margin: 0 auto; width: 100%; padding: var(--space-6) var(--space-6) 7.5rem; box-sizing: border-box; }
+.scrollw__main { width: 100%; }
 .scrollw__block {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1460,19 +1486,12 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
 .scrollw__pill--fault, .hubw__pill--fault { background: var(--danger-bg); color: #991b1b; }
 
 .scrollw__foot {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
   background: #12295e;
   color: #fff;
   box-shadow: 0 -4px 16px rgba(15,37,87,0.3);
 }
 .scrollw__foot-inner {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: var(--space-3) var(--space-6);
+  padding: var(--space-3) var(--space-5);
   display: flex;
   align-items: center;
   gap: var(--space-5);
@@ -1508,11 +1527,16 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
 .scrollw__go:hover { background: #0ea371; }
 
 /* --- Layout C: task hub --- */
-.wizard-shell--hub { display: flex; flex-direction: column; min-height: 100vh; }
-.hubw__hero { background: linear-gradient(150deg, var(--brand) 0%, #0f2557 100%); color: #fff; padding-bottom: 3.5rem; }
-.hubw__hero-bar { max-width: 1140px; margin: 0 auto; padding: var(--space-4) var(--space-8); display: flex; align-items: center; gap: var(--space-4); }
-.hubw__logo { flex: none; display: block; height: 28px; width: auto; }
-.hubw__brand { font-family: var(--font-heading); font-weight: 700; font-size: 1rem; }
+.wizard-shell--hub { display: flex; flex-direction: column; }
+/* A hero card inside the app column rather than an edge-to-edge band — the gradient is the hub's
+   signature, but it reads as content under the app header, not as a header of its own. */
+.hubw__hero {
+  background: linear-gradient(150deg, var(--brand) 0%, #0f2557 100%);
+  color: #fff;
+  border-radius: var(--radius-xl);
+  padding-bottom: 3.5rem;
+}
+.hubw__hero-bar { padding: var(--space-4) var(--space-6) 0; display: flex; align-items: center; gap: var(--space-4); }
 .hubw__spacer { flex: 1; }
 .hubw__status {
   display: inline-flex;
@@ -1542,7 +1566,7 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
   white-space: nowrap;
 }
 .hubw__exit:hover { background: rgba(255,255,255,0.1); color: #fff; }
-.hubw__hero-body { max-width: 1140px; margin: 0 auto; padding: var(--space-5) var(--space-8) 0; display: flex; align-items: flex-end; gap: var(--space-8); flex-wrap: wrap; }
+.hubw__hero-body { padding: var(--space-5) var(--space-6) 0; display: flex; align-items: flex-end; gap: var(--space-8); flex-wrap: wrap; }
 .hubw__ident { flex: 1; min-width: 280px; }
 .hubw__eyebrow { font-size: 0.8125rem; color: var(--brand-pale); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
 .hubw__farm { margin: 2px 0 6px; font-family: var(--font-heading); font-size: 2.125rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: #fff; }
@@ -1563,7 +1587,9 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
 .hubw__sev--major { color: #fde68a; }
 .hubw__sev--minor { color: #d1d5db; }
 
-.hubw__main { flex: 1; max-width: 1140px; margin: -2.5rem auto 0; width: 100%; padding: 0 var(--space-8) var(--space-12); box-sizing: border-box; }
+/* Pulled up over the hero's tail so the resume card overlaps it, inset so the hero's rounded
+   corners still show either side. */
+.hubw__main { flex: 1; width: 100%; margin: -2.5rem 0 0; padding: 0 var(--space-5); box-sizing: border-box; }
 .hubw__resume {
   display: flex;
   align-items: center;
@@ -1611,19 +1637,18 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
 .hubw__card-pills { display: flex; gap: 6px; margin-top: var(--space-3); flex-wrap: wrap; }
 .hubw__card-chev { flex: none; color: var(--text-subtle); font-size: 1.125rem; }
 
-.wizard-shell--focus { background: var(--bg); }
 .hubw__focus-bar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
   display: flex;
   align-items: center;
   gap: var(--space-4);
   width: 100%;
-  padding: var(--space-3) var(--space-8);
+  padding: var(--space-3) var(--space-5);
   box-sizing: border-box;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  margin-bottom: var(--space-5);
 }
 .hubw__back {
   flex: none;
@@ -1646,10 +1671,10 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
 .hubw__dot-btn { width: 10px; height: 10px; border: 0; border-radius: 999px; background: var(--border-strong); padding: 0; cursor: pointer; transition: width 0.15s ease; }
 .hubw__dot-btn.is-complete { background: var(--success); }
 .hubw__dot-btn.is-current { width: 26px; background: var(--brand); }
-.hubw__focus-main { flex: 1; max-width: 920px; margin: 0 auto; width: 100%; padding: var(--space-6) var(--space-8) 8rem; box-sizing: border-box; }
+.hubw__focus-main { flex: 1; width: 100%; }
 .hubw__panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: var(--space-6); box-shadow: var(--shadow-sm); }
-.hubw__focus-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -4px 16px rgba(15,37,87,0.08); }
-.hubw__focus-foot-inner { max-width: 920px; margin: 0 auto; padding: var(--space-3) var(--space-8); display: flex; align-items: center; gap: var(--space-4); }
+.hubw__focus-foot { background: var(--surface); border: 1px solid var(--border); box-shadow: 0 -4px 16px rgba(15,37,87,0.08); margin-top: var(--space-5); }
+.hubw__focus-foot-inner { padding: var(--space-3) var(--space-5); display: flex; align-items: center; gap: var(--space-4); }
 .hubw__nav { min-height: 54px; padding: 0.8125rem 1.5rem; border-radius: var(--radius-lg); font-size: 0.96875rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .hubw__nav--prev { border: 1px solid var(--border-strong); background: var(--surface); color: var(--brand); }
 .hubw__nav--prev:disabled { opacity: 0.4; cursor: default; }
@@ -1678,15 +1703,15 @@ body.wizard-chromeless main { max-width: none; padding: 0; }
 .wizard-shell--hub .form-field label { font-weight: 600; }
 
 @media (max-width: 900px) {
-  .scrollw__headline, .hubw__brand { display: none; }
+  .scrollw__headline { display: none; }
   .hubw__hero-body { gap: var(--space-5); }
   .hubw__farm { font-size: 1.625rem; }
   .hubw__stats { gap: var(--space-5); }
-  .scrollw__foot-inner, .hubw__focus-foot-inner { padding: var(--space-3) var(--space-4); gap: var(--space-3); }
+  .scrollw__foot-inner, .hubw__focus-foot-inner { gap: var(--space-3); }
   .scrollw__nextup { display: none; }
-  .scrollw__main { padding: var(--space-5) var(--space-4) 7.5rem; }
-  .hubw__main { padding: 0 var(--space-4) var(--space-8); }
-  .hubw__focus-main { padding: var(--space-5) var(--space-4) 8rem; }
-  .hubw__focus-bar, .scrollw__bar-inner, .scrollw__chips { padding-left: var(--space-4); padding-right: var(--space-4); }
+  .hubw__main { padding: 0 var(--space-3); }
+  .hubw__hero-bar, .hubw__hero-body { padding-left: var(--space-5); padding-right: var(--space-5); }
+  .hubw__focus-bar, .scrollw__bar-inner, .scrollw__chips,
+  .scrollw__foot-inner, .hubw__focus-foot-inner { padding-left: var(--space-4); padding-right: var(--space-4); }
   .hubw__cards { grid-template-columns: 1fr; }
 }

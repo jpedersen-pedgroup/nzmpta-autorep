@@ -1,6 +1,6 @@
 // Layout C — task hub. An overview of the whole test (progress ring per step, fault counts, a
-// resume card) that you tap into to work on one step at a time. Supplies its own header in both
-// views, so the standard app nav is hidden while this layout is active.
+// resume card) that you tap into to work on one step at a time. Its own chrome — the hero on the
+// overview, the sticky step bar in focus — sits inside the app's standard header and column.
 import { useState } from "preact/hooks";
 import { renderStep } from "../WizardSteps";
 import {
@@ -58,9 +58,8 @@ export function HubShell({
     return (
       <div class="wizard-shell wizard-shell--hub">
         <div class="hubw__hero">
+          {/* Test-level actions only — the app header directly above carries the brand and nav. */}
           <div class="hubw__hero-bar">
-            <img class="hubw__logo" src="/img/logo-mpnz-white.svg" alt="" width="88" height="30" />
-            <span class="hubw__brand">AutoRep App</span>
             <div class="hubw__spacer" />
             <span class={"hubw__status" + (online ? " is-online" : "")}>
               <span class="hubw__dot" aria-hidden="true" />
@@ -204,7 +203,7 @@ export function HubShell({
 
   return (
     <div class="wizard-shell wizard-shell--hub wizard-shell--focus">
-      <div class="hubw__focus-bar">
+      <div class="wizard-shell__bar-top hubw__focus-bar">
         <button type="button" class="hubw__back" onClick={() => setFocused(false)}>
           ‹ Overview
         </button>
@@ -243,7 +242,7 @@ export function HubShell({
         </div>
       </main>
 
-      <div class="hubw__focus-foot">
+      <div class="wizard-shell__bar-foot hubw__focus-foot">
         <div class="hubw__focus-foot-inner">
           <button
             type="button"
