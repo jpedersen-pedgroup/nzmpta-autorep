@@ -216,16 +216,18 @@ export function HubShell({
         >
           ‹<span class="hubw__back-label"> Overview</span>
         </button>
+        {/* Farm on top, step beneath. The farm is what the bar identifies — it's the same thing the
+            rail puts in its h1 and the scroll layout bolds in its bar, so the hub matching them is
+            what makes the three feel like one app. Not a straight swap of the two type styles: the
+            step is still what you're working on, so it keeps a solid weight and full-strength ink
+            on the second line rather than dropping to the muted grey the position sits in. */}
         <div class="hubw__focus-ident">
-          <div class="hubw__focus-title">{stepDef.title}</div>
-          {/* The step name leads because it's what you're working on, but the farm has to stay on
-              screen the way it does in the other two layouts — leaving the focus view as the one
-              place a Tester can't see which test they're in. It gives up its characters first when
-              the bar is tight; the step position is the more useful half to keep whole. */}
+          <div class="hubw__focus-farm" title={test.farmName || undefined}>
+            {test.farmName || "New machine test"}
+          </div>
           <div class="hubw__focus-crumb">
-            <span class="hubw__focus-farm" title={test.farmName || undefined}>
-              {test.farmName || "New machine test"}
-            </span>
+            {/* Step name gives up characters first; "Step 4 of 10" is short and worth keeping whole. */}
+            <span class="hubw__focus-step">{stepDef.title}</span>
             <span class="hubw__focus-pos">
               Step {idx + 1} of {plan.steps.length}
               {subCount > 1 && <span class="hubw__focus-subcount"> · {subCount} sections</span>}
