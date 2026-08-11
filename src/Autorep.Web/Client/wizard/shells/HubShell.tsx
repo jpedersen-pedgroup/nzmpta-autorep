@@ -105,7 +105,9 @@ export function HubShell({
           </div>
         </div>
 
-        <main class="hubw__main">
+        {/* Divs, not <main>s — see the note in ScrollShell: _Layout owns the document's one <main>,
+            and nesting another applies the global main rule's column and padding on top. */}
+        <div class="hubw__main">
           {banners}
 
           <button type="button" class="hubw__resume" onClick={() => openStep(resume ? resume.step : "ReviewSignOff")}>
@@ -186,7 +188,7 @@ export function HubShell({
               );
             })}
           </div>
-        </main>
+        </div>
       </div>
     );
   }
@@ -235,12 +237,12 @@ export function HubShell({
         {layoutMenu}
       </div>
 
-      <main class="hubw__focus-main">
+      <div class="hubw__focus-main">
         {banners}
         <div class="hubw__panel" key={current}>
           {renderStep(ctx, current)}
         </div>
-      </main>
+      </div>
 
       <div class="wizard-shell__bar-foot hubw__focus-foot">
         <div class="hubw__focus-foot-inner">
