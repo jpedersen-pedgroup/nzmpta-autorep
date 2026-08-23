@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Azure.Identity;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
@@ -41,7 +41,18 @@ builder.Services.AddDbContext<AutorepDbContext>((sp, options) =>
     {
         var connection = builder.Configuration.GetConnectionString("SqlDatabase")
             ?? throw new InvalidOperationException("ConnectionStrings:SqlDatabase is not configured.");
-        options.UseSqlServer(connection);
+        // Azure SQL here is serverless, and staging auto-pauses after 60 minutes idle. The first
+        // connection after a pause is REFUSED with error 40613 for the ~30s the database takes to
+        // resume, so without a retrying strategy that surfaced as an unhandled SqlException on
+        // whichever request woke it — in practice the login POST. EF's SQL Server strategy already
+        // counts 40613 (plus the usual failover/throttling codes) as transient, so the request now
+        // waits out the resume instead of erroring; prod keeps auto-pause off but still gets the
+        // cover for failovers. Safe app-wide: nothing here opens a user-initiated transaction,
+        // which is the one thing a retrying strategy refuses to wrap.
+        options.UseSqlServer(connection, sql => sql.EnableRetryOnFailure(
+            maxRetryCount: 8,
+            maxRetryDelay: TimeSpan.FromSeconds(15),
+            errorNumbersToAdd: null));
     }
     options.AddInterceptors(sp.GetRequiredService<AuditInterceptor>());
 });
