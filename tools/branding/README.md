@@ -15,7 +15,11 @@ Brand palette: Dark Blue `#003893`, Light Blue `#AFBCDB`.
 |---|---|
 | `img/logo-mpnz.svg` | full-colour monogram — login card (light bg) |
 | `img/logo-mpnz-white.svg` | reversed monogram — app header (dark bg) |
-| `icons/icon.svg`, `icons/icon-maskable.svg` | PWA / favicon |
+| `icons/icon.svg`, `icons/icon-maskable.svg` | PWA icon artwork (browser tab, Android) |
+| `icons/icon-<size>.png` | PWA raster icons, 32–512 — Chrome turns these into the Windows shortcut, taskbar and alt-tab icons |
+| | ↳ frames at `SMALL_MARK_MAX` (32px) and below carry the **M initial**; 48px and up carry the full wordmark |
+| `icons/icon-maskable-<size>.png` | maskable rasters, 192 + 512 (Android adaptive icons) |
+| `favicon.ico` | 16–256 multi-size icon for browser tabs and the Windows shell |
 | `icons/apple-touch-icon.png` | iOS home-screen icon (180×180) |
 | `icons/splash/apple-splash-*.png` | iOS PWA launch screens (tagline lockup on `#003893`) |
 
@@ -27,4 +31,13 @@ extend coverage.
 ```
 python tools/branding/generate_brand_assets.py
 ```
-Requires Python with PyMuPDF (`pip install pymupdf`).
+Requires Python with PyMuPDF and Pillow (`pip install pymupdf pillow`).
+
+Chrome will not rasterise an SVG manifest entry for the Windows shell, so the PNG sizes
+listed in `manifest.webmanifest` are what stop an installed AutoRep showing Chrome's own
+icon on the taskbar. Keep the manifest and `ICON_PNG_SIZES` in step.
+
+The four-letter wordmark turns to mush below ~48px, so every frame at `SMALL_MARK_MAX`
+(32px) and below drops to the M initial on the same blue tile. The crossover sits at 32
+deliberately: Windows draws the taskbar button at 24px at 100% scaling and 32px at 150%,
+so both land on the initial and the taskbar looks the same at either DPI.
