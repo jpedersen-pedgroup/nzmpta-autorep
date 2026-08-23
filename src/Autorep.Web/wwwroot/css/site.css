@@ -637,21 +637,23 @@ main {
 }
 
 /* ----- Welcome / dashboard --------------------------------------------------- */
+/* A page heading, not a brand-blue panel. The app header directly above is already a full-width
+   band of --brand and the licence banner often sits between the two, so a gradient block here made
+   the dashboard three stacked bands of chrome before you reached the tiles that are the content.
+   Brand blue stays, as ink on the heading. */
 .welcome {
-  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
-  color: white;
-  border-radius: var(--radius-lg);
-  padding: var(--space-8);
   margin-bottom: var(--space-6);
 }
 .welcome h1 {
+  font-family: var(--font-heading);
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--brand);
   margin-bottom: var(--space-2);
   letter-spacing: -0.02em;
 }
 .welcome p {
-  color: rgba(255,255,255,0.8);
+  color: var(--text-muted);
   font-size: 0.9375rem;
 }
 
@@ -1286,7 +1288,7 @@ main {
 /* --- Layout cog + pop-out (all three layouts) --- */
 .layout-menu { position: relative; display: inline-flex; }
 .layout-menu__trigger {
-  /* currentColor so one style reads correctly on a light page header and on the hub's dark hero. */
+  /* currentColor so one style reads correctly wherever the cog sits: page header, scroll bar, hub hero. */
   display: grid;
   place-items: center;
   width: 36px;
@@ -1528,13 +1530,17 @@ main {
 
 /* --- Layout C: task hub --- */
 .wizard-shell--hub { display: flex; flex-direction: column; }
-/* A hero card inside the app column rather than an edge-to-edge band — the gradient is the hub's
-   signature, but it reads as content under the app header, not as a header of its own. */
+/* A light card, for the same reason the scroll layout's bar is one: the app header directly above
+   is a full-width band of --brand, so a dark hero under it stacked two blue slabs over the whole
+   overview. What makes this layout the hub is the stat row and the ring cards, not the gradient —
+   brand blue stays on the type, the rings and the buttons. */
 .hubw__hero {
-  background: linear-gradient(150deg, var(--brand) 0%, #0f2557 100%);
-  color: #fff;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  padding-bottom: 3.5rem;
+  box-shadow: var(--shadow);
+  padding-bottom: var(--space-6);
 }
 .hubw__hero-bar { padding: var(--space-4) var(--space-6) 0; display: flex; align-items: center; gap: var(--space-4); }
 .hubw__spacer { flex: 1; }
@@ -1544,13 +1550,13 @@ main {
   gap: 6px;
   padding: 0.25rem 0.75rem;
   border-radius: 999px;
-  background: rgba(255,255,255,0.14);
-  color: #e5e7eb;
+  background: var(--surface-alt);
+  color: var(--text-muted);
   font-size: 0.78125rem;
   font-weight: 600;
   white-space: nowrap;
 }
-.hubw__status.is-online { background: rgba(16,185,129,0.18); color: #6ee7b7; }
+.hubw__status.is-online { background: var(--success-bg); color: #166534; }
 .hubw__dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .hubw__exit {
   flex: none;
@@ -1558,38 +1564,43 @@ main {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(255,255,255,0.35);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  color: rgba(255,255,255,0.9);
+  color: var(--brand);
   font-size: 0.8125rem;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
 }
-.hubw__exit:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.hubw__exit:hover { background: var(--surface-alt); border-color: var(--brand); }
 .hubw__hero-body { padding: var(--space-5) var(--space-6) 0; display: flex; align-items: flex-end; gap: var(--space-8); flex-wrap: wrap; }
 .hubw__ident { flex: 1; min-width: 280px; }
-.hubw__eyebrow { font-size: 0.8125rem; color: var(--brand-pale); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
-.hubw__farm { margin: 2px 0 6px; font-family: var(--font-heading); font-size: 2.125rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: #fff; }
-.hubw__plant { font-size: 0.90625rem; color: var(--brand-pale); }
+.hubw__eyebrow { font-size: 0.8125rem; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+.hubw__farm { margin: 2px 0 6px; font-family: var(--font-heading); font-size: 2.125rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--brand); }
+.hubw__plant { font-size: 0.90625rem; color: var(--text-muted); }
 .hubw__stats { display: flex; gap: var(--space-8); align-items: center; padding-bottom: 4px; }
 .hubw__stat { text-align: center; }
-.hubw__stat-value { font-family: var(--font-heading); font-size: 2.125rem; font-weight: 800; line-height: 1; }
-.hubw__stat-value.is-critical { color: #fca5a5; }
-.hubw__stat-value.is-major { color: #fde68a; }
-.hubw__stat-value.is-clear { color: #6ee7b7; }
+.hubw__stat-value { font-family: var(--font-heading); font-size: 2.125rem; font-weight: 800; line-height: 1; color: var(--brand); }
+/* The darker end of each ramp, because these sit on white now: the pastels the dark hero used
+   (#fca5a5, #fde68a) fall under 3:1 against --surface. */
+.hubw__stat-value.is-critical { color: #dc2626; }
+.hubw__stat-value.is-major { color: #b45309; }
+.hubw__stat-value.is-clear { color: #047857; }
 .hubw__stat-unit { font-size: 1.125rem; font-weight: 700; }
-.hubw__stat-label { font-size: 0.75rem; color: var(--brand-pale); margin-top: 3px; }
-.hubw__stat-divider { width: 1px; height: 44px; background: rgba(255,255,255,0.2); }
+.hubw__stat-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 3px; }
+.hubw__stat-divider { width: 1px; height: 44px; background: var(--border); }
 .hubw__severities { display: grid; gap: 4px; }
-.hubw__sev { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78125rem; }
-.hubw__sev::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.hubw__sev--critical { color: #fecaca; }
-.hubw__sev--major { color: #fde68a; }
-.hubw__sev--minor { color: #d1d5db; }
+/* A breakdown legend: the dot carries the severity, the words stay muted. Colouring the text too
+   would paint "0 critical" in full red on a machine that has no faults on it. */
+.hubw__sev { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78125rem; color: var(--text-muted); }
+.hubw__sev::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--sev-dot, currentColor); }
+.hubw__sev--critical { --sev-dot: #dc2626; }
+.hubw__sev--major { --sev-dot: #d97706; }
+.hubw__sev--minor { --sev-dot: var(--text-subtle); }
 
-/* Pulled up over the hero's tail so the resume card overlaps it, inset so the hero's rounded
-   corners still show either side. */
-.hubw__main { flex: 1; width: 100%; margin: -2.5rem 0 0; padding: 0 var(--space-5); box-sizing: border-box; }
+/* The hero is a card in its own right now rather than a band the resume card floats over, so the
+   overview below it is a plain full-width stack: no pull-up, no side inset. */
+.hubw__main { flex: 1; width: 100%; margin: var(--space-5) 0 0; box-sizing: border-box; }
 .hubw__resume {
   display: flex;
   align-items: center;
@@ -1600,7 +1611,7 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-4) var(--space-6);
-  box-shadow: 0 8px 24px -8px rgba(15,37,87,0.25);
+  box-shadow: var(--shadow);
   cursor: pointer;
   margin-bottom: var(--space-5);
 }
@@ -1729,7 +1740,6 @@ main {
   /* First thing out of the focus bar's crumb: the section count is a nicety, and the step name it
      was squeezing is not. Everything else in that bar holds on until 600 (below). */
   .hubw__focus-subcount { display: none; }
-  .hubw__main { padding: 0 var(--space-3); }
   .hubw__hero-bar, .hubw__hero-body { padding-left: var(--space-5); padding-right: var(--space-5); }
   .hubw__focus-bar, .scrollw__bar-inner, .scrollw__chips,
   .scrollw__foot-inner, .hubw__focus-foot-inner { padding-left: var(--space-4); padding-right: var(--space-4); }
