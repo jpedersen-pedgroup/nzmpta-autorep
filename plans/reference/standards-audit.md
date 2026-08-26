@@ -61,13 +61,71 @@ v = working vacuum rounded **up**. Reproduces both manual worked examples exactl
 load ≤2 kPa; pulsator airline stability ≤4 kPa; rate spread ≤6 ppm; ratio variation ≤5%;
 ATMOS rows 90–100 kPa.
 
-## Deferred (need data/flowcharts or NZMPTA confirmation)
+## Legacy reference-data audit (27 Aug 2026) — `Autorep_bak`
 
-- **Per-model pulsator rate/ratio bands** (manual pp49–53; ISO: nominal ±5%/±5 points) — join the
-  rows to the Pulsator catalog (PULRateMin/Max etc. already in the legacy table).
-- **Pump OEM capacity/speed tables** (manual pp8–30, 60) + exhaust limits (Masport vane ≤13 kPa)
-  — needs a pump reference table (image-only pages in the extraction).
-- **Releaser model speed/power table + diaphragm dead-end test ≥ 85 kPa** (manual pp32–36, 61).
+Every reference/standards table in the legacy database was profiled and compared against what the
+wizard implements. **Correction to the previous version of this file: the pump, releaser and
+pulsator figures were recorded as blocked on NZMPTA because the manual pages are image-only scans.
+They are not blocked — the numbers are already in `Autorep_bak`.** They were only ever missing from
+the *extraction*, not from the data we hold.
+
+Note the legacy DB is **not** automatically the authority: several rows below were deliberately
+changed away from it (see "Corrections applied"), where the manual or ISO says otherwise. Treat it
+as the source for *catalogue numbers*, and the manual/ISO as the source for *rules*.
+
+Extracted by `tools/reference-data/extract_legacy_reference.py` (re-runnable, deterministic) into
+`Client/reference/`, typed by `Client/reference/standardsData.ts`.
+
+### Legacy reference tables — status after wiring (27 Aug 2026)
+
+| Legacy table | Rows | Holds | Status |
+|---|---|---|---|
+| `Pulsator` | 127 | rate/ratio bands, phase b/d, max chamber vacuum | **WIRED** — `pulsatorSummary(rows, model)` judges slowest/fastest rate and lowest/highest ratio against the model band (the legacy `PulsationSystemResultRange` tick/cross); verdicts shown in the Pulsator step + Test Summary PDF |
+| `MinSpeedPowerCal` | 75 | clusters × heads → min speed, min power | **WIRED** — `add.releaserHeads/Speed/Power` readings; ≥ rules from the table (the legacy `SpeedO`/`PowerO` ticks). Table covers 6–40 clusters; outside it stays capture-only, as legacy was |
+| `VPModel` | 140 (16 makes) | `MinRPM`, `MaxRPM`, `AirFlow`, `MotorSizeFactor` | extracted + typed (`standardsData.ts`), **no rule** — machine config doesn't capture pump make/model yet; rule lands with the Machine-Config full-fidelity rebuild |
+| `MilkPumps` | 45 | `MPMin`, `MPMax`, `MPSize`, `MPMotor` | extracted + typed, **no rule** — same missing config fields |
+| `ReserveReceiver` | 12 | milkline Ø × working-vacuum band → required receiver reserve | extracted + typed, **no rule** — looks like the 6b standard but 6a/6b semantics are the open NZMPTA question; do not wire on a guess |
+| `LinerShellMatching` | 4,103 | shell × liner → match code 0–3 | **NOT extracted — deliberate.** Josh's call 27 Aug 2026: compatibility stays a manual tester judgement (`liner.shellCompatibility` checklist item) |
+| `LinerCupNippleMatching` | 1,955 | liner × cup-nipple → `JetterMatch` | **NOT extracted — deliberate**, same call |
+
+Legacy `MaxChamberVacuum` per pulsator model is carried in the band data but **not** wired into 15a:
+the wizard's 15a rule is "within 2 kPa of working vacuum" (ISO D.2.17) and the per-model field's
+semantics (sample value 10) don't obviously reconcile — resolve before using it.
+
+### Verified as matching
+
+- `EffectiveArea.EffectiveReserve` rows 1–80 match `EFFECTIVE_RESERVE` in `passfail/standards.ts`
+  exactly (260, 260, 320, 320 … 2100, 2100).
+- `EffectiveArea.Airflow_Consumption` matches `requiredAirflow()` (30 L/min per 10 units).
+- `AtmosPressure` matches `ATMOS_PRESSURES` on 14 of 16 rows; the two that differ (102, 103 kPa)
+  are the **deliberate ISO Table 4 corrections** already recorded above — do not "fix" them back.
+
+### Open questions — do not guess
+
+1. **Two conflicting effective-reserve tables.** `EffectiveArea` steps in pairs (2→260, 4→320,
+   10→500, 20→600); `EffectiveReserve` is finer-grained and consistently higher (2→290, 4→355,
+   10→510, 20→610). The app implements the `EffectiveArea` values. If `EffectiveReserve` is the
+   operative table, the app **under-requires** reserve on every even cluster count. Resolve against
+   manual p42 before shipping either.
+2. **Effective reserve, 81–100 clusters.** The app extrapolates `2100 + (clusters − 80) × 25`,
+   which gives 2125 at 81 clusters; `EffectiveArea` has real rows there and continues the paired
+   pattern — 81→2150, 82→2150, 83→2200 (i.e. `2100 + ceil((c − 80) / 2) × 50`). The formula was
+   introduced to fix the >100 clamp and appears not to have been checked against rows 81–100. Odd
+   counts above 80 are currently under-required. Confirm against manual p42.
+3. ~~`LinerShellMatch` code semantics~~ **Resolved by decision, 27 Aug 2026:** compatibility stays
+   a manual tester judgement — the matrices are not extracted and no rule will consume them.
+4. **Catalogue drift.** Legacy `SHELLS` 63 vs `shells.json` 61; legacy `Liners` 153 vs
+   `liners.json` 147. Pulsators match at 127. Confirm whether the missing entries were dropped
+   deliberately (deprecated) or lost.
+5. **`isActive = 0` on every row** of `Pulsator`, `VPModel` and `MilkPumps`. A live system with no
+   active pulsator models would be unusable, so the flag looks vestigial — confirm before filtering
+   on it during migration.
+
+## Still deferred (genuinely need flowcharts or NZMPTA confirmation)
+
+- **Second "Additional Tests" flowchart** — the order and branching of the remaining
+  `MMAdditionalTR` fields. The wizard covers ~8 of ~40 fields; this is the real blocker there.
+- **Diaphragm dead-end test ≥ 85 kPa** (manual pp32–36, 61) — the rule, not the model table.
 - **Vented-liner relief**: if reserve fails with vented liners, subtract 8 L/min/cluster from
   measured CAA and re-evaluate (manual p43) — cross-test logic.
 - Safety-valve activation check alongside peak regulator load (manual p61).

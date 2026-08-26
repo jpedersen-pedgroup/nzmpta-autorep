@@ -158,3 +158,33 @@ describe("admin-managed standard overrides", () => {
     expect(reading(testRecordSections(config), "tr.airlineDropRR").rule).toEqual({ kind: "atMost", limit: 1 });
   });
 });
+
+describe("releaser pump minimum speed/power (legacy MinSpeedPowerCal)", () => {
+  it("stays capture-only until the head count is entered", () => {
+    const config = { ...defaultMachineConfiguration(), clusterCount: 20, hasReleaserPump: true };
+    const secs = additionalTestSections(config);
+    expect(reading(secs, "add.releaserHeads").rule).toEqual({ kind: "none" });
+    expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "none" });
+    expect(reading(secs, "add.releaserPower").rule).toEqual({ kind: "none" });
+  });
+
+  it("applies the table row for the cluster count × heads (20 × 2 → ≥44 rpm, ≥0.6 kW)", () => {
+    const config = { ...defaultMachineConfiguration(), clusterCount: 20, hasReleaserPump: true };
+    const secs = additionalTestSections(config, { "add.releaserHeads": 2 });
+    expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "atLeast", min: 44 });
+    expect(reading(secs, "add.releaserPower").rule).toEqual({ kind: "atLeast", min: 0.6 });
+  });
+
+  it("more heads lowers the minimum speed (20 × 4 → ≥22 rpm)", () => {
+    const config = { ...defaultMachineConfiguration(), clusterCount: 20, hasReleaserPump: true };
+    const secs = additionalTestSections(config, { "add.releaserHeads": 4 });
+    expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "atLeast", min: 22 });
+  });
+
+  it("has no standard outside the table (44 clusters), matching legacy", () => {
+    const config = { ...defaultMachineConfiguration(), clusterCount: 44, hasReleaserPump: true };
+    const secs = additionalTestSections(config, { "add.releaserHeads": 2 });
+    expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "none" });
+    expect(reading(secs, "add.releaserSpeed").hint).toMatch(/no standard/i);
+  });
+});

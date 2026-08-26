@@ -4,6 +4,7 @@
 // Later phases move these standards to admin-managed reference data synced into IndexedDB.
 import type { MachineConfiguration } from "../wizard/types";
 import { correctionFactorFor } from "../reference/lookups";
+import { releaserRequirement } from "../reference/standardsData";
 import { paramFor, ruleFor } from "./standardsOverrides";
 import type { PassFailRule } from "./passFail";
 
@@ -418,9 +419,33 @@ export function additionalTestSections(
     ] });
   }
   if (config.hasReleaserPump) {
+    // Minimum speed/power by cluster count × heads from the legacy MinSpeedPowerCal table — the
+    // check the legacy app recorded as SpeedO/PowerO ticks. The table covers 6–40 clusters; a
+    // plant outside it (or an un-entered head count) stays capture-only, as it was in legacy.
+    const heads = readings["add.releaserHeads"];
+    const releaserReq = heads != null ? releaserRequirement(config.clusterCount, heads) : null;
+    const releaserFor = (what: "minSpeed" | "power", unit: string) =>
+      releaserReq != null
+        ? `≥ ${releaserReq[what]} ${unit} (${config.clusterCount} clusters, ${heads} head${heads === 1 ? "" : "s"})`
+        : heads == null
+          ? "enter the number of heads for the standard"
+          : "no standard for this cluster count / head count";
     sections.push({ key: "ReleaserPumpHeads", title: "Releaser pump", readings: [
-      { key: "add.releaserSpeed", label: "Releaser pump speed", unit: "rpm", rule: { kind: "none" } },
-      { key: "add.releaserPower", label: "Releaser pump power", unit: "kW", rule: { kind: "none" } },
+      { key: "add.releaserHeads", label: "Number of heads", unit: "", rule: { kind: "none" } },
+      {
+        key: "add.releaserSpeed",
+        label: "Releaser pump speed",
+        unit: "rpm",
+        hint: releaserFor("minSpeed", "rpm"),
+        rule: releaserReq != null ? { kind: "atLeast", min: releaserReq.minSpeed } : { kind: "none" },
+      },
+      {
+        key: "add.releaserPower",
+        label: "Releaser pump power",
+        unit: "kW",
+        hint: releaserFor("power", "kW"),
+        rule: releaserReq != null ? { kind: "atLeast", min: releaserReq.power } : { kind: "none" },
+      },
     ] });
   }
   sections.push({ key: "RegulatorLoad", title: "Peak regulator load", readings: [

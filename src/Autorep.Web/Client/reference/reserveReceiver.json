@@ -1,0 +1,62 @@
+[
+  {
+    "milklineDiameter": 50,
+    "workingVacuum": "<= 40",
+    "requiredReserve": 565
+  },
+  {
+    "milklineDiameter": 50,
+    "workingVacuum": "<= 45",
+    "requiredReserve": 518
+  },
+  {
+    "milklineDiameter": 50,
+    "workingVacuum": "<= 50",
+    "requiredReserve": 471
+  },
+  {
+    "milklineDiameter": 63,
+    "workingVacuum": "<= 40",
+    "requiredReserve": 985
+  },
+  {
+    "milklineDiameter": 63,
+    "workingVacuum": "<= 45",
+    "requiredReserve": 903
+  },
+  {
+    "milklineDiameter": 63,
+    "workingVacuum": "<= 50",
+    "requiredReserve": 821
+  },
+  {
+    "milklineDiameter": 75,
+    "workingVacuum": "<= 40",
+    "requiredReserve": 1205
+  },
+  {
+    "milklineDiameter": 75,
+    "workingVacuum": "<= 45",
+    "requiredReserve": 1104
+  },
+  {
+    "milklineDiameter": 75,
+    "workingVacuum": "<= 50",
+    "requiredReserve": 1004
+  },
+  {
+    "milklineDiameter": 100,
+    "workingVacuum": "<= 40",
+    "requiredReserve": 2171
+  },
+  {
+    "milklineDiameter": 100,
+    "workingVacuum": "<= 45",
+    "requiredReserve": 1990
+  },
+  {
+    "milklineDiameter": 100,
+    "workingVacuum": "<= 50",
+    "requiredReserve": 1809
+  }
+]

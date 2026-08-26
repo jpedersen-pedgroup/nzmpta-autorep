@@ -65,7 +65,7 @@ interface Props {
 }
 
 export function PulsatorStep({ config, rows, onRows, readings, onSetReading, readonly, storedVerdicts }: Props) {
-  const s = pulsatorSummary(rows);
+  const s = pulsatorSummary(rows, config.pulsatorModel);
   const limits = pulsationLimits();
   return (
     <>
@@ -102,6 +102,22 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading, rea
               max={limits.ratioSpreadMax}
               unit="%"
             />
+            {s.rateBand && s.rateBandOk != null && (
+              <div class="puls-stat">
+                <span class="puls-stat__label">Model rate band</span>
+                <span class={"pf pf--" + (s.rateBandOk ? "pass" : "fail")}>
+                  {fmt(s.slowestRate)}–{fmt(s.fastestRate)} {s.rateBandOk ? "within" : "outside"} {s.rateBand.min}–{s.rateBand.max} ppm
+                </span>
+              </div>
+            )}
+            {s.ratioBand && s.ratioBandOk != null && (
+              <div class="puls-stat">
+                <span class="puls-stat__label">Model ratio band</span>
+                <span class={"pf pf--" + (s.ratioBandOk ? "pass" : "fail")}>
+                  {fmt(s.lowestRatio)}–{fmt(s.highestRatio)} {s.ratioBandOk ? "within" : "outside"} {s.ratioBand.min}–{s.ratioBand.max}%
+                </span>
+              </div>
+            )}
             {s.worstLimp != null && (
               <div class="puls-stat">
                 <span class="puls-stat__label">Limp</span>
