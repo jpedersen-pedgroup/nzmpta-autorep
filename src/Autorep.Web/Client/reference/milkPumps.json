@@ -1,0 +1,362 @@
+[
+  {
+    "make": "DAIRYMASTER",
+    "model": "DAIRYMASTER CENTIFUGAL",
+    "minValue": 2000,
+    "maxValue": 3000,
+    "size": 1.1,
+    "motor": 1.3
+  },
+  {
+    "make": "DELAVAL",
+    "model": "FMP CENTRIFUGAL .55",
+    "minValue": 1800,
+    "maxValue": 3000,
+    "size": 0.55,
+    "motor": 3.0
+  },
+  {
+    "make": "DELAVAL",
+    "model": "FMP CENTRIFUGAL 1.1",
+    "minValue": 1800,
+    "maxValue": 3000,
+    "size": 1.1,
+    "motor": 3.5
+  },
+  {
+    "make": "DELAVAL",
+    "model": "FMP220 CENTRIFUGAL",
+    "minValue": 0,
+    "maxValue": 2850,
+    "size": 2.2,
+    "motor": null
+  },
+  {
+    "make": "EFFCO / FLYNN",
+    "model": "DIAPHRAGM",
+    "minValue": 0,
+    "maxValue": 48,
+    "size": null,
+    "motor": 1.5
+  },
+  {
+    "make": "FLEXIBLE IMPELLOR",
+    "model": "F.I.P.",
+    "minValue": 0,
+    "maxValue": 1800,
+    "size": 1.5,
+    "motor": 2.0
+  },
+  {
+    "make": "FLEXOPAL",
+    "model": "FLEXOPAL 152",
+    "minValue": 0,
+    "maxValue": 1300,
+    "size": 1.5,
+    "motor": 2.2
+  },
+  {
+    "make": "FLEXOPAL",
+    "model": "FLEXOPAL 202",
+    "minValue": 0,
+    "maxValue": 1300,
+    "size": 2.2,
+    "motor": 2.5
+  },
+  {
+    "make": "FLOMAX",
+    "model": "FLOMAX Mk 1 1.5",
+    "minValue": 1919,
+    "maxValue": 3414,
+    "size": 1.5,
+    "motor": null
+  },
+  {
+    "make": "FLOMAX",
+    "model": "FLOMAX Mk1 .55",
+    "minValue": 1919,
+    "maxValue": 3414,
+    "size": 0.55,
+    "motor": null
+  },
+  {
+    "make": "FLOMAX",
+    "model": "FLOMAX Mk1 .75",
+    "minValue": 1919,
+    "maxValue": 3414,
+    "size": 0.75,
+    "motor": null
+  },
+  {
+    "make": "FLOMAX",
+    "model": "FLOMAX Mk1 1.1",
+    "minValue": 1919,
+    "maxValue": 3414,
+    "size": 1.1,
+    "motor": null
+  },
+  {
+    "make": "FLOMAX",
+    "model": "SUPAFLOW 1.5",
+    "minValue": 1707,
+    "maxValue": 3414,
+    "size": 1.5,
+    "motor": 15.0
+  },
+  {
+    "make": "FLOMAX",
+    "model": "SUPAFLOW 2.2",
+    "minValue": 1707,
+    "maxValue": 3414,
+    "size": 2.2,
+    "motor": null
+  },
+  {
+    "make": "FRISTAM",
+    "model": "FRISTAM 2.2",
+    "minValue": 0,
+    "maxValue": 2875,
+    "size": 2.2,
+    "motor": 4.0
+  },
+  {
+    "make": "GEA",
+    "model": "WESTFALIA CENTRIFUGAL .55",
+    "minValue": 2840,
+    "maxValue": 3430,
+    "size": 0.55,
+    "motor": null
+  },
+  {
+    "make": "GEA",
+    "model": "WESTFALIA CENTRIFUGAL 1.1",
+    "minValue": 2840,
+    "maxValue": 3430,
+    "size": 1.1,
+    "motor": null
+  },
+  {
+    "make": "GEA",
+    "model": "WESTFALIA CENTRIFUGAL 1.5",
+    "minValue": 2800,
+    "maxValue": 3400,
+    "size": 1.5,
+    "motor": null
+  },
+  {
+    "make": "GENERIC CENTRIFUGAL",
+    "model": "CENTRIFUGAL .55",
+    "minValue": 1500,
+    "maxValue": 3000,
+    "size": 0.55,
+    "motor": null
+  },
+  {
+    "make": "GENERIC CENTRIFUGAL",
+    "model": "CENTRIFUGAL .75",
+    "minValue": 1500,
+    "maxValue": 3000,
+    "size": 0.75,
+    "motor": null
+  },
+  {
+    "make": "GENERIC CENTRIFUGAL",
+    "model": "CENTRIFUGAL 1.1",
+    "minValue": 1500,
+    "maxValue": 3000,
+    "size": 1.1,
+    "motor": null
+  },
+  {
+    "make": "GENERIC CENTRIFUGAL",
+    "model": "CENTRIFUGAL 2.2",
+    "minValue": 1500,
+    "maxValue": 3000,
+    "size": 2.2,
+    "motor": null
+  },
+  {
+    "make": "JABSCO",
+    "model": "F.I.P.",
+    "minValue": 0,
+    "maxValue": 1800,
+    "size": 1.5,
+    "motor": 2.0
+  },
+  {
+    "make": "JOHNSON",
+    "model": "F.I.P.",
+    "minValue": 0,
+    "maxValue": 1800,
+    "size": 1.5,
+    "motor": 2.0
+  },
+  {
+    "make": "LKH",
+    "model": "LKH CENTRIFUGAL",
+    "minValue": 1800,
+    "maxValue": 3000,
+    "size": 2.2,
+    "motor": 4.5
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS CENTRIFUGAL 1.5",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 1.5,
+    "motor": 6.5
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS CENTRIFUGAL 2.2",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 2.2,
+    "motor": 7.5
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS FRISTAM 2.2",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 2.2,
+    "motor": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "SUPAFLO 1.5",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 1.5,
+    "motor": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "SUPAFLO 2.2",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 2.2,
+    "motor": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MILKAWARE CENTRIFUGAL 1.5",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 1.5,
+    "motor": 6.5
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MILKAWARE CENTRIFUGAL 2.2",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 2.2,
+    "motor": 7.5
+  },
+  {
+    "make": "NU PULSE",
+    "model": "NP DIAPHRAGM",
+    "minValue": 30,
+    "maxValue": 48,
+    "size": 0.75,
+    "motor": 11.0
+  },
+  {
+    "make": "READ",
+    "model": "CENTRIFUGAL .55",
+    "minValue": 1919,
+    "maxValue": 3414,
+    "size": 0.55,
+    "motor": 0.0
+  },
+  {
+    "make": "READ",
+    "model": "CENTRIFUGAL .75",
+    "minValue": 1919,
+    "maxValue": 3414,
+    "size": 0.75,
+    "motor": 0.55
+  },
+  {
+    "make": "READ",
+    "model": "CENTRIFUGAL 1.1",
+    "minValue": 1919,
+    "maxValue": 3414,
+    "size": 1.1,
+    "motor": 0.75
+  },
+  {
+    "make": "READ",
+    "model": "CENTRIFUGAL 1.5",
+    "minValue": 1919,
+    "maxValue": 3414,
+    "size": 1.5,
+    "motor": 1.1
+  },
+  {
+    "make": "READ",
+    "model": "CENTRIFUGAL 2.2",
+    "minValue": 1500,
+    "maxValue": 3000,
+    "size": 2.2,
+    "motor": 1.2
+  },
+  {
+    "make": "READ",
+    "model": "DIAPHPHRAGM",
+    "minValue": 0,
+    "maxValue": 48,
+    "size": null,
+    "motor": null
+  },
+  {
+    "make": "SKELLERUP",
+    "model": "DIAPHRAGM",
+    "minValue": 0,
+    "maxValue": 48,
+    "size": null,
+    "motor": null
+  },
+  {
+    "make": "WAIKATO",
+    "model": "LOBE 1.1",
+    "minValue": 0,
+    "maxValue": 650,
+    "size": 1.1,
+    "motor": 5.0
+  },
+  {
+    "make": "WAIKATO",
+    "model": "LOBE 1.5",
+    "minValue": 0,
+    "maxValue": 650,
+    "size": 1.5,
+    "motor": 5.5
+  },
+  {
+    "make": "WAIKATO",
+    "model": "LOBE 2.2",
+    "minValue": 0,
+    "maxValue": 650,
+    "size": 2.2,
+    "motor": 6.0
+  },
+  {
+    "make": "WAIKATO",
+    "model": "WAIKATO CENTRIFUGAL 1.5",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 1.5,
+    "motor": null
+  },
+  {
+    "make": "WAIKATO",
+    "model": "WAIKATO CENTRIFUGAL 2.2",
+    "minValue": 1500,
+    "maxValue": 3420,
+    "size": 2.2,
+    "motor": null
+  }
+]

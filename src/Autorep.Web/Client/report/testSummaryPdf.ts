@@ -167,7 +167,7 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
   // --- Per-unit rows ---------------------------------------------------------------------------
   const unitBlocks: Content[] = [];
   if (test.pulsatorRows?.length) {
-    const s = pulsatorSummary(test.pulsatorRows);
+    const s = pulsatorSummary(test.pulsatorRows, test.config.pulsatorModel);
     const limits = pulsationLimits();
     const body: TableCell[][] = [
       [th("Pulsator"), th("Rate (ppm)"), th("Ratio F (%)"), th("Ratio B (%)"), th("Phase b (%)"), th("Phase d (ms)"), th("Max vac (kPa)"), th("Limp (%)")],
@@ -186,6 +186,18 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
         { text: s.rateSpreadOk == null ? "" : s.rateSpreadOk ? " PASS" : " FAIL", color: s.rateSpreadOk ? PASS : FAIL, bold: true },
         `   ·   Ratio spread ${s.ratioSpread ?? "—"} (limit ${limits.ratioSpreadMax})`,
         { text: s.ratioSpreadOk == null ? "" : s.ratioSpreadOk ? " PASS" : " FAIL", color: s.ratioSpreadOk ? PASS : FAIL, bold: true },
+        ...(s.rateBand && s.rateBandOk != null
+          ? [
+              `   ·   Model rate band ${s.rateBand.min}–${s.rateBand.max} ppm`,
+              { text: s.rateBandOk ? " PASS" : " FAIL", color: s.rateBandOk ? PASS : FAIL, bold: true } as const,
+            ]
+          : []),
+        ...(s.ratioBand && s.ratioBandOk != null
+          ? [
+              `   ·   Model ratio band ${s.ratioBand.min}–${s.ratioBand.max}%`,
+              { text: s.ratioBandOk ? " PASS" : " FAIL", color: s.ratioBandOk ? PASS : FAIL, bold: true } as const,
+            ]
+          : []),
       ],
       fontSize: 9,
       margin: [0, 4, 0, 0],

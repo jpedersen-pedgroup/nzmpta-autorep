@@ -1,0 +1,1262 @@
+[
+  {
+    "make": "ALLFLEX",
+    "model": "Allflex 85",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 0.534,
+    "motorSizeFactor": 35.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "ALLFLEX",
+    "model": "Allflex120",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 0.725,
+    "motorSizeFactor": 31.0,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "ALLFLEX",
+    "model": "Allflex170",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 1.06,
+    "motorSizeFactor": 23.5,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "ALLFLEX",
+    "model": "Allflex240",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 1.41,
+    "motorSizeFactor": 18.4,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "De Laval",
+    "model": "DVP1200",
+    "minRpm": 275,
+    "maxRpm": 1400,
+    "airFlow": 0.78,
+    "motorSizeFactor": 45.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "De Laval",
+    "model": "DVP1600",
+    "minRpm": 275,
+    "maxRpm": 1400,
+    "airFlow": 1.15,
+    "motorSizeFactor": 35.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "De Laval",
+    "model": "DVP2300",
+    "minRpm": 275,
+    "maxRpm": 1400,
+    "airFlow": 1.57,
+    "motorSizeFactor": 25.5,
+    "waterFlowRate": null
+  },
+  {
+    "make": "De Laval",
+    "model": "LVP3000",
+    "minRpm": 480,
+    "maxRpm": 2650,
+    "airFlow": 1.132,
+    "motorSizeFactor": 29.2,
+    "waterFlowRate": null
+  },
+  {
+    "make": "De Laval",
+    "model": "LVP4500",
+    "minRpm": 480,
+    "maxRpm": 2000,
+    "airFlow": 2.162,
+    "motorSizeFactor": 18.05,
+    "waterFlowRate": null
+  },
+  {
+    "make": "De Laval",
+    "model": "LVP6000",
+    "minRpm": 480,
+    "maxRpm": 2500,
+    "airFlow": 2.24,
+    "motorSizeFactor": 16.6,
+    "waterFlowRate": null
+  },
+  {
+    "make": "De Laval",
+    "model": "VP76",
+    "minRpm": 700,
+    "maxRpm": 1250,
+    "airFlow": 0.82,
+    "motorSizeFactor": 55.0,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "De Laval",
+    "model": "VP77",
+    "minRpm": 700,
+    "maxRpm": 1100,
+    "airFlow": 1.62,
+    "motorSizeFactor": 27.0,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "De Laval",
+    "model": "VP78",
+    "minRpm": 750,
+    "maxRpm": 1250,
+    "airFlow": 2.12,
+    "motorSizeFactor": 16.2,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "De Laval",
+    "model": "WRP1300",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 0.9,
+    "motorSizeFactor": 34.0,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "De Laval",
+    "model": "WRP1600",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 1.1,
+    "motorSizeFactor": 26.4,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "De Laval",
+    "model": "WRP2000",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 1.38,
+    "motorSizeFactor": 19.1,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "De Laval",
+    "model": "WRP4000",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 2.8,
+    "motorSizeFactor": 13.2,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "De Laval",
+    "model": "WRP600",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 0.4,
+    "motorSizeFactor": 59.2,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "De Laval",
+    "model": "WRP900",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 0.62,
+    "motorSizeFactor": 38.2,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "Flomax Blower",
+    "model": "507 Blower",
+    "minRpm": 1600,
+    "maxRpm": 2800,
+    "airFlow": 1.82,
+    "motorSizeFactor": 18.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "Flomax Blower",
+    "model": "509 Blower",
+    "minRpm": 1600,
+    "maxRpm": 2800,
+    "airFlow": 2.36,
+    "motorSizeFactor": 13.2,
+    "waterFlowRate": null
+  },
+  {
+    "make": "Flomax Blower",
+    "model": "M8",
+    "minRpm": 800,
+    "maxRpm": 1100,
+    "airFlow": 2.88,
+    "motorSizeFactor": 14.286,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "4MP Lobe",
+    "minRpm": 1750,
+    "maxRpm": 3600,
+    "airFlow": 1.3,
+    "motorSizeFactor": 34.3,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "5MP Lobe",
+    "minRpm": 700,
+    "maxRpm": 2500,
+    "airFlow": 2.0,
+    "motorSizeFactor": 16.2,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "GEA Milfos CL4005 5.5kW",
+    "minRpm": 850,
+    "maxRpm": 1804,
+    "airFlow": 1.1165,
+    "motorSizeFactor": 32.24,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "GEA Milfos CL4005 7.5 kW",
+    "minRpm": 850,
+    "maxRpm": 2132,
+    "airFlow": 1.395,
+    "motorSizeFactor": 28.053,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "GEA Milfos CL5006 11 kW",
+    "minRpm": 700,
+    "maxRpm": 1812,
+    "airFlow": 2.1879,
+    "motorSizeFactor": 16.3245,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "GEA Milfos CL5006 15 kW",
+    "minRpm": 700,
+    "maxRpm": 2266,
+    "airFlow": 2.913,
+    "motorSizeFactor": 15.0067,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "GEA Milfos CL6008 18.5 kW",
+    "minRpm": 700,
+    "maxRpm": 1812,
+    "airFlow": 4.19,
+    "motorSizeFactor": 9.742,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "GEA Milfos CL6008 22 kW",
+    "minRpm": 700,
+    "maxRpm": 2014,
+    "airFlow": 4.763,
+    "motorSizeFactor": 9.1132,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "RPA40",
+    "minRpm": 1435,
+    "maxRpm": 1435,
+    "airFlow": 0.93,
+    "motorSizeFactor": 33.5,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "RPA41",
+    "minRpm": 1450,
+    "maxRpm": 1450,
+    "airFlow": 1.24,
+    "motorSizeFactor": 26.2,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "RPA70",
+    "minRpm": 1450,
+    "maxRpm": 1450,
+    "airFlow": 1.66,
+    "motorSizeFactor": 18.95,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "RPA71",
+    "minRpm": 1460,
+    "maxRpm": 1460,
+    "airFlow": 1.97,
+    "motorSizeFactor": 13.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "RPS1200",
+    "minRpm": 800,
+    "maxRpm": 1800,
+    "airFlow": 0.65,
+    "motorSizeFactor": 50.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "RPS2000",
+    "minRpm": 600,
+    "maxRpm": 1200,
+    "airFlow": 2.2,
+    "motorSizeFactor": 16.4,
+    "waterFlowRate": null
+  },
+  {
+    "make": "GEA",
+    "model": "RPS2800",
+    "minRpm": 600,
+    "maxRpm": 1200,
+    "airFlow": 2.3,
+    "motorSizeFactor": 15.5,
+    "waterFlowRate": 10.0
+  },
+  {
+    "make": "HYDROVAC",
+    "model": "W100",
+    "minRpm": 1260,
+    "maxRpm": 1750,
+    "airFlow": 0.88,
+    "motorSizeFactor": 28.5,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "MASPORT",
+    "model": "4000L",
+    "minRpm": 1000,
+    "maxRpm": 4000,
+    "airFlow": 0.95,
+    "motorSizeFactor": 33.06,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "6000L",
+    "minRpm": 1000,
+    "maxRpm": 3250,
+    "airFlow": 1.78,
+    "motorSizeFactor": 22.25,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "8000L",
+    "minRpm": 900,
+    "maxRpm": 3250,
+    "airFlow": 2.2,
+    "motorSizeFactor": 15.7,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "H15W",
+    "minRpm": 950,
+    "maxRpm": 1340,
+    "airFlow": 2.75,
+    "motorSizeFactor": 13.3,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "M1",
+    "minRpm": 1040,
+    "maxRpm": 1440,
+    "airFlow": 0.17,
+    "motorSizeFactor": 167.5,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "M10W",
+    "minRpm": 1180,
+    "maxRpm": 1290,
+    "airFlow": 2.15,
+    "motorSizeFactor": 12.6,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "M15",
+    "minRpm": 950,
+    "maxRpm": 1340,
+    "airFlow": 3.02,
+    "motorSizeFactor": 12.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "M2",
+    "minRpm": 1040,
+    "maxRpm": 1420,
+    "airFlow": 0.86,
+    "motorSizeFactor": 75.63,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "M3",
+    "minRpm": 1000,
+    "maxRpm": 1440,
+    "airFlow": 0.84,
+    "motorSizeFactor": 52.4,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "M4",
+    "minRpm": 850,
+    "maxRpm": 1440,
+    "airFlow": 1.36,
+    "motorSizeFactor": 25.9,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "M5",
+    "minRpm": 950,
+    "maxRpm": 1250,
+    "airFlow": 1.47,
+    "motorSizeFactor": 28.5,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "M7.5",
+    "minRpm": 950,
+    "maxRpm": 1250,
+    "airFlow": 2.32,
+    "motorSizeFactor": 17.8,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "Major",
+    "minRpm": 0,
+    "maxRpm": 450,
+    "airFlow": 1.87,
+    "motorSizeFactor": 21.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "Master",
+    "minRpm": 0,
+    "maxRpm": 750,
+    "airFlow": 1.77,
+    "motorSizeFactor": 20.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "Quattro2400",
+    "minRpm": 950,
+    "maxRpm": 1250,
+    "airFlow": 2.32,
+    "motorSizeFactor": 17.8,
+    "waterFlowRate": 23.0
+  },
+  {
+    "make": "MASPORT",
+    "model": "RVP1500",
+    "minRpm": 800,
+    "maxRpm": 950,
+    "airFlow": 1.47,
+    "motorSizeFactor": 28.5,
+    "waterFlowRate": 10.0
+  },
+  {
+    "make": "MASPORT",
+    "model": "RVP1700",
+    "minRpm": 950,
+    "maxRpm": 1250,
+    "airFlow": 1.47,
+    "motorSizeFactor": 28.5,
+    "waterFlowRate": 16.0
+  },
+  {
+    "make": "MASPORT",
+    "model": "RVP4000",
+    "minRpm": 950,
+    "maxRpm": 1340,
+    "airFlow": 3.02,
+    "motorSizeFactor": 12.0,
+    "waterFlowRate": 19.0
+  },
+  {
+    "make": "MASPORT",
+    "model": "Sup.Water Cooled",
+    "minRpm": 990,
+    "maxRpm": 1290,
+    "airFlow": 2.18,
+    "motorSizeFactor": 16.9,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "Super",
+    "minRpm": 0,
+    "maxRpm": 910,
+    "airFlow": 2.18,
+    "motorSizeFactor": 16.6,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MASPORT",
+    "model": "W1400",
+    "minRpm": 0,
+    "maxRpm": 750,
+    "airFlow": 1.83,
+    "motorSizeFactor": 21.0,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "MASPORT",
+    "model": "W2000",
+    "minRpm": 0,
+    "maxRpm": 910,
+    "airFlow": 2.18,
+    "motorSizeFactor": 16.6,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "MILFOS",
+    "model": "4000L",
+    "minRpm": 1000,
+    "maxRpm": 4000,
+    "airFlow": 0.95,
+    "motorSizeFactor": 33.06,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "6000L",
+    "minRpm": 1000,
+    "maxRpm": 3250,
+    "airFlow": 1.78,
+    "motorSizeFactor": 22.25,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "8000L",
+    "minRpm": 900,
+    "maxRpm": 3250,
+    "airFlow": 2.2,
+    "motorSizeFactor": 15.7,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS CL4005 5.5KW",
+    "minRpm": 850,
+    "maxRpm": 1804,
+    "airFlow": 1.1165,
+    "motorSizeFactor": 32.24,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS CL4005 7.5 KW",
+    "minRpm": 850,
+    "maxRpm": 2132,
+    "airFlow": 1.395,
+    "motorSizeFactor": 28.053,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS CL5006 11 KW",
+    "minRpm": 700,
+    "maxRpm": 1812,
+    "airFlow": 2.1879,
+    "motorSizeFactor": 16.3245,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS CL5006 15 KW",
+    "minRpm": 700,
+    "maxRpm": 2266,
+    "airFlow": 2.913,
+    "motorSizeFactor": 15.0067,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS CL6008 18.5 KW",
+    "minRpm": 700,
+    "maxRpm": 1812,
+    "airFlow": 4.19,
+    "motorSizeFactor": 9.742,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MILFOS CL6008 22KW",
+    "minRpm": 700,
+    "maxRpm": 2014,
+    "airFlow": 4.763,
+    "motorSizeFactor": 9.1132,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MP130",
+    "minRpm": 1000,
+    "maxRpm": 1600,
+    "airFlow": 1.01,
+    "motorSizeFactor": 29.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MP185",
+    "minRpm": 1000,
+    "maxRpm": 1600,
+    "airFlow": 1.5,
+    "motorSizeFactor": 25.0,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "MILFOS",
+    "model": "MP200",
+    "minRpm": 900,
+    "maxRpm": 1440,
+    "airFlow": 2.58,
+    "motorSizeFactor": 16.9,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MP215",
+    "minRpm": 800,
+    "maxRpm": 1200,
+    "airFlow": 2.4,
+    "motorSizeFactor": 16.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MP300",
+    "minRpm": 900,
+    "maxRpm": 1440,
+    "airFlow": 3.65,
+    "motorSizeFactor": 10.82,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MP340",
+    "minRpm": 700,
+    "maxRpm": 950,
+    "airFlow": 4.64,
+    "motorSizeFactor": 10.3,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILFOS",
+    "model": "MP450",
+    "minRpm": 700,
+    "maxRpm": 950,
+    "airFlow": 6.07,
+    "motorSizeFactor": 8.7,
+    "waterFlowRate": 3.7
+  },
+  {
+    "make": "MILFOS",
+    "model": "MP80",
+    "minRpm": 1000,
+    "maxRpm": 1600,
+    "airFlow": 0.65,
+    "motorSizeFactor": 58.82,
+    "waterFlowRate": 5.4
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "4000L",
+    "minRpm": 1400,
+    "maxRpm": 4000,
+    "airFlow": 0.95,
+    "motorSizeFactor": 33.06,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "8000L",
+    "minRpm": 1400,
+    "maxRpm": 3250,
+    "airFlow": 1.78,
+    "motorSizeFactor": 22.25,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "M3/MXL3",
+    "minRpm": 950,
+    "maxRpm": 1750,
+    "airFlow": 0.84,
+    "motorSizeFactor": 52.4,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "M4",
+    "minRpm": 850,
+    "maxRpm": 1400,
+    "airFlow": 1.36,
+    "motorSizeFactor": 25.9,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "M5/MXL5",
+    "minRpm": 950,
+    "maxRpm": 1250,
+    "airFlow": 1.47,
+    "motorSizeFactor": 28.5,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "M7.5/MXL7.5",
+    "minRpm": 950,
+    "maxRpm": 1250,
+    "airFlow": 2.32,
+    "motorSizeFactor": 17.8,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "M8",
+    "minRpm": 850,
+    "maxRpm": 1150,
+    "airFlow": 2.88,
+    "motorSizeFactor": 14.286,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MP130",
+    "minRpm": 1000,
+    "maxRpm": 1600,
+    "airFlow": 1.01,
+    "motorSizeFactor": 29.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MP185",
+    "minRpm": 1000,
+    "maxRpm": 1600,
+    "airFlow": 1.5,
+    "motorSizeFactor": 25.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MP200",
+    "minRpm": 900,
+    "maxRpm": 1440,
+    "airFlow": 2.58,
+    "motorSizeFactor": 16.9,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MP215",
+    "minRpm": 800,
+    "maxRpm": 1200,
+    "airFlow": 2.4,
+    "motorSizeFactor": 16.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MP300",
+    "minRpm": 900,
+    "maxRpm": 1440,
+    "airFlow": 3.65,
+    "motorSizeFactor": 10.82,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MP340",
+    "minRpm": 700,
+    "maxRpm": 950,
+    "airFlow": 4.64,
+    "motorSizeFactor": 10.3,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MP450",
+    "minRpm": 700,
+    "maxRpm": 950,
+    "airFlow": 6.07,
+    "motorSizeFactor": 8.7,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "MP80",
+    "minRpm": 1000,
+    "maxRpm": 1600,
+    "airFlow": 0.65,
+    "motorSizeFactor": 58.82,
+    "waterFlowRate": null
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "WR1200",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 0.81,
+    "motorSizeFactor": 31.0,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "WR1700",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 1.11,
+    "motorSizeFactor": 23.5,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "WR2400",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 1.61,
+    "motorSizeFactor": 19.1,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "WR3200",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 2.2,
+    "motorSizeFactor": 13.1,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "WRC2",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 1.45,
+    "motorSizeFactor": 19.25,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "WRC3",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 1.93,
+    "motorSizeFactor": 13.16,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "MILKAWARE",
+    "model": "WRC4",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 2.55,
+    "motorSizeFactor": 9.67,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "NU PULSE",
+    "model": "PV1000",
+    "minRpm": 840,
+    "maxRpm": 1230,
+    "airFlow": 0.82,
+    "motorSizeFactor": 52.86,
+    "waterFlowRate": 5.4
+  },
+  {
+    "make": "NU PULSE",
+    "model": "PV1600",
+    "minRpm": 630,
+    "maxRpm": 1100,
+    "airFlow": 1.6,
+    "motorSizeFactor": 27.0,
+    "waterFlowRate": 5.4
+  },
+  {
+    "make": "NU PULSE",
+    "model": "PV2600",
+    "minRpm": 720,
+    "maxRpm": 1220,
+    "airFlow": 2.1,
+    "motorSizeFactor": 16.2,
+    "waterFlowRate": 16.7
+  },
+  {
+    "make": "POMPETRAVAINI",
+    "model": "TRMB40-150",
+    "minRpm": 1450,
+    "maxRpm": 1450,
+    "airFlow": 0.8415,
+    "motorSizeFactor": 35.5,
+    "waterFlowRate": null
+  },
+  {
+    "make": "POMPETRAVAINI",
+    "model": "TRMB40-200",
+    "minRpm": 1450,
+    "maxRpm": 1450,
+    "airFlow": 1.163,
+    "motorSizeFactor": 26.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "POMPETRAVAINI",
+    "model": "TRMB40-300",
+    "minRpm": 1450,
+    "maxRpm": 1450,
+    "airFlow": 1.538,
+    "motorSizeFactor": 19.1,
+    "waterFlowRate": null
+  },
+  {
+    "make": "POMPETRAVAINI",
+    "model": "TRVA65-450",
+    "minRpm": 1450,
+    "maxRpm": 1450,
+    "airFlow": 2.4415,
+    "motorSizeFactor": 13.1,
+    "waterFlowRate": null
+  },
+  {
+    "make": "READ",
+    "model": "4MP Lobe",
+    "minRpm": 1750,
+    "maxRpm": 3600,
+    "airFlow": 1.3,
+    "motorSizeFactor": 34.3,
+    "waterFlowRate": null
+  },
+  {
+    "make": "READ",
+    "model": "5MP Lobe",
+    "minRpm": 700,
+    "maxRpm": 2500,
+    "airFlow": 2.0,
+    "motorSizeFactor": 16.2,
+    "waterFlowRate": null
+  },
+  {
+    "make": "READ",
+    "model": "WR1200",
+    "minRpm": 1300,
+    "maxRpm": 1900,
+    "airFlow": 0.81,
+    "motorSizeFactor": 31.0,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "READ",
+    "model": "WR1700",
+    "minRpm": 1100,
+    "maxRpm": 1900,
+    "airFlow": 1.11,
+    "motorSizeFactor": 23.5,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "READ",
+    "model": "WR2400",
+    "minRpm": 1100,
+    "maxRpm": 1900,
+    "airFlow": 1.61,
+    "motorSizeFactor": 19.1,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "READ",
+    "model": "WR3200",
+    "minRpm": 1100,
+    "maxRpm": 1900,
+    "airFlow": 2.2,
+    "motorSizeFactor": 13.1,
+    "waterFlowRate": 3.8
+  },
+  {
+    "make": "READ",
+    "model": "WRC2",
+    "minRpm": 1000,
+    "maxRpm": 1460,
+    "airFlow": 1.75,
+    "motorSizeFactor": 19.25,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "READ",
+    "model": "WRC3",
+    "minRpm": 1000,
+    "maxRpm": 1460,
+    "airFlow": 2.055,
+    "motorSizeFactor": 13.16,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "READ",
+    "model": "WRC4",
+    "minRpm": 1000,
+    "maxRpm": 1460,
+    "airFlow": 2.74,
+    "motorSizeFactor": 9.67,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "ROBUSCHI",
+    "model": "RMV 14M",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 1.08,
+    "motorSizeFactor": 36.0,
+    "waterFlowRate": 10.5
+  },
+  {
+    "make": "ROBUSCHI",
+    "model": "RMV 16M",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 1.206,
+    "motorSizeFactor": 26.7,
+    "waterFlowRate": 9.5
+  },
+  {
+    "make": "ROBUSCHI",
+    "model": "RMV 17S",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 1.56,
+    "motorSizeFactor": 19.5,
+    "waterFlowRate": 9.0
+  },
+  {
+    "make": "ROBUSCHI",
+    "model": "RMV 21S",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 2.14,
+    "motorSizeFactor": 13.3,
+    "waterFlowRate": 9.0
+  },
+  {
+    "make": "ROBUSCHI",
+    "model": "RMV 23",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 3.28,
+    "motorSizeFactor": 9.8,
+    "waterFlowRate": null
+  },
+  {
+    "make": "ROBUSCHI",
+    "model": "RMV 25",
+    "minRpm": 1000,
+    "maxRpm": 1450,
+    "airFlow": 4.53,
+    "motorSizeFactor": 6.6,
+    "waterFlowRate": null
+  },
+  {
+    "make": "SAC Lobe",
+    "model": "Unipump 1500",
+    "minRpm": 2890,
+    "maxRpm": 2890,
+    "airFlow": 1.03,
+    "motorSizeFactor": 70.5,
+    "waterFlowRate": null
+  },
+  {
+    "make": "SAC Lobe",
+    "model": "Unipump 2000",
+    "minRpm": 2900,
+    "maxRpm": 2900,
+    "airFlow": 1.38,
+    "motorSizeFactor": 51.8,
+    "waterFlowRate": 10.0
+  },
+  {
+    "make": "SAC Lobe",
+    "model": "Unipump 2750",
+    "minRpm": 2900,
+    "maxRpm": 2900,
+    "airFlow": 1.9,
+    "motorSizeFactor": 38.2,
+    "waterFlowRate": null
+  },
+  {
+    "make": "SAC Lobe",
+    "model": "Unipump 4200",
+    "minRpm": 2930,
+    "maxRpm": 2930,
+    "airFlow": 2.9,
+    "motorSizeFactor": 26.4,
+    "waterFlowRate": null
+  },
+  {
+    "make": "SIEMENS",
+    "model": "2BV4070",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 0.4,
+    "motorSizeFactor": 59.2,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "SIEMENS",
+    "model": "2BV4071",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 0.6,
+    "motorSizeFactor": 39.7,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "SIEMENS",
+    "model": "2BV4110",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 0.88,
+    "motorSizeFactor": 35.0,
+    "waterFlowRate": 5.0
+  },
+  {
+    "make": "SIEMENS",
+    "model": "2BV4111",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 1.08,
+    "motorSizeFactor": 27.2,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "SIEMENS",
+    "model": "2BV4121",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 1.36,
+    "motorSizeFactor": 19.6,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "SIEMENS",
+    "model": "2BV5131",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 1.83,
+    "motorSizeFactor": 13.3,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "SIEMENS",
+    "model": "2BV5161",
+    "minRpm": 1440,
+    "maxRpm": 1480,
+    "airFlow": 2.55,
+    "motorSizeFactor": 12.2,
+    "waterFlowRate": 7.0
+  },
+  {
+    "make": "TUTHILL",
+    "model": "TRVA65-350",
+    "minRpm": 1450,
+    "maxRpm": 1450,
+    "airFlow": 1.725,
+    "motorSizeFactor": 16.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "TUTHILL",
+    "model": "Tuthill CL4005",
+    "minRpm": 850,
+    "maxRpm": 3600,
+    "airFlow": 1.0,
+    "motorSizeFactor": 33.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "TUTHILL",
+    "model": "Tuthill CL5006",
+    "minRpm": 700,
+    "maxRpm": 2850,
+    "airFlow": 2.272,
+    "motorSizeFactor": 17.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "TUTHILL",
+    "model": "Tuthill CL6008",
+    "minRpm": 700,
+    "maxRpm": 2350,
+    "airFlow": 3.75,
+    "motorSizeFactor": 10.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "WAIKATO",
+    "model": "BP140",
+    "minRpm": 900,
+    "maxRpm": 3600,
+    "airFlow": 0.74,
+    "motorSizeFactor": 120.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "WAIKATO",
+    "model": "BP200",
+    "minRpm": 600,
+    "maxRpm": 2850,
+    "airFlow": 1.44,
+    "motorSizeFactor": 34.0,
+    "waterFlowRate": null
+  },
+  {
+    "make": "WAIKATO",
+    "model": "BP400",
+    "minRpm": 350,
+    "maxRpm": 2850,
+    "airFlow": 2.16,
+    "motorSizeFactor": 21.5,
+    "waterFlowRate": null
+  },
+  {
+    "make": "WAIKATO",
+    "model": "BP500",
+    "minRpm": 350,
+    "maxRpm": 2400,
+    "airFlow": 3.99,
+    "motorSizeFactor": 12.45,
+    "waterFlowRate": null
+  }
+]

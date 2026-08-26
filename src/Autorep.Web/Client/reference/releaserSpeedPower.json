@@ -1,0 +1,452 @@
+[
+  {
+    "clusters": "6",
+    "heads": "1",
+    "power": "0.3",
+    "minSpeed": "34"
+  },
+  {
+    "clusters": "6",
+    "heads": "2",
+    "power": "0.4",
+    "minSpeed": "17"
+  },
+  {
+    "clusters": "7",
+    "heads": "1",
+    "power": "0.3",
+    "minSpeed": "36"
+  },
+  {
+    "clusters": "7",
+    "heads": "2",
+    "power": "0.4",
+    "minSpeed": "18"
+  },
+  {
+    "clusters": "8",
+    "heads": "1",
+    "power": "0.3",
+    "minSpeed": "38"
+  },
+  {
+    "clusters": "8",
+    "heads": "2",
+    "power": "0.4",
+    "minSpeed": "19"
+  },
+  {
+    "clusters": "9",
+    "heads": "1",
+    "power": "0.3",
+    "minSpeed": "41"
+  },
+  {
+    "clusters": "9",
+    "heads": "2",
+    "power": "0.4",
+    "minSpeed": "21"
+  },
+  {
+    "clusters": "10",
+    "heads": "1",
+    "power": "0.4",
+    "minSpeed": "44"
+  },
+  {
+    "clusters": "10",
+    "heads": "2",
+    "power": "0.4",
+    "minSpeed": "22"
+  },
+  {
+    "clusters": "11",
+    "heads": "2",
+    "power": "0.4",
+    "minSpeed": "24"
+  },
+  {
+    "clusters": "12",
+    "heads": "2",
+    "power": "0.4",
+    "minSpeed": "26"
+  },
+  {
+    "clusters": "12",
+    "heads": "3",
+    "power": "0.7",
+    "minSpeed": "18"
+  },
+  {
+    "clusters": "13",
+    "heads": "2",
+    "power": "0.4",
+    "minSpeed": "29"
+  },
+  {
+    "clusters": "13",
+    "heads": "3",
+    "power": "0.7",
+    "minSpeed": "19"
+  },
+  {
+    "clusters": "14",
+    "heads": "2",
+    "power": "0.5",
+    "minSpeed": "32"
+  },
+  {
+    "clusters": "14",
+    "heads": "3",
+    "power": "0.7",
+    "minSpeed": "20"
+  },
+  {
+    "clusters": "15",
+    "heads": "2",
+    "power": "0.5",
+    "minSpeed": "34"
+  },
+  {
+    "clusters": "15",
+    "heads": "3",
+    "power": "0.7",
+    "minSpeed": "22"
+  },
+  {
+    "clusters": "16",
+    "heads": "2",
+    "power": "0.5",
+    "minSpeed": "35"
+  },
+  {
+    "clusters": "16",
+    "heads": "3",
+    "power": "0.7",
+    "minSpeed": "23"
+  },
+  {
+    "clusters": "16",
+    "heads": "4",
+    "power": "1",
+    "minSpeed": "17"
+  },
+  {
+    "clusters": "17",
+    "heads": "2",
+    "power": "0.6",
+    "minSpeed": "38"
+  },
+  {
+    "clusters": "17",
+    "heads": "3",
+    "power": "0.8",
+    "minSpeed": "25"
+  },
+  {
+    "clusters": "18",
+    "heads": "2",
+    "power": "0.6",
+    "minSpeed": "40"
+  },
+  {
+    "clusters": "18",
+    "heads": "3",
+    "power": "0.8",
+    "minSpeed": "26"
+  },
+  {
+    "clusters": "18",
+    "heads": "4",
+    "power": "1",
+    "minSpeed": "20"
+  },
+  {
+    "clusters": "19",
+    "heads": "2",
+    "power": "0.6",
+    "minSpeed": "42"
+  },
+  {
+    "clusters": "19",
+    "heads": "3",
+    "power": "0.8",
+    "minSpeed": "28"
+  },
+  {
+    "clusters": "20",
+    "heads": "2",
+    "power": "0.6",
+    "minSpeed": "44"
+  },
+  {
+    "clusters": "20",
+    "heads": "3",
+    "power": "0.8",
+    "minSpeed": "30"
+  },
+  {
+    "clusters": "20",
+    "heads": "4",
+    "power": "1",
+    "minSpeed": "22"
+  },
+  {
+    "clusters": "21",
+    "heads": "2",
+    "power": "0.7",
+    "minSpeed": "46"
+  },
+  {
+    "clusters": "21",
+    "heads": "3",
+    "power": "0.8",
+    "minSpeed": "31"
+  },
+  {
+    "clusters": "21",
+    "heads": "4",
+    "power": "1.1",
+    "minSpeed": "23"
+  },
+  {
+    "clusters": "22",
+    "heads": "2",
+    "power": "0.7",
+    "minSpeed": "48"
+  },
+  {
+    "clusters": "22",
+    "heads": "3",
+    "power": "0.8",
+    "minSpeed": "32"
+  },
+  {
+    "clusters": "22",
+    "heads": "4",
+    "power": "1.1",
+    "minSpeed": "24"
+  },
+  {
+    "clusters": "23",
+    "heads": "3",
+    "power": "0.9",
+    "minSpeed": "34"
+  },
+  {
+    "clusters": "24",
+    "heads": "3",
+    "power": "0.9",
+    "minSpeed": "35"
+  },
+  {
+    "clusters": "24",
+    "heads": "4",
+    "power": "1.1",
+    "minSpeed": "26"
+  },
+  {
+    "clusters": "25",
+    "heads": "3",
+    "power": "0.9",
+    "minSpeed": "37"
+  },
+  {
+    "clusters": "25",
+    "heads": "4",
+    "power": "1.1",
+    "minSpeed": "27"
+  },
+  {
+    "clusters": "26",
+    "heads": "3",
+    "power": "0.9",
+    "minSpeed": "38"
+  },
+  {
+    "clusters": "26",
+    "heads": "4",
+    "power": "1.1",
+    "minSpeed": "28"
+  },
+  {
+    "clusters": "27",
+    "heads": "3",
+    "power": "0.9",
+    "minSpeed": "40"
+  },
+  {
+    "clusters": "27",
+    "heads": "4",
+    "power": "1.1",
+    "minSpeed": "30"
+  },
+  {
+    "clusters": "28",
+    "heads": "3",
+    "power": "0.9",
+    "minSpeed": "41"
+  },
+  {
+    "clusters": "28",
+    "heads": "4",
+    "power": "1.1",
+    "minSpeed": "31"
+  },
+  {
+    "clusters": "29",
+    "heads": "3",
+    "power": "1",
+    "minSpeed": "43"
+  },
+  {
+    "clusters": "29",
+    "heads": "4",
+    "power": "1.2",
+    "minSpeed": "32"
+  },
+  {
+    "clusters": "30",
+    "heads": "3",
+    "power": "1",
+    "minSpeed": "44"
+  },
+  {
+    "clusters": "30",
+    "heads": "4",
+    "power": "1.2",
+    "minSpeed": "33"
+  },
+  {
+    "clusters": "30",
+    "heads": "6",
+    "power": "1.4",
+    "minSpeed": "22"
+  },
+  {
+    "clusters": "31",
+    "heads": "4",
+    "power": "1.2",
+    "minSpeed": "35"
+  },
+  {
+    "clusters": "31",
+    "heads": "6",
+    "power": "1.5",
+    "minSpeed": "23"
+  },
+  {
+    "clusters": "32",
+    "heads": "3",
+    "power": "1",
+    "minSpeed": "47"
+  },
+  {
+    "clusters": "32",
+    "heads": "4",
+    "power": "1.2",
+    "minSpeed": "36"
+  },
+  {
+    "clusters": "32",
+    "heads": "6",
+    "power": "1.5",
+    "minSpeed": "24"
+  },
+  {
+    "clusters": "33",
+    "heads": "4",
+    "power": "1.3",
+    "minSpeed": "37"
+  },
+  {
+    "clusters": "33",
+    "heads": "6",
+    "power": "1.5",
+    "minSpeed": "25"
+  },
+  {
+    "clusters": "34",
+    "heads": "4",
+    "power": "1.3",
+    "minSpeed": "38"
+  },
+  {
+    "clusters": "34",
+    "heads": "6",
+    "power": "1.5",
+    "minSpeed": "25"
+  },
+  {
+    "clusters": "35",
+    "heads": "4",
+    "power": "1.3",
+    "minSpeed": "39"
+  },
+  {
+    "clusters": "35",
+    "heads": "6",
+    "power": "1.5",
+    "minSpeed": "26"
+  },
+  {
+    "clusters": "36",
+    "heads": "4",
+    "power": "1.3",
+    "minSpeed": "40"
+  },
+  {
+    "clusters": "36",
+    "heads": "6",
+    "power": "1.5",
+    "minSpeed": "26"
+  },
+  {
+    "clusters": "37",
+    "heads": "4",
+    "power": "1.3",
+    "minSpeed": "41"
+  },
+  {
+    "clusters": "37",
+    "heads": "6",
+    "power": "1.6",
+    "minSpeed": "27"
+  },
+  {
+    "clusters": "38",
+    "heads": "4",
+    "power": "1.3",
+    "minSpeed": "42"
+  },
+  {
+    "clusters": "38",
+    "heads": "6",
+    "power": "1.6",
+    "minSpeed": "28"
+  },
+  {
+    "clusters": "39",
+    "heads": "4",
+    "power": "1.3",
+    "minSpeed": "43"
+  },
+  {
+    "clusters": "39",
+    "heads": "6",
+    "power": "1.6",
+    "minSpeed": "29"
+  },
+  {
+    "clusters": "40",
+    "heads": "4",
+    "power": "1.3",
+    "minSpeed": "44"
+  },
+  {
+    "clusters": "40",
+    "heads": "6",
+    "power": "1.6",
+    "minSpeed": "30"
+  }
+]
