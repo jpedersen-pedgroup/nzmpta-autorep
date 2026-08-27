@@ -1,5 +1,6 @@
 @page "{id:guid}"
 @model Autorep.Web.Pages.Admin.Companies.EditModel
+@using Autorep.Web.Domain
 @{
     ViewData["Title"] = $"Edit {Model.Input.Name}";
 }
@@ -7,7 +8,7 @@
 <div class="page-header">
     <div class="page-header__heading">
         <h1>@Model.Input.Name</h1>
-        <p>@Model.TesterCount tester(s) · created @Model.CreatedAt.ToString("dd MMM yyyy")</p>
+        <p>@Model.TesterCount tester(s) · created @Model.CreatedAt.ToNz().ToString("dd MMM yyyy")</p>
     </div>
     <div class="page-header__actions">
         <a class="btn btn--secondary" asp-page="/Admin/Companies/Index">Back</a>

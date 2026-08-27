@@ -1,5 +1,6 @@
 @page "{id:guid}"
 @model Autorep.Web.Pages.Admin.Farms.EditModel
+@using Autorep.Web.Domain
 @{
     ViewData["Title"] = $"Edit {Model.FarmName}";
 }
@@ -9,7 +10,7 @@
         <h1>@Model.FarmName</h1>
         <p>
             @Model.TestCount test(s)
-            @if (Model.UpdatedAt is not null) { <span>· last edited @Model.UpdatedAt.Value.ToString("dd MMM yyyy")</span> }
+            @if (Model.UpdatedAt is not null) { <span>· last edited @Model.UpdatedAt.Value.ToNz().ToString("dd MMM yyyy")</span> }
         </p>
     </div>
     <div class="page-header__actions">
@@ -30,7 +31,7 @@
         <div style="flex:1;min-width:240px">
             <strong>Under review.</strong>
             This farm was added in the field@(Model.PendingAddedBy is not null ? $" by {Model.PendingAddedBy}" : "")
-            on @Model.PendingReviewSince.Value.ToLocalTime().ToString("dd MMM yyyy").
+            on @Model.PendingReviewSince.Value.ToNz().ToString("dd MMM yyyy").
             Check the details, correct anything that's wrong, then approve. Testing against it isn't held up.
         </div>
         <form method="post" asp-page-handler="Approve" style="margin:0">

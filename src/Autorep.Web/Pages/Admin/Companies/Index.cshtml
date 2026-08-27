@@ -1,5 +1,6 @@
 @page
 @model Autorep.Web.Pages.Admin.Companies.IndexModel
+@using Autorep.Web.Domain
 @{
     ViewData["Title"] = "Testing companies";
 }
@@ -58,7 +59,7 @@ else
                             { <a class="count-link" asp-page="/Admin/Tests/Index" asp-route-companyId="@c.Id" title="View this company's tests">@c.TestCount</a> }
                             else { @c.TestCount }
                         </td>
-                        <td class="td-muted">@c.CreatedAt.ToString("dd MMM yyyy")</td>
+                        <td class="td-muted">@c.CreatedAt.ToNz().ToString("dd MMM yyyy")</td>
                         <td><a class="btn btn--secondary" asp-page="/Admin/Companies/Edit" asp-route-id="@c.Id">Edit</a></td>
                     </tr>
                 }

@@ -1,5 +1,6 @@
 @page
 @model Autorep.Web.Pages.Admin.Tests.IndexModel
+@using Autorep.Web.Domain
 @{
     ViewData["Title"] = "All tests";
 }
@@ -84,7 +85,7 @@ else
                     <tr>
                         <td>@t.Tester?.UserName</td>
                         <td>@t.Farm?.Name</td>
-                        <td class="td-muted">@t.CreatedAt.ToString("dd MMM yyyy, HH:mm")</td>
+                        <td class="td-muted">@t.CreatedAt.ToNz().ToString("dd MMM yyyy, HH:mm")</td>
                         <td>
                             @if (t.MarkedCompleteAt is null)
                             {

@@ -90,7 +90,7 @@
             Approaching (&le; 6 weeks) or expired calibration warns the tester but never blocks testing.
         </p>
         @{
-            var calToday = DateOnly.FromDateTime(DateTime.UtcNow);
+            var calToday = NzTime.Today;
             var calibration = new (string Label, DateOnly? Date)[]
             {
                 ("Air-flow meters", Model.EditingUser?.CalAirFlowMetersExpiry),

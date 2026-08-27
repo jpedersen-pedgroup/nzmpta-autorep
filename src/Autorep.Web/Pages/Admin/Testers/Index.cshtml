@@ -1,8 +1,9 @@
 @page
 @model Autorep.Web.Pages.Admin.Testers.IndexModel
+@using Autorep.Web.Domain
 @{
     ViewData["Title"] = "Testers";
-    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var today = NzTime.Today;
 }
 
 <div class="page-header">
