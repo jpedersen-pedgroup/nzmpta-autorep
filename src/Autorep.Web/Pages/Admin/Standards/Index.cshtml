@@ -1,5 +1,6 @@
 @page
 @model Autorep.Web.Pages.Admin.Standards.IndexModel
+@using Autorep.Web.Domain
 @{
     ViewData["Title"] = "Test standards";
 }
@@ -38,7 +39,7 @@
                             <td><strong>@r.Summary</strong></td>
                             <td class="td-muted"><code>@r.Key</code></td>
                             <td class="td-muted">@r.SourceRef</td>
-                            <td class="td-muted">@r.UpdatedAt.ToLocalTime().ToString("d MMM yyyy")</td>
+                            <td class="td-muted">@r.UpdatedAt.ToNz().ToString("d MMM yyyy")</td>
                             <td><a class="btn btn--secondary" asp-page="/Admin/Standards/Edit" asp-route-id="@r.Id">Edit</a></td>
                         </tr>
                     }
