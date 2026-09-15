@@ -148,6 +148,14 @@ public static class Seed
             return System.Text.Json.JsonSerializer.Deserialize<string[]>(stream) ?? [];
         }
 
+        static List<BrandedSeed> Branded(string resource)
+        {
+            using var stream = typeof(Seed).Assembly.GetManifestResourceStream(resource)
+                ?? throw new InvalidOperationException($"Missing embedded resource {resource}");
+            return System.Text.Json.JsonSerializer.Deserialize<List<BrandedSeed>>(stream,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+        }
+
         var hasType = await db.EquipmentItems.Select(e => e.Type).Distinct().ToListAsync();
 
         if (!hasType.Contains(EquipmentItem.Shell))
@@ -162,13 +170,23 @@ public static class Seed
         }
         if (!hasType.Contains(EquipmentItem.Pulsator))
         {
-            using var stream = typeof(Seed).Assembly.GetManifestResourceStream("Autorep.Web.Data.SeedData.pulsators.json")
-                ?? throw new InvalidOperationException("Missing embedded resource pulsators.json");
-            var models = System.Text.Json.JsonSerializer.Deserialize<List<PulsatorSeed>>(stream,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
-            foreach (var m in models)
+            foreach (var m in Branded("Autorep.Web.Data.SeedData.pulsators.json"))
                 db.EquipmentItems.Add(new EquipmentItem { Type = EquipmentItem.Pulsator, Name = m.Name, Brand = m.Brand });
         }
+        // The legacy OEM pump catalogues (VPModel / MilkPumps), make in Brand. The Device joins the
+        // vacuum-pump make+model back to the bundled curve data to show the OEM capacity beside 8a.
+        if (!hasType.Contains(EquipmentItem.VacuumPump))
+        {
+            foreach (var m in Branded("Autorep.Web.Data.SeedData.vacuumPumps.json"))
+                db.EquipmentItems.Add(new EquipmentItem { Type = EquipmentItem.VacuumPump, Name = m.Name, Brand = m.Brand });
+        }
+        if (!hasType.Contains(EquipmentItem.ReleaserPump))
+        {
+            foreach (var m in Branded("Autorep.Web.Data.SeedData.releaserPumps.json"))
+                db.EquipmentItems.Add(new EquipmentItem { Type = EquipmentItem.ReleaserPump, Name = m.Name, Brand = m.Brand });
+        }
+        // Regulator types have no legacy list - the dropdown is free text until the SuperAdmin adds
+        // the types they want offered, so nothing is seeded for that catalog on purpose.
         if (!hasType.Contains(EquipmentItem.MilklineSize))
         {
             foreach (var name in new[] { "50", "63", "75", "100" })
@@ -183,7 +201,7 @@ public static class Seed
         await db.SaveChangesAsync();
     }
 
-    private sealed record PulsatorSeed(string Name, string Brand);
+    private sealed record BrandedSeed(string Name, string Brand);
 
     // Seeds the editable test standards (pass/fail thresholds + formula parameters) with the
     // values verified against the NZMPTA Testing Standards Manual + ISO 6690:2007 (see

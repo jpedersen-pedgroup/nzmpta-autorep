@@ -2,7 +2,7 @@
 // replaces the bundled default list; with nothing synced the bundled legacy lists apply, so the
 // dropdowns work offline and before first sync.
 export interface EquipmentDto {
-  type: string; // Shell | Liner | Pulsator | MilklineSize | PulsatorConfiguration
+  type: string; // Shell | Liner | Pulsator | MilklineSize | PulsatorConfiguration | VacuumPump | ReleaserPump | Regulator
   name: string;
   brand?: string | null;
 }
@@ -29,8 +29,14 @@ export function catalogNames(type: string): string[] | null {
   return list ? list.map((i) => i.name) : null;
 }
 
+/** The synced models of a branded catalog (name + brand), or null when nothing is synced for it.
+ * Pulsators, vacuum pumps and releaser pumps all carry the manufacturer in `brand`. */
+export function catalogBranded(type: string): { name: string; brand: string }[] | null {
+  const list = byType.get(type);
+  return list ? list.map((i) => ({ name: i.name, brand: i.brand ?? "" })) : null;
+}
+
 /** The synced pulsator models (name + brand), or null when nothing is synced. */
 export function catalogPulsators(): { name: string; brand: string }[] | null {
-  const list = byType.get("Pulsator");
-  return list ? list.map((i) => ({ name: i.name, brand: i.brand ?? "" })) : null;
+  return catalogBranded("Pulsator");
 }

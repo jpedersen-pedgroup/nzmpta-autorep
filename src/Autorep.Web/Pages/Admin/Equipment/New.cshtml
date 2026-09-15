@@ -7,7 +7,7 @@
 <div class="page-header">
     <div class="page-header__heading">
         <h1>New equipment item</h1>
-        <p>Add a shell, liner, pulsator model (with brand), milkline size or pulsator configuration.</p>
+        <p>Add a shell, liner, pulsator model, vacuum or releaser pump (those three carry a brand/make), milkline size, pulsator configuration or regulator type.</p>
     </div>
 </div>
 
@@ -48,7 +48,8 @@
     (function () {
         var type = document.getElementById('eq-type');
         var brand = document.getElementById('eq-brand-field');
-        function refresh() { brand.style.display = type.value === 'Pulsator' ? '' : 'none'; }
+        var branded = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Autorep.Web.Domain.Entities.EquipmentItem.BrandedTypes));
+        function refresh() { brand.style.display = branded.indexOf(type.value) >= 0 ? '' : 'none'; }
         type.addEventListener('change', refresh);
         refresh();
     })();

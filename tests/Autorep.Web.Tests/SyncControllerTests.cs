@@ -23,6 +23,20 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
 
     private sealed record PullResponse(DateTimeOffset Watermark, List<TestSummary> Tests);
 
+    // Pump details ride in the same config DTO; these read just that slice back off a pull.
+    private sealed record PumpSummary(string? Make, string? Model, string? MotorSize, bool DrivesMilkPump, string? RegulatorType);
+    private sealed record ReleaserSummary(string? Make, string? Model, string? MotorSize);
+    private sealed record PumpConfig(int NumberOfVacuumPumps, List<PumpSummary> VacuumPumps, List<ReleaserSummary> ReleaserPumps);
+    private sealed record PumpTestSummary(Guid ClientId, PumpConfig? Config);
+    private sealed record PumpPullResponse(DateTimeOffset Watermark, List<PumpTestSummary> Tests);
+
+    private static async Task<PumpConfig?> PullPumpConfigAsync(HttpClient client, Guid clientId)
+    {
+        var res = await client.GetFromJsonAsync<PumpPullResponse>("/api/sync/tests");
+        res.Should().NotBeNull();
+        return res!.Tests.Single(t => t.ClientId == clientId).Config;
+    }
+
     private static async Task<PullResponse> PullAsync(HttpClient client, DateTimeOffset? since = null)
     {
         var url = since is null
@@ -84,6 +98,91 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         mine.Config.ClusterCount.Should().Be(50);
         mine.Config.HasAcr.Should().BeTrue();
         mine.Config.VsdFitted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Upload_round_trips_the_pump_details_and_tidies_them()
+    {
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-sync-pumps");
+        var clientId = Guid.NewGuid();
+        var payload = new
+        {
+            clientId,
+            farmName = "Pump Farm",
+            createdAt = DateTimeOffset.UtcNow,
+            config = new
+            {
+                plantType = "HerringboneLowline",
+                clusterCount = 24,
+                pumpLubrication = "OilLubricated",
+                numberOfVacuumPumps = 2,
+                hasReleaserPump = true,
+                vacuumPumps = new[]
+                {
+                    new { make = (string?)"  MASPORT  ", model = (string?)"RVP4000", motorSize = (string?)"7.5", drivesMilkPump = true, regulatorType = (string?)"Servo" },
+                    new { make = (string?)null, model = (string?)null, motorSize = (string?)null, drivesMilkPump = false, regulatorType = (string?)null },
+                },
+                releaserPumps = new[] { new { make = "READ", model = "WR1200", motorSize = "2.2" } },
+            },
+        };
+
+        var post = await client.PostAsJsonAsync("/api/sync/tests", payload);
+        post.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var config = await PullPumpConfigAsync(client, clientId);
+        config.Should().NotBeNull();
+        config!.VacuumPumps.Should().HaveCount(2);
+        config.VacuumPumps[0].Make.Should().Be("MASPORT"); // trimmed on the way in
+        config.VacuumPumps[0].DrivesMilkPump.Should().BeTrue();
+        config.VacuumPumps[0].RegulatorType.Should().Be("Servo");
+        config.VacuumPumps[1].Make.Should().BeNull(); // a row the Tester never filled in
+        config.ReleaserPumps.Should().ContainSingle(p => p.Model == "WR1200");
+    }
+
+    [Fact]
+    public async Task A_client_that_predates_pump_details_does_not_wipe_them()
+    {
+        // An older Device re-syncing the same test sends no pump fields at all. Absent means "this
+        // client doesn't know about them", not "clear them" — another device may have entered them.
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-sync-pumps-2");
+        var clientId = Guid.NewGuid();
+        var withPumps = new
+        {
+            clientId,
+            farmName = "Older Client Farm",
+            createdAt = DateTimeOffset.UtcNow,
+            config = new
+            {
+                plantType = "HerringboneLowline",
+                clusterCount = 24,
+                pumpLubrication = "OilLubricated",
+                numberOfVacuumPumps = 1,
+                vacuumPumps = new[]
+                {
+                    new { make = "GEA", model = "RPS2000", motorSize = "11", drivesMilkPump = false, regulatorType = (string?)null },
+                },
+            },
+        };
+        (await client.PostAsJsonAsync("/api/sync/tests", withPumps)).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var olderShape = new
+        {
+            clientId,
+            farmName = "Older Client Farm",
+            createdAt = DateTimeOffset.UtcNow,
+            config = new
+            {
+                plantType = "HerringboneLowline",
+                clusterCount = 30,
+                pumpLubrication = "OilLubricated",
+                numberOfVacuumPumps = 1,
+            },
+        };
+        (await client.PostAsJsonAsync("/api/sync/tests", olderShape)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var config = await PullPumpConfigAsync(client, clientId);
+        config!.NumberOfVacuumPumps.Should().Be(1);
+        config.VacuumPumps.Should().ContainSingle(p => p.Make == "GEA" && p.Model == "RPS2000");
     }
 
     [Fact]

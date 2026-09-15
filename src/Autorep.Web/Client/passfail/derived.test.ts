@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DERIVED_READINGS, deriveReadings, formulaFor, isDerivedReading } from "./derived";
-import { allReadingSections } from "./standards";
+import { allReadingSections, MAX_OEM_PUMPS } from "./standards";
 import { evaluate } from "./passFail";
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 
@@ -83,6 +83,26 @@ describe("deriveReadings", () => {
     expect(verdictOf(cfg(), r, "puls.ratioSpread")).toBe("fail");
   });
 
+  it("works out each pump's OEM capacity from its own model and the speed 8a was measured at", () => {
+    const config = cfg({
+      numberOfVacuumPumps: 2,
+      vacuumPumps: [{ make: "De Laval", model: "DVP1600" }, { make: "MASPORT", model: "RVP4000" }],
+    });
+    const r = deriveReadings(config, { "tr.pumpMaxSpeed1": 1400, "tr.pumpMaxSpeed2": 1340 });
+    expect(r["tr.pumpOemCapacity1"]).toBe(1610); // 1.15 L/min per rpm × 1400
+    expect(r["tr.pumpOemCapacity2"]).toBe(4046.8); // 3.02 × 1340
+  });
+
+  it("has no OEM figure for a pump typed in by hand, or before its speed is entered", () => {
+    const typedIn = cfg({ vacuumPumps: [{ make: "Acme", model: "Hyperpump" }] });
+    expect(deriveReadings(typedIn, { "tr.pumpMaxSpeed1": 1400 })["tr.pumpOemCapacity1"]).toBeUndefined();
+    const known = cfg({ vacuumPumps: [{ make: "De Laval", model: "DVP1600" }] });
+    expect(deriveReadings(known, {})["tr.pumpOemCapacity1"]).toBeUndefined();
+    // …and it clears again when the model is taken off the row.
+    const entered = deriveReadings(known, { "tr.pumpMaxSpeed1": 1400 });
+    expect(deriveReadings(cfg({ vacuumPumps: [{}] }), entered)["tr.pumpOemCapacity1"]).toBeUndefined();
+  });
+
   it("does not touch measured readings", () => {
     const r = deriveReadings(cfg(), { "tr.workingVacuum": 41.5, "tr.nominalVacuum": 45 });
     expect(r["tr.workingVacuum"]).toBe(41.5);
@@ -131,7 +151,14 @@ describe("deriveReadings", () => {
 describe("derived readings and the reading definitions agree", () => {
   it("every derived key is defined as calculated in the sections, with the same formula, and nothing else is", () => {
     // A config with everything fitted so every conditional section is present.
-    const everything = cfg({ vsdFitted: true, hasAcr: true, hasMilkMeters: true, hasTeatSprayer: true, hasBailGates: true, hasReleaserPump: true, flushingPulsationSystem: true, numberOfVacuumPumps: 2 });
+    // Every conditional section present, and a catalogue pump on every index that can carry an
+    // OEM row, so the per-pump family is checked in both directions rather than only pumps 1–2.
+    const everything = cfg({
+      vsdFitted: true, hasAcr: true, hasMilkMeters: true, hasTeatSprayer: true, hasBailGates: true,
+      hasReleaserPump: true, flushingPulsationSystem: true,
+      numberOfVacuumPumps: MAX_OEM_PUMPS,
+      vacuumPumps: Array.from({ length: MAX_OEM_PUMPS }, () => ({ make: "De Laval", model: "DVP1600" })),
+    });
     const defs = new Map(allReadingSections(everything, {}).flatMap((s) => s.readings).map((r) => [r.key, r]));
     for (const d of DERIVED_READINGS) {
       expect(defs.get(d.key)?.derived, d.key).toBe(d.formula);

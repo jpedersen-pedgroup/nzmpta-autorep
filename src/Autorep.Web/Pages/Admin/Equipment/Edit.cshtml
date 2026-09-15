@@ -2,7 +2,7 @@
 @model Autorep.Web.Pages.Admin.Equipment.EditModel
 @{
     ViewData["Title"] = "Edit equipment item";
-    var isPulsator = Model.Type == Autorep.Web.Domain.Entities.EquipmentItem.Pulsator;
+    var hasBrand = Autorep.Web.Domain.Entities.EquipmentItem.HasBrand(Model.Type);
 }
 
 <div class="page-header">
@@ -24,7 +24,7 @@
 <div class="card" style="max-width:640px">
     <form method="post">
         <div class="form-grid">
-            @if (isPulsator)
+            @if (hasBrand)
             {
                 <div class="form-field">
                     <label asp-for="Brand">Brand</label>

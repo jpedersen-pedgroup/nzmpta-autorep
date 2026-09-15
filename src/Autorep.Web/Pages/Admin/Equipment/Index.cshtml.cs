@@ -23,6 +23,9 @@ public class IndexModel : PageModel
         EquipmentItem.Pulsator => "Pulsator models",
         EquipmentItem.MilklineSize => "Milkline sizes (mm)",
         EquipmentItem.PulsatorConfiguration => "Pulsator configurations",
+        EquipmentItem.VacuumPump => "Vacuum pumps",
+        EquipmentItem.ReleaserPump => "Releaser pumps",
+        EquipmentItem.Regulator => "Regulator types",
         _ => type,
     };
 

@@ -76,6 +76,11 @@ public class MachineConfiguration
 
     // --- Vacuum system ----------------------------------------------------
     public int NumberOfVacuumPumps { get; set; } = 1;
+
+    /// <summary>Make/model/motor/regulator per vacuum pump (legacy page 2), in pump order — pump N
+    /// lines up with the pump-N readings. Stored as JSON on this row; the Device owns the list.</summary>
+    public List<VacuumPumpDetail> VacuumPumps { get; set; } = [];
+
     public PumpLubrication PumpLubrication { get; set; } = PumpLubrication.OilLubricated;
 
     /// <summary>Variable-speed-drive fitted — adds the minimum-pump-speed vacuum readings.</summary>
@@ -95,6 +100,9 @@ public class MachineConfiguration
     public bool HasTeatSprayer { get; set; }
     public bool HasBackingGate { get; set; }
     public bool HasReleaserPump { get; set; }
+
+    /// <summary>Releaser (milk) pump make/model/motor, when <see cref="HasReleaserPump"/>.</summary>
+    public List<ReleaserPumpDetail> ReleaserPumps { get; set; } = [];
 
     public DateTimeOffset? UpdatedAt { get; set; }
 
