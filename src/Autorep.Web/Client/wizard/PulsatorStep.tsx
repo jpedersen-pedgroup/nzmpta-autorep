@@ -28,6 +28,9 @@ function columnsFor(limpMax: number): RowColumn[] {
 
 const fmt = (n: number | null): string => (n == null ? "—" : String(n));
 
+// The rows are the units that FAILED, not the whole machine, so their spread can prove the
+// machine is over the limit but never that it is within it — a spread inside the limit gets no
+// verdict. Capturing the machine-level fastest/slowest is a Phase 2 item (see the plan).
 function SpreadStat({
   label,
   range,
@@ -47,9 +50,14 @@ function SpreadStat({
     <div class="puls-stat">
       <span class="puls-stat__label">{label}</span>
       <span class="puls-stat__range">{range}</span>
-      {spread != null && (
-        <span class={"pf pf--" + (ok ? "pass" : "fail")}>
-          spread {spread} {unit} {ok ? "≤" : ">"} {max}
+      {spread != null && ok === false && (
+        <span class="pf pf--fail">
+          spread {spread} {unit} &gt; {max}
+        </span>
+      )}
+      {spread != null && ok !== false && (
+        <span class="puls-stat__range">
+          spread {spread} {unit} · limit {max}, across the units recorded
         </span>
       )}
     </div>
@@ -86,8 +94,8 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading, rea
         <div class="card__title">
           Faulty pulsators{" "}
           <small class="card__hint">
-            Add each pulsator that failed, by unit number. Rate spread ≤ {limits.rateSpreadMax} ppm, ratio spread ≤{" "}
-            {limits.ratioSpreadMax}%.
+            Add each pulsator that failed, by unit number. Spread limits: rate ≤ {limits.rateSpreadMax} ppm, ratio ≤{" "}
+            {limits.ratioSpreadMax}% — a spread over the limit among the units recorded is a fail.
           </small>
         </div>
         <RowTable

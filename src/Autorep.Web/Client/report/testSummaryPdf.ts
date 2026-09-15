@@ -31,10 +31,14 @@ function describeRule(rule: PassFailRule, unit: string): string {
   }
 }
 
+// The report is an NZ compliance document: every date on it is New Zealand time regardless of
+// how the generating device is configured (the admin portal does the same — see PR #53).
+const NZ_TIME_ZONE = "Pacific/Auckland";
+
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString("en-NZ");
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString("en-NZ", { timeZone: NZ_TIME_ZONE });
 }
 
 /** A calibration expiry as dd/mm/yyyy — the stamped snapshot, else the tester's live profile. */
@@ -196,12 +200,15 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
     // every unit, and those were never all faulty.
     unitBlocks.push(sectionHeader("Pulsator results"));
     unitBlocks.push({ table: { widths: ["auto", "auto", "auto", "auto", "auto", "auto", "auto", "auto"], body }, layout: "lightHorizontalLines" });
+    // Recorded units are the ones that failed — a subset. Their spread can show the machine is over
+    // the limit, never that it is within it, so only a FAIL is printed (Phase 2 captures the
+    // machine-level fastest/slowest).
     const spreadText: Content = {
       text: [
-        `Rate ${s.slowestRate ?? "—"}–${s.fastestRate ?? "—"} ppm (spread ${s.rateSpread ?? "—"}, limit ${limits.rateSpreadMax}) `,
-        { text: s.rateSpreadOk == null ? "" : s.rateSpreadOk ? " PASS" : " FAIL", color: s.rateSpreadOk ? PASS : FAIL, bold: true },
+        `Rate ${s.slowestRate ?? "—"}–${s.fastestRate ?? "—"} ppm (spread ${s.rateSpread ?? "—"}, limit ${limits.rateSpreadMax}, across the units recorded) `,
+        { text: s.rateSpreadOk === false ? " FAIL" : "", color: FAIL, bold: true },
         `   ·   Ratio spread ${s.ratioSpread ?? "—"} (limit ${limits.ratioSpreadMax})`,
-        { text: s.ratioSpreadOk == null ? "" : s.ratioSpreadOk ? " PASS" : " FAIL", color: s.ratioSpreadOk ? PASS : FAIL, bold: true },
+        { text: s.ratioSpreadOk === false ? " FAIL" : "", color: FAIL, bold: true },
         ...(s.rateBand && s.rateBandOk != null
           ? [
               `   ·   Model rate band ${s.rateBand.min}–${s.rateBand.max} ppm`,
@@ -294,7 +301,7 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
         stack: [
           {
             columns: [
-              { text: `AutoRep · generated ${new Date().toLocaleString("en-NZ")}`, fontSize: 7, color: MUTED, margin: [40, 0, 0, 0] },
+              { text: `AutoRep · generated ${new Date().toLocaleString("en-NZ", { timeZone: NZ_TIME_ZONE })}`, fontSize: 7, color: MUTED, margin: [40, 0, 0, 0] },
               { text: `${page} / ${pages}`, alignment: "right", fontSize: 7, color: MUTED, margin: [0, 0, 40, 0] },
             ],
           },
@@ -408,11 +415,10 @@ function recordedFaultBlock(test: LocalTest): Content[] {
   return out;
 }
 
-/** The yyyy-mm-dd for the report filename: the date where the test was signed off, not the UTC
- * date inside the timestamp. A test completed at 8:41 am NZST on the 15th is 20:41Z on the 14th,
- * and the file was being named for the 14th. Defaults to the device's zone — the same one the
- * sign-off header is shown in. */
-export function reportDateStamp(iso: string, timeZone?: string): string {
+/** The yyyy-mm-dd for the report filename: the New Zealand date the test was signed off, not the
+ * UTC date inside the timestamp. A test completed at 8:41 am NZST on the 15th is 20:41Z on the
+ * 14th, and the file was being named for the 14th. The zone parameter exists for tests. */
+export function reportDateStamp(iso: string, timeZone: string = NZ_TIME_ZONE): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
   // en-CA is the locale whose numeric date form is yyyy-mm-dd.
