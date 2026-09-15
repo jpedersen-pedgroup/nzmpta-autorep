@@ -1,14 +1,17 @@
 import { describe, it, expect } from "vitest";
 import {
+  clusterStepApplies,
   computeCompleted,
+  currentStepFor,
   faultsInStep,
   overallProgress,
   runningSectionKeys,
   stepProgress,
   subsFor,
+  visibleSteps,
 } from "./wizardProgress";
 import { applyCheckAll, preStartSections, runningSectionsFor } from "./visualChecklist";
-import { additionalTestSections, pulsatorSections, testRecordSections } from "../passfail/standards";
+import { additionalTestSections, airflowSections, pulsatorSections, testRecordSections } from "../passfail/standards";
 import { buildFaultInputs } from "../faults/buildFaults";
 import { resolveWizard } from "./wizardStepResolver";
 import { defaultMachineConfiguration, type MachineConfiguration } from "./types";
@@ -46,6 +49,7 @@ function allRequiredDone(over: Partial<LocalTest> = {}): LocalTest {
   const keysFor = (readings: Record<string, number>) =>
     [
       ...testRecordSections(config, readings),
+      ...airflowSections(config, readings),
       ...additionalTestSections(config, readings),
       ...pulsatorSections(config, readings),
     ].flatMap((s) => s.readings.map((r) => r.key));
@@ -237,6 +241,32 @@ describe("wizard progress", () => {
     };
     expect(computeCompleted(withGap).has("FaultSummary")).toBe(false);
     expect(overallProgress(withGap).firstIncomplete?.step).toBe("FaultSummary");
+  });
+
+  it("shows Individual Cluster Tests only when cluster air admission (12b) fails, or rows exist", () => {
+    // 20 clusters → 12b must sit in 80–240. Airflow readings alone don't bring the step in.
+    const passing = makeTest({ readings: { "add.airflowMilkSystem": 4320, "add.clusterAirAdmissionConnect": 4100, "add.clusterAirAdmission": 220 } });
+    expect(clusterStepApplies(passing)).toBe(false);
+    expect(visibleSteps(passing).map((s) => s.step)).not.toContain("IndividualClusterTest");
+
+    const failing = makeTest({ readings: { "add.airflowMilkSystem": 4320, "add.clusterAirAdmissionConnect": 3850, "add.clusterAirAdmission": 470 } });
+    expect(clusterStepApplies(failing)).toBe(true);
+    const order = visibleSteps(failing).map((s) => s.step);
+    // …and it sits straight after the airflow step, as on the flowchart.
+    expect(order.indexOf("IndividualClusterTest")).toBe(order.indexOf("AirflowTests") + 1);
+
+    // Data already recorded is never hidden, whatever 12b now says.
+    const withRows = makeTest({ clusterRows: [{ id: "c1", unit: "8", values: { totalAirAdmission: "40" } }] });
+    expect(visibleSteps(withRows).map((s) => s.step)).toContain("IndividualClusterTest");
+  });
+
+  it("lands a persisted step that is no longer shown on the nearest earlier visible step", () => {
+    const parked = makeTest({ currentStep: "IndividualClusterTest" }); // 12b now passes → hidden
+    expect(currentStepFor(parked, visibleSteps(parked))).toBe("AirflowTests");
+    const unknown = makeTest({ currentStep: "SomethingFromAnOlderBuild" });
+    expect(currentStepFor(unknown, visibleSteps(unknown))).toBe("Setup");
+    const fine = makeTest({ currentStep: "PulsatorTest" });
+    expect(currentStepFor(fine, visibleSteps(fine))).toBe("PulsatorTest");
   });
 
   it("splits paginated steps into sub-sections and leaves the rest single", () => {

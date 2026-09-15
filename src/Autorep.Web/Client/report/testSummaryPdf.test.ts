@@ -165,18 +165,34 @@ describe("buildTestSummaryDoc", () => {
     expect(JSON.stringify(buildTestSummaryDoc(v1).content)).not.toContain("Amendment history");
   });
 
-  it("never prints a spread PASS from the recorded (failed) units, only a FAIL they already prove", () => {
-    // One recorded unit has a spread of 0 — that says nothing about the other units on the machine.
-    const json = JSON.stringify(buildTestSummaryDoc(sampleTest()).content);
-    expect(json).toContain("spread 0");
-    expect(json).not.toContain('" PASS"');
-    // Two recorded units 10 ppm apart already exceed the 6 ppm limit.
+  it("judges the pulsator spread on the analyser's extremes in the results table, never on the recorded units", () => {
+    // Two recorded units 10 ppm apart: the table lists them, but no spread verdict comes from them.
     const t = sampleTest();
     t.pulsatorRows = [
       { id: "1", unit: "3", values: { rate: "60" } },
       { id: "2", unit: "9", values: { rate: "70" } },
     ];
-    expect(JSON.stringify(buildTestSummaryDoc(t).content)).toContain('" FAIL"');
+    const rowsOnly = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(rowsOnly).toContain("Pulsator results");
+    expect(rowsOnly).not.toContain("spread");
+    // With the machine-level fastest/slowest entered, the calculated spread carries the verdict.
+    t.readings = { ...t.readings, "puls.rateFastest": 62, "puls.rateSlowest": 59.5, "puls.rateSpread": 2.5 };
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Rate spread");
+    expect(json).toContain("2.5 ppm");
+  });
+
+  it("prints recorded measurements and choices under the visual checks", () => {
+    const t = sampleTest();
+    t.dataFields = { "lpt.tubeType": "Twin", "lpt.lengthValue": "1500", "ba.clusterPositionType": "Side" };
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Recorded measurements");
+    expect(json).toContain("Tube type");
+    expect(json).toContain("Twin");
+    expect(json).toContain("1500");
+    expect(json).toContain("Side");
+    // Nothing recorded → no table.
+    expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("Recorded measurements");
   });
 
   it("leaves an added-but-never-filled row off the report", () => {

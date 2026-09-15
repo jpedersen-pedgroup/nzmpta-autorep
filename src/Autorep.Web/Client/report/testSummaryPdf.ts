@@ -9,7 +9,7 @@ import { allReadingSections } from "../passfail/standards";
 import { evaluate, type PassFailRule } from "../passfail/passFail";
 import { preStartSections, runningSectionsFor } from "../wizard/visualChecklist";
 import { resolveWizard } from "../wizard/wizardStepResolver";
-import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
+import { pulsatorSummary } from "../passfail/pulsatorStats";
 import { getPrivacyContent } from "../config/privacyContent";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
 import { getCachedCalibration } from "../sync/calibrationSync";
@@ -186,7 +186,6 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
   const pulsatorRows = recordedRows(test.pulsatorRows);
   if (pulsatorRows.length) {
     const s = pulsatorSummary(pulsatorRows, test.config.pulsatorModel);
-    const limits = pulsationLimits();
     const body: TableCell[][] = [
       [th("Unit no."), th("Rate (ppm)"), th("Ratio F (%)"), th("Ratio B (%)"), th("Phase b (%)"), th("Phase d (ms)"), th("Max vac (kPa)"), th("Limp (%)")],
       ...pulsatorRows.map((r) => [
@@ -200,32 +199,21 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
     // every unit, and those were never all faulty.
     unitBlocks.push(sectionHeader("Pulsator results"));
     unitBlocks.push({ table: { widths: ["auto", "auto", "auto", "auto", "auto", "auto", "auto", "auto"], body }, layout: "lightHorizontalLines" });
-    // Recorded units are the ones that failed — a subset. Their spread can show the machine is over
-    // the limit, never that it is within it, so only a FAIL is printed (Phase 2 captures the
-    // machine-level fastest/slowest).
-    const spreadText: Content = {
-      text: [
-        `Rate ${s.slowestRate ?? "—"}–${s.fastestRate ?? "—"} ppm (spread ${s.rateSpread ?? "—"}, limit ${limits.rateSpreadMax}, across the units recorded) `,
-        { text: s.rateSpreadOk === false ? " FAIL" : "", color: FAIL, bold: true },
-        `   ·   Ratio spread ${s.ratioSpread ?? "—"} (limit ${limits.ratioSpreadMax})`,
-        { text: s.ratioSpreadOk === false ? " FAIL" : "", color: FAIL, bold: true },
-        ...(s.rateBand && s.rateBandOk != null
-          ? [
-              `   ·   Model rate band ${s.rateBand.min}–${s.rateBand.max} ppm`,
-              { text: s.rateBandOk ? " PASS" : " FAIL", color: s.rateBandOk ? PASS : FAIL, bold: true } as const,
-            ]
-          : []),
-        ...(s.ratioBand && s.ratioBandOk != null
-          ? [
-              `   ·   Model ratio band ${s.ratioBand.min}–${s.ratioBand.max}%`,
-              { text: s.ratioBandOk ? " PASS" : " FAIL", color: s.ratioBandOk ? PASS : FAIL, bold: true } as const,
-            ]
-          : []),
-      ],
-      fontSize: 9,
-      margin: [0, 4, 0, 0],
-    };
-    unitBlocks.push(spreadText);
+    // The rate/ratio spread is judged on the analyser's machine-level extremes and printed with
+    // the numerical results; the recorded units are a subset, so only the model-band checks on
+    // them are printed here.
+    const bandParts: Content[] = [];
+    if (s.rateBand && s.rateBandOk != null) {
+      bandParts.push(`Model rate band ${s.rateBand.min}–${s.rateBand.max} ppm`, {
+        text: s.rateBandOk ? " PASS" : " FAIL", color: s.rateBandOk ? PASS : FAIL, bold: true,
+      });
+    }
+    if (s.ratioBand && s.ratioBandOk != null) {
+      bandParts.push(`${bandParts.length ? "   ·   " : ""}Model ratio band ${s.ratioBand.min}–${s.ratioBand.max}%`, {
+        text: s.ratioBandOk ? " PASS" : " FAIL", color: s.ratioBandOk ? PASS : FAIL, bold: true,
+      });
+    }
+    if (bandParts.length) unitBlocks.push({ text: bandParts, fontSize: 9, margin: [0, 4, 0, 0] });
   }
   const clusterRows = recordedRows(test.clusterRows);
   if (clusterRows.length) {
@@ -264,6 +252,22 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
   ];
   if (visualFaultRows.length > 1) {
     visualBlock.push({ table: { widths: ["auto", "*", "*", "auto"], body: visualFaultRows }, layout: "lightHorizontalLines" });
+  }
+  // Recorded measurements and choices — tube type, lengths, diameters, which way the clusters
+  // come on — so whoever replaces a part knows what to buy (tester feedback, 15 Sep 2026). The
+  // label carries the unit where there is one.
+  const measureRows: TableCell[][] = [[th("Area"), th("Item"), th("Recorded")]];
+  for (const sec of visualSections) {
+    for (const it of sec.items) {
+      if (!it.data && !it.choice) continue;
+      const v = (test.dataFields?.[it.key] ?? "").trim();
+      if (!v) continue;
+      measureRows.push([{ text: sec.title, fontSize: 9 }, { text: it.label, fontSize: 9 }, { text: v, fontSize: 9 }]);
+    }
+  }
+  if (measureRows.length > 1) {
+    visualBlock.push({ text: "Recorded measurements", fontSize: 10, bold: true, margin: [0, 8, 0, 2] });
+    visualBlock.push({ table: { widths: ["auto", "*", "auto"], body: measureRows }, layout: "lightHorizontalLines" });
   }
 
   // --- Attestations ---------------------------------------------------------------------------

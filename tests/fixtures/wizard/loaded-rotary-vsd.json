@@ -16,7 +16,7 @@
   },
   "expectedSteps": [
     "Setup", "MachineConfiguration", "VisualFaultsPreStart", "VisualFaultsRunning",
-    "TestRecord", "AdditionalTests", "PulsatorTest", "IndividualClusterTest",
+    "TestRecord", "AirflowTests", "IndividualClusterTest", "PulsatorTest", "AdditionalTests",
     "FaultSummary", "ReviewSignOff"
   ],
   "optionalSteps": ["IndividualClusterTest"],
@@ -31,11 +31,9 @@
     "TestRecord": [
       "SystemVacuumLevels", "MinPumpSpeedVacuum", "ReserveCharacteristics",
       "RegulationCharacteristics", "VacuumDropAirline", "RegulatorSensitivity",
-      "ReserveVacuumOffCluster", "VacuumGaugeAccuracy", "VacuumPumpTest", "PumpExhaustPressure"
+      "ReserveVacuumOffCluster", "VacuumGaugeAccuracy", "VacuumPumpTest"
     ],
-    "AdditionalTests": [
-      "AirlineMilkSystemLeakage", "AcrConsumption", "ClusterAirAdmission", "MilkMeter",
-      "TeatSpray", "GateCylinder", "ReleaserPumpHeads", "RegulatorLoad"
-    ]
+    "AirflowTests": ["AirlineMilkSystemLeakage", "AcrConsumption", "ClusterAirAdmission"],
+    "AdditionalTests": ["MilkMeter", "TeatSpray", "GateCylinder", "ReleaserPumpHeads", "RegulatorLoad"]
   }
 }

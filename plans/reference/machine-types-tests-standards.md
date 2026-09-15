@@ -60,12 +60,15 @@ the test record at sign-off so the report shows equipment state at test time.
 | 2. Machine Configuration & Ancillary | §2 above (4 tabs) | — |
 | 3. Visual Faults — Pre-Start | 18 checks + belt sizes (vacuum pumps, releaser groups) | Part One |
 | 4. Visual Faults — Running | 18–20 groups, ~70 checks + data fields | Part Two |
-| 5. Test Record | ~45 readings: system vacuum 1a–1e, VSD 1f, reserve 2a–2f, regulation 3a–3h, airline drop 4a–4e, sensitivity 5a–5b, reserve-off-cluster 6a–6b, gauge accuracy 7a–7i, pump test 8a–8c (per pump), exhaust 9a–9b | 1–9 |
-| 6. Additional Tests | leakage 10a–10d, ACR 11a–11b, cluster air 12a–12b, milk meters, teat spray, gates, releaser, peak regulator load | 10–12 + |
-| 7. Pulsator Test Results | per-pulsator rows (rate, ratios, phase b/d, chamber vac, limp) + 14a–14f, 15a–15b, stability | 14–15 |
-| 8. Individual Cluster Tests (optional) | per-cluster rows (total air, leakage, air vent) | 13 |
-| 9. Fault Summary & Recommendations | all faults grouped, severity counts, per-fault recommendations | — |
-| 10. Review & Sign-Off | summary + attestation + mark complete → sync | — |
+| 5. Vacuum Tests (ISO 1–9) | ~45 readings: system vacuum 1a–1e, VSD 1f, reserve 2a–2h, regulation 3a–3h, airline drop 4a–4e, sensitivity 5a–5b, reserve-off-cluster 6a–6b, gauge accuracy 7a–7i, vacuum pump(s) 8a–8c per pump + 9a–9b | 1–9 |
+| 6. Airflow Tests (ISO 10–12) | leakage 10a–10d, ACR 11a–11b, cluster air 12a–12b | 10–12 |
+| 7. Individual Cluster Tests | per-cluster rows (total air, leakage, air vent) — shown only after a failed 12b, or once a row exists | 13 |
+| 8. Pulsation & Ancillary (ISO 14–15) | 14a–14f, 15a–15b, fastest/slowest rate + highest/lowest ratio off the analyser (→ spreads), stability; faulty-pulsator rows (rate, ratios, phase b/d, chamber vac, limp) on a failed reading or on request | 14–15 |
+| 9. Additional Tests | milk meters, teat spray, gates, releaser, peak regulator load — only the sections the machine has | extras |
+| 10. Fault Summary & Recommendations | all faults grouped, severity counts, per-fault recommendations | — |
+| 11. Review & Sign-Off | summary + attestation + mark complete → sync | — |
+
+Order and grouping per the flowchart, settled with Jono on 15 Sep 2026 (`plans/tester-feedback-2026-09-15.md`, Phase 2).
 
 Branching: rotary vs herringbone sections · VSD adds 1f · ACR/milk-meter/teat-spray/gates/releaser
 sections appear only when fitted · no ISO ports → short test flag.
@@ -91,7 +94,7 @@ All verified 10 Jun 2026 (manual + ISO page refs in [standards-audit.md](standar
 | 8a/9b pump capacity | capture + × atmospheric factor → OEM curve (table pending) |
 | 9a exhaust pressure | per manufacturer (Masport vane ≤ 13 kPa) |
 
-### Airflow & ancillaries (Additional Tests)
+### Airflow & ancillaries (Airflow Tests / Additional Tests)
 | Reading | Standard |
 |---|---|
 | 10b vacuum system leakage | ≤ 5% of pump capacity |
@@ -104,8 +107,8 @@ All verified 10 Jun 2026 (manual + ISO page refs in [standards-audit.md](standar
 ### Pulsation
 | Check | Standard |
 |---|---|
-| rate spread (fastest − slowest pulsator) | ≤ 6 ppm |
-| ratio variation between pulsators | ≤ 5% (front vs front, back vs back — front/back may differ by design) |
+| rate spread (fastest − slowest pulsator, off the analyser) | ≤ 6 ppm |
+| ratio variation between pulsators (highest − lowest, off the analyser) | ≤ 5% — the app pools front and back as legacy did; whether NZMPTA reads it per quarter group (front vs front, back vs back — front/back may differ by design) is an open question in the tester-feedback plan |
 | limping (within cluster) | ≤ 5% |
 | phase b | ≥ 30% |
 | phase d | ≥ 150 ms |

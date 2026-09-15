@@ -66,6 +66,23 @@ describe("deriveReadings", () => {
     expect(r["tr.regulationDeviation"]).toBe(-4);
   });
 
+  it("judges the pulsator spreads on the analyser's extremes, not on the faulty rows", () => {
+    const r = deriveReadings(cfg(), { "puls.rateFastest": 60, "puls.rateSlowest": 52, "puls.ratioHighest": 61.2, "puls.ratioLowest": 58 });
+    expect(r["puls.rateSpread"]).toBe(8);
+    expect(r["puls.ratioSpread"]).toBe(3.2);
+    expect(verdictOf(cfg(), r, "puls.rateSpread")).toBe("fail"); // 8 > 6 ppm
+    expect(verdictOf(cfg(), r, "puls.ratioSpread")).toBe("pass"); // 3.2 ≤ 5%
+  });
+
+  it("still fails a spread whose extremes were keyed the wrong way round", () => {
+    // 52 typed as the fastest and 60 as the slowest: a signed 52 − 60 = −8 would PASS "≤ 6".
+    const r = deriveReadings(cfg(), { "puls.rateFastest": 52, "puls.rateSlowest": 60, "puls.ratioHighest": 58, "puls.ratioLowest": 64.5 });
+    expect(r["puls.rateSpread"]).toBe(8);
+    expect(r["puls.ratioSpread"]).toBe(6.5);
+    expect(verdictOf(cfg(), r, "puls.rateSpread")).toBe("fail");
+    expect(verdictOf(cfg(), r, "puls.ratioSpread")).toBe("fail");
+  });
+
   it("does not touch measured readings", () => {
     const r = deriveReadings(cfg(), { "tr.workingVacuum": 41.5, "tr.nominalVacuum": 45 });
     expect(r["tr.workingVacuum"]).toBe(41.5);

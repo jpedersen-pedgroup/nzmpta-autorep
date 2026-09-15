@@ -31,7 +31,7 @@ import { CalibrationAlert } from "../ui/CalibrationPanel";
 import { LayoutMenu } from "../ui/LayoutMenu";
 import { showToast } from "../ui/toast";
 import { applyCheckAll, type ChecklistSection } from "./visualChecklist";
-import { computeCompleted } from "./wizardProgress";
+import { computeCompleted, currentStepFor, visibleSteps } from "./wizardProgress";
 import type { StepContext } from "./WizardSteps";
 import { getLayout, setLayout } from "./layoutPreference";
 import { RailShell } from "./shells/RailShell";
@@ -283,6 +283,10 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
 
   const persist = async (patch: Partial<LocalTest>) => {
     const updated: LocalTest = { ...test, ...patch, updatedAt: new Date().toISOString() };
+    // The stored step is always one that is shown. An edit can hide the step the tester is on
+    // (correcting 12a so 12b passes hides Individual Cluster Tests) without any navigation, and a
+    // stale hidden step would re-open itself the moment a later keystroke made it visible again.
+    updated.currentStep = currentStepFor(updated, visibleSteps(updated));
     setTest(updated);
     // Admin view mode is in-memory only — never write another tester's test into this device's store.
     if (!serverTestId) await putTest(updated);
@@ -435,8 +439,10 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     await runSync("Test marked complete");
   };
 
-  const plan = resolveWizard(test.config);
-  const current = test.currentStep as WizardStep;
+  // The resolver's plan minus the result-driven steps (Individual Cluster Tests only after a
+  // failed 12b) — every shell, the sign-off list and the progress model read this one list.
+  const plan = { ...resolveWizard(test.config), steps: visibleSteps(test) };
+  const current = currentStepFor(test, plan.steps);
   const completed = computeCompleted(test);
 
   // Everything a step body needs, built once and handed to whichever shell is active. Handlers are

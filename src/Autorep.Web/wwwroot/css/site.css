@@ -938,6 +938,9 @@ main {
 .checkitem__actions button.ok.on { background: var(--success-bg); border-color: var(--success-border); color: #166534; }
 .checkitem__actions button.bad.on { background: var(--danger-bg); border-color: var(--danger-border); color: #991b1b; }
 .checkitem__data { flex: none; width: 9rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0.35rem 0.6rem; font-size: 0.8125rem; }
+/* Choice items (tube type, clusters-on-from) — the themed Select sized like the data input beside it. */
+.checkitem .checkitem__choice { flex: none; width: 9rem; }
+.checkitem .select-trigger { padding: 0.35rem 0.6rem; min-height: 0; font-size: 0.8125rem; border-radius: var(--radius-sm); }
 
 /* Per-unit measurement row tables (pulsator / cluster) */
 .rowtable-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-2); }

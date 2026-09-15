@@ -6,6 +6,7 @@ import type { MachineConfiguration } from "../wizard/types";
 import { correctionFactorFor } from "../reference/lookups";
 import { releaserRequirement } from "../reference/standardsData";
 import { paramFor, ruleFor } from "./standardsOverrides";
+import { pulsationLimits } from "./pulsatorStats";
 import type { PassFailRule } from "./passFail";
 
 // Required Effective Reserve (L/min) by cluster count — manual p42 table (steps of 2 clusters;
@@ -339,24 +340,22 @@ export function testRecordSections(
       { key: `tr.pumpMaxSpeed${i}`, label: `Maximum speed (8c)${p}`, unit: "rpm", hint: "@ 50 kPa", rule: { kind: "none" } },
     );
   }
-  sections.push({ key: "VacuumPumpTest", title: "8 · Vacuum pump(s)", readings: pumpReadings });
-
-  // 9 — Vacuum pump exhaust pressure (limit is OEM-specific; manual p24: Masport vane ≤ 13 kPa).
-  sections.push({
-    key: "PumpExhaustPressure",
-    title: "9 · Pump exhaust",
-    readings: [
-      { key: "tr.exhaustPressure", label: "Exhaust pressure (9a)", unit: "kPa", hint: "per manufacturer (Masport vane ≤ 13)", rule: { kind: "none" } },
-      { key: "tr.pumpCapacityTotal", label: "Pump capacity (9b)", unit: "L/min", hint: pumpHint, rule: { kind: "none" } },
-    ],
-  });
+  // 9b is legacy's "Air Flow Start: pump capacity at working vacuum" — the baseline the leakage
+  // tests (10) are measured against — and 9a the exhaust pressure, an exception on the flowchart
+  // taken only when the pump is out of spec (limit is OEM-specific; manual p24: Masport vane
+  // ≤ 13 kPa). Both belong with the pump, so 8 and 9 are one section (tester feedback, 15 Sep 2026).
+  pumpReadings.push(
+    { key: "tr.pumpCapacityTotal", label: "Pump capacity at working vacuum — air flow start (9b)", unit: "L/min", hint: pumpHint, rule: { kind: "none" } },
+    { key: "tr.exhaustPressure", label: "Exhaust pressure (9a)", unit: "kPa", hint: "only if the pump is out of spec · per manufacturer (Masport vane ≤ 13)", rule: { kind: "none" } },
+  );
+  sections.push({ key: "VacuumPumpTest", title: "8–9 · Vacuum pump(s)", readings: pumpReadings });
 
   return sections;
 }
 
-/** Additional Tests (ISO 10–16) — sections gated by the machine's ancillaries, mirroring the
- * resolver. Limits verified against manual p41 / ISO 6690 Annex C–D. */
-export function additionalTestSections(
+/** Airflow Tests (ISO 10–12) — leakage, ACR consumption (when fitted) and cluster air admission,
+ * mirroring the resolver. Limits verified against manual p41–42 / ISO 6690 Annex C–D. */
+export function airflowSections(
   config: MachineConfiguration,
   readings: Record<string, number> = {},
 ): ReadingSection[] {
@@ -445,6 +444,20 @@ export function additionalTestSections(
       },
     ],
   });
+  return sections;
+}
+
+/** Additional Tests — the unnumbered per-ancillary checks that follow the ISO flowchart (NZMPTA's
+ * separate "Additional Tests" flowchart), gated by the machine's ancillaries, mirroring the
+ * resolver. Limits verified against manual p41 / p61. */
+export function additionalTestSections(
+  config: MachineConfiguration,
+  readings: Record<string, number> = {},
+): ReadingSection[] {
+  const sections: ReadingSection[] = [];
+  // ACR / milk-meter allowance: 7.5 L/min per unit, min 30, rounded up to 10s; doubled with
+  // bail-gate rams (manual p41). Component count assumed = cluster count.
+  const acrLimit = ancillaryAllowance(config.clusterCount, config.hasBailGates);
   if (config.hasMilkMeters) {
     // Same 7.5/unit allowance family as ACRs (manual p41).
     sections.push({ key: "MilkMeter", title: "Milk meters", readings: [
@@ -533,6 +546,11 @@ export function pulsatorSections(
   // Manual p40 / ISO D.2.17: chamber vacuum within 2 kPa of the working vacuum — judged on the
   // drop (15b = 1a − 15a), which is where legacy recorded the verdict.
   const chamberDelta = paramFor("param.chamberVac.maxDelta", 2);
+  // The spread limits come from the param.pulsation.* rows; a puls.*Spread rule row, if an admin
+  // ever adds one, takes over — so the hint is built from the resolved rule, never the raw param.
+  const limits = pulsationLimits();
+  const rateSpreadRule = ruleFor("puls.rateSpread", { kind: "atMost", limit: limits.rateSpreadMax });
+  const ratioSpreadRule = ruleFor("puls.ratioSpread", { kind: "atMost", limit: limits.ratioSpreadMax });
   return [
     {
       key: "PulsatorAncillary",
@@ -575,6 +593,31 @@ export function pulsatorSections(
           derived: "1a − 15a",
           hint: `≤ ${chamberDelta} kPa below working vacuum${workingVacuum != null ? ` (${workingVacuum})` : " — enter 1a first"}`,
           rule: { kind: "atMost", limit: chamberDelta },
+        },
+        // The machine-level extremes off the analyser — legacy's "Rate Range Fastest / Slowest"
+        // and "Ratio Range Highest / Lowest". The spread checks (manual pp49–53 / ISO Table D.5)
+        // are judged on these, not on the faulty-pulsator rows, which are only a subset. The ratio
+        // pair is pooled across front and back quarters, as legacy captured it; whether NZMPTA
+        // wants it per quarter group (front vs front, back vs back) is an open question in the plan.
+        { key: "puls.rateFastest", label: "Fastest pulsator rate", unit: "ppm", hint: "from the analyser, all units", rule: { kind: "none" } },
+        { key: "puls.rateSlowest", label: "Slowest pulsator rate", unit: "ppm", rule: { kind: "none" } },
+        {
+          key: "puls.rateSpread",
+          label: "Rate spread",
+          unit: "ppm",
+          derived: "fastest − slowest",
+          hint: `≤ ${rateSpreadRule.limit} ppm between pulsators`,
+          rule: rateSpreadRule,
+        },
+        { key: "puls.ratioHighest", label: "Highest pulsator ratio", unit: "%", hint: "from the analyser, all units", rule: { kind: "none" } },
+        { key: "puls.ratioLowest", label: "Lowest pulsator ratio", unit: "%", rule: { kind: "none" } },
+        {
+          key: "puls.ratioSpread",
+          label: "Ratio spread",
+          unit: "%",
+          derived: "highest − lowest",
+          hint: `≤ ${ratioSpreadRule.limit}% between pulsators`,
+          rule: ratioSpreadRule,
         },
       ],
     },
@@ -624,10 +667,12 @@ export function allReadingSections(
   config: MachineConfiguration,
   readings: Record<string, number> = {},
 ): ReadingSection[] {
+  // Flowchart order: vacuum → airflow → individual cluster → pulsation → additional.
   return [
     ...testRecordSections(config, readings),
-    ...additionalTestSections(config, readings),
-    ...pulsatorSections(config, readings),
+    ...airflowSections(config, readings),
     ...individualClusterSections(config),
+    ...pulsatorSections(config, readings),
+    ...additionalTestSections(config, readings),
   ];
 }
