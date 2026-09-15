@@ -78,6 +78,7 @@ function fmt(v: unknown): string {
 /** Checklist items that no longer exist. Tests recorded before they were removed still carry their
  * values, and an amendment to one of those must print a name, not a key. */
 const RETIRED_ITEM_LABELS: Record<string, string> = {
+  "ba.clusterPositionValue": "Bail area · Cluster position (mm)",
   "claw.type": "Claw · Claw type",
   "claw.shellType": "Claw · Shell type",
   "liner.typeF": "Liner · Liner type (front)",

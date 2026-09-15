@@ -4,6 +4,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
   additionalTestSections,
+  airflowSections,
   ancillaryAllowance,
   cleaningReserve,
   pulsatorSections,
@@ -108,19 +109,43 @@ describe("test record rules (manual p40 / ISO 6690 Annex D)", () => {
   });
 });
 
-describe("additional tests rules (manual p41 / ISO C.5)", () => {
+describe("airflow tests rules (manual p41 / ISO C.5)", () => {
   const config = { ...defaultMachineConfiguration(), clusterCount: 20, hasAcr: true };
 
   it("milk system leakage ≤ 10 + 2 per cluster", () => {
-    const secs = additionalTestSections(config);
+    const secs = airflowSections(config);
     expect(reading(secs, "add.milkSystemLeakage").rule).toEqual({ kind: "atMost", limit: 50 });
   });
 
   it("vacuum system leakage ≤ 5% of the capacity at working vacuum (9b) — the 50 kPa 8a figures don't stand in", () => {
-    expect(reading(additionalTestSections(config), "add.vacuumSystemLeakage").rule).toEqual({ kind: "none" });
-    expect(reading(additionalTestSections(config, { "tr.pumpCapacity1": 3450 }), "add.vacuumSystemLeakage").rule).toEqual({ kind: "none" });
-    const secs = additionalTestSections(config, { "tr.pumpCapacityTotal": 2000 });
+    expect(reading(airflowSections(config), "add.vacuumSystemLeakage").rule).toEqual({ kind: "none" });
+    expect(reading(airflowSections(config, { "tr.pumpCapacity1": 3450 }), "add.vacuumSystemLeakage").rule).toEqual({ kind: "none" });
+    const secs = airflowSections(config, { "tr.pumpCapacityTotal": 2000 });
     expect(reading(secs, "add.vacuumSystemLeakage").rule).toEqual({ kind: "atMost", limit: 100 });
+  });
+
+  it("keeps ISO 10–12 on the airflow step and only the ancillary extras on Additional Tests", () => {
+    const airflow = airflowSections(config).map((s) => s.key);
+    expect(airflow).toEqual(["AirlineMilkSystemLeakage", "AcrConsumption", "ClusterAirAdmission"]);
+    const additional = additionalTestSections({ ...config, hasMilkMeters: true }).map((s) => s.key);
+    expect(additional).toEqual(["MilkMeter", "RegulatorLoad"]);
+  });
+
+  it("folds the pump exhaust (9) into the vacuum-pump section, after the per-pump rows", () => {
+    const pump = testRecordSections(config).find((s) => s.key === "VacuumPumpTest")!;
+    expect(testRecordSections(config).map((s) => s.key)).not.toContain("PumpExhaustPressure");
+    const keys = pump.readings.map((r) => r.key);
+    expect(keys.slice(-2)).toEqual(["tr.pumpCapacityTotal", "tr.exhaustPressure"]);
+  });
+
+  it("judges the pulsator spreads on the analyser's machine-level extremes", () => {
+    const secs = pulsatorSections(config);
+    const rate = reading(secs, "puls.rateSpread");
+    expect(rate.derived).toBe("fastest − slowest");
+    expect(rate.rule).toEqual({ kind: "atMost", limit: 6 });
+    const ratio = reading(secs, "puls.ratioSpread");
+    expect(ratio.derived).toBe("highest − lowest");
+    expect(ratio.rule).toEqual({ kind: "atMost", limit: 5 });
   });
 
   it("pulsator consumption (14d) is calculated but carries no verdict until NZMPTA confirms the limit", () => {
@@ -156,7 +181,7 @@ describe("admin-managed standard overrides", () => {
       { key: "param.milkLeak.perCluster", label: "", category: "", kind: "param", value: 3 },
     ]);
     // 10 + 3 × 20 clusters = 70 (default 2/cluster would give 50).
-    expect(reading(additionalTestSections(config), "add.milkSystemLeakage").rule).toEqual({ kind: "atMost", limit: 70 });
+    expect(reading(airflowSections(config), "add.milkSystemLeakage").rule).toEqual({ kind: "atMost", limit: 70 });
   });
 
   it("malformed or absent overrides fall back to the built-in default", () => {

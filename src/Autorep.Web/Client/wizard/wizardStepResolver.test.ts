@@ -61,11 +61,23 @@ describe("WizardStepResolver (TS) rules", () => {
   it("shows the ACR section only when ACRs are present", () => {
     const base = defaultMachineConfiguration();
     const withAcr = resolveWizard({ ...base, hasAcr: true }).steps.find(
-      (s) => s.step === "AdditionalTests",
+      (s) => s.step === "AirflowTests",
     )!;
-    const noAcr = resolveWizard(base).steps.find((s) => s.step === "AdditionalTests")!;
+    const noAcr = resolveWizard(base).steps.find((s) => s.step === "AirflowTests")!;
     expect(withAcr.sections).toContain("AcrConsumption");
     expect(noAcr.sections).not.toContain("AcrConsumption");
+  });
+
+  it("follows the ISO flowchart: vacuum, airflow, individual cluster, pulsation, then additional tests", () => {
+    const order = resolveWizard(defaultMachineConfiguration()).steps.map((s) => s.step);
+    expect(order.indexOf("TestRecord")).toBeLessThan(order.indexOf("AirflowTests"));
+    expect(order.indexOf("AirflowTests")).toBeLessThan(order.indexOf("IndividualClusterTest"));
+    expect(order.indexOf("IndividualClusterTest")).toBeLessThan(order.indexOf("PulsatorTest"));
+    expect(order.indexOf("PulsatorTest")).toBeLessThan(order.indexOf("AdditionalTests"));
+    // Additional Tests holds only the unnumbered extras; ISO 10–12 live on the airflow step.
+    const additional = resolveWizard(defaultMachineConfiguration()).steps.find((s) => s.step === "AdditionalTests")!;
+    expect(additional.sections).not.toContain("AirlineMilkSystemLeakage");
+    expect(additional.sections).not.toContain("ClusterAirAdmission");
   });
 
   it("flags a short test when ISO ports are unavailable", () => {

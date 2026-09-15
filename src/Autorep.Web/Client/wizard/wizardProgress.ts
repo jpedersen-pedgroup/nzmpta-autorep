@@ -16,6 +16,7 @@ import {
 } from "./visualChecklist";
 import {
   additionalTestSections,
+  airflowSections,
   pulsatorSections,
   testRecordSections,
   type ReadingSection,
@@ -35,10 +36,10 @@ function runningChecklist(config: MachineConfiguration): ChecklistSection[] {
   return runningSectionsFor(runningSectionKeys(config));
 }
 
-/** Checklist items that gate completeness — data-capture fields (sizes, lengths) are optional and
- * excluded, matching checklistComplete(). */
+/** Checklist items that gate completeness — data-capture fields (sizes, lengths) and choices
+ * (tube type, cluster position) are optional and excluded, matching checklistComplete(). */
 function gatingItems(sections: ChecklistSection[]) {
-  return sections.flatMap((s) => s.items.filter((it) => !it.data));
+  return sections.flatMap((s) => s.items.filter((it) => !it.data && !it.choice));
 }
 
 /** The readings the tester has to ENTER. Calculated rows (passfail/derived.ts) fill themselves once
@@ -48,8 +49,8 @@ function readingKeys(sections: ReadingSection[]): string[] {
   return sections.flatMap((s) => s.readings.filter((r) => !r.derived).map((r) => r.key));
 }
 
-type ReadingsStep = "TestRecord" | "AdditionalTests" | "PulsatorTest";
-const READINGS_STEPS: ReadingsStep[] = ["TestRecord", "AdditionalTests", "PulsatorTest"];
+type ReadingsStep = "TestRecord" | "AirflowTests" | "AdditionalTests" | "PulsatorTest";
+const READINGS_STEPS: ReadingsStep[] = ["TestRecord", "AirflowTests", "AdditionalTests", "PulsatorTest"];
 
 /** The reading sections a readings-driven step shows, so completeness, progress and fault counts
  * all work from the same list. Faulty-pulsator rows are deliberately not part of the pulsation
@@ -58,6 +59,8 @@ function readingSectionsFor(t: LocalTest, step: ReadingsStep): ReadingSection[] 
   switch (step) {
     case "TestRecord":
       return testRecordSections(t.config, t.readings);
+    case "AirflowTests":
+      return airflowSections(t.config, t.readings);
     case "AdditionalTests":
       return additionalTestSections(t.config, t.readings);
     case "PulsatorTest":
@@ -105,6 +108,7 @@ export function stepProgress(t: LocalTest, step: WizardStep): number {
       return items.filter((it) => t.visualFaults[it.key]?.status !== undefined).length / items.length;
     }
     case "TestRecord":
+    case "AirflowTests":
     case "AdditionalTests":
     case "PulsatorTest": {
       const keys = readingKeys(readingSectionsFor(t, step));
@@ -141,6 +145,7 @@ export function faultsInStep(t: LocalTest, step: WizardStep): number {
         .filter((it) => t.visualFaults[it.key]?.status === "fault").length;
     }
     case "TestRecord":
+    case "AirflowTests":
     case "AdditionalTests":
     case "PulsatorTest":
       return readingSectionsFor(t, step)
@@ -166,13 +171,43 @@ export interface OverallProgress {
   firstIncomplete: ResolvedWizardStep | null;
 }
 
+/** Individual Cluster Tests (ISO 13) is only done when the machine's cluster air admission (12b)
+ * failed — the flowchart's branch. It also stays once rows are recorded, so data is never hidden. */
+export function clusterStepApplies(t: LocalTest): boolean {
+  if (recordedRows(t.clusterRows).length > 0) return true;
+  const def = airflowSections(t.config, t.readings)
+    .flatMap((s) => s.readings)
+    .find((r) => r.key === "add.clusterAirAdmission");
+  return def != null && evaluate(t.readings[def.key], def.rule) === "fail";
+}
+
+/** The steps this test shows: the resolver's configuration-driven plan, minus the steps that
+ * depend on results. The two resolvers stay identical and config-only; this is the client's
+ * overlay, and every consumer of the plan must read it from here. */
+export function visibleSteps(t: LocalTest): ResolvedWizardStep[] {
+  const steps = resolveWizard(t.config).steps;
+  return clusterStepApplies(t) ? steps : steps.filter((s) => s.step !== "IndividualClusterTest");
+}
+
+/** Where to land: the persisted step if it is still shown, else the nearest earlier step that is.
+ * A test parked on Individual Cluster Tests whose 12b later passed, or one saved by an older build
+ * on a step this one doesn't know, must not open on nothing. */
+export function currentStepFor(t: LocalTest, visible: ResolvedWizardStep[]): WizardStep {
+  if (visible.some((s) => s.step === t.currentStep)) return t.currentStep as WizardStep;
+  const all = resolveWizard(t.config).steps.map((s) => s.step);
+  const at = all.indexOf(t.currentStep as WizardStep);
+  for (let i = at - 1; i >= 0; i--) {
+    if (visible.some((s) => s.step === all[i])) return all[i];
+  }
+  return visible[0].step;
+}
+
 /** Headline progress. Optional steps and Review & Sign-Off are excluded — an optional step left
  * undone shouldn't hold the bar below 100%, nor claim to be what the test needs next. Both the
  * percentage and the resume target read from the same `required` list so they can't disagree. */
 export function overallProgress(t: LocalTest): OverallProgress {
-  const plan = resolveWizard(t.config);
   const completed = computeCompleted(t);
-  const required = plan.steps.filter((s) => !s.isOptional && s.step !== "ReviewSignOff");
+  const required = visibleSteps(t).filter((s) => !s.isOptional && s.step !== "ReviewSignOff");
   const doneCount = required.filter((s) => completed.has(s.step)).length;
   return {
     pct: required.length === 0 ? 0 : Math.round((doneCount / required.length) * 100),
@@ -205,6 +240,8 @@ export function subsFor(t: LocalTest, step: WizardStep): SubSection[] {
       return runningChecklist(cfg);
     case "TestRecord":
       return testRecordSections(cfg, t.readings);
+    case "AirflowTests":
+      return airflowSections(cfg, t.readings);
     case "AdditionalTests":
       return additionalTestSections(cfg, t.readings);
     case "PulsatorTest":
@@ -224,9 +261,10 @@ export const STEP_DESCRIPTIONS: Record<WizardStep, string> = {
   VisualFaultsPreStart: "Machine off · vacuum pumps, releaser",
   VisualFaultsRunning: "Machine running · airline to jetters",
   TestRecord: "ISO 1–9 · vacuum, reserve, gauges, pump",
-  AdditionalTests: "ISO 10–12 · leakage + this machine's ancillaries",
+  AirflowTests: "ISO 10–12 · leakage, ACRs, cluster air admission",
+  AdditionalTests: "This machine's ancillaries · meters, sprayer, gates, releaser",
   PulsatorTest: "ISO 14–15 · air consumption, test pulsation, faulty pulsators",
-  IndividualClusterTest: "ISO 13 · air admission, leakage, vent",
+  IndividualClusterTest: "ISO 13 · only when cluster air admission fails",
   FaultSummary: "Add a recommendation for every fault",
   ReviewSignOff: "Attest, complete, and generate the report",
 };
@@ -237,7 +275,8 @@ export const STEP_SHORT_LABELS: Record<WizardStep, string> = {
   MachineConfiguration: "Machine",
   VisualFaultsPreStart: "Pre-start",
   VisualFaultsRunning: "Running",
-  TestRecord: "Test record",
+  TestRecord: "Vacuum",
+  AirflowTests: "Airflow",
   AdditionalTests: "Additional",
   PulsatorTest: "Pulsation",
   IndividualClusterTest: "Clusters",

@@ -1,9 +1,10 @@
 namespace Autorep.Web.Domain.Wizard;
 
 /// <summary>
-/// The top-level steps of the Tester wizard, in canonical order. Mirrors the legacy AutoRep Plus
-/// form flow (see <c>plans/reference/test-workflow-and-faults.md</c> §D) with the PRD's
-/// Visual-Faults pre-start/running split and a final sign-off.
+/// The top-level steps of the Tester wizard. Declaration order is NOT the wizard order — the
+/// resolver owns that (it follows the NZMPTA ISO flowchart: vacuum 1–9, airflow 10–12, individual
+/// cluster 13, pulsation 14–15, then the unnumbered additional tests). Names are the contract:
+/// a test's current step is persisted by name on devices and in the payload, so never rename one.
 /// </summary>
 public enum WizardStep
 {
@@ -17,6 +18,9 @@ public enum WizardStep
     IndividualClusterTest,
     FaultSummary,
     ReviewSignOff,
+    /// <summary>ISO 10–12 (leakage, ACR, cluster air admission). Added 15 Sep 2026 — these sat
+    /// under "Additional Tests", which to a tester means the separate post-15 flowchart.</summary>
+    AirflowTests,
 }
 
 /// <summary>A wizard step that applies to a given Machine Configuration.</summary>

@@ -9,6 +9,10 @@ export interface ChecklistItem {
   /** A data-capture field (size / diameter / length / run-time) rather than an OK/Fault check.
    * Rendered as a text input and stored in the test's dataFields map; excluded from completeness. */
   data?: boolean;
+  /** A pick-one capture (cluster position Side/Back, pulse-tube type) rather than an OK/Fault
+   * check. Rendered as a select; stored in dataFields like a data field; excluded from
+   * completeness. The options are the legacy dropdown's, so migrated wording matches. */
+  choice?: string[];
   /** Optional unit / placeholder hint shown for data fields. */
   unit?: string;
   /** Legacy Lookup category for this check's standard fault observations. When the item is marked
@@ -82,7 +86,10 @@ export const RUNNING_SECTIONS: Record<string, ChecklistSection> = {
       { key: "ba.herringboneCentres", label: "Herringbone centres", lookup: "BAHerringboneCentres" },
       { key: "ba.herringboneCentresValue", label: "Herringbone centres (mm)", data: true, unit: "mm" },
       { key: "ba.clusterPosition", label: "Cluster position", lookup: "BAClusterPosition" },
-      { key: "ba.clusterPositionValue", label: "Cluster position (mm)", data: true, unit: "mm" },
+      // Whether clusters come on from the side or the back (herringbones angled to the pit) —
+      // legacy's SIDE / BACK dropdown. Was a millimetre box here by mistake (tester feedback,
+      // 15 Sep 2026); the mm figure that matters is the herringbone centres above.
+      { key: "ba.clusterPositionType", label: "Clusters come on from", choice: ["Side", "Back"] },
       { key: "ba.firstInlet", label: "First inlet position", lookup: "BAFirstInlet" },
     ],
   },
@@ -170,6 +177,8 @@ export const RUNNING_SECTIONS: Record<string, ChecklistSection> = {
     title: "Short pulse tube",
     items: [
       { key: "spt.condition", label: "Condition", lookup: "SPTCondition" },
+      // Tubing type, so whoever replaces it knows what to buy — legacy's diameter dropdown.
+      { key: "spt.tubeType", label: "Tube type", choice: ["Single", "Twin", "Triple", "Quad"] },
       { key: "spt.length", label: "Length", lookup: "SPTLenghth" },
       { key: "spt.lengthValue", label: "Length (mm)", data: true, unit: "mm" },
       { key: "spt.diameter", label: "Diameter", lookup: "SPTDiameter" },
@@ -181,6 +190,7 @@ export const RUNNING_SECTIONS: Record<string, ChecklistSection> = {
     title: "Long pulse tube",
     items: [
       { key: "lpt.condition", label: "Condition", lookup: "LPTCondition" },
+      { key: "lpt.tubeType", label: "Tube type", choice: ["Single", "Twin", "Triple", "Quad"] },
       { key: "lpt.compatibility", label: "Compatibility", lookup: "LPTCompatability" },
       { key: "lpt.diameter", label: "Diameter", lookup: "LPTDiameter" },
       { key: "lpt.diameterValue", label: "Diameter (mm)", data: true, unit: "mm" },
@@ -312,20 +322,24 @@ export function runningSectionsFor(sectionKeys: string[]): ChecklistSection[] {
     .filter((s): s is ChecklistSection => Boolean(s));
 }
 
+/** An OK/Fault check, as opposed to a data-capture field or a choice. */
+export const isCheckItem = (it: ChecklistItem): boolean => !it.data && !it.choice;
+
 /** A checklist is complete when every visible OK/Fault item has a status. Data-capture fields
- * (sizes, diameters) are optional and don't gate completeness. */
+ * (sizes, diameters) and choices (tube type, cluster position) are optional and don't gate
+ * completeness. */
 export function checklistComplete(
   sections: ChecklistSection[],
   entries: Record<string, VisualFaultEntry>,
 ): boolean {
   return (
     sections.length > 0 &&
-    sections.every((sec) => sec.items.filter((it) => !it.data).every((it) => entries[it.key]?.status !== undefined))
+    sections.every((sec) => sec.items.filter(isCheckItem).every((it) => entries[it.key]?.status !== undefined))
   );
 }
 
 /** "Check all as verified": set every non-fault check item to OK (keeps already-logged faults;
- * leaves data fields untouched). */
+ * leaves data fields and choices untouched). */
 export function applyCheckAll(
   sections: ChecklistSection[],
   entries: Record<string, VisualFaultEntry>,
@@ -333,7 +347,7 @@ export function applyCheckAll(
   const next = { ...entries };
   for (const sec of sections) {
     for (const it of sec.items) {
-      if (it.data) continue;
+      if (!isCheckItem(it)) continue;
       if (next[it.key]?.status !== "fault") next[it.key] = { status: "ok" };
     }
   }

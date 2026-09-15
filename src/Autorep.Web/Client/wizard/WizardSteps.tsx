@@ -17,7 +17,7 @@ import { ClusterStep } from "./ClusterStep";
 import { FaultSummaryStep } from "./FaultSummaryStep";
 import { ReviewSignOffStep } from "./ReviewSignOffStep";
 import { CalibrationPanel } from "../ui/CalibrationPanel";
-import { additionalTestSections, testRecordSections } from "../passfail/standards";
+import { additionalTestSections, airflowSections, testRecordSections } from "../passfail/standards";
 import { preStartSections, runningSectionsFor, type ChecklistSection } from "./visualChecklist";
 import { runningSectionKeys } from "./wizardProgress";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
@@ -109,9 +109,22 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
     case "TestRecord":
       return (
         <ReadingsStep
-          title="Test Record"
-          hint="Enter readings — pass/fail is live against the standard for this machine."
+          title="Vacuum tests"
+          hint="ISO 1–9. Enter readings — pass/fail is live against the standard for this machine."
           sections={testRecordSections(test.config, test.readings)}
+          readings={test.readings}
+          onSetReading={(k, v) => ctx.setReading(k, v)}
+          readonly={readonly}
+          storedVerdicts={test.verdicts}
+        />
+      );
+
+    case "AirflowTests":
+      return (
+        <ReadingsStep
+          title="Airflow tests"
+          hint="ISO 10–12. Leakage, ACRs and cluster air admission — the calculated rows fill themselves."
+          sections={airflowSections(test.config, test.readings)}
           readings={test.readings}
           onSetReading={(k, v) => ctx.setReading(k, v)}
           readonly={readonly}
@@ -122,7 +135,7 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
     case "AdditionalTests":
       return (
         <ReadingsStep
-          title="Additional Tests"
+          title="Additional tests"
           hint="Only the sections relevant to this machine's ancillaries are shown."
           sections={additionalTestSections(test.config, test.readings)}
           readings={test.readings}

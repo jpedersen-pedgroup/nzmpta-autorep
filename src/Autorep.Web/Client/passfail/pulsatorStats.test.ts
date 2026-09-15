@@ -9,12 +9,12 @@ function row(unit: string, values: Record<string, string>): MeasurementRow {
 describe("pulsatorSummary", () => {
   it("returns nulls for no rows", () => {
     const s = pulsatorSummary([]);
-    expect(s.rateSpread).toBeNull();
-    expect(s.rateSpreadOk).toBeNull();
+    expect(s.fastestRate).toBeNull();
+    expect(s.highestRatio).toBeNull();
     expect(s.limpOk).toBeNull();
   });
 
-  it("computes rate spread and per-group ratio spread within tolerance", () => {
+  it("reports the extremes across the recorded rows, front and back ratios together", () => {
     const rows = [
       row("1", { rate: "60", ratioFront: "62", ratioBack: "60" }),
       row("2", { rate: "63", ratioFront: "64", ratioBack: "61" }),
@@ -22,31 +22,10 @@ describe("pulsatorSummary", () => {
     const s = pulsatorSummary(rows);
     expect(s.slowestRate).toBe(60);
     expect(s.fastestRate).toBe(63);
-    expect(s.rateSpread).toBe(3);
-    expect(s.rateSpreadOk).toBe(true);
-    // Fronts spread 2 (62–64), backs spread 1 (60–61) → worst group spread 2 (not pooled 4).
-    expect(s.ratioSpread).toBe(2);
-    expect(s.ratioSpreadOk).toBe(true);
     expect(s.lowestRatio).toBe(60);
     expect(s.highestRatio).toBe(64);
-  });
-
-  it("does not fail a designed front/back ratio difference (groups not pooled)", () => {
-    // Front quarters run 65, backs run 58 by design — between-pulsator spread is 0 in each group.
-    const rows = [
-      row("1", { rate: "60", ratioFront: "65", ratioBack: "58" }),
-      row("2", { rate: "60", ratioFront: "65", ratioBack: "58" }),
-    ];
-    const s = pulsatorSummary(rows);
-    expect(s.ratioSpread).toBe(0);
-    expect(s.ratioSpreadOk).toBe(true);
-  });
-
-  it("fails when the rate spread exceeds 6 ppm", () => {
-    const rows = [row("1", { rate: "55" }), row("2", { rate: "63" })];
-    const s = pulsatorSummary(rows);
-    expect(s.rateSpread).toBe(8);
-    expect(s.rateSpreadOk).toBe(false);
+    // No spread verdict from the rows: they are the failed units only (see puls.rateSpread).
+    expect(s).not.toHaveProperty("rateSpreadOk");
   });
 
   it("flags limping over 5% from the per-row limp values", () => {
@@ -74,11 +53,9 @@ describe("per-model pulsation bands (legacy Pulsator catalogue)", () => {
   });
 
   it("fails the rate band when one pulsator runs outside it, even with a tight spread", () => {
-    // Spread 3 ≤ 6 passes the spread check; 64–67 ppm is entirely above the 59–61 band.
+    // 64–67 ppm is only 3 apart but entirely above the 59–61 band.
     const rows = [row("1", { rate: "64" }), row("2", { rate: "67" })];
-    const s = pulsatorSummary(rows, MODEL);
-    expect(s.rateSpreadOk).toBe(true);
-    expect(s.rateBandOk).toBe(false);
+    expect(pulsatorSummary(rows, MODEL).rateBandOk).toBe(false);
   });
 
   it("fails the ratio band on a low outlier", () => {

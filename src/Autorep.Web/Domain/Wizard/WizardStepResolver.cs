@@ -20,10 +20,15 @@ public static class WizardStepResolver
             Step(WizardStep.MachineConfiguration, "Machine Configuration & Ancillary"),
             Step(WizardStep.VisualFaultsPreStart, "Visual Faults — Pre-Start"),
             Step(WizardStep.VisualFaultsRunning, "Visual Faults — Running", sections: RunningSections(config)),
-            Step(WizardStep.TestRecord, "Test Record (Vacuum, Airflow & Pump)", sections: TestRecordSections(config)),
+            // Order follows the NZMPTA ISO flowchart: vacuum (1–9) → airflow (10–12) → individual
+            // cluster (13, optional; the wizard shows it only when 12b fails) → pulsation (14–15) →
+            // the additional tests. Decided with Josh, 15 Sep 2026, after a tester skipped 10–12
+            // because they sat under "Additional Tests".
+            Step(WizardStep.TestRecord, "Vacuum Tests (ISO 1–9)", sections: TestRecordSections(config)),
+            Step(WizardStep.AirflowTests, "Airflow Tests (ISO 10–12)", sections: AirflowSections(config)),
+            Step(WizardStep.IndividualClusterTest, "Individual Cluster Tests (ISO 13)", optional: true),
+            Step(WizardStep.PulsatorTest, "Pulsation & Ancillary (ISO 14–15)"),
             Step(WizardStep.AdditionalTests, "Additional Tests", sections: AdditionalSections(config)),
-            Step(WizardStep.PulsatorTest, "Pulsation & Ancillary"),
-            Step(WizardStep.IndividualClusterTest, "Individual Cluster Tests", optional: true),
             Step(WizardStep.FaultSummary, "Fault Summary & Recommendations"),
             Step(WizardStep.ReviewSignOff, "Review & Sign-Off"),
         };
@@ -66,7 +71,9 @@ public static class WizardStepResolver
         return s;
     }
 
-    // Test Record: ISO groups 1–9. Minimum-pump-speed vacuum only when a VSD is fitted.
+    // Vacuum tests: ISO groups 1–9. Minimum-pump-speed vacuum only when a VSD is fitted. Pump
+    // exhaust (9) lives inside the vacuum-pump section — on the flowchart it is an exception taken
+    // only when the pump is out of spec, not a test of its own.
     private static IReadOnlyList<string> TestRecordSections(MachineConfiguration c)
     {
         var s = new List<string> { "SystemVacuumLevels" };
@@ -78,16 +85,23 @@ public static class WizardStepResolver
         s.Add("ReserveVacuumOffCluster");
         s.Add("VacuumGaugeAccuracy");
         s.Add("VacuumPumpTest");
-        s.Add("PumpExhaustPressure");
         return s;
     }
 
-    // Additional Tests: ISO 10–12 plus per-ancillary consumption/leakage sub-sections.
-    private static IReadOnlyList<string> AdditionalSections(MachineConfiguration c)
+    // Airflow tests: ISO 10–12. ACR consumption only when ACRs are fitted.
+    private static IReadOnlyList<string> AirflowSections(MachineConfiguration c)
     {
         var s = new List<string> { "AirlineMilkSystemLeakage" };
         if (c.HasAcr) s.Add("AcrConsumption");
         s.Add("ClusterAirAdmission");
+        return s;
+    }
+
+    // Additional Tests: the unnumbered per-ancillary consumption/leakage checks that follow the
+    // ISO flowchart — NZMPTA's "Additional Tests" flowchart, so this step must hold nothing else.
+    private static IReadOnlyList<string> AdditionalSections(MachineConfiguration c)
+    {
+        var s = new List<string>();
         if (c.HasMilkMeters) s.Add("MilkMeter");
         if (c.HasTeatSprayer) s.Add("TeatSpray");
         if (c.HasBailGates || c.HasBackingGate) s.Add("GateCylinder");

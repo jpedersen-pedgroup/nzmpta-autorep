@@ -17,6 +17,7 @@ export type WizardStep =
   | "VisualFaultsPreStart"
   | "VisualFaultsRunning"
   | "TestRecord"
+  | "AirflowTests"
   | "AdditionalTests"
   | "PulsatorTest"
   | "IndividualClusterTest"

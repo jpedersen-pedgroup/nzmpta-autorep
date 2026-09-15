@@ -63,12 +63,22 @@ public class WizardStepResolverTests
     public void Resolve_shows_acr_section_only_when_acr_present()
     {
         WizardStepResolver.Resolve(new MachineConfiguration { HasAcr = true })
-            .Steps.Single(s => s.Step == WizardStep.AdditionalTests).Sections
+            .Steps.Single(s => s.Step == WizardStep.AirflowTests).Sections
             .Should().Contain("AcrConsumption");
 
         WizardStepResolver.Resolve(new MachineConfiguration { HasAcr = false })
-            .Steps.Single(s => s.Step == WizardStep.AdditionalTests).Sections
+            .Steps.Single(s => s.Step == WizardStep.AirflowTests).Sections
             .Should().NotContain("AcrConsumption");
+    }
+
+    [Fact]
+    public void Resolve_follows_the_iso_flowchart_order()
+    {
+        var order = WizardStepResolver.Resolve(new MachineConfiguration()).Steps.Select(s => s.Step).ToList();
+        order.IndexOf(WizardStep.TestRecord).Should().BeLessThan(order.IndexOf(WizardStep.AirflowTests));
+        order.IndexOf(WizardStep.AirflowTests).Should().BeLessThan(order.IndexOf(WizardStep.IndividualClusterTest));
+        order.IndexOf(WizardStep.IndividualClusterTest).Should().BeLessThan(order.IndexOf(WizardStep.PulsatorTest));
+        order.IndexOf(WizardStep.PulsatorTest).Should().BeLessThan(order.IndexOf(WizardStep.AdditionalTests));
     }
 
     [Fact]

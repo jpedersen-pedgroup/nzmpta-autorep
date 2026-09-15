@@ -22,6 +22,9 @@ export interface DerivedReading {
 }
 
 const minus = (a: string, b: string) => (r: Record<string, number>) => r[a] - r[b];
+// Order-independent difference: the two extremes off the analyser keyed the wrong way round
+// (slowest typed as fastest) would give a negative spread that an "at most" rule waves through.
+const gap = (a: string, b: string) => (r: Record<string, number>) => Math.abs(r[a] - r[b]);
 
 export const DERIVED_READINGS: DerivedReading[] = [
   // 1 — System vacuum. Signed: negative when the receiver sits below nominal.
@@ -60,8 +63,11 @@ export const DERIVED_READINGS: DerivedReading[] = [
   { key: "puls.milkSystemAncillary", inputs: ["add.clusterAirAdmissionConnect", "puls.airflowMilkSystem"], formula: "12a − 14a", calc: minus("add.clusterAirAdmissionConnect", "puls.airflowMilkSystem") },
   { key: "puls.pulsatorConsumption", inputs: ["puls.airflowMilkSystem", "puls.airflowPulsators"], formula: "14a − 14c", calc: minus("puls.airflowMilkSystem", "puls.airflowPulsators") },
   { key: "puls.vacuumSystemAncillary", inputs: ["puls.airflowPulsators", "puls.airflowVacuumSystem"], formula: "14c − 14e", calc: minus("puls.airflowPulsators", "puls.airflowVacuumSystem") },
-  // 15 — Test pulsation: the pulsator airline drop below the working vacuum.
+  // 15 — Test pulsation: the pulsator airline drop below the working vacuum, and the spreads
+  // between the machine's fastest/slowest and highest/lowest pulsators off the analyser.
   { key: "puls.testPulsationReading", inputs: ["tr.workingVacuum", "puls.maxChamberVacuum"], formula: "1a − 15a", calc: minus("tr.workingVacuum", "puls.maxChamberVacuum") },
+  { key: "puls.rateSpread", inputs: ["puls.rateFastest", "puls.rateSlowest"], formula: "fastest − slowest", calc: gap("puls.rateFastest", "puls.rateSlowest") },
+  { key: "puls.ratioSpread", inputs: ["puls.ratioHighest", "puls.ratioLowest"], formula: "highest − lowest", calc: gap("puls.ratioHighest", "puls.ratioLowest") },
 ];
 
 const BY_KEY = new Map(DERIVED_READINGS.map((d) => [d.key, d]));

@@ -10,7 +10,7 @@
   },
   "expectedSteps": [
     "Setup", "MachineConfiguration", "VisualFaultsPreStart", "VisualFaultsRunning",
-    "TestRecord", "AdditionalTests", "PulsatorTest", "IndividualClusterTest",
+    "TestRecord", "AirflowTests", "IndividualClusterTest", "PulsatorTest", "AdditionalTests",
     "FaultSummary", "ReviewSignOff"
   ],
   "optionalSteps": ["IndividualClusterTest"],

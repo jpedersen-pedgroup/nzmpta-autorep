@@ -27,6 +27,8 @@
 
 Ship Phase 0 on its own first and have Jono re-run a test on staging. Then Phase 1, Phase 2 once 12b is real, and Phases 3–4 as answers come back. Phase 5 can run in parallel.
 
+**Progress, 15 Sep 2026 (evening).** Phase 0 → PR #54, merged. Phase 1 → PR #55, merged (plus a PWA "updated — reload" banner and two worker-cache fixes found on the way). Both on staging. Phase 2 (2.1 order — Josh's decision: vacuum → airflow → individual cluster → pulsation → additional; 2.2 cluster step only when 12b fails; 2.3 pulsation spread judged on the analyser's fastest/slowest and highest/lowest, the faulty-pulsator table only on a failed reading; 2.4 sections 8 and 9 merged) and Phase 3 items 3.1–3.3 (choice items; cluster position Side/Back; pulse-tube type Single/Twin/Triple/Quad; recorded measurements printed on the report) → branch `claude/tester-feedback-phase2`. An adversarial review of that branch found nothing above "low" except one: a transposed fastest/slowest (or highest/lowest) entry gave a negative spread that passed — the spreads are now order-independent. Also from it: the stored step is normalised to a shown one on every save, the faulty-pulsator table stays open while any row exists, the spread hints read the resolved rule, the choice items use the themed Select, and the row-based spread stats (dead since 2.3) are gone. Still open: 3.4 (Jono), 3.5 (Maria), 3.6 pump/regulator/releaser catalogues, Phases 4–5, the migrated-data formula check, and the pooled-vs-per-group ratio spread question below.
+
 ## Feedback register
 
 | # | Feedback | ⏱ | Status | Phase |
@@ -290,6 +292,7 @@ Also check (unconfirmed): straight after "Mark as complete & sync", the sign-off
 | "Airline bends size": bend size, or effective length of bends? | Jono | 3.4 |
 | Faulty pulsators: show only on failed 14/15 readings, or also allow a manual "add"? | Jono | 2.3 |
 | 14d limit: legacy passes 790 L/min for 19 pulsators; the app allows 30 per 10 units | Jono / NZMPTA | 14d verdict |
+| Ratio spread (≤ 5%): the app judges the analyser's highest − lowest **pooled across front and back quarters**, as legacy's "Ratio Range Highest / Lowest" did. The standards note in `plans/reference/machine-types-tests-standards.md` reads it per quarter group (front vs front, back vs back — a plant can run different front/back ratios by design, and would fail pooled). Which does NZMPTA apply? Per group would mean capturing four ratio extremes instead of two | Jono / NZMPTA | ratio spread verdict |
 | 12b with vented liners: ≤ 35 × clusters? Any minimum? | NZMPTA | 12b vented rule |
 | Should the ISO 16 final checks (16a vs 1a, 16b vs 2a) be captured? Legacy has them; the app doesn't | Jono / NZMPTA | — |
 | Cleaning reserve (2h): on Jono's test legacy showed **2064** while the app's formula gives 2118 at 1a = 41.5 (2136 at 41). Same milkline, same plant — the two disagree on the vacuum term (legacy's figure matches the app's formula at v = 43). Which is right per manual p43? | NZMPTA / Josh | 2h verdict |

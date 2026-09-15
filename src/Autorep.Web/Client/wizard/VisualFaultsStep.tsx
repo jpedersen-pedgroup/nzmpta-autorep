@@ -40,6 +40,21 @@ function ItemRow({
   dataValue?: string;
   onSetData: (key: string, value: string) => void;
 }) {
+  if (item.choice) {
+    // The themed Select, like the severity picker below: on iOS a bare native <select> renders as
+    // a plain box with no chevron, indistinguishable from the text input on the next row.
+    return (
+      <div class="checkitem">
+        <div class="checkitem__name">{item.label}</div>
+        <Select
+          class="checkitem__choice"
+          value={dataValue ?? ""}
+          onChange={(v) => onSetData(item.key, v)}
+          options={[{ value: "", label: "— select —" }, ...item.choice.map((opt) => ({ value: opt, label: opt }))]}
+        />
+      </div>
+    );
+  }
   if (item.data) {
     return (
       <div class="checkitem">
