@@ -21,6 +21,7 @@ import {
   type ReadingSection,
 } from "../passfail/standards";
 import { evaluate } from "../passfail/passFail";
+import { recordedRows } from "../ui/measurementRows";
 import { buildFaultInputs } from "../faults/buildFaults";
 import { aggregate, type FaultSummary } from "../faults/faultAggregator";
 
@@ -44,6 +45,23 @@ function readingKeys(sections: ReadingSection[]): string[] {
   return sections.flatMap((s) => s.readings.map((r) => r.key));
 }
 
+type ReadingsStep = "TestRecord" | "AdditionalTests" | "PulsatorTest";
+const READINGS_STEPS: ReadingsStep[] = ["TestRecord", "AdditionalTests", "PulsatorTest"];
+
+/** The reading sections a readings-driven step shows, so completeness, progress and fault counts
+ * all work from the same list. Faulty-pulsator rows are deliberately not part of the pulsation
+ * step's completeness: a clean machine has none to list. */
+function readingSectionsFor(t: LocalTest, step: ReadingsStep): ReadingSection[] {
+  switch (step) {
+    case "TestRecord":
+      return testRecordSections(t.config, t.readings);
+    case "AdditionalTests":
+      return additionalTestSections(t.config, t.readings);
+    case "PulsatorTest":
+      return pulsatorSections(t.config, t.readings);
+  }
+}
+
 /** Which steps are finished. Moved here from WizardApp so every shell shares one definition. */
 export function computeCompleted(t: LocalTest): Set<WizardStep> {
   const done = new Set<WizardStep>();
@@ -55,14 +73,10 @@ export function computeCompleted(t: LocalTest): Set<WizardStep> {
   if (checklistComplete(runningChecklist(t.config), t.visualFaults)) {
     done.add("VisualFaultsRunning");
   }
-  if (testRecordSections(t.config, t.readings).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
-    done.add("TestRecord");
+  for (const step of READINGS_STEPS) {
+    if (readingKeys(readingSectionsFor(t, step)).every((k) => t.readings[k] != null)) done.add(step);
   }
-  if (additionalTestSections(t.config, t.readings).every((s) => s.readings.every((r) => t.readings[r.key] != null))) {
-    done.add("AdditionalTests");
-  }
-  if ((t.pulsatorRows ?? []).length > 0) done.add("PulsatorTest");
-  if ((t.clusterRows ?? []).length > 0) done.add("IndividualClusterTest");
+  if (recordedRows(t.clusterRows).length > 0) done.add("IndividualClusterTest");
   const faults = buildFaultInputs(t);
   if (faults.every((f) => f.key != null && (t.recommendations[f.key] ?? "").trim().length > 0)) {
     done.add("FaultSummary");
@@ -88,19 +102,14 @@ export function stepProgress(t: LocalTest, step: WizardStep): number {
       return items.filter((it) => t.visualFaults[it.key]?.status !== undefined).length / items.length;
     }
     case "TestRecord":
-    case "AdditionalTests": {
-      const sections =
-        step === "TestRecord"
-          ? testRecordSections(cfg, t.readings)
-          : additionalTestSections(cfg, t.readings);
-      const keys = readingKeys(sections);
+    case "AdditionalTests":
+    case "PulsatorTest": {
+      const keys = readingKeys(readingSectionsFor(t, step));
       if (keys.length === 0) return 0;
       return keys.filter((k) => t.readings[k] != null).length / keys.length;
     }
-    case "PulsatorTest":
-      return (t.pulsatorRows ?? []).length > 0 ? 1 : 0;
     case "IndividualClusterTest":
-      return (t.clusterRows ?? []).length > 0 ? 1 : 0;
+      return recordedRows(t.clusterRows).length > 0 ? 1 : 0;
     case "FaultSummary": {
       const faults = buildFaultInputs(t);
       // No faults means nothing to write up — done, not stalled at zero. computeCompleted()
@@ -129,15 +138,11 @@ export function faultsInStep(t: LocalTest, step: WizardStep): number {
         .filter((it) => t.visualFaults[it.key]?.status === "fault").length;
     }
     case "TestRecord":
-    case "AdditionalTests": {
-      const sections =
-        step === "TestRecord"
-          ? testRecordSections(cfg, t.readings)
-          : additionalTestSections(cfg, t.readings);
-      return sections
+    case "AdditionalTests":
+    case "PulsatorTest":
+      return readingSectionsFor(t, step)
         .flatMap((s) => s.readings)
         .filter((r) => evaluate(t.readings[r.key], r.rule) === "fail").length;
-    }
     default:
       return 0;
   }
@@ -200,7 +205,8 @@ export function subsFor(t: LocalTest, step: WizardStep): SubSection[] {
     case "AdditionalTests":
       return additionalTestSections(cfg, t.readings);
     case "PulsatorTest":
-      return [{ key: "rows", title: "Per-pulsator results" }, ...pulsatorSections(cfg, t.readings)];
+      // Same order as the step renders: the ISO 14–15 readings, then the faulty-pulsator table.
+      return [...pulsatorSections(cfg, t.readings), { key: "rows", title: "Faulty pulsators" }];
     case "IndividualClusterTest":
       return [{ key: "rows", title: "Per-cluster results" }];
     default:
@@ -216,7 +222,7 @@ export const STEP_DESCRIPTIONS: Record<WizardStep, string> = {
   VisualFaultsRunning: "Machine running · airline to jetters",
   TestRecord: "ISO 1–9 · vacuum, reserve, gauges, pump",
   AdditionalTests: "ISO 10–12 · leakage + this machine's ancillaries",
-  PulsatorTest: "Rates, ratios, phases + spread checks",
+  PulsatorTest: "ISO 14–15 · air consumption, test pulsation, faulty pulsators",
   IndividualClusterTest: "ISO 13 · air admission, leakage, vent",
   FaultSummary: "Add a recommendation for every fault",
   ReviewSignOff: "Attest, complete, and generate the report",
@@ -230,7 +236,7 @@ export const STEP_SHORT_LABELS: Record<WizardStep, string> = {
   VisualFaultsRunning: "Running",
   TestRecord: "Test record",
   AdditionalTests: "Additional",
-  PulsatorTest: "Pulsators",
+  PulsatorTest: "Pulsation",
   IndividualClusterTest: "Clusters",
   FaultSummary: "Faults",
   ReviewSignOff: "Sign-off",

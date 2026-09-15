@@ -11,15 +11,9 @@ import {
   stepProgress,
   subsFor,
 } from "../wizardProgress";
-import type { PlantType, WizardStep } from "../types";
+import type { WizardStep } from "../types";
 import type { ShellProps } from "./types";
-
-const PLANT_LABELS: Record<PlantType, string> = {
-  HerringboneLowline: "Herringbone (lowline)",
-  HerringboneHighline: "Herringbone (highline)",
-  Rotary: "Rotary",
-  Other: "Other",
-};
+import { PLANT_LABELS } from "../configLabels";
 
 /** Circumference of the r=22 progress ring, for the stroke-dasharray split. */
 const RING = 2 * Math.PI * 22;

@@ -3,6 +3,7 @@
 import { evaluate, type PassFailVerdict } from "../passfail/passFail";
 import type { ReadingDef, ReadingSection } from "../passfail/standards";
 import { Tabs } from "../ui/Tabs";
+import { DecimalInput } from "../ui/DecimalInput";
 
 function ReadingRow({
   reading,
@@ -29,17 +30,7 @@ function ReadingRow({
             (historical) mode where the badge already shows the as-recorded verdict. */}
         {!readonly && reading.hint && <span class="reading__hint">{reading.hint}</span>}
       </div>
-      <input
-        type="number"
-        step="any"
-        value={value ?? ""}
-        disabled={readonly}
-        onInput={(e) => {
-          if (readonly) return;
-          const raw = (e.currentTarget as HTMLInputElement).value;
-          onSet(reading.key, raw === "" ? null : Number(raw));
-        }}
-      />
+      <DecimalInput value={value} disabled={readonly} onValue={(v) => onSet(reading.key, v)} />
       <span class="reading__unit">{reading.unit}</span>
       <span class={`pf pf--${verdict}`}>{label}</span>
     </div>

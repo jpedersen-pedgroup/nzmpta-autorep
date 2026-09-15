@@ -7,12 +7,13 @@ import type { AmendmentRecord, FieldChange, LocalTest, MeasurementRow } from "..
 import type { MachineConfiguration } from "../wizard/types";
 import { allReadingSections } from "../passfail/standards";
 import { preStartSections, RUNNING_SECTIONS } from "../wizard/visualChecklist";
+import { recordedRows } from "../ui/measurementRows";
 
 // Report-facing section names, in the order changes are listed.
 const S_FARM = "Farm";
 const S_CONFIG = "Machine configuration";
 const S_READINGS = "Numerical readings";
-const S_PULSATORS = "Pulsator test results";
+const S_PULSATORS = "Pulsator results";
 const S_CLUSTERS = "Individual cluster tests";
 const S_VISUAL = "Visual checks";
 const S_DATA = "Recorded measurements";
@@ -74,10 +75,19 @@ function fmt(v: unknown): string {
   return s.length === 0 ? "—" : s;
 }
 
+/** Checklist items that no longer exist. Tests recorded before they were removed still carry their
+ * values, and an amendment to one of those must print a name, not a key. */
+const RETIRED_ITEM_LABELS: Record<string, string> = {
+  "claw.type": "Claw · Claw type",
+  "claw.shellType": "Claw · Shell type",
+  "liner.typeF": "Liner · Liner type (front)",
+  "liner.typeB": "Liner · Liner type (back)",
+};
+
 /** key → "Section title · Item label" across every checklist item that can exist (both pre-start
  * variants + every running section), so labels resolve even after a config change moved the plan. */
 function visualLabelMap(): Map<string, string> {
-  const map = new Map<string, string>();
+  const map = new Map<string, string>(Object.entries(RETIRED_ITEM_LABELS));
   for (const sec of [...preStartSections(true), ...Object.values(RUNNING_SECTIONS)]) {
     for (const it of sec.items) map.set(it.key, `${sec.title} · ${it.label}`);
   }
@@ -113,10 +123,19 @@ function diffRecord(
   return out;
 }
 
+/** Row cells are stored as the text the tester typed, so "60.0" and "60" are the same reading.
+ * Compare them as numbers where both parse; anything else falls back to the trimmed text. */
+function fmtCell(v: unknown): string {
+  const s = fmt(v);
+  if (s === "—") return s;
+  const n = Number(s);
+  return Number.isFinite(n) ? String(n) : s;
+}
+
 function rowSummary(values: Record<string, string>, cols: Record<string, string>): string {
   const parts = Object.entries(values)
     .filter(([, v]) => (v ?? "").trim().length > 0)
-    .map(([k, v]) => `${cols[k] ?? k} ${v}`);
+    .map(([k, v]) => `${cols[k] ?? k} ${fmtCell(v)}`);
   return parts.length > 0 ? parts.join(", ") : "no values";
 }
 
@@ -151,7 +170,13 @@ function diffRows(
       out.push({ section, label: `${rowNoun} ${prev.unit}`, from: `Unit ${prev.unit}`, to: `Unit ${next.unit}` });
     }
     out.push(
-      ...diffRecord(section, prev.values, next.values, (k) => `${rowNoun} ${next.unit} · ${cols[k] ?? k}`),
+      ...diffRecord(
+        section,
+        prev.values,
+        next.values,
+        (k) => `${rowNoun} ${next.unit} · ${cols[k] ?? k}`,
+        (_k, v) => fmtCell(v),
+      ),
     );
   }
   for (const row of unmatchedB) {
@@ -208,8 +233,9 @@ export function computeChanges(base: LocalTest, edited: LocalTest): FieldChange[
     ),
   );
 
-  changes.push(...diffRows(S_PULSATORS, "Pulsator", base.pulsatorRows, edited.pulsatorRows, PULSATOR_COLS));
-  changes.push(...diffRows(S_CLUSTERS, "Cluster", base.clusterRows, edited.clusterRows, CLUSTER_COLS));
+  // A row added and never filled in is not data (see measurementRows.ts) — not an amendment either.
+  changes.push(...diffRows(S_PULSATORS, "Pulsator", recordedRows(base.pulsatorRows), recordedRows(edited.pulsatorRows), PULSATOR_COLS));
+  changes.push(...diffRows(S_CLUSTERS, "Cluster", recordedRows(base.clusterRows), recordedRows(edited.clusterRows), CLUSTER_COLS));
 
   const visualLabels = visualLabelMap();
   const visualKeys = new Set([...Object.keys(base.visualFaults), ...Object.keys(edited.visualFaults)]);
@@ -240,7 +266,7 @@ export function computeChanges(base: LocalTest, edited: LocalTest): FieldChange[
   );
 
   const other: Array<[string, unknown, unknown]> = [
-    ["Tester comment", base.notes, edited.notes],
+    ["General comments", base.notes, edited.notes],
     ["Calibration expiry — airflow meters", base.calAirFlowMeters, edited.calAirFlowMeters],
     ["Calibration expiry — pulsator testers", base.calPulsatorTesters, edited.calPulsatorTesters],
     ["Calibration expiry — vacuum gauges", base.calVacuumGauges, edited.calVacuumGauges],

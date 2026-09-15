@@ -1,8 +1,10 @@
-// Pulsator Test Results — a per-pulsator row table (rate + front/back ratio + phases b/d +
-// chamber vacuum + limp) with the live spread checks (≤6 ppm rate, ≤5% ratio between pulsators,
-// ≤5% limp), plus the ISO 14–15 ancillary / test-pulsation readings below. Phase limits per
-// ISO 6690 Table D.5: b ≥ 30%, d ≥ 150 ms.
+// Pulsation & Ancillary — the ISO 14–15 readings first (air consumption, test pulsation, airline
+// stability), then a table for the pulsators that failed on the analyser: rate + front/back ratio
+// + phases b/d + chamber vacuum + limp, keyed by the unit (bail) number the tester reads off the
+// machine, with the live spread checks (≤6 ppm rate, ≤5% ratio between pulsators, ≤5% limp).
+// Phase limits per ISO 6690 Table D.5: b ≥ 30%, d ≥ 150 ms.
 import { RowTable, type RowColumn } from "../ui/RowTable";
+import { recordedRows } from "../ui/measurementRows";
 import { ReadingsStep } from "./ReadingsStep";
 import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
 import { pulsatorSections } from "../passfail/standards";
@@ -65,15 +67,27 @@ interface Props {
 }
 
 export function PulsatorStep({ config, rows, onRows, readings, onSetReading, readonly, storedVerdicts }: Props) {
-  const s = pulsatorSummary(rows, config.pulsatorModel);
+  // A just-added, still-blank row is not a result: keep it out of the spread figures.
+  const recorded = recordedRows(rows);
+  const s = pulsatorSummary(recorded, config.pulsatorModel);
   const limits = pulsationLimits();
   return (
     <>
+      <ReadingsStep
+        title="Pulsator & ancillary readings"
+        hint="ISO 14–15 air consumption + airline stability."
+        sections={pulsatorSections(config, readings)}
+        readings={readings}
+        onSetReading={onSetReading}
+        readonly={readonly}
+        storedVerdicts={storedVerdicts}
+      />
       <div class="card">
         <div class="card__title">
-          Pulsator test results{" "}
+          Faulty pulsators{" "}
           <small class="card__hint">
-            Add faulty pulsators, or “Enter all”. Rate spread ≤ {limits.rateSpreadMax} ppm, ratio spread ≤ {limits.ratioSpreadMax}%.
+            Add each pulsator that failed, by unit number. Rate spread ≤ {limits.rateSpreadMax} ppm, ratio spread ≤{" "}
+            {limits.ratioSpreadMax}%.
           </small>
         </div>
         <RowTable
@@ -81,10 +95,12 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading, rea
           rows={rows}
           onChange={onRows}
           unitLabel="Pulsator"
-          suggestedCount={config.pulsatorCount || undefined}
+          unitColumn="Unit no."
+          unitMax={config.clusterCount || undefined}
+          unitMaxNoun="bails"
           readonly={readonly}
         />
-        {rows.length > 0 && (
+        {recorded.length > 0 && (
           <div class="puls-summary">
             <SpreadStat
               label="Rate"
@@ -129,15 +145,6 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading, rea
           </div>
         )}
       </div>
-      <ReadingsStep
-        title="Pulsator & ancillary readings"
-        hint="ISO 14–15 air consumption + airline stability."
-        sections={pulsatorSections(config, readings)}
-        readings={readings}
-        onSetReading={onSetReading}
-        readonly={readonly}
-        storedVerdicts={storedVerdicts}
-      />
     </>
   );
 }

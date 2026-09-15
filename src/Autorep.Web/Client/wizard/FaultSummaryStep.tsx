@@ -1,15 +1,18 @@
 // Fault Summary & Recommendations step: faults carried from the visual checks + failed readings,
-// grouped by the Fault Aggregator, each with an editable recommendation.
+// grouped by the Fault Aggregator, each with an editable recommendation — then general comments
+// for anything the farmer should know that no single fault covers.
 import { aggregate } from "../faults/faultAggregator";
 import { buildFaultInputs } from "../faults/buildFaults";
 import type { LocalTest } from "../db/testStore";
 
 interface Props {
   test: LocalTest;
+  readonly?: boolean;
   onSetRecommendation: (key: string, value: string) => void;
+  onSetNotes: (value: string) => void;
 }
 
-export function FaultSummaryStep({ test, onSetRecommendation }: Props) {
+export function FaultSummaryStep({ test, readonly, onSetRecommendation, onSetNotes }: Props) {
   // Migrated tests carry their faults + recommendations as-recorded (not the new per-fault model),
   // so render those read-only rather than recomputing.
   if (test.recordedRecommendations !== undefined) {
@@ -53,13 +56,35 @@ export function FaultSummaryStep({ test, onSetRecommendation }: Props) {
                   class="fault__rec"
                   placeholder="Recommendation…"
                   value={f.recommendation ?? ""}
-                  onInput={(e) => f.key && onSetRecommendation(f.key, (e.currentTarget as HTMLInputElement).value)}
+                  disabled={readonly}
+                  onInput={(e) => !readonly && f.key && onSetRecommendation(f.key, (e.currentTarget as HTMLInputElement).value)}
                 />
               </div>
             ))}
           </div>
         ))
       )}
+
+      {/* The legacy Fault Summary was free text, and testers used it for things no fault line
+          carries: adjustments made on the day, a milk-quality concern, a reading that is out of
+          spec but fine for this herd. It prints on the report under the fault table. */}
+      <div class="fault-notes">
+        <label class="fault-notes__label" for="fault-notes">
+          General comments
+          <span class="fault-notes__hint">
+            Anything the farmer should know that isn't tied to a fault above — printed on the report.
+          </span>
+        </label>
+        <textarea
+          id="fault-notes"
+          class="fault-notes__input"
+          rows={4}
+          value={test.notes ?? ""}
+          disabled={readonly}
+          placeholder="e.g. Regulation undershoot was excessive — VSD settings adjusted and re-checked at time of test."
+          onInput={(e) => !readonly && onSetNotes((e.currentTarget as HTMLTextAreaElement).value)}
+        />
+      </div>
     </div>
   );
 }
@@ -104,7 +129,7 @@ function RecordedFaultSummary({ test }: { test: LocalTest }) {
 
       {comment && (
         <div class="fault-group">
-          <div class="fault-group__head"><span class="fault-group__name">Tester comment</span></div>
+          <div class="fault-group__head"><span class="fault-group__name">General comments</span></div>
           <p style="white-space:pre-wrap;margin:var(--space-2) 0 0">{comment}</p>
         </div>
       )}

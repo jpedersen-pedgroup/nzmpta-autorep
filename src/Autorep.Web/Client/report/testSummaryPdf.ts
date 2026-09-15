@@ -13,6 +13,8 @@ import { pulsationLimits, pulsatorSummary } from "../passfail/pulsatorStats";
 import { getPrivacyContent } from "../config/privacyContent";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
 import { getCachedCalibration } from "../sync/calibrationSync";
+import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
+import { recordedRows } from "../ui/measurementRows";
 
 const BRAND = "#003893";
 const MUTED = "#64748b";
@@ -108,11 +110,11 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
     table: {
       widths: ["auto", "*", "auto", "*"],
       body: [
-        [th("Plant"), `${config.plantType} · ${config.plantSize ?? "—"}`, th("Clusters"), String(config.clusterCount || "—")],
+        [th("Plant"), `${PLANT_LABELS[config.plantType] ?? config.plantType} · ${config.plantSize ?? "—"}`, th("Clusters"), String(config.clusterCount || "—")],
         [th("Pulsators"), `${config.pulsatorCount || "—"} · ${config.pulsatorBrand ?? "—"} ${config.pulsatorModel ?? ""}`.trim(), th("Configuration"), config.pulsatorConfiguration ?? "—"],
         [th("Shell"), config.shellModel ?? "—", th("Claw"), config.clawModel ?? "—"],
         [th("Liners (F/B)"), `${config.linerModel ?? "—"} / ${config.backLiner ?? "—"}`, th("Milkline"), config.milklineSize ? `${config.milklineSize} mm` : "—"],
-        [th("Vacuum pumps"), `${config.numberOfVacuumPumps} · ${config.pumpLubrication}`, th("Atmos. pressure"), config.atmosPressureSeaLevel ? `${config.atmosPressureSeaLevel} kPa` : "—"],
+        [th("Vacuum pumps"), `${config.numberOfVacuumPumps} · ${PUMP_LUBRICATION_LABELS[config.pumpLubrication] ?? config.pumpLubrication}`, th("Atmos. pressure"), config.atmosPressureSeaLevel ? `${config.atmosPressureSeaLevel} kPa` : "—"],
         [th("Equipment"), { text: flags.join(", ") || "—", colSpan: 3 }, "", ""],
       ],
     },
@@ -141,6 +143,17 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
           { table: { widths: ["auto", "auto", "*", "*"], body: faultRows }, layout: "lightHorizontalLines" },
         ];
 
+  // General comments sit under the fault table: what the tester wants the farmer to know that no
+  // fault line carries. Migrated tests print theirs inside recordedFaultBlock.
+  const notes = test.notes?.trim();
+  const notesBlock: Content[] =
+    !isLegacy && notes
+      ? [
+          { text: "General comments", fontSize: 10, bold: true, margin: [0, 8, 0, 2] },
+          { text: notes, fontSize: 9 },
+        ]
+      : [];
+
   // --- Numerical readings ----------------------------------------------------------------------
   const readingBlocks: Content[] = [];
   for (const sec of allReadingSections(config, test.readings)) {
@@ -166,19 +179,22 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
 
   // --- Per-unit rows ---------------------------------------------------------------------------
   const unitBlocks: Content[] = [];
-  if (test.pulsatorRows?.length) {
-    const s = pulsatorSummary(test.pulsatorRows, test.config.pulsatorModel);
+  const pulsatorRows = recordedRows(test.pulsatorRows);
+  if (pulsatorRows.length) {
+    const s = pulsatorSummary(pulsatorRows, test.config.pulsatorModel);
     const limits = pulsationLimits();
     const body: TableCell[][] = [
-      [th("Pulsator"), th("Rate (ppm)"), th("Ratio F (%)"), th("Ratio B (%)"), th("Phase b (%)"), th("Phase d (ms)"), th("Max vac (kPa)"), th("Limp (%)")],
-      ...test.pulsatorRows.map((r) => [
+      [th("Unit no."), th("Rate (ppm)"), th("Ratio F (%)"), th("Ratio B (%)"), th("Phase b (%)"), th("Phase d (ms)"), th("Max vac (kPa)"), th("Limp (%)")],
+      ...pulsatorRows.map((r) => [
         { text: r.unit, fontSize: 9 },
         ...["rate", "ratioFront", "ratioBack", "phaseB", "phaseDms", "maxVacuum", "limp"].map((k) => ({
           text: r.values[k] ?? "", fontSize: 9,
         } as TableCell)),
       ]),
     ];
-    unitBlocks.push(sectionHeader("Pulsator test results"));
+    // Neutral on the report: tests captured before "Enter all" was removed can carry a row for
+    // every unit, and those were never all faulty.
+    unitBlocks.push(sectionHeader("Pulsator results"));
     unitBlocks.push({ table: { widths: ["auto", "auto", "auto", "auto", "auto", "auto", "auto", "auto"], body }, layout: "lightHorizontalLines" });
     const spreadText: Content = {
       text: [
@@ -204,10 +220,11 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
     };
     unitBlocks.push(spreadText);
   }
-  if (test.clusterRows?.length) {
+  const clusterRows = recordedRows(test.clusterRows);
+  if (clusterRows.length) {
     const body: TableCell[][] = [
-      [th("Cluster"), th("Total air admission"), th("Leakage"), th("Air-vent admission")],
-      ...test.clusterRows.map((r) => [
+      [th("Cluster no."), th("Total air admission"), th("Leakage"), th("Air-vent admission")],
+      ...clusterRows.map((r) => [
         { text: r.unit, fontSize: 9 },
         ...["totalAirAdmission", "leakage", "airVent"].map((k) => ({ text: r.values[k] ?? "", fontSize: 9 } as TableCell)),
       ]),
@@ -303,6 +320,7 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
       configBlock,
       sectionHeader("Fault summary & recommendations"),
       ...faultBlock,
+      ...notesBlock,
       sectionHeader("Numerical test results"),
       ...(readingBlocks.length > 0 ? readingBlocks : [{ text: "No readings entered.", fontSize: 9, color: MUTED } as Content]),
       ...unitBlocks,
@@ -384,10 +402,21 @@ function recordedFaultBlock(test: LocalTest): Content[] {
     out.push({ text: r.text, fontSize: 9 });
   }
   if (comment) {
-    out.push({ text: "Tester comment", fontSize: 10, bold: true, margin: [0, 6, 0, 2] });
+    out.push({ text: "General comments", fontSize: 10, bold: true, margin: [0, 6, 0, 2] });
     out.push({ text: comment, fontSize: 9 });
   }
   return out;
+}
+
+/** The yyyy-mm-dd for the report filename: the date where the test was signed off, not the UTC
+ * date inside the timestamp. A test completed at 8:41 am NZST on the 15th is 20:41Z on the 14th,
+ * and the file was being named for the 14th. Defaults to the device's zone — the same one the
+ * sign-off header is shown in. */
+export function reportDateStamp(iso: string, timeZone?: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  // en-CA is the locale whose numeric date form is yyyy-mm-dd.
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone }).format(d);
 }
 
 function base64ToBytes(b64: string): Uint8Array {
@@ -434,7 +463,7 @@ export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
   (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
 
   const name = `Test Summary - ${(test.farm?.name ?? test.farmName ?? "farm").replace(/[^\w\- ]+/g, "")} - ${
-    (test.markedCompleteAt ?? test.updatedAt).slice(0, 10)
+    reportDateStamp(test.markedCompleteAt ?? test.updatedAt)
   }.pdf`;
   // A report previewed before sign-off has no stamped calibration yet — fall back to the
   // tester's current profile so the preview matches what sign-off will record.

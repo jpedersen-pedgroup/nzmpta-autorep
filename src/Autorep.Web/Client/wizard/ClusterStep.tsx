@@ -1,6 +1,6 @@
-// Individual Cluster Tests (optional, ISO 13) — a per-cluster row table: total air admission,
-// leakage, air-vent admission. "Faulty clusters only" or "Enter all". Per-cell limits from
-// ISO 6690 Table D.6: total ≤ 12 (vented liners ≤ 35 per the manual), leakage ≤ 2, air vent ≥ 4.
+// Individual Cluster Tests (optional, ISO 13) — a row per cluster that failed: total air admission,
+// leakage, air-vent admission. Per-cell limits from ISO 6690 Table D.6: total ≤ 12 (vented liners
+// ≤ 35 per the manual), leakage ≤ 2, air vent ≥ 4.
 import { RowTable, type RowColumn } from "../ui/RowTable";
 import { paramFor, ruleFor } from "../passfail/standardsOverrides";
 import type { MachineConfiguration } from "./types";
@@ -34,7 +34,8 @@ export function ClusterStep({ config, rows, onRows, readonly }: Props) {
       <div class="card__title">
         Individual cluster tests{" "}
         <small class="card__hint">
-          Optional · ISO 13. Total ≤ {config.linerVented ? "35 (vented)" : "12"}, leakage ≤ 2, air vent ≥ 4 L/min.
+          Optional · ISO 13 · add each cluster that failed. Total ≤ {config.linerVented ? "35 (vented)" : "12"}, leakage ≤ 2,
+          air vent ≥ 4 L/min.
         </small>
       </div>
       <RowTable
@@ -42,7 +43,9 @@ export function ClusterStep({ config, rows, onRows, readonly }: Props) {
         rows={rows}
         onChange={onRows}
         unitLabel="Cluster"
-        suggestedCount={config.clusterCount || undefined}
+        unitColumn="Cluster no."
+        unitMax={config.clusterCount || undefined}
+        unitMaxNoun="clusters"
         readonly={readonly}
       />
     </div>

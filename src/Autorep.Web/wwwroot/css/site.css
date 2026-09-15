@@ -844,7 +844,10 @@ main {
   .wizard__rail { height: 650px; }
   .wizard__content { height: 650px; }
   .wizard__panel { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-  .wizard__panel > .card { min-height: 100%; box-sizing: border-box; }
+  /* Only when the step IS one card. A step that renders two (pulsation readings + faulty
+     pulsators; farm + calibration) had its first card stretched over the whole lane, hiding the
+     second below the fold where testers never found it. */
+  .wizard__panel > .card:only-child { min-height: 100%; box-sizing: border-box; }
 }
 .wizard__rail {
   background: var(--surface);
@@ -934,6 +937,9 @@ main {
 .rowtable td { padding: 0.2rem 0.3rem; border-bottom: 1px solid var(--border); }
 .rowtable input { width: 100%; min-width: 4rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0.3rem 0.4rem; font-size: 0.85rem; }
 .rowtable input.is-fail { border-color: var(--danger); background: var(--danger-bg); }
+.rowtable input.is-warn { border-color: var(--warning); }
+/* Text uses the badge's darker amber — the border colour itself is too light to read as text. */
+.rowtable__warn { display: block; margin-top: 2px; font-size: 0.75rem; color: #92400e; white-space: nowrap; }
 .rowtable__unit { width: 3rem; min-width: 3rem; }
 .rowtable__del { border: none; background: none; color: var(--danger); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 0.3rem; }
 .puls-summary { display: flex; gap: var(--space-4); flex-wrap: wrap; margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
@@ -1181,6 +1187,10 @@ main {
 .fault { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
 .fault__desc { flex: 1; font-size: 0.9rem; display: flex; align-items: center; gap: var(--space-2); }
 .fault__rec { flex: 1; min-width: 0; padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--surface); }
+.fault-notes { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.fault-notes__label { display: block; font-weight: 600; font-size: 0.95rem; margin-bottom: var(--space-2); }
+.fault-notes__hint { display: block; font-weight: 400; font-size: 0.8125rem; color: var(--text-muted); }
+.fault-notes__input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.9rem; font-family: inherit; background: var(--surface); resize: vertical; }
 .pf-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .pf-dot--critical { background: var(--danger); }
 .pf-dot--major { background: var(--warning); }
