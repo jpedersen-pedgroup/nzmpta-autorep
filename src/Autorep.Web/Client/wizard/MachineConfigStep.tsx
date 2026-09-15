@@ -3,6 +3,7 @@
 // reference lists pulled from the legacy Lookup / AtmosPressure / Pulsator tables.
 import type { ComponentChildren } from "preact";
 import type { MachineConfiguration, PlantType, PumpLubrication } from "./types";
+import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "./configLabels";
 import { Tabs } from "../ui/Tabs";
 import { Combobox } from "../ui/Combobox";
 import { Select } from "../ui/Select";
@@ -106,12 +107,7 @@ export function MachineConfigStep({ config, onChange }: Props) {
             <Select
               value={config.plantType}
               onChange={(v) => onChange({ plantType: v as PlantType })}
-              options={[
-                { value: "HerringboneLowline", label: "Herringbone (lowline)" },
-                { value: "HerringboneHighline", label: "Herringbone (highline)" },
-                { value: "Rotary", label: "Rotary" },
-                { value: "Other", label: "Other" },
-              ]}
+              options={(Object.keys(PLANT_LABELS) as PlantType[]).map((value) => ({ value, label: PLANT_LABELS[value] }))}
             />
           </Field>
           <Field label="Plant size">
@@ -159,11 +155,10 @@ export function MachineConfigStep({ config, onChange }: Props) {
             <Select
               value={config.pumpLubrication}
               onChange={(v) => onChange({ pumpLubrication: v as PumpLubrication })}
-              options={[
-                { value: "OilLubricated", label: "Oil lubricated" },
-                { value: "LiquidRing", label: "Liquid ring" },
-                { value: "Other", label: "Other" },
-              ]}
+              options={(Object.keys(PUMP_LUBRICATION_LABELS) as PumpLubrication[]).map((value) => ({
+                value,
+                label: PUMP_LUBRICATION_LABELS[value],
+              }))}
             />
           </Field>
         </div>

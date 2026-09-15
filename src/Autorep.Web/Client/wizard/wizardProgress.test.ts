@@ -8,7 +8,7 @@ import {
   subsFor,
 } from "./wizardProgress";
 import { applyCheckAll, preStartSections, runningSectionsFor } from "./visualChecklist";
-import { additionalTestSections, testRecordSections } from "../passfail/standards";
+import { additionalTestSections, pulsatorSections, testRecordSections } from "../passfail/standards";
 import { buildFaultInputs } from "../faults/buildFaults";
 import { resolveWizard } from "./wizardStepResolver";
 import { defaultMachineConfiguration, type MachineConfiguration } from "./types";
@@ -44,17 +44,19 @@ function allRequiredDone(over: Partial<LocalTest> = {}): LocalTest {
   // Two passes: a few reading sections widen once other readings are present, so collect the keys
   // again against the filled map rather than assuming one pass sees them all.
   const keysFor = (readings: Record<string, number>) =>
-    [...testRecordSections(config, readings), ...additionalTestSections(config, readings)].flatMap((s) =>
-      s.readings.map((r) => r.key),
-    );
+    [
+      ...testRecordSections(config, readings),
+      ...additionalTestSections(config, readings),
+      ...pulsatorSections(config, readings),
+    ].flatMap((s) => s.readings.map((r) => r.key));
   let readings = Object.fromEntries(keysFor({}).map((k) => [k, 42]));
   readings = Object.fromEntries(keysFor(readings).map((k) => [k, 42]));
 
+  // No faulty-pulsator rows: a clean machine has none, and they don't gate the pulsation step.
   const base = makeTest(
     {
       visualFaults: applyCheckAll(checklists, {}),
       readings,
-      pulsatorRows: [{ id: "p1", unit: "1", values: { rate: "60" } }],
       ...over,
     },
     config,
@@ -158,6 +160,33 @@ describe("wizard progress", () => {
     expect(overallProgress(done).pct).toBeGreaterThan(0);
   });
 
+  it("completes the pulsation step from its ISO 14–15 readings, not from faulty-pulsator rows", () => {
+    // Testers list only the pulsators that failed, so a clean machine has no rows — rows can't be
+    // what finishes the step, or a good result would never read as done.
+    const config = { ...defaultMachineConfiguration(), clusterCount: 24 };
+    const keysFor = (readings: Record<string, number>) =>
+      pulsatorSections(config, readings).flatMap((s) => s.readings.map((r) => r.key));
+    let readings = Object.fromEntries(keysFor({}).map((k) => [k, 42]));
+    readings = Object.fromEntries(keysFor(readings).map((k) => [k, 42]));
+    expect(Object.keys(readings).length).toBeGreaterThan(0);
+
+    const rowsOnly = makeTest({ pulsatorRows: [{ id: "p1", unit: "27", values: { rate: "60" } }] });
+    expect(computeCompleted(rowsOnly).has("PulsatorTest")).toBe(false);
+    expect(stepProgress(rowsOnly, "PulsatorTest")).toBe(0);
+
+    const readingsDone = makeTest({ readings });
+    expect(computeCompleted(readingsDone).has("PulsatorTest")).toBe(true);
+    expect(stepProgress(readingsDone, "PulsatorTest")).toBe(1);
+  });
+
+  it("does not count an added-but-blank cluster row as a recorded result", () => {
+    const blank = makeTest({ clusterRows: [{ id: "c0", unit: "", values: {} }] });
+    expect(computeCompleted(blank).has("IndividualClusterTest")).toBe(false);
+    expect(stepProgress(blank, "IndividualClusterTest")).toBe(0);
+    const filled = makeTest({ clusterRows: [{ id: "c1", unit: "8", values: { totalAirAdmission: "40" } }] });
+    expect(computeCompleted(filled).has("IndividualClusterTest")).toBe(true);
+  });
+
   it("the fixture really does complete every required step", () => {
     // Guards the two tests below: if allRequiredDone() silently stopped completing something, they
     // would still pass while proving nothing about optional steps.
@@ -206,6 +235,10 @@ describe("wizard progress", () => {
     // sub-navigations inside one step.
     expect(subsFor(t, "MachineConfiguration").length).toBe(1);
     expect(subsFor(t, "Setup").length).toBe(1);
-    expect(subsFor(t, "PulsatorTest")[0].key).toBe("rows");
+    // The pulsation step leads with its ISO 14–15 readings; the faulty-pulsator table comes last.
+    const puls = subsFor(t, "PulsatorTest");
+    expect(puls.length).toBeGreaterThan(1);
+    expect(puls[0].key).not.toBe("rows");
+    expect(puls[puls.length - 1].key).toBe("rows");
   });
 });

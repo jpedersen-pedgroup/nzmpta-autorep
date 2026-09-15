@@ -81,7 +81,7 @@ export function resolveWizard(config: MachineConfiguration): WizardPlan {
     step("VisualFaultsRunning", "Visual Faults — Running", false, runningSections(config)),
     step("TestRecord", "Test Record (Vacuum, Airflow & Pump)", false, testRecordSections(config)),
     step("AdditionalTests", "Additional Tests", false, additionalSections(config)),
-    step("PulsatorTest", "Pulsator Test Results"),
+    step("PulsatorTest", "Pulsation & Ancillary"),
     step("IndividualClusterTest", "Individual Cluster Tests", true),
     step("FaultSummary", "Fault Summary & Recommendations"),
     step("ReviewSignOff", "Review & Sign-Off"),

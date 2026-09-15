@@ -156,7 +156,15 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
       );
 
     case "FaultSummary":
-      return <FaultSummaryStep test={test} onSetRecommendation={(k, v) => ctx.setRecommendation(k, v)} />;
+      return (
+        <FaultSummaryStep
+          test={test}
+          readonly={readonly}
+          onSetRecommendation={(k, v) => ctx.setRecommendation(k, v)}
+          // An emptied box round-trips as "no comment" (the sync payload sends null), not "".
+          onSetNotes={(v) => ctx.persistEdit({ notes: v === "" ? undefined : v })}
+        />
+      );
 
     case "ReviewSignOff":
       return (

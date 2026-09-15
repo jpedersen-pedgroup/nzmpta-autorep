@@ -138,8 +138,8 @@ export const RUNNING_SECTIONS: Record<string, ChecklistSection> = {
     key: "Claw",
     title: "Claw",
     items: [
-      { key: "claw.type", label: "Claw type", data: true },
-      { key: "claw.shellType", label: "Shell type", data: true },
+      // Claw, shell and liner TYPES are captured once, in Machine Configuration — asking again
+      // here just made the tester type them twice (tester feedback, 15 Sep 2026).
       { key: "claw.condition", label: "Claw condition", lookup: "CLAWClawCondition" },
       { key: "claw.shutOffValves", label: "Shut-off valves", lookup: "CLAWShutOffValves" },
       { key: "claw.inletDiameter", label: "Claw inlet diameter" },
@@ -151,8 +151,6 @@ export const RUNNING_SECTIONS: Record<string, ChecklistSection> = {
     title: "Liner",
     items: [
       { key: "liner.shellCompatibility", label: "Shell compatibility", lookup: "LINERShellCompatibility" },
-      { key: "liner.typeF", label: "Liner type (front)", data: true },
-      { key: "liner.typeB", label: "Liner type (back)", data: true },
       { key: "liner.tension", label: "Tension", lookup: "LINERLinerTension" },
       { key: "liner.alignment", label: "Alignment", lookup: "LINERLinerAlignment" },
       { key: "liner.lipCondition", label: "Lip condition", lookup: "LINERLinerLipCondition" },

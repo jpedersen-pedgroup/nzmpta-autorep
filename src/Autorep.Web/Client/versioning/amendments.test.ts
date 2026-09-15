@@ -74,14 +74,29 @@ describe("computeChanges", () => {
       }),
     );
     expect(changes).toContainEqual({
-      section: "Pulsator test results", label: "Pulsator 1 · Rate (ppm)", from: "60", to: "61",
+      section: "Pulsator results", label: "Pulsator 1 · Rate (ppm)", from: "60", to: "61",
     });
     expect(changes).toContainEqual({
-      section: "Pulsator test results", label: "Pulsator 2", from: "Rate (ppm) 58", to: "Removed",
+      section: "Pulsator results", label: "Pulsator 2", from: "Rate (ppm) 58", to: "Removed",
     });
     expect(changes).toContainEqual({
-      section: "Pulsator test results", label: "Pulsator 3", from: "—", to: "Added (Rate (ppm) 59)",
+      section: "Pulsator results", label: "Pulsator 3", from: "—", to: "Added (Rate (ppm) 59)",
     });
+  });
+
+  it("does not report a re-typed cell that is numerically the same, nor a blank added row", () => {
+    // Rows saved by the old table hold the raw text ("60.0"); the new one stores the parsed
+    // number ("60"). Re-typing the same reading must not land in the signed-off history.
+    const changes = computeChanges(
+      editedCopy({ pulsatorRows: [{ id: "p1", unit: "1", values: { rate: "60.0", ratioFront: "62" } }] }),
+      editedCopy({
+        pulsatorRows: [
+          { id: "p1", unit: "1", values: { rate: "60", ratioFront: "62" } },
+          { id: "blank", unit: "", values: {} }, // "＋ Add" tapped and abandoned
+        ],
+      }),
+    );
+    expect(changes).toEqual([]);
   });
 
   it("records a note edit even when the observation is unchanged", () => {
@@ -129,7 +144,19 @@ describe("computeChanges", () => {
     expect(wick!.from).toContain("Fault — Minor: Oil Wicks Dirty");
     expect(wick!.to).toBe("OK");
     expect(changes).toContainEqual({
-      section: "Other", label: "Tester comment", from: "Original comment", to: "Amended comment",
+      section: "Other", label: "General comments", from: "Original comment", to: "Amended comment",
+    });
+  });
+
+  it("names a retired checklist item instead of printing its key", () => {
+    // Claw/shell/liner type fields were dropped from the checklist (they duplicate Machine
+    // Configuration), but tests recorded before that still carry them.
+    const changes = computeChanges(
+      editedCopy({ dataFields: { "claw.type": "Milfos" } }),
+      editedCopy({ dataFields: { "claw.type": "DeLaval" } }),
+    );
+    expect(changes).toContainEqual({
+      section: "Recorded measurements", label: "Claw · Claw type", from: "Milfos", to: "DeLaval",
     });
   });
 

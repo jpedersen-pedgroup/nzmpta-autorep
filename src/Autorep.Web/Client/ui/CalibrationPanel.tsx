@@ -66,7 +66,17 @@ export function CalibrationPanel({ onChanged }: Props) {
     void getCachedCalibration().then(setDates);
   }, []);
 
-  if (!dates) return null;
+  // Render the card shell while the dates load. Returning nothing made the farm card above the
+  // panel's only child for a frame, and the Step-rail layout stretches an only child to fill the
+  // lane — so the farm card jumped in height once this one mounted.
+  if (!dates) {
+    return (
+      <div class="card">
+        <div class="card__title">Your equipment calibration</div>
+        <p class="td-muted">Loading…</p>
+      </div>
+    );
+  }
 
   const set = async (key: keyof CalibrationDates, value: string | null) => {
     const next = { ...dates, [key]: value };

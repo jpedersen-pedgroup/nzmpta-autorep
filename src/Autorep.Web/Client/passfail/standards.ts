@@ -284,7 +284,7 @@ export function testRecordSections(
     pumpReadings.push(
       { key: `tr.pumpCapacity${i}`, label: `Capacity @ 50 kPa (8a)${p}`, unit: "L/min", hint: pumpHint, rule: { kind: "none" } },
       { key: `tr.pumpMinSpeed${i}`, label: `Minimum speed (8b)${p}`, unit: "rpm", rule: { kind: "none" } },
-      { key: `tr.pumpMaxSpeed${i}`, label: `Speed @ 50 kPa (8c)${p}`, unit: "rpm", rule: { kind: "none" } },
+      { key: `tr.pumpMaxSpeed${i}`, label: `Maximum speed (8c)${p}`, unit: "rpm", hint: "@ 50 kPa", rule: { kind: "none" } },
     );
   }
   sections.push({ key: "VacuumPumpTest", title: "8 · Vacuum pump(s)", readings: pumpReadings });

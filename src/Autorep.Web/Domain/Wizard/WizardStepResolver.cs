@@ -22,7 +22,7 @@ public static class WizardStepResolver
             Step(WizardStep.VisualFaultsRunning, "Visual Faults — Running", sections: RunningSections(config)),
             Step(WizardStep.TestRecord, "Test Record (Vacuum, Airflow & Pump)", sections: TestRecordSections(config)),
             Step(WizardStep.AdditionalTests, "Additional Tests", sections: AdditionalSections(config)),
-            Step(WizardStep.PulsatorTest, "Pulsator Test Results"),
+            Step(WizardStep.PulsatorTest, "Pulsation & Ancillary"),
             Step(WizardStep.IndividualClusterTest, "Individual Cluster Tests", optional: true),
             Step(WizardStep.FaultSummary, "Fault Summary & Recommendations"),
             Step(WizardStep.ReviewSignOff, "Review & Sign-Off"),
