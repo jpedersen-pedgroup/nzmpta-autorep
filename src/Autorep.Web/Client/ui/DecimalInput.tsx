@@ -18,12 +18,14 @@ export function DecimalInput({ value, onValue, disabled, class: className, title
   // diff never rewrites the field under the caret.
   const [draft, setDraft] = useState<string | null>(null);
 
-  // No inputmode="decimal": that keypad has no minus key on iPad, and until the derived readings
-  // (1c, 5b, …) are calculated for the tester, negative values are still typed into these fields.
+  // inputmode="decimal" gives tablets a keypad with a decimal point. It has no minus key on iPad,
+  // which is fine now that every signed reading (1c, 5b, the gauge errors …) is calculated rather
+  // than typed — see passfail/derived.ts.
   return (
     <input
       type="number"
       step="any"
+      inputMode="decimal"
       class={className}
       title={title}
       value={draft ?? stored}

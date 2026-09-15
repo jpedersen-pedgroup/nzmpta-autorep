@@ -10,7 +10,7 @@
 // ignoreSearch, so renaming this cache is the ONLY thing that retires a previous build's assets.
 // The stamper reads APP_SHELL out of this file, and every entry must be a real file under wwwroot
 // so it can be hashed; a served route would build green and then never cache-bust.
-const CACHE_VERSION = 'autorep-92543ff7bfb1';
+const CACHE_VERSION = 'autorep-4846d539ff15';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 const APP_SHELL = [
@@ -71,9 +71,24 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_VERSION).then(async (cache) => {
       // Per URL rather than cache.addAll, which is atomic: one renamed or half-deployed asset
       // would silently leave the ENTIRE shell uncached, and the old code swallowed that.
-      const results = await Promise.allSettled(APP_SHELL.map((asset) => cache.add(asset)));
+      //
+      // cache: 'reload' bypasses the browser's HTTP cache. Assets like site.css and
+      // pwa-register.js keep the same URL for ever and are served without Cache-Control, so the
+      // browser treats a days-old copy as fresh for hours — and a plain add() would seed this
+      // brand-new cache with the OLD bytes, defeating the stamp that named it.
+      const results = await Promise.allSettled(
+        APP_SHELL.map((asset) => cache.add(new Request(asset, { cache: 'reload' })))
+      );
       const failed = APP_SHELL.filter((_, i) => results[i].status === 'rejected');
-      if (failed.length) console.warn('[sw] app shell entries failed to precache:', failed);
+      if (failed.length) {
+        // A shell with holes must not go live: activating would delete the previous, complete
+        // cache and then invite a reload onto nothing (a tester on marginal farm Wi-Fi). Failing
+        // the install leaves the old worker in charge; the browser tries again on the next
+        // navigation. The stamper guarantees every entry is a real file, so this is a network
+        // failure, not a build one.
+        console.warn('[sw] app shell entries failed to precache — keeping the previous build:', failed);
+        throw new Error(`[sw] precache incomplete: ${failed.join(', ')}`);
+      }
     })
   );
   self.skipWaiting();
@@ -81,13 +96,21 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((k) => k !== CACHE_VERSION && k !== LOGO_CACHE && k !== FA_CACHE).map((k) => caches.delete(k))
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k !== CACHE_VERSION && k !== LOGO_CACHE && k !== FA_CACHE).map((k) => caches.delete(k))
+        )
       )
-    )
+      .then(() => self.clients.claim())
+      // Tell every open page a new build is in charge. controllerchange covers a page that was
+      // listening; this covers one whose script hadn't run yet — the browser queues the message.
+      .then(() => self.clients.matchAll({ includeUncontrolled: true }))
+      .then((clients) => {
+        for (const client of clients) client.postMessage({ type: 'sw-activated', version: CACHE_VERSION });
+      })
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {

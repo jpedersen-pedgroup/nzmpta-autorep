@@ -179,6 +179,18 @@ describe("wizard progress", () => {
     expect(stepProgress(readingsDone, "PulsatorTest")).toBe(1);
   });
 
+  it("gates readings steps on the readings the tester types, never on calculated rows", () => {
+    // A flushing plant with a milkline the cleaning reserve can't be worked out from: 2h stays
+    // blank, and must not hold Test Record open for ever.
+    const config = { ...defaultMachineConfiguration(), clusterCount: 24, flushingPulsationSystem: true, milklineSize: null };
+    const typed = testRecordSections(config).flatMap((s) => s.readings.filter((r) => !r.derived).map((r) => r.key));
+    const derived = testRecordSections(config).flatMap((s) => s.readings.filter((r) => r.derived).map((r) => r.key));
+    expect(derived).toContain("tr.requiredCleaningReserve");
+    const t = makeTest({ readings: Object.fromEntries(typed.map((k) => [k, 42])) }, config);
+    expect(computeCompleted(t).has("TestRecord")).toBe(true);
+    expect(stepProgress(t, "TestRecord")).toBe(1);
+  });
+
   it("does not count an added-but-blank cluster row as a recorded result", () => {
     const blank = makeTest({ clusterRows: [{ id: "c0", unit: "", values: {} }] });
     expect(computeCompleted(blank).has("IndividualClusterTest")).toBe(false);

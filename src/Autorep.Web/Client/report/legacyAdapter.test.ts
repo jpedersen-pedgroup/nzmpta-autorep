@@ -34,7 +34,7 @@ describe("adaptLegacyReadings", () => {
       VGAGaugeError1E: "0.3", VGAGaugeError1O: 2, // gauge error, pass
     },
     record3: {
-      CAAClusterAirAdmissionE: "14", CAAClusterAirAdmissionO: 3, // over band, fail
+      CAAClusterAirAdmissionE: "14", CAAClusterAirAdmissionO: 3, // the machine total, as legacy stored it; recorded fail
       MMComment: "  Liners need replacing soon.  ",
     },
   };

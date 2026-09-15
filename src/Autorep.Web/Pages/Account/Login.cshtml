@@ -42,6 +42,8 @@
             <a asp-page="/Account/ForgotPassword" style="color:var(--text-muted)">Forgot your password?</a>
         </p>
     </div>
-    <script src="~/js/pwa-register.js"></script>
+    @* Versioned: this page sits outside the service worker's fetch handling, so without it the
+       browser's heuristic HTTP cache could keep serving an old copy for hours after a deploy. *@
+    <script src="~/js/pwa-register.js" asp-append-version="true"></script>
 </body>
 </html>
