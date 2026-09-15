@@ -18,6 +18,7 @@ import {
 import { allTests, getTest, putTest, type LocalTest } from "../db/testStore";
 import { fetchFarm } from "../farms";
 import { buildAmendmentRecord } from "../versioning/amendments";
+import { deriveReadings } from "../passfail/derived";
 import { useServerOnline } from "../connectivity";
 import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
 import { ReportGeneratorUnavailableError } from "../report/generatorChunks";
@@ -232,6 +233,13 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       if (!t.readonly && (await allTests()).some((x) => x.supersedesId === t!.id)) {
         t = { ...t, readonly: true };
       }
+      // An editable test's calculated readings are brought up to date on open — in memory only,
+      // so opening never dirties the record. Otherwise a test saved by an older build could show a
+      // hand-typed value under the "calculated" tag right up to sign-off. Frozen and migrated
+      // tests keep their as-recorded values.
+      if (!t.readonly && t.markedCompleteAt == null) {
+        t = { ...t, readings: deriveReadings(t.config, t.readings) };
+      }
       if (active) setTest(t);
     })();
     return () => {
@@ -289,8 +297,13 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   // an edit that kept syncState "uploaded" would silently diverge from the server copy.
   const persistEdit = (patch: Partial<LocalTest>) =>
     readonly ? Promise.resolve() : persist({ syncState: "local-only", ...patch });
-  const setConfig = (patch: Partial<MachineConfiguration>) =>
-    persistEdit({ config: { ...test.config, ...patch } });
+  // The calculated readings (1c, 2d, 12b, 15b … see passfail/derived.ts) are re-derived from their
+  // inputs on every edit of a reading OR the configuration (2g/2h and the 12b band depend on it),
+  // so what is stored, judged, printed and diffed is always the formula's value — never a typed one.
+  const setConfig = (patch: Partial<MachineConfiguration>) => {
+    const config = { ...test.config, ...patch };
+    return persistEdit({ config, readings: deriveReadings(config, test.readings) });
+  };
   const go = (step: WizardStep) => persist({ currentStep: step });
 
   const setVisualFault = (key: string, entry: VisualFaultEntry | null) => {
@@ -303,7 +316,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     const readings = { ...test.readings };
     if (value === null || Number.isNaN(value)) delete readings[key];
     else readings[key] = value;
-    return persistEdit({ readings });
+    return persistEdit({ readings: deriveReadings(test.config, readings) });
   };
   const setRecommendation = (key: string, value: string) => {
     const recommendations = { ...test.recommendations };
@@ -409,6 +422,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
 
     await persist({
       markedCompleteAt: now,
+      // Belt and braces: what gets frozen is the formulas' values, whatever path the test took here.
+      readings: deriveReadings(test.config, test.readings),
       amendments,
       ...calStamp,
       syncState: "local-only",

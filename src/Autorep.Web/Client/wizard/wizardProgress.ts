@@ -41,8 +41,11 @@ function gatingItems(sections: ChecklistSection[]) {
   return sections.flatMap((s) => s.items.filter((it) => !it.data));
 }
 
+/** The readings the tester has to ENTER. Calculated rows (passfail/derived.ts) fill themselves once
+ * their inputs exist, so they never gate a step — a calculated row that can't be worked out on this
+ * machine (a cleaning reserve with no milkline size) must not hold Test Record at 95% for ever. */
 function readingKeys(sections: ReadingSection[]): string[] {
-  return sections.flatMap((s) => s.readings.map((r) => r.key));
+  return sections.flatMap((s) => s.readings.filter((r) => !r.derived).map((r) => r.key));
 }
 
 type ReadingsStep = "TestRecord" | "AdditionalTests" | "PulsatorTest";

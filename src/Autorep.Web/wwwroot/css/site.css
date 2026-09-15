@@ -1078,6 +1078,9 @@ main {
 .reading__hint { display: block; font-size: 0.75rem; color: var(--text-muted); }
 .reading input { width: 110px; flex: none; padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.9rem; background: var(--surface); }
 .reading__unit { width: 46px; font-size: 0.8125rem; color: var(--text-muted); }
+/* A calculated reading: same footprint as the input, visibly not a box to type in. */
+.reading__calc { width: 110px; flex: none; padding: 0.4rem 0.6rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); font-size: 0.9rem; background: var(--surface-alt); color: var(--text); text-align: right; }
+.reading__tag { display: inline-block; margin-left: var(--space-2); padding: 0 0.4rem; border-radius: var(--radius-sm); background: var(--surface-alt); color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; vertical-align: middle; }
 .pf { min-width: 52px; text-align: center; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; padding: 3px 8px; border-radius: var(--radius-sm); }
 .pf--pass { background: var(--success-bg); color: #166534; }
 .pf--fail { background: var(--danger-bg); color: #991b1b; }

@@ -22,15 +22,27 @@ function ReadingRow({
   const verdict = storedVerdict ?? evaluate(value ?? null, reading.rule);
   const label = verdict === "pass" ? "PASS" : verdict === "fail" ? "FAIL" : "—";
 
+  // Hints (and the formula of a calculated reading) are recomputed against today's standards and
+  // config — hidden in read-only (historical) mode, where the badge shows the as-recorded verdict.
+  // "= 1a − 1b" for an expression; a table lookup ("manual p42 table, by cluster count") reads as is.
+  const formula = reading.derived ? (/[−+×÷]/.test(reading.derived) ? `= ${reading.derived}` : reading.derived) : null;
+  const hint = readonly ? null : [formula, reading.hint].filter(Boolean).join(" · ") || null;
+
   return (
     <div class="reading">
       <div class="reading__label">
         {reading.label}
-        {/* Hints are recomputed against today's standards/config — hide them in read-only
-            (historical) mode where the badge already shows the as-recorded verdict. */}
-        {!readonly && reading.hint && <span class="reading__hint">{reading.hint}</span>}
+        {reading.derived && <span class="reading__tag">calculated</span>}
+        {hint && <span class="reading__hint">{hint}</span>}
       </div>
-      <DecimalInput value={value} disabled={readonly} onValue={(v) => onSet(reading.key, v)} />
+      {reading.derived ? (
+        // Worked out from the readings above it (passfail/derived.ts) — nothing to type.
+        <output class="reading__calc" aria-label={`${reading.label}, calculated`}>
+          {value == null ? "—" : String(value)}
+        </output>
+      ) : (
+        <DecimalInput value={value} disabled={readonly} onValue={(v) => onSet(reading.key, v)} />
+      )}
       <span class="reading__unit">{reading.unit}</span>
       <span class={`pf pf--${verdict}`}>{label}</span>
     </div>

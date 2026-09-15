@@ -142,9 +142,14 @@ Legacy also shows 2g "Required Standard Effective Reserve" and 2h "Required Clea
 - ❓ Jono / NZMPTA: what is the 14d limit? Possibly a per-model pulsator consumption.
 - Until that's answered, calculate and show 14d without a verdict.
 
-**Tests already on devices.** In-progress tests hold hand-typed values under keys that are about to become calculated. Once all inputs are present, the calculated value wins and the change lands in amendment history; until then, keep what was typed.
-- Completed tests are frozen (`WizardApp.tsx:287`).
-- A reopened Test Version recalculates on its first edit and records that in its amendment history (`amendments.ts:200-209`).
+**Decisions taken in the implementation (15 Sep 2026, branch `claude/tester-feedback-phase1`).**
+- **A calculated key is owned by its formula** (`Client/passfail/derived.ts`): written whenever every input is present, removed when one is missing. This replaces the "keep what was typed until the inputs exist" idea above — a flat `Record<string, number>` can't tell a typed value from a calculated one, and a stale figure is worse than a blank. Consequence for the few in-progress tests on devices: a hand-typed 1c/3f/… is replaced (or blanked) on the next edit and on open; tell the testers.
+- Derivation runs on every reading **and** configuration edit (2g/2h and the 12b band depend on the config), in memory when an editable test is opened (so a test saved by an older build never shows a typed value under the "calculated" tag), and once more at sign-off. Frozen and migrated tests are never touched.
+- **2g/2h are stored readings** (`tr.requiredEffectiveReserve`, `tr.requiredCleaningReserve`), so the report prints the standard the tester was judged against. Accepted cost: a reopened pre-Phase-1 test logs "Required effective reserve: — → 1050" once, and a cluster-count edit logs the 2g change beside it.
+- Calculated rows never gate step completion — only typed readings do (`wizardProgress.ts` `readingKeys`). Otherwise a flushing plant with a non-numeric milkline could never complete Test Record (2h blank).
+- **12b** is the machine total judged at the per-cluster admin standard × cluster count; vented liners use ≤ 35 × count and the hint says that is unconfirmed. **14d** is calculated with no verdict, via `ruleFor` so NZMPTA can enable a limit from the admin page. **15b** carries the ≤ 2 kPa drop rule (where legacy recorded it); 15a is capture-only. **10b**'s limit comes from 9b only — the 50 kPa 8a figures no longer stand in.
+- Completed tests stay frozen (`WizardApp.tsx:287`); a reopened Test Version recalculates on open and records the differences in its amendment history.
+- **Still unverified:** the six formulas read off the legacy screen once (1c, 3f, 3g, 3h, 4c, 4e) and 5b's sign (a negative 5a − 1a passes `≤ 1` silently — should it be `± 1`?). Both need the migrated-data check below; the legacy database isn't on the dev machine. Also assumed: legacy `TPReadingE` is the 15b drop (its verdict column is mapped to 15b, and the legacy screen shows the tick on 15b).
 
 **Check the formulas against real data before shipping.** The migration keeps every legacy column (`tools/Migration/Pipeline/MigrationRunner.cs:43-55,575-581`). Run each formula over the migrated legacy tests (e.g. `VLVacuumRegulationE = VLVacuumReceiverE − VLNominalVacuumE`) and review the mismatches. This is also how the † rows get confirmed.
 
@@ -287,6 +292,7 @@ Also check (unconfirmed): straight after "Mark as complete & sync", the sign-off
 | 14d limit: legacy passes 790 L/min for 19 pulsators; the app allows 30 per 10 units | Jono / NZMPTA | 14d verdict |
 | 12b with vented liners: ≤ 35 × clusters? Any minimum? | NZMPTA | 12b vented rule |
 | Should the ISO 16 final checks (16a vs 1a, 16b vs 2a) be captured? Legacy has them; the app doesn't | Jono / NZMPTA | — |
+| Cleaning reserve (2h): on Jono's test legacy showed **2064** while the app's formula gives 2118 at 1a = 41.5 (2136 at 41). Same milkline, same plant — the two disagree on the vacuum term (legacy's figure matches the app's formula at v = 43). Which is right per manual p43? | NZMPTA / Josh | 2h verdict |
 | Shell condition / port condition: under Claw or under Shell? | Maria | 3.5 |
 | Oil vs water recommendation wording | Maria | 4.1 |
 | Step structure and renumbering | Josh | 2.1 |

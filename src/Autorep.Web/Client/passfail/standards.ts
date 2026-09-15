@@ -66,6 +66,33 @@ export interface ReadingDef {
   unit: string;
   rule: PassFailRule;
   hint?: string;
+  /** Calculated from other readings rather than typed — the formula the tester sees, in the
+   * flowchart's terms ("1a − 1b"). The calculation itself lives in derived.ts; a test pins the two
+   * lists to each other. */
+  derived?: string;
+}
+
+/** A per-unit standard applied to a machine total: every threshold × the unit count. */
+function perUnitTotal(rule: PassFailRule, units: number): PassFailRule {
+  switch (rule.kind) {
+    case "atMost":
+      return rule.limit == null ? rule : { kind: "atMost", limit: rule.limit * units };
+    case "atLeast":
+      return rule.min == null ? rule : { kind: "atLeast", min: rule.min * units };
+    case "between":
+      return rule.min == null || rule.max == null ? rule : { kind: "between", min: rule.min * units, max: rule.max * units };
+    default:
+      return rule;
+  }
+}
+
+function describeLimit(rule: PassFailRule): string {
+  switch (rule.kind) {
+    case "atMost": return `≤ ${rule.limit}`;
+    case "atLeast": return `≥ ${rule.min}`;
+    case "between": return `${rule.min}–${rule.max}`;
+    default: return "";
+  }
 }
 export interface ReadingSection {
   key: string;
@@ -111,6 +138,7 @@ export function testRecordSections(
         key: "tr.regulationDeviation",
         label: "Vacuum regulation deviation (1c)",
         unit: "kPa",
+        derived: "1a − 1b",
         // Manual p40 / ISO D.2.7: ±2 kPa (signed difference from nominal).
         hint: `± ${ruleFor("tr.regulationDeviation", { kind: "tolerance", target: 0, tolerance: 2 }).tolerance} kPa`,
         rule: ruleFor("tr.regulationDeviation", { kind: "tolerance", target: 0, tolerance: 2 }),
@@ -180,6 +208,7 @@ export function testRecordSections(
         key: "tr.regulationLoss",
         label: "Regulation loss (2d)",
         unit: "L/min",
+        derived: "2c − 2a",
         // Manual p40 / ISO C.4.6: ≤ 10% of manual reserve or 35 L/min, whichever is greater.
         hint:
           manualReserve != null
@@ -192,6 +221,7 @@ export function testRecordSections(
         key: "tr.regulatorLeakage",
         label: "Regulator leakage (2f)",
         unit: "L/min",
+        derived: "2e − 2b",
         // Manual p39/p41 / ISO C.4.8: ≤ 5% of manual reserve or 35 L/min, whichever is greater.
         hint:
           manualReserve != null
@@ -199,6 +229,28 @@ export function testRecordSections(
             : `≤ ${leakPct}% of manual reserve or ${leakFloor}, whichever is greater`,
         rule: manualReserve != null ? { kind: "atMost", limit: leakLimit(manualReserve) } : { kind: "none" },
       },
+      // 2g/2h — the standards 2a is judged against, shown as figures the way legacy did so the
+      // tester can quote them to the farmer. Calculated (derived.ts), no verdict of their own.
+      {
+        key: "tr.requiredEffectiveReserve",
+        label: "Required effective reserve (2g)",
+        unit: "L/min",
+        derived: "manual p42 table, by cluster count",
+        hint: erTable != null ? `for ${config.clusterCount} clusters` : "set the cluster count",
+        rule: { kind: "none" },
+      },
+      ...(config.flushingPulsationSystem
+        ? [
+            {
+              key: "tr.requiredCleaningReserve",
+              label: "Required cleaning reserve (2h)",
+              unit: "L/min",
+              derived: "milkline size & 1a (manual p43)",
+              hint: cr == null ? "enter working vacuum (1a) + milkline size" : "wash-injection system fitted",
+              rule: { kind: "none" } as PassFailRule,
+            },
+          ]
+        : []),
     ],
   });
 
@@ -212,9 +264,9 @@ export function testRecordSections(
       { key: "tr.avgVacuumAirInlet", label: "Avg vacuum at air inlet (3c)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.maxVacuumIncrease", label: "Max vacuum increase (3d)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.avgVacuumStopAirInlet", label: "Avg vacuum, air inlet stopped (3e)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.fallOff", label: "Fall-off (3f)", unit: "kPa", rule: ruleFor("tr.fallOff", { kind: "atMost", limit: 2 }) },
-      { key: "tr.regulationUndershoot", label: "Regulation undershoot (3g)", unit: "kPa", rule: ruleFor("tr.regulationUndershoot", { kind: "atMost", limit: 2 }) },
-      { key: "tr.regulationOvershoot", label: "Regulation overshoot (3h)", unit: "kPa", rule: ruleFor("tr.regulationOvershoot", { kind: "atMost", limit: 2 }) },
+      { key: "tr.fallOff", label: "Fall-off (3f)", unit: "kPa", derived: "3a − 3c", rule: ruleFor("tr.fallOff", { kind: "atMost", limit: 2 }) },
+      { key: "tr.regulationUndershoot", label: "Regulation undershoot (3g)", unit: "kPa", derived: "3c − 3b", rule: ruleFor("tr.regulationUndershoot", { kind: "atMost", limit: 2 }) },
+      { key: "tr.regulationOvershoot", label: "Regulation overshoot (3h)", unit: "kPa", derived: "3d − 3e", rule: ruleFor("tr.regulationOvershoot", { kind: "atMost", limit: 2 }) },
     ],
   });
 
@@ -226,10 +278,10 @@ export function testRecordSections(
       { key: "tr.airlineVacReceiver", label: "Vacuum @ receiver (4a)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.airlineVacRegulator", label: "Vacuum @ regulator (4b)", unit: "kPa", rule: { kind: "none" } },
       // Manual p40 / ISO D.2.13: receiver→regulator drop ≤ 1 kPa.
-      { key: "tr.airlineDropRR", label: "Drop receiver → regulator (4c)", unit: "kPa", rule: ruleFor("tr.airlineDropRR", { kind: "atMost", limit: 1 }) },
+      { key: "tr.airlineDropRR", label: "Drop receiver → regulator (4c)", unit: "kPa", derived: "4b − 4a", rule: ruleFor("tr.airlineDropRR", { kind: "atMost", limit: 1 }) },
       { key: "tr.airlineVacPump", label: "Vacuum @ pump (4d)", unit: "kPa", rule: { kind: "none" } },
       // Manual p40/p44 / ISO D.2.15: receiver→pump drop ≤ 3 kPa.
-      { key: "tr.airlinePumpDrop", label: "Pump vacuum drop (4e)", unit: "kPa", rule: ruleFor("tr.airlinePumpDrop", { kind: "atMost", limit: 3 }) },
+      { key: "tr.airlinePumpDrop", label: "Pump vacuum drop (4e)", unit: "kPa", derived: "4d − 4a", rule: ruleFor("tr.airlinePumpDrop", { kind: "atMost", limit: 3 }) },
     ],
   });
 
@@ -239,7 +291,7 @@ export function testRecordSections(
     title: "5 · Regulator sensitivity",
     readings: [
       { key: "tr.regSensWorkingVac", label: "Working vacuum in milk system (5a)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.regulatorSensitivity", label: "Regulator sensitivity (5b)", unit: "kPa", rule: ruleFor("tr.regulatorSensitivity", { kind: "atMost", limit: 1 }) },
+      { key: "tr.regulatorSensitivity", label: "Regulator sensitivity (5b)", unit: "kPa", derived: "5a − 1a", rule: ruleFor("tr.regulatorSensitivity", { kind: "atMost", limit: 1 }) },
     ],
   });
 
@@ -262,13 +314,13 @@ export function testRecordSections(
     readings: [
       { key: "tr.farmGauge1", label: "Farm gauge — point 1 (7a)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.testGauge1", label: "Test gauge — point 1 (7b)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.gaugeError1", label: "Gauge error — point 1 (7c)", unit: "kPa", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
+      { key: "tr.gaugeError1", label: "Gauge error — point 1 (7c)", unit: "kPa", derived: "7a − 7b", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
       { key: "tr.farmGauge2", label: "Farm gauge — point 2 (7d)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.testGauge2", label: "Test gauge — point 2 (7e)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.gaugeError2", label: "Gauge error — point 2 (7f)", unit: "kPa", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
+      { key: "tr.gaugeError2", label: "Gauge error — point 2 (7f)", unit: "kPa", derived: "7d − 7e", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
       { key: "tr.farmGauge3", label: "Farm gauge — point 3 (7g)", unit: "kPa", rule: { kind: "none" } },
       { key: "tr.testGauge3", label: "Test gauge — point 3 (7h)", unit: "kPa", rule: { kind: "none" } },
-      { key: "tr.gaugeError3", label: "Gauge error — point 3 (7i)", unit: "kPa", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
+      { key: "tr.gaugeError3", label: "Gauge error — point 3 (7i)", unit: "kPa", derived: "7g − 7h", hint: `± ${gaugeTol.tolerance} kPa`, rule: gaugeTol },
     ],
   });
 
@@ -308,19 +360,27 @@ export function additionalTestSections(
   config: MachineConfiguration,
   readings: Record<string, number> = {},
 ): ReadingSection[] {
-  // Vacuum system leakage ≤ 5% of pump capacity (manual p41 / ISO C.5.4) — pump capacity comes
-  // from the Test Record (9b total, falling back to the sum of the per-pump 8a capacities).
-  let pumpCapacity: number | null = readings["tr.pumpCapacityTotal"] ?? null;
-  if (pumpCapacity == null) {
-    let sum = 0;
-    for (let i = 1; i <= Math.max(1, config.numberOfVacuumPumps); i++) {
-      sum += readings[`tr.pumpCapacity${i}`] ?? 0;
-    }
-    pumpCapacity = sum > 0 ? sum : null;
-  }
-  // Cluster air admission band (manual p42 / ISO D.6) + the vented-liner maximum (pp41–42).
+  // Vacuum system leakage ≤ 5% of pump capacity (manual p41 / ISO C.5.4). Both the 10b value
+  // (9b − 10a) and its limit come from 9b, the capacity at working vacuum — the per-pump 8a figures
+  // are taken at 50 kPa, a different test point, so they are not a stand-in.
+  const pumpCapacity: number | null = readings["tr.pumpCapacityTotal"] ?? null;
+  // Cluster air admission is the machine TOTAL (10c − 12a, as legacy calculated it), judged at the
+  // per-cluster band (manual p42 / ISO D.6: 4–12 L/min) × the cluster count — 37 clusters → 148–444.
+  // Vented liners: the manual's ≤ 35 per cluster (pp41–42) × count; whether the manual means that
+  // as a total is unconfirmed with NZMPTA (plan, Phase 1). The admin standard stays per cluster.
+  const clusters = config.clusterCount;
   const ventedMax = paramFor("param.clusterAir.ventedMax", 35);
-  const caaRule = ruleFor("add.clusterAirAdmission", { kind: "between", min: 4, max: 12 });
+  const caaPerCluster: PassFailRule = config.linerVented
+    ? { kind: "atMost", limit: ventedMax }
+    : ruleFor("add.clusterAirAdmission", { kind: "between", min: 4, max: 12 });
+  const caaRule: PassFailRule = clusters > 0 ? perUnitTotal(caaPerCluster, clusters) : { kind: "none" };
+  const caaTotal = readings["add.clusterAirAdmission"];
+  const caaHint =
+    clusters > 0
+      ? `${describeLimit(caaPerCluster)} per cluster × ${clusters} = ${describeLimit(caaRule)}` +
+        (caaTotal != null ? ` · ${(caaTotal / clusters).toFixed(1)} per cluster` : "") +
+        (config.linerVented ? " · vented liners — limit unconfirmed with NZMPTA" : "")
+      : "set the cluster count for the standard";
   const vacLeakPct = paramFor("param.vacLeak.pctOfPumpCapacity", 5);
   const vacLeakLimit = pumpCapacity != null ? Math.round((vacLeakPct / 100) * pumpCapacity) : null;
   // Milk system leakage ≤ 10 + 2 per cluster (manual p41 / ISO C.5.6).
@@ -338,7 +398,8 @@ export function additionalTestSections(
           key: "add.vacuumSystemLeakage",
           label: "Vacuum system leakage (10b)",
           unit: "L/min",
-          hint: vacLeakLimit != null ? `≤ ${vacLeakLimit} (${vacLeakPct}% of pump capacity)` : `≤ ${vacLeakPct}% of pump capacity — enter 8a/9b first`,
+          derived: "9b − 10a",
+          hint: vacLeakLimit != null ? `≤ ${vacLeakLimit} (${vacLeakPct}% of pump capacity)` : `≤ ${vacLeakPct}% of pump capacity — enter 9b first`,
           rule: vacLeakLimit != null ? { kind: "atMost", limit: vacLeakLimit } : { kind: "none" },
         },
         { key: "add.airflowMilkSystem", label: "Airflow — milk system (10c)", unit: "L/min", rule: { kind: "none" } },
@@ -346,6 +407,7 @@ export function additionalTestSections(
           key: "add.milkSystemLeakage",
           label: "Milk system leakage (10d)",
           unit: "L/min",
+          derived: "10a − 10c",
           hint: milkLeakLimit != null ? `≤ ${milkLeakLimit} (${milkLeakBase} + ${milkLeakPer} per cluster)` : `≤ ${milkLeakBase} + ${milkLeakPer} per cluster`,
           rule: milkLeakLimit != null ? { kind: "atMost", limit: milkLeakLimit } : { kind: "none" },
         },
@@ -362,6 +424,7 @@ export function additionalTestSections(
         key: "add.acrConsumption",
         label: "ACR consumption (11b)",
         unit: "L/min",
+        derived: "10c − 11a",
         hint: acrLimit != null ? `≤ ${acrLimit} (7.5/unit, min 30${config.hasBailGates ? ", ×2 bail gates" : ""})` : undefined,
         rule: acrLimit != null ? { kind: "atMost", limit: acrLimit } : { kind: "none" },
       },
@@ -374,10 +437,11 @@ export function additionalTestSections(
       { key: "add.clusterAirAdmissionConnect", label: "Connected airflow (12a)", unit: "L/min", rule: { kind: "none" } },
       {
         key: "add.clusterAirAdmission",
-        label: "Cluster air admission per cluster (12b)",
+        label: "Cluster air admission — total (12b)",
         unit: "L/min",
-        hint: config.linerVented ? `≤ ${ventedMax} (vented liners)` : `${caaRule.min}–${caaRule.max} per cluster`,
-        rule: config.linerVented ? { kind: "atMost", limit: ventedMax } : caaRule,
+        derived: "10c − 12a",
+        hint: caaHint,
+        rule: caaRule,
       },
     ],
   });
@@ -462,9 +526,12 @@ export function pulsatorSections(
   readings: Record<string, number> = {},
 ): ReadingSection[] {
   const workingVacuum = readings["tr.workingVacuum"];
-  // Manual p41: pulsator consumption allowance = 30 L/min per 10 units.
-  const consumptionLimit = requiredAirflow(config.clusterCount);
-  // Manual p40 / ISO D.2.17: chamber vacuum within 2 kPa of the working vacuum.
+  // Manual p41: pulsator consumption allowance = 30 L/min per 10 units — shown for information
+  // only. Legacy passed 790 L/min for 19 GEA Autopuls S units on a real test, which this rule
+  // would fail, so 14d carries no verdict until NZMPTA confirms the limit (plan, Phase 1).
+  const consumptionAllowance = requiredAirflow(config.clusterCount);
+  // Manual p40 / ISO D.2.17: chamber vacuum within 2 kPa of the working vacuum — judged on the
+  // drop (15b = 1a − 15a), which is where legacy recorded the verdict.
   const chamberDelta = paramFor("param.chamberVac.maxDelta", 2);
   return [
     {
@@ -472,17 +539,22 @@ export function pulsatorSections(
       title: "14 · Pulsator & ancillary",
       readings: [
         { key: "puls.airflowMilkSystem", label: "Airflow — milk system (14a)", unit: "L/min", rule: { kind: "none" } },
-        { key: "puls.milkSystemAncillary", label: "Milk-system ancillary consumption (14b)", unit: "L/min", rule: { kind: "none" } },
+        { key: "puls.milkSystemAncillary", label: "Milk-system ancillary consumption (14b)", unit: "L/min", derived: "12a − 14a", rule: { kind: "none" } },
         { key: "puls.airflowPulsators", label: "Airflow — pulsators (14c)", unit: "L/min", rule: { kind: "none" } },
         {
           key: "puls.pulsatorConsumption",
           label: "Pulsator consumption (14d)",
           unit: "L/min",
-          hint: consumptionLimit != null ? `≤ ${consumptionLimit} (30 per 10 units)` : "set the cluster count for the standard",
-          rule: consumptionLimit != null ? { kind: "atMost", limit: consumptionLimit } : { kind: "none" },
+          derived: "14a − 14c",
+          hint:
+            (consumptionAllowance != null ? `manual allowance ${consumptionAllowance} (30 per 10 units) · ` : "") +
+            "limit under review with NZMPTA — no verdict",
+          // Through ruleFor so NZMPTA can switch a limit on from the admin standards page once the
+          // question is settled, without a deploy.
+          rule: ruleFor("puls.pulsatorConsumption", { kind: "none" }),
         },
         { key: "puls.airflowVacuumSystem", label: "Airflow — vacuum system (14e)", unit: "L/min", rule: { kind: "none" } },
-        { key: "puls.vacuumSystemAncillary", label: "Vacuum-system ancillary consumption (14f)", unit: "L/min", rule: { kind: "none" } },
+        { key: "puls.vacuumSystemAncillary", label: "Vacuum-system ancillary consumption (14f)", unit: "L/min", derived: "14c − 14e", rule: { kind: "none" } },
       ],
     },
     {
@@ -493,13 +565,17 @@ export function pulsatorSections(
           key: "puls.maxChamberVacuum",
           label: "Max pulsation chamber vacuum, B phase (15a)",
           unit: "kPa",
-          hint:
-            workingVacuum != null
-              ? `≥ ${workingVacuum - chamberDelta} (within ${chamberDelta} kPa of working vacuum)`
-              : `within ${chamberDelta} kPa of working vacuum — enter 1a first`,
-          rule: workingVacuum != null ? { kind: "atLeast", min: workingVacuum - chamberDelta } : { kind: "none" },
+          hint: "lowest maximum across the pulsators tested — judged on the drop (15b)",
+          rule: { kind: "none" },
         },
-        { key: "puls.testPulsationReading", label: "Test pulsation reading (15b)", unit: "kPa", rule: { kind: "none" } },
+        {
+          key: "puls.testPulsationReading",
+          label: "Pulsator airline drop (15b)",
+          unit: "kPa",
+          derived: "1a − 15a",
+          hint: `≤ ${chamberDelta} kPa below working vacuum${workingVacuum != null ? ` (${workingVacuum})` : " — enter 1a first"}`,
+          rule: { kind: "atMost", limit: chamberDelta },
+        },
       ],
     },
     {

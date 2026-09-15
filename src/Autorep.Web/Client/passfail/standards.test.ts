@@ -116,20 +116,28 @@ describe("additional tests rules (manual p41 / ISO C.5)", () => {
     expect(reading(secs, "add.milkSystemLeakage").rule).toEqual({ kind: "atMost", limit: 50 });
   });
 
-  it("vacuum system leakage ≤ 5% of pump capacity once capacity is entered", () => {
+  it("vacuum system leakage ≤ 5% of the capacity at working vacuum (9b) — the 50 kPa 8a figures don't stand in", () => {
     expect(reading(additionalTestSections(config), "add.vacuumSystemLeakage").rule).toEqual({ kind: "none" });
+    expect(reading(additionalTestSections(config, { "tr.pumpCapacity1": 3450 }), "add.vacuumSystemLeakage").rule).toEqual({ kind: "none" });
     const secs = additionalTestSections(config, { "tr.pumpCapacityTotal": 2000 });
     expect(reading(secs, "add.vacuumSystemLeakage").rule).toEqual({ kind: "atMost", limit: 100 });
   });
 
-  it("pulsator consumption ≤ 30 per 10 units", () => {
-    const secs = pulsatorSections(config);
-    expect(reading(secs, "puls.pulsatorConsumption").rule).toEqual({ kind: "atMost", limit: 60 });
+  it("pulsator consumption (14d) is calculated but carries no verdict until NZMPTA confirms the limit", () => {
+    // Legacy passed 790 L/min for 19 units; the manual's 30-per-10-units allowance would fail it.
+    const def = reading(pulsatorSections(config), "puls.pulsatorConsumption");
+    expect(def.derived).toBe("14a − 14c");
+    expect(def.rule).toEqual({ kind: "none" });
+    expect(def.hint).toMatch(/allowance 60/);
+    expect(def.hint).toMatch(/under review/);
   });
 
-  it("max chamber vacuum within 2 kPa of working vacuum once 1a is entered", () => {
+  it("test pulsation is judged on the drop (15b = 1a − 15a ≤ 2 kPa), where legacy recorded the verdict", () => {
     const secs = pulsatorSections(config, { "tr.workingVacuum": 48 });
-    expect(reading(secs, "puls.maxChamberVacuum").rule).toEqual({ kind: "atLeast", min: 46 });
+    expect(reading(secs, "puls.maxChamberVacuum").rule).toEqual({ kind: "none" });
+    const drop = reading(secs, "puls.testPulsationReading");
+    expect(drop.derived).toBe("1a − 15a");
+    expect(drop.rule).toEqual({ kind: "atMost", limit: 2 });
   });
 });
 
