@@ -914,6 +914,16 @@ main {
   .wizard__step-labels { display: none; }
 }
 
+/* ----- New-build banner (js/pwa-register.js) ------------------------------- */
+.sw-update { position: fixed; left: 50%; bottom: var(--space-4); transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: var(--space-3); max-width: calc(100vw - 2 * var(--space-4)); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); background: var(--brand); color: #fff; border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); font-size: 0.9rem; }
+.sw-update__btn { background: #fff; color: var(--brand); border-color: #fff; white-space: nowrap; }
+/* .btn:hover would paint the button brand-on-brand and lose the label; keep it light on hover. */
+.sw-update__btn:hover, .sw-update__btn:focus-visible { background: #eef3fa; color: var(--brand-hover); border-color: #eef3fa; }
+.sw-update__later { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.6); white-space: nowrap; }
+.sw-update__later:hover, .sw-update__later:focus-visible { background: rgba(255, 255, 255, 0.12); color: #fff; border-color: #fff; }
+/* The default focus ring is brand-coloured — invisible on the brand-blue bar. */
+.sw-update .btn:focus-visible { outline-color: #fff; }
+
 /* ----- Small button + table actions ---------------------------------------- */
 .btn--sm { padding: 0.35rem 0.7rem; min-height: 32px; font-size: 0.8125rem; }
 .td-actions { text-align: right; white-space: nowrap; }
