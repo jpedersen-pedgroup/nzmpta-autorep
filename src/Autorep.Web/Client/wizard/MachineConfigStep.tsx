@@ -2,7 +2,14 @@
 // Grouped into Plant / Pulsation / Cluster & liners / Ancillary tabs. Dropdowns are backed by the
 // reference lists pulled from the legacy Lookup / AtmosPressure / Pulsator tables.
 import type { ComponentChildren } from "preact";
-import type { MachineConfiguration, PlantType, PumpLubrication } from "./types";
+import type {
+  MachineConfiguration,
+  PlantType,
+  PumpLubrication,
+  ReleaserPumpDetail,
+  VacuumPumpDetail,
+} from "./types";
+import { releaserPumpRows, vacuumPumpRows, withRow } from "./pumpRows";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "./configLabels";
 import { Tabs } from "../ui/Tabs";
 import { Combobox } from "../ui/Combobox";
@@ -14,7 +21,12 @@ import {
   pulsatorBrandOptions,
   pulsatorConfigOptions,
   pulsatorModelOptionsForBrand,
+  regulatorTypeOptions,
+  releaserPumpMakeOptions,
+  releaserPumpModelOptionsForMake,
   shellOptions,
+  vacuumPumpMakeOptions,
+  vacuumPumpModelOptionsForMake,
 } from "../reference/lookups";
 
 interface Props {
@@ -96,6 +108,133 @@ function Toggle({
   );
 }
 
+/** One pump's fields, boxed so a plant with several pumps reads as several pumps. */
+function PumpRow({
+  title,
+  onRemove,
+  children,
+}: {
+  title: string;
+  onRemove?: () => void;
+  children: ComponentChildren;
+}) {
+  return (
+    <fieldset class="pump-row">
+      <legend>
+        {title}
+        {onRemove && (
+          <button type="button" class="btn btn--secondary btn--sm pump-row__remove" onClick={onRemove}>
+            Remove
+          </button>
+        )}
+      </legend>
+      <div class="form-grid">{children}</div>
+    </fieldset>
+  );
+}
+
+/** Make -> model, as the pulsator fields already work: a make with exactly one model fills it in,
+ * and a model that doesn't belong to the new make is cleared. A make typed by hand has no
+ * catalogue models, so whatever the tester typed as the model stands. */
+function modelForMake(models: string[], current?: string | null): string | null {
+  if (models.length === 1) return models[0];
+  if (current && (models.length === 0 || models.includes(current))) return current;
+  return null;
+}
+
+/** One row per vacuum pump, following the pump count - the make/model/motor/regulator the legacy
+ * app captured on page 2, and what a replacement quote needs (tester feedback, 15 Sep 2026). */
+function VacuumPumpRowsEditor({ config, onChange }: Props) {
+  const rows = vacuumPumpRows(config);
+  const set = (i: number, patch: Partial<VacuumPumpDetail>) =>
+    onChange({ vacuumPumps: withRow(config.vacuumPumps, i, patch) });
+  return (
+    <div class="form-field--full">
+      <label class="pump-rows__label">Vacuum pump details</label>
+      <p class="form-field__hint">One row per pump, following the pump count above.</p>
+      {rows.map((row, i) => (
+        <PumpRow key={`vp-${i}`} title={rows.length > 1 ? `Pump ${i + 1}` : "Vacuum pump"}>
+          <Field label="Make">
+            <Combobox
+              value={row.make}
+              onChange={(v) => set(i, { make: v, model: modelForMake(vacuumPumpModelOptionsForMake(v), row.model) })}
+              options={vacuumPumpMakeOptions()}
+              listId={`cfg-vp-make-${i}`}
+            />
+          </Field>
+          <Field label="Model">
+            <Combobox
+              value={row.model}
+              onChange={(v) => set(i, { model: v })}
+              options={vacuumPumpModelOptionsForMake(row.make)}
+              listId={`cfg-vp-model-${i}`}
+            />
+          </Field>
+          <Field label="Motor size (kW)">
+            <TextInput value={row.motorSize} onInput={(v) => set(i, { motorSize: v })} placeholder="e.g. 7.5" />
+          </Field>
+          <Field label="Regulator type">
+            <Combobox
+              value={row.regulatorType}
+              onChange={(v) => set(i, { regulatorType: v })}
+              options={regulatorTypeOptions()}
+              listId={`cfg-vp-reg-${i}`}
+              placeholder="Type it in"
+            />
+          </Field>
+          <Toggle
+            label="Drives the milk pump"
+            checked={row.drivesMilkPump ?? false}
+            onChange={(v) => set(i, { drivesMilkPump: v })}
+          />
+        </PumpRow>
+      ))}
+    </div>
+  );
+}
+
+/** Releaser (milk) pumps - added by hand, since nothing in the configuration counts them. */
+function ReleaserPumpRowsEditor({ config, onChange }: Props) {
+  const rows = releaserPumpRows(config);
+  const set = (i: number, patch: Partial<ReleaserPumpDetail>) =>
+    onChange({ releaserPumps: withRow(config.releaserPumps, i, patch) });
+  return (
+    <div class="form-field--full">
+      <label class="pump-rows__label">Releaser pump details</label>
+      {rows.map((row, i) => (
+        <PumpRow
+          key={`rp-${i}`}
+          title={rows.length > 1 ? `Releaser pump ${i + 1}` : "Releaser pump"}
+          onRemove={rows.length > 1 ? () => onChange({ releaserPumps: rows.filter((_, j) => j !== i) }) : undefined}
+        >
+          <Field label="Make">
+            <Combobox
+              value={row.make}
+              onChange={(v) => set(i, { make: v, model: modelForMake(releaserPumpModelOptionsForMake(v), row.model) })}
+              options={releaserPumpMakeOptions()}
+              listId={`cfg-rp-make-${i}`}
+            />
+          </Field>
+          <Field label="Model">
+            <Combobox
+              value={row.model}
+              onChange={(v) => set(i, { model: v })}
+              options={releaserPumpModelOptionsForMake(row.make)}
+              listId={`cfg-rp-model-${i}`}
+            />
+          </Field>
+          <Field label="Motor size (kW)">
+            <TextInput value={row.motorSize} onInput={(v) => set(i, { motorSize: v })} placeholder="e.g. 2.2" />
+          </Field>
+        </PumpRow>
+      ))}
+      <button type="button" class="btn btn--secondary btn--sm" onClick={() => onChange({ releaserPumps: [...rows, {}] })}>
+        + Add releaser pump
+      </button>
+    </div>
+  );
+}
+
 export function MachineConfigStep({ config, onChange }: Props) {
   const tabs = [
     {
@@ -161,6 +300,7 @@ export function MachineConfigStep({ config, onChange }: Props) {
               }))}
             />
           </Field>
+          <VacuumPumpRowsEditor config={config} onChange={onChange} />
         </div>
       ),
     },
@@ -251,6 +391,7 @@ export function MachineConfigStep({ config, onChange }: Props) {
           <Toggle label="Teat sprayer" checked={config.hasTeatSprayer} onChange={(v) => onChange({ hasTeatSprayer: v })} />
           <Toggle label="Backing gate" checked={config.hasBackingGate} onChange={(v) => onChange({ hasBackingGate: v })} />
           <Toggle label="Releaser pump" checked={config.hasReleaserPump} onChange={(v) => onChange({ hasReleaserPump: v })} />
+          {config.hasReleaserPump && <ReleaserPumpRowsEditor config={config} onChange={onChange} />}
         </div>
       ),
     },

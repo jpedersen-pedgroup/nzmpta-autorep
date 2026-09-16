@@ -24,7 +24,8 @@ public class NewModel : PageModel
         var brand = string.IsNullOrWhiteSpace(Brand) ? null : Brand.Trim();
         if (!EquipmentItem.Types.Contains(Type)) Errors.Add("Unknown catalog type.");
         if (string.IsNullOrWhiteSpace(name)) Errors.Add("Name is required.");
-        if (Type == EquipmentItem.Pulsator && brand is null) Errors.Add("Pulsator models need a brand.");
+        if (EquipmentItem.HasBrand(Type) && brand is null)
+            Errors.Add(Type == EquipmentItem.Pulsator ? "Pulsator models need a brand." : "Pumps need a make.");
         if (Errors.Count == 0 && await _db.EquipmentItems.AnyAsync(x => x.Type == Type && x.Name == name && x.Brand == brand))
             Errors.Add("An item with that name (and brand) already exists in this catalog.");
         if (Errors.Count > 0) return Page();

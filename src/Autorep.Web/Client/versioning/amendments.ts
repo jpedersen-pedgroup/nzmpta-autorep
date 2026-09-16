@@ -8,6 +8,7 @@ import type { MachineConfiguration } from "../wizard/types";
 import { allReadingSections } from "../passfail/standards";
 import { preStartSections, RUNNING_SECTIONS } from "../wizard/visualChecklist";
 import { recordedRows } from "../ui/measurementRows";
+import { releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
 
 // Report-facing section names, in the order changes are listed.
 const S_FARM = "Farm";
@@ -50,6 +51,25 @@ const CONFIG_LABELS: Record<keyof MachineConfiguration, string> = {
   hasTeatSprayer: "Teat sprayer",
   hasBackingGate: "Backing gate",
   hasReleaserPump: "Releaser pump",
+  vacuumPumps: "Vacuum pump details",
+  releaserPumps: "Releaser pump details",
+};
+
+/** Config keys holding pump rows - diffed row by row below, not as one stringified cell. */
+const CONFIG_LIST_KEYS = new Set<keyof MachineConfiguration>(["vacuumPumps", "releaserPumps"]);
+
+const VACUUM_PUMP_COLS: Record<string, string> = {
+  make: "Make",
+  model: "Model",
+  motorSize: "Motor size",
+  drivesMilkPump: "Drives the milk pump",
+  regulatorType: "Regulator type",
+};
+
+const RELEASER_PUMP_COLS: Record<string, string> = {
+  make: "Make",
+  model: "Model",
+  motorSize: "Motor size",
 };
 
 const PULSATOR_COLS: Record<string, string> = {
@@ -67,6 +87,28 @@ const CLUSTER_COLS: Record<string, string> = {
   leakage: "Leakage",
   airVent: "Air-vent admission",
 };
+
+/** Pump rows are positional - pump 2 is pump 2 - so they diff by index, field by field, and a row
+ * only one version has reads as blanks on the other side. An absent boolean and an explicit false
+ * are the same thing to the tester, so both normalise to No rather than showing as a change. */
+function diffPumpRows(
+  noun: string,
+  before: Record<string, unknown>[],
+  after: Record<string, unknown>[],
+  cols: Record<string, string>,
+): FieldChange[] {
+  const out: FieldChange[] = [];
+  for (let i = 0; i < Math.max(before.length, after.length); i++) {
+    for (const [key, label] of Object.entries(cols)) {
+      const cell = (row: Record<string, unknown> | undefined) =>
+        key === "drivesMilkPump" ? fmt(row?.[key] ?? false) : fmt(row?.[key]);
+      const from = cell(before[i]);
+      const to = cell(after[i]);
+      if (from !== to) out.push({ section: S_CONFIG, label: `${noun} ${i + 1} · ${label}`, from, to });
+    }
+  }
+  return out;
+}
 
 function fmt(v: unknown): string {
   if (v === null || v === undefined) return "—";
@@ -218,10 +260,17 @@ export function computeChanges(base: LocalTest, edited: LocalTest): FieldChange[
   }
 
   for (const key of Object.keys(CONFIG_LABELS) as (keyof MachineConfiguration)[]) {
+    if (CONFIG_LIST_KEYS.has(key)) continue;
     const from = fmt(base.config[key]);
     const to = fmt(edited.config[key]);
     if (from !== to) changes.push({ section: S_CONFIG, label: CONFIG_LABELS[key], from, to });
   }
+  changes.push(
+    ...diffPumpRows("Vacuum pump", vacuumPumpRows(base.config), vacuumPumpRows(edited.config), VACUUM_PUMP_COLS),
+  );
+  changes.push(
+    ...diffPumpRows("Releaser pump", releaserPumpRows(base.config), releaserPumpRows(edited.config), RELEASER_PUMP_COLS),
+  );
 
   const readingLabels = readingLabelMap(base, edited);
   changes.push(

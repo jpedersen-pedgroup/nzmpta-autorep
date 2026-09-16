@@ -24,6 +24,24 @@ export type WizardStep =
   | "FaultSummary"
   | "ReviewSignOff";
 
+/** One vacuum pump's details (the legacy "Farm & Milking Machine" page-2 row). Positional: pump N
+ * lines up with the pump-N readings (8a-8c). Read through wizard/pumpRows.ts, never directly. */
+export type VacuumPumpDetail = {
+  make?: string | null;
+  model?: string | null;
+  /** Motor size as it reads on the plate - free text, usually kW. */
+  motorSize?: string | null;
+  drivesMilkPump?: boolean;
+  regulatorType?: string | null;
+};
+
+/** One releaser (milk) pump's details. */
+export type ReleaserPumpDetail = {
+  make?: string | null;
+  model?: string | null;
+  motorSize?: string | null;
+};
+
 export interface MachineConfiguration {
   plantType: PlantType;
   /** Free-text plant size descriptor (legacy PlantSize, e.g. "30 a-side"). */
@@ -48,6 +66,9 @@ export interface MachineConfiguration {
   backLiner?: string | null;
   linerVented: boolean;
   numberOfVacuumPumps: number;
+  /** Make/model/motor/regulator per vacuum pump, in pump order. Absent on tests captured before
+   * 16 Sep 2026, and rows past the pump count are kept but not shown - see wizard/pumpRows.ts. */
+  vacuumPumps?: VacuumPumpDetail[];
   pumpLubrication: PumpLubrication;
   vsdFitted: boolean;
   isoPortsAvailable: boolean;
@@ -58,6 +79,8 @@ export interface MachineConfiguration {
   hasTeatSprayer: boolean;
   hasBackingGate: boolean;
   hasReleaserPump: boolean;
+  /** Releaser (milk) pump details, listed while hasReleaserPump - see wizard/pumpRows.ts. */
+  releaserPumps?: ReleaserPumpDetail[];
 }
 
 export interface ResolvedWizardStep {
@@ -113,6 +136,7 @@ export function defaultMachineConfiguration(): MachineConfiguration {
     backLiner: null,
     linerVented: false,
     numberOfVacuumPumps: 1,
+    vacuumPumps: [],
     pumpLubrication: "OilLubricated",
     vsdFitted: false,
     isoPortsAvailable: true,
@@ -123,5 +147,6 @@ export function defaultMachineConfiguration(): MachineConfiguration {
     hasTeatSprayer: false,
     hasBackingGate: false,
     hasReleaserPump: false,
+    releaserPumps: [],
   };
 }

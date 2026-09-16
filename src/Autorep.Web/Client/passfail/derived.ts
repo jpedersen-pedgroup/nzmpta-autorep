@@ -10,7 +10,15 @@
 // decimal (1c −3.5) — and the rounded figure is what the pass/fail rule judges and the report prints.
 // Migrated and completed tests are never edited, so their as-recorded values are untouched.
 import type { MachineConfiguration } from "../wizard/types";
-import { allReadingSections, cleaningReserve, requiredEffectiveReserve } from "./standards";
+import {
+  allReadingSections,
+  cleaningReserve,
+  MAX_OEM_PUMPS,
+  OEM_CAPACITY_FORMULA,
+  requiredEffectiveReserve,
+} from "./standards";
+import { oemPumpCapacity, vacuumPumpFor } from "../reference/standardsData";
+import { vacuumPumpRows } from "../wizard/pumpRows";
 
 export interface DerivedReading {
   key: string;
@@ -52,6 +60,19 @@ export const DERIVED_READINGS: DerivedReading[] = [
   { key: "tr.gaugeError1", inputs: ["tr.farmGauge1", "tr.testGauge1"], formula: "7a − 7b", calc: minus("tr.farmGauge1", "tr.testGauge1") },
   { key: "tr.gaugeError2", inputs: ["tr.farmGauge2", "tr.testGauge2"], formula: "7d − 7e", calc: minus("tr.farmGauge2", "tr.testGauge2") },
   { key: "tr.gaugeError3", inputs: ["tr.farmGauge3", "tr.testGauge3"], formula: "7g − 7h", calc: minus("tr.farmGauge3", "tr.testGauge3") },
+  // 8 — What the OEM catalogue says this pump should shift at the speed 8a was measured at. One
+  // entry per pump index because the table is static; a pump whose make/model isn't in the
+  // catalogue has no row in the sections, so nothing is derived for it.
+  ...Array.from({ length: MAX_OEM_PUMPS }, (_, n) => n + 1).map((i) => ({
+    key: `tr.pumpOemCapacity${i}`,
+    inputs: [`tr.pumpMaxSpeed${i}`],
+    formula: OEM_CAPACITY_FORMULA,
+    calc: (r: Record<string, number>, c: MachineConfiguration) => {
+      const detail = vacuumPumpRows(c)[i - 1];
+      const pump = vacuumPumpFor(detail?.make, detail?.model);
+      return pump ? oemPumpCapacity(pump, r[`tr.pumpMaxSpeed${i}`]) : null;
+    },
+  })),
   // 10 — Leakage. 9b is legacy's "Air Flow Start: pump capacity at working vacuum" — the baseline.
   { key: "add.vacuumSystemLeakage", inputs: ["tr.pumpCapacityTotal", "add.airflowVacuumSystem"], formula: "9b − 10a", calc: minus("tr.pumpCapacityTotal", "add.airflowVacuumSystem") },
   { key: "add.milkSystemLeakage", inputs: ["add.airflowVacuumSystem", "add.airflowMilkSystem"], formula: "10a − 10c", calc: minus("add.airflowVacuumSystem", "add.airflowMilkSystem") },

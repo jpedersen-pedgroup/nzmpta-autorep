@@ -166,6 +166,49 @@ describe("airflow tests rules (manual p41 / ISO C.5)", () => {
   });
 });
 
+describe("vacuum pump OEM capacity (8a)", () => {
+  const config = { ...defaultMachineConfiguration(), clusterCount: 20 };
+
+  it("works the spec out beside 8a once the pump is a catalogue model", () => {
+    const secs = testRecordSections({ ...config, vacuumPumps: [{ make: "De Laval", model: "DVP1600" }] });
+    const pump = secs.find((s) => s.key === "VacuumPumpTest")!;
+    expect(pump.readings.map((r) => r.key).slice(0, 2)).toEqual(["tr.pumpCapacity1", "tr.pumpOemCapacity1"]);
+    expect(pump.readings.map((r) => r.key).slice(-2)).toEqual(["tr.pumpCapacityTotal", "tr.exhaustPressure"]);
+    const oem = reading(secs, "tr.pumpOemCapacity1");
+    expect(oem.derived).toBe("8c x the catalogue's L/min per rpm");
+    expect(oem.rule).toEqual({ kind: "none" });
+    expect(oem.hint).toMatch(/1\.15 L\/min per rpm/);
+    expect(oem.hint).toMatch(/no verdict/);
+  });
+
+  it("says nothing about the OEM figure for a pump typed in by hand", () => {
+    const secs = testRecordSections({ ...config, vacuumPumps: [{ make: "Acme", model: "Hyperpump" }] });
+    const keys = secs.find((s) => s.key === "VacuumPumpTest")!.readings.map((r) => r.key);
+    expect(keys).not.toContain("tr.pumpOemCapacity1");
+    expect(reading(secs, "tr.pumpCapacity1").hint).toMatch(/compare to OEM curve/);
+  });
+
+  it("warns when the speed 8a was measured at is outside the catalogue's range", () => {
+    const secs = testRecordSections(
+      { ...config, vacuumPumps: [{ make: "De Laval", model: "DVP1600" }] },
+      { "tr.pumpMaxSpeed1": 1600 }, // catalogue tops out at 1400
+    );
+    expect(reading(secs, "tr.pumpOemCapacity1").hint).toMatch(/outside that range/);
+  });
+
+  it("keys the rows per pump, so pump 2's spec comes from pump 2's model", () => {
+    const secs = testRecordSections({
+      ...config,
+      numberOfVacuumPumps: 2,
+      vacuumPumps: [{ make: "Acme", model: "Hyperpump" }, { make: "De Laval", model: "DVP2300" }],
+    });
+    const keys = secs.find((s) => s.key === "VacuumPumpTest")!.readings.map((r) => r.key);
+    expect(keys).not.toContain("tr.pumpOemCapacity1");
+    expect(keys).toContain("tr.pumpOemCapacity2");
+    expect(reading(secs, "tr.pumpOemCapacity2").hint).toMatch(/DVP2300/);
+  });
+});
+
 describe("admin-managed standard overrides", () => {
   const config = { ...defaultMachineConfiguration(), clusterCount: 20 };
 

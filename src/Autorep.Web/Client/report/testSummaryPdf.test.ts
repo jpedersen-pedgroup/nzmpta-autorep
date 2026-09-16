@@ -204,6 +204,31 @@ describe("buildTestSummaryDoc", () => {
     expect(json).not.toContain("Individual cluster tests");
   });
 
+  it("prints the pump details, so a replacement can be quoted off the report", () => {
+    const t = sampleTest();
+    t.config = {
+      ...t.config,
+      numberOfVacuumPumps: 2,
+      vacuumPumps: [
+        { make: "MASPORT", model: "RVP4000", motorSize: "7.5", drivesMilkPump: true, regulatorType: "Servo" },
+        {},
+      ],
+      hasReleaserPump: true,
+      releaserPumps: [{ make: "READ", model: "WR1200", motorSize: "2.2 hp" }],
+    };
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("MASPORT RVP4000");
+    expect(json).toContain("7.5 kW"); // a bare number reads as kW
+    expect(json).toContain("Servo");
+    expect(json).toContain("READ WR1200");
+    expect(json).toContain("2.2 hp"); // typed with its own unit, printed as typed
+    expect(json).not.toContain("Pump 2"); // the row that was never filled in is left off
+  });
+
+  it("prints no pump tables when no pump details were captured", () => {
+    expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("Make / model");
+  });
+
   it("prints the configuration with display names, not enum names", () => {
     const json = JSON.stringify(buildTestSummaryDoc(sampleTest()).content);
     expect(json).toContain("Herringbone (lowline)");

@@ -49,6 +49,31 @@ describe("computeChanges", () => {
     expect(changes).toContainEqual({ section: "Machine configuration", label: "ACRs", from: "No", to: "Yes" });
   });
 
+  it("records a pump detail change per pump and field, not as one stringified list", () => {
+    const base = baseTest();
+    const changes = computeChanges(
+      base,
+      editedCopy({
+        config: {
+          ...base.config,
+          numberOfVacuumPumps: 2,
+          vacuumPumps: [{ make: "MASPORT", model: "RVP4000" }, { make: "GEA" }],
+        },
+      }),
+    );
+    expect(changes).toContainEqual({ section: "Machine configuration", label: "Vacuum pump 1 · Make", from: "—", to: "MASPORT" });
+    expect(changes).toContainEqual({ section: "Machine configuration", label: "Vacuum pump 2 · Make", from: "—", to: "GEA" });
+    // An untouched boolean is not a change, and the list never diffs as one opaque cell.
+    expect(changes.some((c) => c.label.includes("Drives the milk pump"))).toBe(false);
+    expect(changes.some((c) => c.label === "Vacuum pump details")).toBe(false);
+  });
+
+  it("ignores pump rows parked beyond the pump count", () => {
+    const base = baseTest();
+    const edited = editedCopy({ config: { ...base.config, vacuumPumps: [{}, { make: "GEA" }] } });
+    expect(computeChanges(base, edited)).toEqual([]);
+  });
+
   it("records reading changes with the reading's label and unit, including cleared values", () => {
     const changes = computeChanges(
       baseTest(),

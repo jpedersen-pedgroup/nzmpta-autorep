@@ -35,7 +35,12 @@ public class SyncController : ControllerBase
         string? ClawModel, string? ShellModel, string? LinerModel, string? BackLiner, bool LinerVented,
         int NumberOfVacuumPumps, string PumpLubrication, bool VsdFitted, bool IsoPortsAvailable,
         bool HasPulsatorStopSystem, bool HasAcr, bool HasBailGates, bool HasMilkMeters,
-        bool HasTeatSprayer, bool HasBackingGate, bool HasReleaserPump);
+        bool HasTeatSprayer, bool HasBackingGate, bool HasReleaserPump,
+        // Pump details arrived later, so they are optional: a device still queueing the older shape
+        // pushes successfully, and null means "this client doesn't know about them" — the stored
+        // rows are left alone rather than wiped by an older device re-syncing the same test.
+        IReadOnlyList<VacuumPumpDetail>? VacuumPumps = null,
+        IReadOnlyList<ReleaserPumpDetail>? ReleaserPumps = null);
 
     public record UploadTestRequest(
         Guid ClientId, string FarmName, string? Notes,
@@ -252,6 +257,23 @@ public class SyncController : ControllerBase
         _db.Users.Where(u => u.Id == testerId)
             .Select(u => u.TestingCompanyId).FirstOrDefaultAsync(ct);
 
+    /// <summary>Plenty for any real plant — a guard on what a Device can push into the JSON column.</summary>
+    private const int MaxPumpRows = 20;
+    private const int MaxPumpFieldLength = 150;
+
+    private static string? TrimField(string? s)
+    {
+        var t = s?.Trim();
+        if (string.IsNullOrEmpty(t)) return null;
+        return t.Length <= MaxPumpFieldLength ? t : t[..MaxPumpFieldLength];
+    }
+
+    private static VacuumPumpDetail CleanPump(VacuumPumpDetail p) =>
+        new(TrimField(p.Make), TrimField(p.Model), TrimField(p.MotorSize), p.DrivesMilkPump, TrimField(p.RegulatorType));
+
+    private static ReleaserPumpDetail CleanPump(ReleaserPumpDetail p) =>
+        new(TrimField(p.Make), TrimField(p.Model), TrimField(p.MotorSize));
+
     private static void ApplyConfig(MachineTest test, ConfigDto? dto)
     {
         if (dto is null) return;
@@ -285,6 +307,8 @@ public class SyncController : ControllerBase
         cfg.HasTeatSprayer = dto.HasTeatSprayer;
         cfg.HasBackingGate = dto.HasBackingGate;
         cfg.HasReleaserPump = dto.HasReleaserPump;
+        if (dto.VacuumPumps is not null) cfg.VacuumPumps = dto.VacuumPumps.Take(MaxPumpRows).Select(CleanPump).ToList();
+        if (dto.ReleaserPumps is not null) cfg.ReleaserPumps = dto.ReleaserPumps.Take(MaxPumpRows).Select(CleanPump).ToList();
         cfg.UpdatedAt = DateTimeOffset.UtcNow;
 
         test.Configuration = cfg;
@@ -297,5 +321,6 @@ public class SyncController : ControllerBase
         c.ClawModel, c.ShellModel, c.LinerModel, c.BackLiner, c.LinerVented,
         c.NumberOfVacuumPumps, c.PumpLubrication.ToString(), c.VsdFitted, c.IsoPortsAvailable,
         c.HasPulsatorStopSystem, c.HasAcr, c.HasBailGates, c.HasMilkMeters,
-        c.HasTeatSprayer, c.HasBackingGate, c.HasReleaserPump);
+        c.HasTeatSprayer, c.HasBackingGate, c.HasReleaserPump,
+        c.VacuumPumps, c.ReleaserPumps);
 }

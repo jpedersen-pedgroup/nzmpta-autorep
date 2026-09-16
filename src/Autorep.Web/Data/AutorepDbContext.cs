@@ -1,13 +1,30 @@
+using System.Text.Json;
 using Autorep.Web.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Autorep.Web.Data;
 
 public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
 {
     public AutorepDbContext(DbContextOptions<AutorepDbContext> options) : base(options) { }
+
+    // Pump details are stored as JSON on the configuration row. Rows written before those columns
+    // existed read back as an empty string, which is an empty list rather than null, so every
+    // reader can treat the property as always present.
+    private static readonly JsonSerializerOptions PumpJsonOptions = new(JsonSerializerDefaults.Web);
+
+    private static ValueConverter<List<T>, string> PumpJson<T>() => new(
+        v => JsonSerializer.Serialize(v, PumpJsonOptions),
+        s => string.IsNullOrWhiteSpace(s) ? new List<T>() : JsonSerializer.Deserialize<List<T>>(s, PumpJsonOptions) ?? new List<T>());
+
+    private static ValueComparer<List<T>> PumpComparer<T>() => new(
+        (a, b) => a == null ? b == null : b != null && a.SequenceEqual(b),
+        v => v.Aggregate(0, (hash, row) => HashCode.Combine(hash, row == null ? 0 : row.GetHashCode())),
+        v => v.ToList());
 
     public DbSet<TestingCompany> TestingCompanies => Set<TestingCompany>();
     public DbSet<Farm> Farms => Set<Farm>();
@@ -65,6 +82,11 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             cfg.Property(c => c.LinerModel).HasMaxLength(150);
             cfg.Property(c => c.MilklineSize).HasMaxLength(50);
             cfg.Property(c => c.LastBmcc).HasMaxLength(100);
+            // A list the Device owns and nothing server-side queries inside, so it is stored as
+            // JSON on the configuration row rather than as child rows — which also keeps
+            // ApplyConfig's replace-the-whole-list semantics honest (no orphaned rows).
+            cfg.Property(c => c.VacuumPumps).HasConversion(PumpJson<VacuumPumpDetail>(), PumpComparer<VacuumPumpDetail>()).IsRequired();
+            cfg.Property(c => c.ReleaserPumps).HasConversion(PumpJson<ReleaserPumpDetail>(), PumpComparer<ReleaserPumpDetail>()).IsRequired();
         });
 
         builder.Entity<AuditEntry>()

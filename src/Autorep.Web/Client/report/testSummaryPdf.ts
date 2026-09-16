@@ -15,6 +15,7 @@ import { formatDisplayDate, type CalibrationDates } from "../calibration/status"
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
+import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
 
 const BRAND = "#003893";
 const MUTED = "#64748b";
@@ -48,6 +49,13 @@ function calDate(stamped?: string | null, fallback?: string | null): string {
 }
 
 const th = (text: string): TableCell => ({ text, bold: true, fontSize: 8, color: MUTED });
+
+/** Motor size as the tester typed it - a bare number is kW, anything else stands as written. */
+function motorText(v?: string | null): string {
+  const s = (v ?? "").trim();
+  if (s === "") return "—";
+  return /^\d+(\.\d+)?$/.test(s) ? `${s} kW` : s;
+}
 
 function sectionHeader(text: string): Content {
   return { text, fontSize: 12, bold: true, color: BRAND, margin: [0, 14, 0, 4] };
@@ -125,6 +133,49 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
     layout: "lightHorizontalLines",
     fontSize: 9,
   };
+
+  // Pump details - make/model/motor/regulator per pump, so whoever quotes a replacement has the
+  // nameplate without going back to the plant (tester feedback, 15 Sep 2026). Blank rows are left
+  // off, so a test that never filled them in prints no table at all.
+  const pumpBlock: Content[] = [];
+  const vacuumRows: TableCell[][] = [
+    [th("Vacuum pump"), th("Make / model"), th("Motor"), th("Regulator"), th("Drives milk pump")],
+  ];
+  vacuumPumpRows(config).forEach((p, i) => {
+    if (isBlankPumpRow(p)) return;
+    vacuumRows.push([
+      { text: `Pump ${i + 1}`, fontSize: 9 },
+      { text: `${p.make ?? ""} ${p.model ?? ""}`.trim() || "—", fontSize: 9 },
+      { text: motorText(p.motorSize), fontSize: 9 },
+      { text: p.regulatorType ?? "—", fontSize: 9 },
+      { text: p.drivesMilkPump ? "Yes" : "No", fontSize: 9 },
+    ]);
+  });
+  if (vacuumRows.length > 1) {
+    pumpBlock.push({
+      table: { widths: ["auto", "*", "auto", "*", "auto"], body: vacuumRows },
+      layout: "lightHorizontalLines",
+      fontSize: 9,
+      margin: [0, 6, 0, 0],
+    });
+  }
+  const releaserRows: TableCell[][] = [[th("Releaser pump"), th("Make / model"), th("Motor")]];
+  releaserPumpRows(config).forEach((p, i) => {
+    if (isBlankPumpRow(p)) return;
+    releaserRows.push([
+      { text: `Releaser ${i + 1}`, fontSize: 9 },
+      { text: `${p.make ?? ""} ${p.model ?? ""}`.trim() || "—", fontSize: 9 },
+      { text: motorText(p.motorSize), fontSize: 9 },
+    ]);
+  });
+  if (releaserRows.length > 1) {
+    pumpBlock.push({
+      table: { widths: ["auto", "*", "auto"], body: releaserRows },
+      layout: "lightHorizontalLines",
+      fontSize: 9,
+      margin: [0, 6, 0, 0],
+    });
+  }
 
   // --- Fault summary -------------------------------------------------------------------------
   const faultRows: TableCell[][] = [[th("Severity"), th("Area"), th("Fault"), th("Recommendation")]];
@@ -329,6 +380,7 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
       farmLines,
       sectionHeader("Machine configuration"),
       configBlock,
+      ...pumpBlock,
       sectionHeader("Fault summary & recommendations"),
       ...faultBlock,
       ...notesBlock,

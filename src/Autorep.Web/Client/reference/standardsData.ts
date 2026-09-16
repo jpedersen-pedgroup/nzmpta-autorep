@@ -24,9 +24,9 @@ export interface PulsatorBand {
   recommendedRatio: number | null;
 }
 
-/** OEM vacuum-pump curve rows (legacy `VPModel`). No rule consumes these yet: the machine
- * configuration doesn't capture the pump make/model, so there is nothing to join on. They ship
- * now so the pump checks only need the config fields, not another data hunt. */
+/** OEM vacuum-pump curve rows (legacy `VPModel`), joined to the pump make/model captured in the
+ * machine configuration (see vacuumPumpFor). `airFlow` is the curve: L/min of air per rpm at
+ * 50 kPa - a De Laval DVP1600 is 1.15 x 1400 rpm = 1610 L/min, its nameplate figure. */
 export interface VacuumPumpModel {
   make: string;
   model: string;
@@ -77,6 +77,29 @@ export function pulsatorBandFor(model: string | null | undefined): PulsatorBand 
   const band = bandsByName.get(collapse(model));
   if (!band) return null;
   return band.rateMax > 0 || band.ratioMax > 0 ? band : null;
+}
+
+const pumpKey = (make: string, model: string) => `${collapse(make).toLowerCase()}|${collapse(model).toLowerCase()}`;
+const pumpsByMakeModel = new Map<string, VacuumPumpModel>(
+  VACUUM_PUMPS.map((p) => [pumpKey(p.make, p.model), p]),
+);
+
+/** The OEM curve row for a vacuum pump, or null when the make/model isn't in the legacy catalogue
+ * (a pump typed in by hand) or the row carries no usable airflow figure. Matched case- and
+ * spacing-insensitively: the make may have been typed rather than picked. */
+export function vacuumPumpFor(
+  make: string | null | undefined,
+  model: string | null | undefined,
+): VacuumPumpModel | null {
+  if (!make || !model) return null;
+  const pump = pumpsByMakeModel.get(pumpKey(make, model));
+  return pump != null && pump.airFlow != null && pump.airFlow > 0 ? pump : null;
+}
+
+/** The OEM capacity (L/min at 50 kPa) of a pump running at `rpm` - the catalogue curve is linear
+ * through the origin, so it is the per-rpm airflow x the speed the capacity was measured at. */
+export function oemPumpCapacity(pump: VacuumPumpModel, rpm: number): number {
+  return (pump.airFlow ?? 0) * rpm;
 }
 
 interface ReleaserRow {

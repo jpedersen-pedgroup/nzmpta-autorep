@@ -15,7 +15,8 @@ export function faultObservationsFor(category: string | null | undefined): strin
   return FAULT_OBSERVATIONS[category] ?? [];
 }
 
-import { catalogNames, catalogPulsators } from "./catalogOverrides";
+import { catalogBranded, catalogNames, catalogPulsators } from "./catalogOverrides";
+import { MILK_PUMPS, VACUUM_PUMPS } from "./standardsData";
 
 export const MILKLINE_SIZES = ["50", "63", "75", "100"] as const;
 
@@ -39,6 +40,35 @@ export function pulsatorModelOptionsForBrand(brand: string | null | undefined): 
   if (!brand) return [];
   return pulsatorOptions().filter((p) => p.brand === brand).map((p) => p.name);
 }
+
+// --- Vacuum and releaser pumps (the Machine Configuration pump rows) ---------------------------
+// The bundled fallbacks are the legacy OEM catalogues (VPModel / MilkPumps); the admin-managed
+// VacuumPump / ReleaserPump catalogs replace them once synced. Regulator types have no legacy list
+// at all - the dropdown starts empty and the SuperAdmin builds it up from what testers type.
+const BUNDLED_VACUUM_PUMPS: BrandedOption[] = VACUUM_PUMPS.map((p) => ({ name: p.model, brand: p.make }));
+const BUNDLED_RELEASER_PUMPS: BrandedOption[] = MILK_PUMPS.map((p) => ({ name: p.model, brand: p.make }));
+
+export const vacuumPumpOptions = (): BrandedOption[] => catalogBranded("VacuumPump") ?? BUNDLED_VACUUM_PUMPS;
+export const releaserPumpOptions = (): BrandedOption[] => catalogBranded("ReleaserPump") ?? BUNDLED_RELEASER_PUMPS;
+export const regulatorTypeOptions = (): string[] => catalogNames("Regulator") ?? [];
+
+/** Makes are compared loosely - the legacy catalogues spell them inconsistently ("De Laval" vs
+ * "DELAVAL"), and a make typed by hand should still filter its models. */
+const sameMake = (a: string, b: string) =>
+  a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
+
+const makeOptions = (options: BrandedOption[]): string[] =>
+  [...new Set(options.map((p) => p.brand))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+const modelOptions = (options: BrandedOption[], make: string | null | undefined): string[] =>
+  make ? options.filter((p) => sameMake(p.brand, make)).map((p) => p.name) : [];
+
+export const vacuumPumpMakeOptions = (): string[] => makeOptions(vacuumPumpOptions());
+export const vacuumPumpModelOptionsForMake = (make: string | null | undefined): string[] =>
+  modelOptions(vacuumPumpOptions(), make);
+export const releaserPumpMakeOptions = (): string[] => makeOptions(releaserPumpOptions());
+export const releaserPumpModelOptionsForMake = (make: string | null | undefined): string[] =>
+  modelOptions(releaserPumpOptions(), make);
 
 export const SYSTEM_COUNTS = [1, 2, 3, 4, 5] as const;
 
@@ -79,9 +109,11 @@ export function correctionFactorFor(kpa: number | null | undefined): number | nu
 export const SHELLS: string[] = shellsJson;
 export const LINERS: string[] = linersJson;
 
-export interface PulsatorOption {
+/** A catalogue model and its manufacturer (pulsators, vacuum pumps, releaser pumps). */
+export interface BrandedOption {
   name: string;
   brand: string;
 }
+export type PulsatorOption = BrandedOption;
 export const PULSATORS: PulsatorOption[] = pulsatorsJson;
 
