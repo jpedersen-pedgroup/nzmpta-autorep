@@ -15,7 +15,7 @@ import {
   type VisualFaultEntry,
   type WizardStep,
 } from "./types";
-import { allTests, getTest, putTest, type LocalTest } from "../db/testStore";
+import { allTests, getTest, putTest, type LocalTest, type TesterDetails } from "../db/testStore";
 import { fetchFarm } from "../farms";
 import { buildAmendmentRecord } from "../versioning/amendments";
 import { deriveReadings } from "../passfail/derived";
@@ -26,6 +26,7 @@ import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { getCachedCompanyBranding } from "../sync/companyBrandingSync";
+import { getCachedTesterDetails } from "../sync/testerDetailsSync";
 import { nextTestDateAtSignOff, originalCompletedAt } from "./nextTestDate";
 import type { CalibrationDates } from "../calibration/status";
 import { useAppHeaderOffset } from "../ui/appHeaderOffset";
@@ -164,6 +165,9 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   // done for — never from this device's cache, which holds the VIEWER's company (or none, for an
   // admin).
   const [serverBranding, setServerBranding] = useState<ReportBranding | undefined>(undefined);
+  // …and the tester named on it: the server's name for a test signed off before tester details
+  // were stamped (null when unknown), never this device's own profile.
+  const [serverTester, setServerTester] = useState<TesterDetails | null | undefined>(undefined);
   const [reloadKey, setReloadKey] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -207,6 +211,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
           if (active) {
             setTest(localTestFromServer(dto));
             setServerBranding({ companyName: dto.testingCompanyName ?? null, companyLogo: dto.testingCompanyLogo ?? null });
+            setServerTester(dto.testerName ? { name: dto.testerName } : null);
             // Only a colleague's name is worth surfacing — naming yourself on your own test is
             // noise, and would word the read-only banner as if someone else owned it.
             setColleagueName(dto.isMine ? null : dto.testerName);
@@ -430,6 +435,10 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       if (company) companyStamp = { testingCompanyId: company.id, testingCompanyName: company.name };
     }
 
+    // Stamp who did the test, so every later print names them. A superseding version keeps the
+    // original's (only the tester who did a test can amend it).
+    const testerStamp: Partial<LocalTest> = test.testedBy ? {} : { testedBy: await getCachedTesterDetails() };
+
     // Re-edit of a completed test: fix the amendment record (what changed vs the superseded
     // version, when, by whom) at sign-off, appended to the cumulative chain the copy carried
     // forward. Replaces any same-version record so a repeated sign-off can't double-log.
@@ -460,6 +469,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       amendments,
       ...calStamp,
       ...companyStamp,
+      ...testerStamp,
       nextTestDate,
       syncState: "local-only",
       attestations: [
@@ -501,7 +511,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     onResync: () => void runSync("Re-synced"),
     onDownloadReport: () => {
       setGenerating(true);
-      void downloadTestSummaryPdf(test, serverBranding)
+      void downloadTestSummaryPdf(test, serverBranding, serverTester)
         .catch((e) =>
           // A missing generator chunk is recoverable and the tester can act on it — don't bury it
           // under the generic message.

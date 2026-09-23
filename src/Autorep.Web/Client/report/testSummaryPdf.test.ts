@@ -427,6 +427,31 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(JSON.stringify(content[at])).toContain("farm owner’s responsibility");
   });
 
+  it("names the tester with their company, phone and registration so the farmer can call them", () => {
+    const t = sampleTest();
+    t.testedBy = { name: "Alan Tester", phone: "021 752 097", registrationNumber: "594", registrationExpiry: "2026-10-31" };
+    const json = JSON.stringify(buildTestSummaryDoc(t, undefined, { companyName: "Sample Testing Co. Ltd" }).content);
+    expect(json).toContain("TESTED BY");
+    expect(json).toContain("Alan Tester");
+    expect(json).toContain("Sample Testing Co. Ltd");
+    expect(json).toContain("Phone 021 752 097");
+    expect(json).toContain("NZMPTA registration 594 · expires 31/10/2026");
+  });
+
+  it("prefers the tester stamped on the test over any fallback, and leaves unknown lines off", () => {
+    const t = sampleTest();
+    t.testedBy = { name: "Original Tester" };
+    const json = JSON.stringify(buildTestSummaryDoc(t, undefined, undefined, { name: "Someone Else" }).content);
+    expect(json).toContain("Original Tester");
+    expect(json).not.toContain("Someone Else");
+    expect(json).not.toContain("Phone ");
+    expect(json).not.toContain("NZMPTA registration");
+
+    // Unstamped: the fallback names them.
+    expect(JSON.stringify(buildTestSummaryDoc(sampleTest(), undefined, undefined, { name: "Fallback Tester" }).content))
+      .toContain("Fallback Tester");
+  });
+
   it("puts the annual-test reminder with the next test date on page one", () => {
     const t = sampleTest();
     t.nextTestDate = "2027-06-11";

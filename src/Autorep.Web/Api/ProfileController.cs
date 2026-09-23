@@ -57,6 +57,24 @@ public class ProfileController : ControllerBase
         return Ok(new CalibrationDto(user.CalAirFlowMetersExpiry, user.CalPulsatorTestersExpiry, user.CalVacuumGaugesExpiry));
     }
 
+    /// <summary>The tester as the report names them, so the farmer knows who to call: name, phone,
+    /// NZMPTA registration (certificate) number and its expiry. The device caches it and stamps it
+    /// into each test at sign-off.</summary>
+    public record TesterDetailsDto(string Name, string? Phone, string? RegistrationNumber, DateOnly? RegistrationExpiry);
+
+    [HttpGet("tester")]
+    public async Task<IActionResult> GetTester(CancellationToken ct)
+    {
+        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var dto = await _db.Users
+            .Where(u => u.Id == testerId)
+            .Select(u => new TesterDetailsDto(
+                u.DisplayName != "" ? u.DisplayName : (u.Email ?? u.UserName ?? ""),
+                u.PhoneNumber, u.CertificateNo, u.LicenceExpiryDate))
+            .FirstOrDefaultAsync(ct);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
     /// <summary>The tester's Testing Company as the report letterhead shows it. Logo is a data URL,
     /// null when the company has none.</summary>
     public record CompanyBrandingDto(Guid Id, string Name, string? Logo);

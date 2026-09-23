@@ -6,7 +6,7 @@
 // working (configuration, numbers, per-unit tables, visual checks) starts on page two under a
 // compact running header, and the amendment history closes the document as its own page.
 import type { Content, CustomTableLayout, TDocumentDefinitions, TableCell } from "pdfmake/interfaces";
-import type { LocalTest } from "../db/testStore";
+import type { LocalTest, TesterDetails } from "../db/testStore";
 import type { FaultSeverity } from "../wizard/types";
 import { loadPdfLib, loadPdfMake } from "./generatorChunks";
 import { aggregate } from "../faults/faultAggregator";
@@ -20,6 +20,7 @@ import { getPrivacyContent } from "../config/privacyContent";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { getCachedCompanyBranding, type CompanyBranding } from "../sync/companyBrandingSync";
+import { getCachedTesterDetails } from "../sync/testerDetailsSync";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
 import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
@@ -263,6 +264,24 @@ function logoNode(dataUrl: string | null | undefined, fit: [number, number]): Co
   return svg ? ({ svg, fit, alignment: "right" } as Content) : null;
 }
 
+/** "Tested by" in the Test panel: who did the test and how to reach them, as the farmer needs it
+ * — name, company, phone, and NZMPTA registration number with its expiry. Each line only when known;
+ * nothing at all when neither a tester nor a company is known. */
+function testedByBlock(tester: TesterDetails | null, companyName?: string | null): Content[] {
+  const company = companyName?.trim();
+  if (!tester && !company) return [];
+  const reg = tester?.registrationNumber
+    ? `NZMPTA registration ${tester.registrationNumber}${tester.registrationExpiry ? ` · expires ${formatDisplayDate(tester.registrationExpiry)}` : ""}`
+    : null;
+  const lines: Content[] = [
+    ...(tester ? [{ text: tester.name, fontSize: 9, bold: true, color: INK, margin: [0, 1, 0, 0] } as Content] : []),
+    ...(company ? [{ text: company, fontSize: 8.5, color: INK, margin: [0, tester ? 0 : 1, 0, 0] } as Content] : []),
+    ...(tester?.phone ? [{ text: `Phone ${tester.phone}`, fontSize: 8.5, color: INK } as Content] : []),
+    ...(reg ? [{ text: reg, fontSize: 7.5, color: MUTED } as Content] : []),
+  ];
+  return [{ stack: [{ text: "TESTED BY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 }, ...lines], margin: [0, 0, 0, 7] } as Content];
+}
+
 function severityCell(severity: FaultSeverity): TableCell {
   const s = SEVERITY_STYLE[severity] ?? SEVERITY_STYLE.Major;
   return { text: severity.toUpperCase(), fontSize: 7, bold: true, color: s.ink, fillColor: s.fill, alignment: "center", characterSpacing: 0.4 };
@@ -277,6 +296,7 @@ export function buildTestSummaryDoc(
   test: LocalTest,
   calibrationFallback?: CalibrationDates,
   branding?: ReportBranding,
+  testerFallback?: TesterDetails | null,
 ): TDocumentDefinitions {
   const config = test.config;
   const summary = aggregate(buildFaultInputs(test));
@@ -365,7 +385,7 @@ export function buildTestSummaryDoc(
     ...nextTestBlock,
     annualNote,
     field("Completed", test.markedCompleteAt ? fmtDate(test.markedCompleteAt) : "Not yet signed off", true),
-    ...(branding?.companyName?.trim() ? [field("Tested by", branding.companyName)] : []),
+    ...testedByBlock(test.testedBy ?? testerFallback ?? null, branding?.companyName),
     field("Machine", `${plant} · ${config.clusterCount || "—"} clusters`),
     { text: "CALIBRATION EXPIRY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
     {
@@ -939,9 +959,14 @@ export function brandingForTest(test: LocalTest, current: CompanyBranding | null
 
 /** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
  * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use.
- * `branding` is given by the read-only server view (the company the test was done for); on the
- * tester's own device it is resolved from the cached company. */
-export async function downloadTestSummaryPdf(test: LocalTest, branding?: ReportBranding): Promise<void> {
+ * `branding` and `testerFallback` are given by the read-only server view (the company the test
+ * was done for, and the tester's name when the test carries no stamped details); on the tester's
+ * own device both are resolved from what this device has cached. */
+export async function downloadTestSummaryPdf(
+  test: LocalTest,
+  branding?: ReportBranding,
+  testerFallback?: TesterDetails | null,
+): Promise<void> {
   const { pdfMake, vfs } = await loadPdfMake();
   // pdfmake 0.3.x: register the Roboto virtual file system.
   (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
@@ -954,8 +979,13 @@ export async function downloadTestSummaryPdf(test: LocalTest, branding?: ReportB
   const calibration = test.markedCompleteAt ? undefined : await getCachedCalibration().catch(() => undefined);
   const letterhead =
     branding ?? brandingForTest(test, await getCachedCompanyBranding().catch(() => null));
+  // A test stamped at sign-off names its own tester. Otherwise the server view says who (or null
+  // for nobody known); on this device an unstamped test (a draft, or one signed off before the
+  // stamp existed) is the signed-in tester's own.
+  const tester = test.testedBy
+    ?? (testerFallback !== undefined ? testerFallback : await getCachedTesterDetails().catch(() => null));
   const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
-    buildTestSummaryDoc(test, calibration, letterhead),
+    buildTestSummaryDoc(test, calibration, letterhead, tester),
   );
 
   if (test.pulsationPdf) {
