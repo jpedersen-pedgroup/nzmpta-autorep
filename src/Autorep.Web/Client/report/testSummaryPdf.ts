@@ -73,7 +73,12 @@ const SEVERITY_STYLE: Record<FaultSeverity, { ink: string; fill: string }> = {
 // one fills the same band with the letterhead.
 const MARGIN_X = 40;
 const MARGIN_TOP = 64;
-const MARGIN_BOTTOM = 56;
+// The bottom margin holds the footer plus, on page one, the compliance disclaimer anchored just
+// above it. pdfmake has one set of margins for every page, so the band is reserved on all of them:
+// that's what guarantees page one's content can never run into the disclaimer.
+const FOOTER_HEIGHT = 56;
+const DISCLAIMER_BAND = 34;
+const MARGIN_BOTTOM = FOOTER_HEIGHT + DISCLAIMER_BAND;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 // Where the letterhead swirl sits on page one, and how far down the content must start to clear it.
 const LETTERHEAD_LIFT = 30;
@@ -282,6 +287,38 @@ function testedByBlock(tester: TesterDetails | null, companyName?: string | null
   return [{ stack: [{ text: "TESTED BY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 }, ...lines], margin: [0, 0, 0, 7] } as Content];
 }
 
+/** What each rating means, for the legend under the fault table (the association's rating scheme,
+ * as the legacy report printed it). */
+export const SEVERITY_MEANING: Record<FaultSeverity, string> = {
+  Critical: "Negatively affects milk quality or animal health and welfare, or is a serious risk to milker health and safety.",
+  Major: "Affects animal comfort, may cause a breakdown, affects the ability to harvest milk efficiently, or compromises milker safety.",
+  Minor: "Has the potential to affect milk quality, animal health and welfare, or milker safety in the future.",
+};
+
+/** The severity legend: each rating's pill beside what it means, kept whole on one page. */
+function severityLegend(): Content {
+  return {
+    stack: [
+      { text: "SEVERITY RATINGS", fontSize: 6.5, bold: true, color: MUTED, characterSpacing: 0.8, margin: [0, 0, 0, 3] },
+      {
+        table: {
+          widths: [52, "*"],
+          body: (["Critical", "Major", "Minor"] as FaultSeverity[]).map((sev) => [
+            severityCell(sev),
+            { text: SEVERITY_MEANING[sev], fontSize: 7.5, color: INK },
+          ]),
+        },
+        layout: {
+          hLineWidth: () => 0, vLineWidth: () => 0,
+          paddingLeft: (i: number) => (i === 0 ? 0 : 8), paddingRight: () => 0, paddingTop: () => 1.5, paddingBottom: () => 1.5,
+        },
+      },
+    ],
+    unbreakable: true,
+    margin: [0, 8, 0, 0],
+  } as Content;
+}
+
 function severityCell(severity: FaultSeverity): TableCell {
   const s = SEVERITY_STYLE[severity] ?? SEVERITY_STYLE.Major;
   return { text: severity.toUpperCase(), fontSize: 7, bold: true, color: s.ink, fillColor: s.fill, alignment: "center", characterSpacing: 0.4 };
@@ -386,7 +423,6 @@ export function buildTestSummaryDoc(
     annualNote,
     field("Completed", test.markedCompleteAt ? fmtDate(test.markedCompleteAt) : "Not yet signed off", true),
     ...testedByBlock(test.testedBy ?? testerFallback ?? null, branding?.companyName),
-    field("Machine", `${plant} · ${config.clusterCount || "—"} clusters`),
     { text: "CALIBRATION EXPIRY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
     {
       table: {
@@ -403,21 +439,6 @@ export function buildTestSummaryDoc(
     } as Content,
   ]);
   const detailsBlock: Content = { columns: [{ width: "58%", stack: [farmPanel] }, { width: "*", stack: [testPanel] }], columnGap: 10 };
-
-  const versionNotice: Content[] =
-    version > 1
-      ? [
-          barPanel(
-            [{
-              text: `Version ${version} — supersedes an earlier completed test${
-                amendmentBlock.length > 0 ? " (all changes are listed in the Amendment history section)" : ""
-              }`,
-              fontSize: 8.5, color: BRAND,
-            }],
-            BRAND, PANEL, [0, 10, 0, 0],
-          ),
-        ]
-      : [];
 
   // --- Result banner + fault summary -------------------------------------------------------------
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -474,7 +495,7 @@ export function buildTestSummaryDoc(
     ? recordedFaultBlock(test)
     : summary.total === 0
       ? []
-      : [grid([52, 78, "*", "*"], faultRows)];
+      : [grid([52, 78, "*", "*"], faultRows), severityLegend()];
 
   // General comments sit under the fault table: what the tester wants the farmer to know that no
   // fault line carries. Migrated tests print theirs inside recordedFaultBlock.
@@ -492,26 +513,27 @@ export function buildTestSummaryDoc(
         ]
       : [];
 
-  // The disclaimer closes page one's summary, on every report (migrated ones included), kept whole
-  // so it never splits across a page break. It follows the faults and comments, so it lands on page
-  // one unless an unusually long fault list has already run onto page two.
-  const disclaimerBlock: Content = {
+  // The disclaimer sits at the foot of page one on every report (migrated ones included), in the
+  // band the bottom margin reserves for it above the footer — so it's always on page one, however
+  // long the fault list, and never collides with the content.
+  const disclaimerPad = 7;
+  const disclaimerAt = (pageHeight: number): Content => ({
     table: {
-      widths: ["*"],
+      widths: [CONTENT_WIDTH - disclaimerPad * 2 - 1.2],
       body: [[{
-        stack: [
-          { text: "COMPLIANCE DISCLAIMER", fontSize: 6.5, bold: true, color: MUTED, characterSpacing: 0.8, margin: [0, 0, 0, 2] },
-          { text: COMPLIANCE_DISCLAIMER, fontSize: 8, color: INK, lineHeight: 1.15 },
+        text: [
+          { text: "COMPLIANCE DISCLAIMER   ", fontSize: 6, bold: true, color: MUTED, characterSpacing: 0.6 },
+          { text: COMPLIANCE_DISCLAIMER, fontSize: 6.8, color: INK },
         ],
+        lineHeight: 1.1,
       }]],
     },
     layout: {
       hLineWidth: () => 0.6, vLineWidth: () => 0.6, hLineColor: () => RULE, vLineColor: () => RULE,
-      paddingLeft: () => 9, paddingRight: () => 9, paddingTop: () => 6, paddingBottom: () => 6,
+      paddingLeft: () => disclaimerPad, paddingRight: () => disclaimerPad, paddingTop: () => 4, paddingBottom: () => 4,
     },
-    unbreakable: true,
-    margin: [0, 14, 0, 0],
-  } as Content;
+    absolutePosition: { x: MARGIN_X, y: pageHeight - MARGIN_BOTTOM + 4 },
+  } as Content);
 
   // --- Machine configuration (page 2 onward) ----------------------------------------------------
   const flags: string[] = [];
@@ -721,6 +743,7 @@ export function buildTestSummaryDoc(
         ? [
             { svg: letterheadSwirlSvg(), width: PAGE_WIDTH, absolutePosition: { x: 0, y: SWIRL_TOP } },
             { svg: footerSwirlSvg(), width: 220, absolutePosition: { x: size.width - 220, y: size.height - 60 } },
+            disclaimerAt(size.height),
           ]
         : null,
     // Pages 2+: the MPNZ mark, the report and farm name, the company logo when there is one, and
@@ -762,7 +785,7 @@ export function buildTestSummaryDoc(
       const privacy: Content[] = privacyFooter ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [0, 1, 0, 0] } as Content] : [];
       if (page === 1) {
         return {
-          margin: [MARGIN_X, 14, MARGIN_X + 175, 0],
+          margin: [MARGIN_X, DISCLAIMER_BAND + 14, MARGIN_X + 175, 0],
           stack: [
             { text: [{ text: `Page 1 of ${pages}`, color: INK }, `   ${copyright}`], fontSize: 6.5, color: MUTED },
             ...privacy,
@@ -771,7 +794,7 @@ export function buildTestSummaryDoc(
         };
       }
       return {
-        margin: [MARGIN_X, 6, MARGIN_X, 0],
+        margin: [MARGIN_X, DISCLAIMER_BAND + 6, MARGIN_X, 0],
         stack: [
           { svg: ruleSwooshSvg(CONTENT_WIDTH), width: CONTENT_WIDTH, margin: [0, 0, 0, 4] },
           {
@@ -800,12 +823,10 @@ export function buildTestSummaryDoc(
       letterhead,
       titleLine,
       detailsBlock,
-      ...versionNotice,
       ...resultBanner,
       // A clean machine says so in the banner; an empty heading under it would read as missing.
       ...(faultBlock.length > 0 ? [sectionHeader("Fault summary & recommendations"), ...faultBlock] : []),
       ...notesBlock,
-      disclaimerBlock,
       // ---- Page two onward: the working ----
       sectionHeader("Machine configuration", true),
       configBlock,
