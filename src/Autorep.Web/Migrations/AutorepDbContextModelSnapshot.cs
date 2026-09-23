@@ -371,6 +371,9 @@ namespace Autorep.Web.Migrations
                     b.Property<DateTimeOffset?>("MarkedCompleteAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateOnly?>("NextTestDate")
+                        .HasColumnType("date");
+
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
@@ -408,6 +411,8 @@ namespace Autorep.Web.Migrations
                     b.HasIndex("TesterId", "UpdatedAt");
 
                     b.HasIndex("TestingCompanyId", "MarkedCompleteAt");
+
+                    b.HasIndex("TestingCompanyId", "NextTestDate");
 
                     b.ToTable("MachineTests");
                 });

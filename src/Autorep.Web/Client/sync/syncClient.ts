@@ -10,7 +10,9 @@ import { allTests, getTest, putTest, getReference, putReference, type LocalTest 
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
+import { initCompanyBranding } from "./companyBrandingSync";
 import { warmReportGenerator } from "../report/generatorChunks";
+import { guidesForRoles, TESTER_ROLE, warmGuides } from "../guides/guides";
 
 interface TestSummaryDto {
   clientId: string;
@@ -80,6 +82,8 @@ async function pushTest(t: LocalTest): Promise<void> {
       // superseded versions from the company-wide list without parsing (and loading) the payload.
       version: t.version ?? 1,
       supersedesClientId: t.supersedesId ?? null,
+      // Mirrored into its own column for the admin Upcoming tests page.
+      nextTestDate: t.nextTestDate ?? null,
       // The full rich capture round-trips as JSON so a re-download rehydrates exactly.
       payloadJson: JSON.stringify(t),
     }),
@@ -183,9 +187,11 @@ async function pullTests(): Promise<number> {
 }
 
 /** Push every local-only test, then pull the Tester's tests down. Also flushes a pending
- * offline edit of the tester's calibration dates (kept dirty until the server accepts it). */
+ * offline edit of the tester's calibration dates (kept dirty until the server accepts it) and
+ * re-checks the company branding for the report letterhead (a 304 unless an admin changed it). */
 export async function syncAll(): Promise<SyncResult> {
   await flushCalibration();
+  await initCompanyBranding();
   const locals = await allTests();
   let pushed = 0;
   let failed = 0;
@@ -210,6 +216,9 @@ export async function syncAll(): Promise<SyncResult> {
   // printing works on-farm later on a device that has never printed before. Deliberately not
   // awaited: it is ~2.4 MB and no one should wait on it to see their tests.
   void warmReportGenerator();
+  // Same moment, same reasoning, for the tester's work instructions (a few MB, a 304 once held):
+  // the Help page can't open offline, but the guide links in the tester app can — from this copy.
+  void warmGuides(guidesForRoles([TESTER_ROLE]));
 
   return { pushed, failed, pulled };
 }

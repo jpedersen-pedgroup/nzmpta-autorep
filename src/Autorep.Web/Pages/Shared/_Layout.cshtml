@@ -64,7 +64,12 @@
                     {
                         <a asp-page="/Admin/Index">Home</a>
                         <a asp-page="/Admin/Tests/Index">All tests</a>
+                        <a asp-page="/Admin/Tests/Upcoming">Upcoming tests</a>
                         <a asp-page="/Admin/Farms/Index">Farms</a>
+                        @if (!isSuperAdmin)
+                        {
+                            <a asp-page="/Admin/MyCompany/Index">My company</a>
+                        }
                         @if (isSuperAdmin)
                         {
                             <a asp-page="/Admin/Testers/Index">Testers</a>
@@ -73,6 +78,7 @@
                             <a asp-page="/Admin/MilkSupplyCompanies/Index">Milk companies</a>
                         }
                     }
+                    <a asp-page="/Help/Index">Help</a>
                 </nav>
                 <div class="app-header__user">
                     <a class="app-header__user-name" asp-page="/Account/Manage" style="text-decoration:none">

@@ -1,5 +1,6 @@
 using Autorep.Web.Data;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -52,7 +53,9 @@ public class NewModel : PageModel
             Phone = Clean(Input.Phone),
             Email = Clean(Input.Email),
         };
-        if (!await LogoUpload.ApplyAsync(Input.Logo, company, Errors)) return Page();
+        var (ok, logo) = await LogoImage.ReadUploadAsync(Input.Logo, Errors);
+        if (!ok) return Page();
+        if (logo is not null) (company.LogoData, company.LogoContentType) = (logo.Data, logo.ContentType);
 
         _db.MilkSupplyCompanies.Add(company);
         await _db.SaveChangesAsync();

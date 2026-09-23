@@ -190,10 +190,15 @@ builder.Services.AddRazorPages(opts =>
     opts.Conventions.AuthorizeFolder("/Admin/Equipment", "SuperAdminOnly");
     opts.Conventions.AuthorizeFolder("/Admin/FaultObservations", "SuperAdminOnly");
     opts.Conventions.AuthorizeFolder("/Admin/Privacy", "SuperAdminOnly");
+    // Help & guides: every signed-in role; the page filters the list by role.
+    opts.Conventions.AuthorizeFolder("/Help");
 });
 
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
+
+// The work-instruction PDFs behind Help & guides (Guides/guides.json + GuidesController).
+builder.Services.AddSingleton<GuideCatalog>();
 
 // NZ Post keyless address autocomplete (admin Farm Details screens; online only).
 builder.Services.AddHttpClient<NzPostAddressClient>();

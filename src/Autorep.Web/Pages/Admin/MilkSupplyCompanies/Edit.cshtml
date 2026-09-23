@@ -33,7 +33,7 @@
                     <input asp-for="Input.RemoveLogo" type="checkbox" /> Remove current logo
                 </label>
             }
-            <input asp-for="Input.Logo" type="file" accept="image/*" />
+            <input asp-for="Input.Logo" type="file" accept="@Autorep.Web.Services.LogoImage.Accept" />
             <div class="form-field__hint">Upload to @(Model.HasLogo ? "replace" : "add") the logo. PNG, JPG or SVG, up to 1 MB.</div>
         </div>
 

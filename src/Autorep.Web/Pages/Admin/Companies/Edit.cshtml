@@ -1,6 +1,7 @@
 @page "{id:guid}"
 @model Autorep.Web.Pages.Admin.Companies.EditModel
 @using Autorep.Web.Domain
+@using Autorep.Web.Services
 @{
     ViewData["Title"] = $"Edit {Model.Input.Name}";
 }
@@ -19,9 +20,24 @@
 
 <div class="card card--scroll" style="max-width:640px">
     <h2 class="card__title">Details</h2>
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
         <div class="scroll-body">
             <div class="form-field"><label asp-for="Input.Name">Name</label><input asp-for="Input.Name" required /></div>
+            <div class="form-field">
+                <label asp-for="Input.Logo">Report logo</label>
+                @if (Model.LogoPreview is not null)
+                {
+                    <div style="margin-bottom:var(--space-2)">
+                        <img src="@Model.LogoPreview" alt="@Model.Input.Name logo"
+                             style="max-height:64px;max-width:220px;border:1px solid var(--border);border-radius:var(--radius);padding:4px;background:#fff" />
+                    </div>
+                    <label class="form-check" style="margin-bottom:var(--space-2)">
+                        <input asp-for="Input.RemoveLogo" type="checkbox" /> Remove current logo
+                    </label>
+                }
+                <input asp-for="Input.Logo" type="file" accept="@LogoImage.Accept" />
+                <div class="form-field__hint">Printed on this company's test reports. Upload to @(Model.LogoPreview is null ? "add" : "replace") the logo. PNG, JPEG or SVG, up to 1 MB.</div>
+            </div>
             <div class="form-field"><label asp-for="Input.AddressLine1">Address line 1</label><input asp-for="Input.AddressLine1" /></div>
             <div class="form-field"><label asp-for="Input.AddressLine2">Address line 2</label><input asp-for="Input.AddressLine2" /></div>
             <div class="form-field"><label asp-for="Input.Town">Town / city</label><input asp-for="Input.Town" /></div>

@@ -149,6 +149,13 @@ describe("computeChanges", () => {
     expect(changes[0].to).toContain("155 KB");
   });
 
+  it("records a changed next test date", () => {
+    const base = editedCopy({ nextTestDate: "2027-06-11" });
+    expect(computeChanges(base, editedCopy({ nextTestDate: "2027-03-01" }))).toEqual([
+      { section: "Other", label: "Next test date", from: "2027-06-11", to: "2027-03-01" },
+    ]);
+  });
+
   it("does not report absent vs explicit-false guards as a change", () => {
     const base = editedCopy({});
     delete base.guardsOnPulsators;

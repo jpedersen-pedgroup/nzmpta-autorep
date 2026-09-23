@@ -21,6 +21,12 @@ public class MachineTest
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? MarkedCompleteAt { get; set; }
+
+    /// <summary>When the farm is next due a test, set by the tester at sign-off (twelve months out
+    /// unless they change it). The device stores it in PayloadJson too; it's mirrored here so the
+    /// Upcoming tests page can query what's due without parsing payloads. Null on tests signed off
+    /// before it existed and on migrated legacy tests.</summary>
+    public DateOnly? NextTestDate { get; set; }
     public string? Notes { get; set; }
 
     /// <summary>The upfront Machine Configuration that drives the wizard steps and the standards

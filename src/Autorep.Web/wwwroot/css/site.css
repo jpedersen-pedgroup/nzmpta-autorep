@@ -698,6 +698,55 @@ main {
   color: var(--text-muted);
 }
 
+/* ----- Help & guides -------------------------------------------------------- */
+/* One row per work-instruction PDF: the tile's icon treatment, then title / one-liner / meta, and
+   the Open button on the right (dropping underneath on a phone). */
+.guide-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+  max-width: 820px;
+}
+.guide {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+.guide__icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  background: rgba(0,56,147,0.08);
+  color: var(--brand);
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+}
+.guide__body { flex: 1; min-width: 0; }
+.guide__title { font-size: 1rem; font-weight: 600; }
+.guide__desc { font-size: 0.875rem; color: var(--text-muted); margin-top: var(--space-1); }
+.guide__meta { font-size: 0.8125rem; color: var(--text-subtle); margin-top: var(--space-2); }
+.guide__open { flex: none; }
+.guide-list__note {
+  max-width: 820px;
+  margin-top: var(--space-5);
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.guide-list__note i { color: var(--brand); margin-right: var(--space-1); }
+@media (max-width: 600px) {
+  .guide { flex-wrap: wrap; }
+  .guide__body { flex-basis: calc(100% - 40px - var(--space-4)); }
+  .guide__open { width: 100%; }
+}
+
 /* ----- Licence banner ------------------------------------------------------- */
 .licence-banner {
   padding: var(--space-3) var(--space-6);
@@ -1007,6 +1056,8 @@ main {
 .signoff-footer { flex: none; margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
 .signoff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); margin-top: var(--space-2); }
 .signoff__label { color: var(--text-muted); font-size: 0.8125rem; }
+.signoff-next { margin: var(--space-3) 0 0; max-width: 320px; }
+.signoff-next__warn { color: #b91c1c; }
 .signoff-steps { margin-top: var(--space-4); display: grid; gap: 3px; }
 .signoff-step { display: flex; align-items: center; gap: var(--space-2); font-size: 0.9rem; }
 .signoff-step__dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--border-strong); }
@@ -1333,6 +1384,8 @@ main {
   cursor: pointer;
 }
 .layout-menu__trigger:hover { opacity: 1; background: rgba(127,127,127,0.14); }
+/* The tester-guide "?" beside the cog borrows its look; flex: none so a tight bar never squeezes it. */
+.guide-link { flex: none; text-decoration: none; }
 .layout-menu__popup { width: min(340px, calc(100vw - 2rem)); padding: var(--space-2); }
 .layout-menu__heading {
   padding: var(--space-2) var(--space-3);
@@ -1795,3 +1848,12 @@ main {
     font-size: 1.125rem;
   }
 }
+
+/* Upcoming tests: overdue / due-soon / listed counts above the list. */
+.upcoming-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+.upcoming-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3) var(--space-4); }
+.upcoming-stat__value { font-size: 1.75rem; font-weight: 600; line-height: 1.1; }
+.upcoming-stat__label { color: var(--text-muted); font-size: 0.875rem; }
+.upcoming-stat--overdue { border-color: var(--danger-border); background: var(--danger-bg); }
+.upcoming-stat--overdue .upcoming-stat__value { color: #991b1b; }
+.upcoming-stat--soon .upcoming-stat__value { color: #92400e; }

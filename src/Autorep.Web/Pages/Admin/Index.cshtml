@@ -15,6 +15,17 @@
         <div class="tile__title">All tests</div>
         <div class="tile__desc">Browse every machine test synced from the field.</div>
     </a>
+    <a class="tile" asp-page="/Admin/Tests/Upcoming">
+        <div class="tile__icon"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i></div>
+        <div class="tile__title">Upcoming tests</div>
+        <div class="tile__desc">
+            Farms due for their next machine test.
+            @if (Model.OverdueTestCount > 0)
+            {
+                <span class="badge badge--danger">@Model.OverdueTestCount overdue</span>
+            }
+        </div>
+    </a>
     <a class="tile" asp-page="/Admin/Farms/Index">
         <div class="tile__icon"><i class="fa-solid fa-cow" aria-hidden="true"></i></div>
         <div class="tile__title">Farms</div>
@@ -26,6 +37,14 @@
             }
         </div>
     </a>
+    @if (!User.IsInRole(Autorep.Web.Domain.Roles.SuperAdministrator))
+    {
+        <a class="tile" asp-page="/Admin/MyCompany/Index">
+            <div class="tile__icon"><i class="fa-solid fa-building" aria-hidden="true"></i></div>
+            <div class="tile__title">My company</div>
+            <div class="tile__desc">Your testing company's details and the logo printed on its reports.</div>
+        </a>
+    }
     <a class="tile" asp-page="/Admin/Testers/Index">
         <div class="tile__icon"><i class="fa-solid fa-users" aria-hidden="true"></i></div>
         <div class="tile__title">Testers</div>
@@ -50,5 +69,10 @@
         <div class="tile__icon"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></div>
         <div class="tile__title">Fault observations</div>
         <div class="tile__desc">Standard fault wording, CMM severity and default recommendations.</div>
+    </a>
+    <a class="tile" asp-page="/Help/Index">
+        <div class="tile__icon"><i class="fa-solid fa-book-open" aria-hidden="true"></i></div>
+        <div class="tile__title">Help &amp; guides</div>
+        <div class="tile__desc">Work instructions for your role and for testers in the field.</div>
     </a>
 </div>

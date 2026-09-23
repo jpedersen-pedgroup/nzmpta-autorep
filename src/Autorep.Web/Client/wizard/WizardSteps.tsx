@@ -48,6 +48,8 @@ export interface StepContext {
   onDownloadReport(): void;
   onAttachPdf(file: File): void;
   onRemovePdf(): void;
+  /** The tester's choice of next test date on the sign-off step; null returns to the default. */
+  onNextTestDateChange(date: string | null): void;
 }
 
 export function renderStep(ctx: StepContext, step: WizardStep): VNode {
@@ -194,6 +196,7 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
           onDownloadReport={() => ctx.onDownloadReport()}
           onAttachPdf={(file) => ctx.onAttachPdf(file)}
           onRemovePdf={() => ctx.onRemovePdf()}
+          onNextTestDateChange={(date) => ctx.onNextTestDateChange(date)}
         />
       );
   }

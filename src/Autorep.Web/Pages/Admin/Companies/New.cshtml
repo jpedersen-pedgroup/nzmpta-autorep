@@ -11,10 +11,15 @@
 </div>
 
 <div class="card" style="max-width:640px">
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
         <div class="form-field">
             <label asp-for="Input.Name">Name</label>
             <input asp-for="Input.Name" required autofocus />
+        </div>
+        <div class="form-field">
+            <label asp-for="Input.Logo">Report logo</label>
+            <input asp-for="Input.Logo" type="file" accept="@Autorep.Web.Services.LogoImage.Accept" />
+            <div class="form-field__hint">Printed on this company's test reports. PNG, JPEG or SVG, up to 1 MB.</div>
         </div>
         <div class="form-field"><label asp-for="Input.AddressLine1">Address line 1</label><input asp-for="Input.AddressLine1" /></div>
         <div class="form-field"><label asp-for="Input.AddressLine2">Address line 2</label><input asp-for="Input.AddressLine2" /></div>

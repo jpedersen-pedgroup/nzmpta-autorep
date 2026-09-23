@@ -99,6 +99,7 @@
 ### M5 — Admin portal — users, companies & reference data
 - [x] ✅ Tester CRUD — list, create, edit, deactivate, reset password, force-logout (`Pages/Admin/Testers/*`)
 - [x] ✅ Testing Company CRUD (`Pages/Admin/Companies/*`)
+- [x] ✅ Testing Company **report logo** — Company Administrator uploads / replaces / removes their own company's logo on **My company** (`Pages/Admin/MyCompany`, company taken from the signed-in user, never the route/form); Super-Admin does any company from `Companies/New` / `Companies/Edit`. PNG, JPEG or SVG judged by its bytes, ≤ 1 MB (`Services/LogoImage`). Devices sync it via `companyBrandingSync` and every report page prints it.
 - [x] ✅ Role assignment + licence-expiry management (`Pages/Admin/Testers/Edit`)
 - [x] ✅ Self-service password reset + forced-reset-on-first-login (`Pages/Account/ForgotPassword`, `ResetPassword`)
 - [x] ✅ 2FA **enrolment** — TOTP setup, challenge, recovery codes (`Pages/Account/SetupAuthenticator`, `TwoFactorChallenge`, `RecoveryCodes`)
