@@ -64,14 +64,22 @@ async function readOwnCompanyId(): Promise<string | null> {
 
 /** Pull the tester's own company from their profile. Only a successful answer replaces the cache —
  * including "no company", so a tester removed from a company stops printing its logo. */
-async function refreshOwnCompany(): Promise<void> {
+async function refreshOwnCompany(timeoutMs = 15_000): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch("/api/profile/company", { headers: { Accept: "application/json" }, redirect: "manual" });
+    const res = await fetch("/api/profile/company", {
+      headers: { Accept: "application/json" },
+      redirect: "manual",
+      signal: controller.signal,
+    });
     if (!res.ok) return;
     const dto = (await res.json()) as { id?: unknown };
     await putReference({ key: OWN_COMPANY_KEY, rows: { id: typeof dto?.id === "string" ? dto.id : null } });
   } catch {
-    // Offline — the cached company stays in effect.
+    // Offline or timed out — the cached company stays in effect.
+  } finally {
+    clearTimeout(timer);
   }
 }
 

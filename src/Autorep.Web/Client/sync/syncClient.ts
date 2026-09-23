@@ -34,6 +34,10 @@ interface PullResponse {
 
 /** Reference-store key for the pull watermark (per-tester DB, so per-tester watermark). */
 const WATERMARK_KEY = "testPullWatermark";
+/** Set once a full pull has run since pulls started carrying testingCompanyId. Tests cached by an
+ * older build lack the field, and a delta pull only re-sends recently changed rows, so without one
+ * full pull an old test would fall back to the tester's current company's logo forever. */
+const COMPANY_BACKFILL_KEY = "testCompanyBackfill";
 
 export interface SyncResult {
   pushed: number;
@@ -97,6 +101,8 @@ async function pullTests(): Promise<number> {
   let since: string | null | undefined;
   try {
     since = (await getReference(WATERMARK_KEY))?.version;
+    const backfill = (await getReference(COMPANY_BACKFILL_KEY))?.rows as { done?: boolean } | undefined;
+    if (since && backfill?.done !== true) since = null;
   } catch {
     // No watermark readable — fall through to a full pull.
   }
@@ -185,6 +191,7 @@ async function pullTests(): Promise<number> {
   // Advance the watermark only after every pulled test is stored: an interrupted pull re-fetches
   // the same window next time (safe — the loop upserts) instead of losing it.
   await putReference({ key: WATERMARK_KEY, version: watermark });
+  await putReference({ key: COMPANY_BACKFILL_KEY, rows: { done: true } });
   return added;
 }
 
@@ -216,12 +223,14 @@ export async function syncAll(): Promise<SyncResult> {
   // printing works on-farm later on a device that has never printed before. Deliberately not
   // awaited: it is ~2.4 MB and no one should wait on it to see their tests.
   void warmReportGenerator();
-  // Same moment, same reason: bring the company logo(s) the report prints up to date — a logo the
-  // Company Administrator replaced or removed reaches this device here. Never throws.
-  void refreshCompanyLogos();
   // Same moment, same reasoning, for the tester's work instructions (a few MB, a 304 once held):
   // the Help page can't open offline, but the guide links in the tester app can — from this copy.
   void warmGuides(guidesForRoles([TESTER_ROLE]));
+  // Same moment: bring the company logo(s) the report prints up to date — a logo the Company
+  // Administrator replaced or removed reaches this device here. Awaited (unlike the generator) so
+  // "synced" means the next report prints the current logo; it is a few conditional GETs, each
+  // bounded by a timeout, and never throws.
+  await refreshCompanyLogos();
 
   return { pushed, failed, pulled };
 }
