@@ -6,10 +6,11 @@ import type {
   MachineConfiguration,
   PlantType,
   PumpLubrication,
+  RegulatorDetail,
   ReleaserPumpDetail,
   VacuumPumpDetail,
 } from "./types";
-import { releaserPumpRows, vacuumPumpRows, withRow } from "./pumpRows";
+import { regulatorRows, releaserPumpRows, vacuumPumpRows, withRow } from "./pumpRows";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "./configLabels";
 import { Tabs } from "../ui/Tabs";
 import { Combobox } from "../ui/Combobox";
@@ -142,8 +143,8 @@ function modelForMake(models: string[], current?: string | null): string | null 
   return null;
 }
 
-/** One row per vacuum pump, following the pump count - the make/model/motor/regulator the legacy
- * app captured on page 2, and what a replacement quote needs (tester feedback, 15 Sep 2026). */
+/** One row per vacuum pump, following the pump count - the make/model/motor the legacy app
+ * captured on page 2, and what a replacement quote needs (tester feedback, 15 Sep 2026). */
 function VacuumPumpRowsEditor({ config, onChange }: Props) {
   const rows = vacuumPumpRows(config);
   const set = (i: number, patch: Partial<VacuumPumpDetail>) =>
@@ -173,15 +174,6 @@ function VacuumPumpRowsEditor({ config, onChange }: Props) {
           <Field label="Motor size (kW)">
             <TextInput value={row.motorSize} onInput={(v) => set(i, { motorSize: v })} placeholder="e.g. 7.5" />
           </Field>
-          <Field label="Regulator type">
-            <Combobox
-              value={row.regulatorType}
-              onChange={(v) => set(i, { regulatorType: v })}
-              options={regulatorTypeOptions()}
-              listId={`cfg-vp-reg-${i}`}
-              placeholder="Type it in"
-            />
-          </Field>
           <Toggle
             label="Drives the milk pump"
             checked={row.drivesMilkPump ?? false}
@@ -189,6 +181,56 @@ function VacuumPumpRowsEditor({ config, onChange }: Props) {
           />
         </PumpRow>
       ))}
+    </div>
+  );
+}
+
+/** Regulators - a free-text type and a quantity per line, since a shed can run several and they
+ * don't follow the pumps, plus the tester's call on whether they suit the plant (Jono, 23 Sep
+ * 2026). The first edit on an older test writes out the lines read from its pump rows. */
+function RegulatorRowsEditor({ config, onChange }: Props) {
+  const rows = regulatorRows(config);
+  const set = (i: number, patch: Partial<RegulatorDetail>) => onChange({ regulators: withRow(rows, i, patch) });
+  const suitable = config.regulatorsSuitable == null ? "" : config.regulatorsSuitable ? "yes" : "no";
+  return (
+    <div class="form-field--full">
+      <label class="pump-rows__label">Regulators</label>
+      <p class="form-field__hint">One line per regulator type, with how many are fitted.</p>
+      {rows.map((row, i) => (
+        <PumpRow
+          key={`reg-${i}`}
+          title={rows.length > 1 ? `Regulator type ${i + 1}` : "Regulator"}
+          onRemove={rows.length > 1 ? () => onChange({ regulators: rows.filter((_, j) => j !== i) }) : undefined}
+        >
+          <Field label="Type">
+            <Combobox
+              value={row.type}
+              onChange={(v) => set(i, { type: v })}
+              options={regulatorTypeOptions()}
+              listId={`cfg-reg-type-${i}`}
+              placeholder="Type it in"
+            />
+          </Field>
+          <Field label="Quantity">
+            <NumberInput value={row.quantity} min={1} onInput={(v) => set(i, { quantity: v })} />
+          </Field>
+        </PumpRow>
+      ))}
+      <button type="button" class="btn btn--secondary btn--sm" onClick={() => onChange({ regulators: [...rows, {}] })}>
+        + Add regulator type
+      </button>
+      <div class="form-field pump-rows__question">
+        <label>Regulators correct and big enough for this plant?</label>
+        <Select
+          value={suitable}
+          onChange={(v) => onChange({ regulatorsSuitable: v === "" ? null : v === "yes" })}
+          options={[
+            { value: "", label: "— not checked —" },
+            { value: "yes", label: "Yes" },
+            { value: "no", label: "No" },
+          ]}
+        />
+      </div>
     </div>
   );
 }
@@ -301,6 +343,7 @@ export function MachineConfigStep({ config, onChange }: Props) {
             />
           </Field>
           <VacuumPumpRowsEditor config={config} onChange={onChange} />
+          <RegulatorRowsEditor config={config} onChange={onChange} />
         </div>
       ),
     },

@@ -32,7 +32,16 @@ export type VacuumPumpDetail = {
   /** Motor size as it reads on the plate - free text, usually kW. */
   motorSize?: string | null;
   drivesMilkPump?: boolean;
+  /** Retired 23 Sep 2026 - regulators are their own list now (`MachineConfiguration.regulators`).
+   * Still read from tests captured before then; see regulatorRows in wizard/pumpRows.ts. */
   regulatorType?: string | null;
+};
+
+/** One line of the regulator list: a free-text type and how many of that type are fitted. A shed
+ * can have several regulators, and not one per pump (Jono, 23 Sep 2026). */
+export type RegulatorDetail = {
+  type?: string | null;
+  quantity?: number | null;
 };
 
 /** One releaser (milk) pump's details. */
@@ -66,9 +75,15 @@ export interface MachineConfiguration {
   backLiner?: string | null;
   linerVented: boolean;
   numberOfVacuumPumps: number;
-  /** Make/model/motor/regulator per vacuum pump, in pump order. Absent on tests captured before
-   * 16 Sep 2026, and rows past the pump count are kept but not shown - see wizard/pumpRows.ts. */
+  /** Make/model/motor per vacuum pump, in pump order. Absent on tests captured before 16 Sep 2026,
+   * and rows past the pump count are kept but not shown - see wizard/pumpRows.ts. */
   vacuumPumps?: VacuumPumpDetail[];
+  /** The regulators fitted, by type. Absent (or empty) on tests captured before 23 Sep 2026 - read
+   * through regulatorRows in wizard/pumpRows.ts, which falls back to the old per-pump types. */
+  regulators?: RegulatorDetail[];
+  /** The tester's call that the regulators are the right ones and big enough for this plant.
+   * null / absent = not answered, which is different from No. */
+  regulatorsSuitable?: boolean | null;
   pumpLubrication: PumpLubrication;
   vsdFitted: boolean;
   isoPortsAvailable: boolean;
@@ -137,6 +152,8 @@ export function defaultMachineConfiguration(): MachineConfiguration {
     linerVented: false,
     numberOfVacuumPumps: 1,
     vacuumPumps: [],
+    regulators: [],
+    regulatorsSuitable: null,
     pumpLubrication: "OilLubricated",
     vsdFitted: false,
     isoPortsAvailable: true,

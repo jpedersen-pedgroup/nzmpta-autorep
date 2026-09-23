@@ -40,7 +40,12 @@ public class SyncController : ControllerBase
         // pushes successfully, and null means "this client doesn't know about them" — the stored
         // rows are left alone rather than wiped by an older device re-syncing the same test.
         IReadOnlyList<VacuumPumpDetail>? VacuumPumps = null,
-        IReadOnlyList<ReleaserPumpDetail>? ReleaserPumps = null);
+        IReadOnlyList<ReleaserPumpDetail>? ReleaserPumps = null,
+        // Regulators arrived later again, on the same terms. A client that knows about them always
+        // sends the list, so the suitability answer (where null means "not answered") is only
+        // taken alongside it.
+        IReadOnlyList<RegulatorDetail>? Regulators = null,
+        bool? RegulatorsSuitable = null);
 
     public record UploadTestRequest(
         Guid ClientId, string FarmName, string? Notes,
@@ -279,6 +284,10 @@ public class SyncController : ControllerBase
     private static ReleaserPumpDetail CleanPump(ReleaserPumpDetail p) =>
         new(TrimField(p.Make), TrimField(p.Model), TrimField(p.MotorSize));
 
+    /// <summary>A quantity is a count of regulators: nothing below one, nothing absurd.</summary>
+    private static RegulatorDetail CleanRegulator(RegulatorDetail r) =>
+        new(TrimField(r.Type), r.Quantity is > 0 ? Math.Min(r.Quantity.Value, 99) : null);
+
     private static void ApplyConfig(MachineTest test, ConfigDto? dto)
     {
         if (dto is null) return;
@@ -314,6 +323,12 @@ public class SyncController : ControllerBase
         cfg.HasReleaserPump = dto.HasReleaserPump;
         if (dto.VacuumPumps is not null) cfg.VacuumPumps = dto.VacuumPumps.Take(MaxPumpRows).Select(CleanPump).ToList();
         if (dto.ReleaserPumps is not null) cfg.ReleaserPumps = dto.ReleaserPumps.Take(MaxPumpRows).Select(CleanPump).ToList();
+        if (dto.Regulators is not null)
+        {
+            cfg.Regulators = dto.Regulators.Take(MaxPumpRows).Select(CleanRegulator)
+                .Where(r => r.Type is not null || r.Quantity is not null).ToList();
+            cfg.RegulatorsSuitable = dto.RegulatorsSuitable;
+        }
         cfg.UpdatedAt = DateTimeOffset.UtcNow;
 
         test.Configuration = cfg;
@@ -327,5 +342,5 @@ public class SyncController : ControllerBase
         c.NumberOfVacuumPumps, c.PumpLubrication.ToString(), c.VsdFitted, c.IsoPortsAvailable,
         c.HasPulsatorStopSystem, c.HasAcr, c.HasBailGates, c.HasMilkMeters,
         c.HasTeatSprayer, c.HasBackingGate, c.HasReleaserPump,
-        c.VacuumPumps, c.ReleaserPumps);
+        c.VacuumPumps, c.ReleaserPumps, c.Regulators, c.RegulatorsSuitable);
 }

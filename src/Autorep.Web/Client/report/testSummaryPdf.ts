@@ -23,7 +23,7 @@ import { getCachedCompanyBranding, type CompanyBranding } from "../sync/companyB
 import { getCachedTesterDetails } from "../sync/testerDetailsSync";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
-import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
+import { isBlankPumpRow, isBlankRegulatorRow, regulatorRows, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
 import { nzDate, proposedNextTestDate } from "../wizard/nextTestDate";
 import {
   BRAND_DARK,
@@ -566,12 +566,12 @@ export function buildTestSummaryDoc(
     color: INK,
   };
 
-  // Pump details - make/model/motor/regulator per pump, so whoever quotes a replacement has the
+  // Pump details - make/model/motor per pump, so whoever quotes a replacement has the
   // nameplate without going back to the plant (tester feedback, 15 Sep 2026). Blank rows are left
   // off, so a test that never filled them in prints no table at all.
   const pumpBlock: Content[] = [];
   const vacuumRows: TableCell[][] = [
-    [th("Vacuum pump"), th("Make / model"), th("Motor"), th("Regulator"), th("Drives milk pump")],
+    [th("Vacuum pump"), th("Make / model"), th("Motor"), th("Drives milk pump")],
   ];
   vacuumPumpRows(config).forEach((p, i) => {
     if (isBlankPumpRow(p)) return;
@@ -579,11 +579,27 @@ export function buildTestSummaryDoc(
       `Pump ${i + 1}`,
       `${p.make ?? ""} ${p.model ?? ""}`.trim() || "—",
       motorText(p.motorSize),
-      p.regulatorType ?? "—",
       p.drivesMilkPump ? "Yes" : "No",
     ]);
   });
-  if (vacuumRows.length > 1) pumpBlock.push(grid(["auto", "*", "auto", "*", "auto"], vacuumRows, [0, 10, 0, 0]));
+  if (vacuumRows.length > 1) pumpBlock.push(grid(["auto", "*", "auto", "auto"], vacuumRows, [0, 10, 0, 0]));
+  // Regulators by type and count, then the tester's call on whether they suit the plant - printed
+  // only when answered, with a No in red so it isn't missed.
+  const regulatorBody: TableCell[][] = [[th("Regulator"), th("Type"), th("Qty")]];
+  regulatorRows(config).forEach((r, i) => {
+    if (isBlankRegulatorRow(r)) return;
+    regulatorBody.push([`Regulator ${i + 1}`, r.type?.trim() || "—", r.quantity != null ? String(r.quantity) : "—"]);
+  });
+  if (config.regulatorsSuitable != null) {
+    regulatorBody.push([
+      { text: "Correct and big enough for this plant", colSpan: 2 },
+      "",
+      config.regulatorsSuitable
+        ? { text: "Yes", color: PASS, bold: true }
+        : { text: "No", color: FAIL, bold: true, fillColor: FAIL_ROW },
+    ]);
+  }
+  if (regulatorBody.length > 1) pumpBlock.push(grid(["auto", "*", "auto"], regulatorBody, [0, 10, 0, 0]));
   const releaserRows: TableCell[][] = [[th("Releaser pump"), th("Make / model"), th("Motor")]];
   releaserPumpRows(config).forEach((p, i) => {
     if (isBlankPumpRow(p)) return;

@@ -8,7 +8,7 @@ import type { MachineConfiguration } from "../wizard/types";
 import { allReadingSections } from "../passfail/standards";
 import { preStartSections, RUNNING_SECTIONS } from "../wizard/visualChecklist";
 import { recordedRows } from "../ui/measurementRows";
-import { releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
+import { regulatorRows, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
 
 // Report-facing section names, in the order changes are listed.
 const S_FARM = "Farm";
@@ -52,18 +52,26 @@ const CONFIG_LABELS: Record<keyof MachineConfiguration, string> = {
   hasBackingGate: "Backing gate",
   hasReleaserPump: "Releaser pump",
   vacuumPumps: "Vacuum pump details",
+  regulators: "Regulators",
+  regulatorsSuitable: "Regulators correct and big enough",
   releaserPumps: "Releaser pump details",
 };
 
-/** Config keys holding pump rows - diffed row by row below, not as one stringified cell. */
-const CONFIG_LIST_KEYS = new Set<keyof MachineConfiguration>(["vacuumPumps", "releaserPumps"]);
+/** Config keys holding pump/regulator rows - diffed row by row below, not as one stringified cell. */
+const CONFIG_LIST_KEYS = new Set<keyof MachineConfiguration>(["vacuumPumps", "regulators", "releaserPumps"]);
 
 const VACUUM_PUMP_COLS: Record<string, string> = {
   make: "Make",
   model: "Model",
   motorSize: "Motor size",
   drivesMilkPump: "Drives the milk pump",
-  regulatorType: "Regulator type",
+};
+
+// Regulator lines diff by position like the pump rows. An older test reads its lines from the pump
+// rows (see regulatorRows), so an unchanged older test compares equal to itself.
+const REGULATOR_COLS: Record<string, string> = {
+  type: "Type",
+  quantity: "Quantity",
 };
 
 const RELEASER_PUMP_COLS: Record<string, string> = {
@@ -267,6 +275,9 @@ export function computeChanges(base: LocalTest, edited: LocalTest): FieldChange[
   }
   changes.push(
     ...diffPumpRows("Vacuum pump", vacuumPumpRows(base.config), vacuumPumpRows(edited.config), VACUUM_PUMP_COLS),
+  );
+  changes.push(
+    ...diffPumpRows("Regulator", regulatorRows(base.config), regulatorRows(edited.config), REGULATOR_COLS),
   );
   changes.push(
     ...diffPumpRows("Releaser pump", releaserPumpRows(base.config), releaserPumpRows(edited.config), RELEASER_PUMP_COLS),

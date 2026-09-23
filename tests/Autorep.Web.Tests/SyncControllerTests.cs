@@ -26,7 +26,10 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
     // Pump details ride in the same config DTO; these read just that slice back off a pull.
     private sealed record PumpSummary(string? Make, string? Model, string? MotorSize, bool DrivesMilkPump, string? RegulatorType);
     private sealed record ReleaserSummary(string? Make, string? Model, string? MotorSize);
-    private sealed record PumpConfig(int NumberOfVacuumPumps, List<PumpSummary> VacuumPumps, List<ReleaserSummary> ReleaserPumps);
+    private sealed record RegulatorSummary(string? Type, int? Quantity);
+    private sealed record PumpConfig(
+        int NumberOfVacuumPumps, List<PumpSummary> VacuumPumps, List<ReleaserSummary> ReleaserPumps,
+        List<RegulatorSummary> Regulators, bool? RegulatorsSuitable);
     private sealed record PumpTestSummary(Guid ClientId, PumpConfig? Config);
     private sealed record PumpPullResponse(DateTimeOffset Watermark, List<PumpTestSummary> Tests);
 
@@ -183,6 +186,47 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         var config = await PullPumpConfigAsync(client, clientId);
         config!.NumberOfVacuumPumps.Should().Be(1);
         config.VacuumPumps.Should().ContainSingle(p => p.Make == "GEA" && p.Model == "RPS2000");
+    }
+
+    [Fact]
+    public async Task Upload_round_trips_the_regulators_and_keeps_them_from_an_older_client()
+    {
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-sync-regulators");
+        var clientId = Guid.NewGuid();
+        object Config(object? regulators, bool? suitable) => regulators is null
+            ? new { plantType = "HerringboneLowline", clusterCount = 24, pumpLubrication = "OilLubricated", numberOfVacuumPumps = 1 }
+            : new
+            {
+                plantType = "HerringboneLowline", clusterCount = 24, pumpLubrication = "OilLubricated", numberOfVacuumPumps = 1,
+                regulators, regulatorsSuitable = suitable,
+            };
+
+        var withRegulators = Config(new object[]
+        {
+            new { type = " Servo ", quantity = (int?)2 },
+            new { type = (string?)null, quantity = (int?)null }, // a line the Tester never filled in
+            new { type = (string?)"Dead weight", quantity = (int?)0 }, // not a count
+        }, false);
+        (await client.PostAsJsonAsync("/api/sync/tests", new { clientId, farmName = "Regulator Farm", createdAt = DateTimeOffset.UtcNow, config = withRegulators }))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var config = await PullPumpConfigAsync(client, clientId);
+        config!.Regulators.Should().BeEquivalentTo(new[] { new RegulatorSummary("Servo", 2), new RegulatorSummary("Dead weight", null) });
+        config.RegulatorsSuitable.Should().BeFalse(); // No, not "not answered"
+
+        // An older Device sends neither field: the list and the answer both stay.
+        (await client.PostAsJsonAsync("/api/sync/tests", new { clientId, farmName = "Regulator Farm", createdAt = DateTimeOffset.UtcNow, config = Config(null, null) }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        config = await PullPumpConfigAsync(client, clientId);
+        config!.Regulators.Should().HaveCount(2);
+        config.RegulatorsSuitable.Should().BeFalse();
+
+        // A current Device clearing the answer sends the list with a null answer: that clears it.
+        (await client.PostAsJsonAsync("/api/sync/tests", new { clientId, farmName = "Regulator Farm", createdAt = DateTimeOffset.UtcNow, config = Config(Array.Empty<object>(), null) }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        config = await PullPumpConfigAsync(client, clientId);
+        config!.Regulators.Should().BeEmpty();
+        config.RegulatorsSuitable.Should().BeNull();
     }
 
     [Fact]

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows, withRow } from "./pumpRows";
+import { isBlankPumpRow, isBlankRegulatorRow, regulatorRows, releaserPumpRows, vacuumPumpRows, withRow } from "./pumpRows";
 import { defaultMachineConfiguration, type MachineConfiguration, type VacuumPumpDetail } from "./types";
 
 const cfg = (over: Partial<MachineConfiguration> = {}): MachineConfiguration => ({
@@ -72,5 +72,39 @@ describe("isBlankPumpRow", () => {
     expect(isBlankPumpRow({ make: "   ", model: null, drivesMilkPump: false })).toBe(true);
     expect(isBlankPumpRow({ motorSize: "7.5" })).toBe(false);
     expect(isBlankPumpRow({ drivesMilkPump: true })).toBe(false);
+  });
+});
+
+describe("regulatorRows", () => {
+  it("shows one blank line when nothing has been entered", () => {
+    expect(regulatorRows(cfg())).toEqual([{}]);
+  });
+
+  it("reads the stored lines", () => {
+    const regulators = [{ type: "Servo", quantity: 2 }, { type: "Weighted valve", quantity: 1 }];
+    expect(regulatorRows(cfg({ regulators }))).toEqual(regulators);
+  });
+
+  it("reads an older test's per-pump regulator types as one line per type, counted across the shown pumps", () => {
+    const old = cfg({
+      numberOfVacuumPumps: 3,
+      vacuumPumps: [{ regulatorType: "Servo" }, { regulatorType: " Servo " }, { regulatorType: "Dead weight" }, { regulatorType: "Parked" }],
+    });
+    delete (old as { regulators?: unknown }).regulators;
+    expect(regulatorRows(old)).toEqual([{ type: "Servo", quantity: 2 }, { type: "Dead weight", quantity: 1 }]);
+  });
+
+  it("prefers the list once it has been written, even over per-pump types", () => {
+    const c = cfg({ vacuumPumps: [{ regulatorType: "Servo" }], regulators: [{ type: "Sentinel", quantity: 1 }] });
+    expect(regulatorRows(c)).toEqual([{ type: "Sentinel", quantity: 1 }]);
+  });
+});
+
+describe("isBlankRegulatorRow", () => {
+  it("is true until a type or quantity is entered", () => {
+    expect(isBlankRegulatorRow({})).toBe(true);
+    expect(isBlankRegulatorRow({ type: "  ", quantity: null })).toBe(true);
+    expect(isBlankRegulatorRow({ quantity: 2 })).toBe(false);
+    expect(isBlankRegulatorRow({ type: "Servo" })).toBe(false);
   });
 });
