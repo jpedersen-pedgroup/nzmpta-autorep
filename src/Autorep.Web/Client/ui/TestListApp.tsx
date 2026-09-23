@@ -107,9 +107,6 @@ function TestListApp() {
       syncState: "local-only",
       everUploaded: false,
       readonly: false,
-      // A new version is stamped with the tester's CURRENT company at first upload, which may not
-      // be the original's — leave it unknown until the server says (see LocalTest.testingCompanyId).
-      testingCompanyId: undefined,
       createdAt: now,
       updatedAt: now,
     };

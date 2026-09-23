@@ -1,4 +1,5 @@
 @page
+@using Autorep.Web.Services
 @model Autorep.Web.Pages.Admin.MyCompany.IndexModel
 @{
     ViewData["Title"] = "My company";
@@ -33,10 +34,26 @@ else
 
     <div class="card" style="max-width:640px">
         <h2 class="card__title">Report logo</h2>
-        <p style="color:var(--text-muted)">Printed at the top of every Test Summary report your testers produce.</p>
         <form method="post" enctype="multipart/form-data">
-            <partial name="_CompanyLogoField"
-                     model="new Autorep.Web.Pages.Admin.CompanyLogoField(c.Id, c.Name, Model.HasLogo, Model.LogoPrintable, Model.LogoVersion)" />
+            <div class="form-field">
+                <label asp-for="Input.Logo">Logo</label>
+                @if (Model.LogoPreview is not null)
+                {
+                    <div style="margin-bottom:var(--space-2)">
+                        <img src="@Model.LogoPreview" alt="@c.Name logo"
+                             style="max-height:64px;max-width:220px;border:1px solid var(--border);border-radius:var(--radius);padding:4px;background:#fff" />
+                    </div>
+                    <label class="form-check" style="margin-bottom:var(--space-2)">
+                        <input asp-for="Input.RemoveLogo" type="checkbox" /> Remove current logo
+                    </label>
+                }
+                <input asp-for="Input.Logo" type="file" accept="@LogoImage.Accept" />
+                <div class="form-field__hint">
+                    Printed on every page of your company's Test Summary reports. Upload to
+                    @(Model.LogoPreview is null ? "add" : "replace") the logo. PNG, JPEG or SVG, up to 1 MB.
+                    Testers' devices pick up the change the next time they sync.
+                </div>
+            </div>
             @if (Model.Errors.Any())
             {
                 <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>

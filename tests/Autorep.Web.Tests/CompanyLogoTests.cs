@@ -6,16 +6,16 @@ using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Autorep.Web.Tests;
 
-// The testing company's report logo: upload validation, who may change it (a Company Administrator
-// only their own company, a Super-Administrator any), the endpoint the devices sync it from, and
-// that the audit trail records the change without copying the image.
+// The testing company's report logo as managed on "My company": a Company Administrator changes
+// only their own company's logo (a Super-Administrator any, from Companies/Edit), the upload follows
+// LogoImage's rules, and the audit trail records the change without copying the image. The file
+// rules themselves are covered by LogoImageTests; the device sync and report by the client tests.
 public class CompanyLogoTests : IClassFixture<AuthedWebAppFactory>
 {
     private readonly AuthedWebAppFactory _factory;
@@ -29,133 +29,36 @@ public class CompanyLogoTests : IClassFixture<AuthedWebAppFactory>
     private static readonly byte[] Gif = "GIF89a\x01\x00\x01\x00"u8.ToArray();
     private static readonly byte[] Svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"u8.ToArray();
 
-    private static IFormFile FormFile(byte[] bytes, string fileName, string contentType) =>
-        new FormFile(new MemoryStream(bytes), 0, bytes.Length, "Input.Logo", fileName)
-        {
-            Headers = new HeaderDictionary(),
-            ContentType = contentType,
-        };
-
-    // --- Validation ----------------------------------------------------------------------------
+    // --- File rules (LogoImage) through the page ----------------------------------------------------
 
     [Fact]
-    public void Sniffs_png_and_jpeg_from_the_bytes_only()
+    public async Task Company_administrator_can_upload_an_svg_logo()
     {
-        CompanyLogo.SniffContentType(Png).Should().Be("image/png");
-        CompanyLogo.SniffContentType(Jpeg).Should().Be("image/jpeg");
-        CompanyLogo.SniffContentType(Gif).Should().BeNull();
-        CompanyLogo.SniffContentType(Svg).Should().BeNull();
-        CompanyLogo.SniffContentType([]).Should().BeNull();
-    }
+        var ownId = await SeedCompanyAsync("Vector Co", null);
+        var adminId = "logo-admin-" + Guid.NewGuid().ToString("N");
+        await SeedUserAsync(adminId, ownId);
+        var client = NoCookieClientAs(Roles.CompanyAdministrator, adminId);
 
-    [Theory]
-    [InlineData("png")]
-    [InlineData("jpeg")]
-    public async Task Accepts_png_and_jpeg_and_records_the_sniffed_type(string kind)
-    {
-        var bytes = kind == "png" ? Png : Jpeg;
-        var company = new TestingCompany { Name = "Co" };
-        var errors = new List<string>();
-
-        // The browser's claimed type is ignored — the bytes decide.
-        var ok = await CompanyLogo.ApplyAsync(FormFile(bytes, "logo.bin", "application/octet-stream"), company, errors);
-
-        ok.Should().BeTrue();
-        errors.Should().BeEmpty();
-        company.LogoData.Should().Equal(bytes);
-        company.LogoContentType.Should().Be(kind == "png" ? "image/png" : "image/jpeg");
-    }
-
-    [Fact]
-    public async Task Rejects_a_non_png_jpeg_file_even_when_it_claims_to_be_one()
-    {
-        foreach (var (bytes, name) in new[] { (Svg, "logo.png"), (Gif, "logo.jpg") })
-        {
-            var company = new TestingCompany { Name = "Co", LogoData = Png, LogoContentType = "image/png" };
-            var errors = new List<string>();
-
-            var ok = await CompanyLogo.ApplyAsync(FormFile(bytes, name, "image/png"), company, errors);
-
-            ok.Should().BeFalse();
-            errors.Should().ContainSingle().Which.Should().Contain("PNG or JPEG");
-            company.LogoData.Should().Equal(Png, "a rejected upload must leave the current logo alone");
-        }
-    }
-
-    [Fact]
-    public async Task Rejects_a_file_over_1_MB_with_a_clear_message()
-    {
-        var big = new byte[CompanyLogo.MaxBytes + 1];
-        Png.CopyTo(big, 0);
-        var company = new TestingCompany { Name = "Co" };
-        var errors = new List<string>();
-
-        var ok = await CompanyLogo.ApplyAsync(FormFile(big, "huge.png", "image/png"), company, errors);
-
-        ok.Should().BeFalse();
-        errors.Should().ContainSingle().Which.Should().Contain("1 MB or smaller").And.Contain("1.1 MB");
-        company.LogoData.Should().BeNull();
-    }
-
-    // --- Serving -------------------------------------------------------------------------------
-
-    [Fact]
-    public async Task Logo_endpoint_serves_any_signed_in_user_with_an_etag_the_device_can_revalidate()
-    {
-        var companyId = await SeedCompanyAsync("Served Co", Png);
-        var client = _factory.CreateClientAs(Roles.Tester, "logo-tester");
-
-        var res = await client.GetAsync($"/api/testing-companies/{companyId}/logo");
-        res.StatusCode.Should().Be(HttpStatusCode.OK);
-        res.Content.Headers.ContentType!.MediaType.Should().Be("image/png");
-        (await res.Content.ReadAsByteArrayAsync()).Should().Equal(Png);
-        var etag = res.Headers.ETag;
-        etag.Should().NotBeNull();
-        res.Headers.CacheControl!.NoCache.Should().BeTrue();
-
-        var again = new HttpRequestMessage(HttpMethod.Get, $"/api/testing-companies/{companyId}/logo");
-        again.Headers.IfNoneMatch.Add(etag!);
-        (await client.SendAsync(again)).StatusCode.Should().Be(HttpStatusCode.NotModified);
-
-        // A replaced logo gets a new ETag, so the device downloads it on its next sync.
-        using (var scope = _factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
-            (await db.TestingCompanies.FindAsync(companyId))!.LogoData = OtherPng;
-            await db.SaveChangesAsync();
-        }
-        var changed = new HttpRequestMessage(HttpMethod.Get, $"/api/testing-companies/{companyId}/logo");
-        changed.Headers.IfNoneMatch.Add(etag!);
-        var changedRes = await client.SendAsync(changed);
-        changedRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        changedRes.Headers.ETag.Should().NotBe(etag);
-    }
-
-    [Fact]
-    public async Task Logo_endpoint_is_404_without_a_logo_and_401_when_signed_out()
-    {
-        var companyId = await SeedCompanyAsync("No Logo Co", null);
-
-        var tester = _factory.CreateClientAs(Roles.Tester, "logo-tester");
-        (await tester.GetAsync($"/api/testing-companies/{companyId}/logo")).StatusCode.Should().Be(HttpStatusCode.NotFound);
-        (await tester.GetAsync($"/api/testing-companies/{Guid.NewGuid()}/logo")).StatusCode.Should().Be(HttpStatusCode.NotFound);
-
-        var anonymous = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        (await anonymous.GetAsync($"/api/testing-companies/{companyId}/logo")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task Profile_company_tells_the_device_which_logo_to_sync()
-    {
-        var companyId = await SeedCompanyAsync("Profile Co", null);
-        var testerId = "profile-logo-" + Guid.NewGuid().ToString("N");
-        await SeedUserAsync(testerId, companyId);
-
-        var res = await _factory.CreateClientAs(Roles.Tester, testerId).GetAsync("/api/profile/company");
+        var res = await PostMyCompanyAsync(client, Svg, smuggledCompanyId: null);
 
         res.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await res.Content.ReadAsStringAsync();
-        body.Should().Contain(companyId.ToString()).And.Contain("Profile Co");
+        (await LogoOfAsync(ownId)).Should().Equal(Svg);
+        (await LogoTypeOfAsync(ownId)).Should().Be("image/svg+xml", "the stored type comes from the bytes, not the upload label");
+    }
+
+    [Fact]
+    public async Task Company_administrator_upload_of_an_unprintable_format_is_rejected()
+    {
+        var ownId = await SeedCompanyAsync("Gif Co", Png);
+        var adminId = "logo-admin-" + Guid.NewGuid().ToString("N");
+        await SeedUserAsync(adminId, ownId);
+        var client = NoCookieClientAs(Roles.CompanyAdministrator, adminId);
+
+        var res = await PostMyCompanyAsync(client, Gif, smuggledCompanyId: null);
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await res.Content.ReadAsStringAsync()).Should().Contain(LogoImage.FormatError);
+        (await LogoOfAsync(ownId)).Should().Equal(Png, "a rejected upload leaves the current logo alone");
     }
 
     // --- Who may change it -----------------------------------------------------------------------
@@ -310,6 +213,13 @@ public class CompanyLogoTests : IClassFixture<AuthedWebAppFactory>
         var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
         db.Users.Add(new Tester { Id = userId, UserName = userId, Email = userId + "@test.local", TestingCompanyId = companyId });
         await db.SaveChangesAsync();
+    }
+
+    private async Task<string?> LogoTypeOfAsync(Guid companyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        return (await db.TestingCompanies.AsNoTracking().SingleAsync(c => c.Id == companyId)).LogoContentType;
     }
 
     private async Task<byte[]?> LogoOfAsync(Guid companyId)

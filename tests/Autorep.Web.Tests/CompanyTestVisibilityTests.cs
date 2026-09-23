@@ -215,6 +215,53 @@ public class CompanyTestVisibilityTests : IClassFixture<AuthedWebAppFactory>
             "the test stays with the company it was performed for");
     }
 
+    // A report printed from the read-only view carries the letterhead of the company the work was
+    // done for, even after the owner has moved on to another company.
+    [Fact]
+    public async Task Test_view_carries_the_branding_of_the_company_the_test_was_done_for()
+    {
+        var (companyA, farmA) = await SeedCompanyAsync("Brand From Co");
+        var (companyB, _) = await SeedCompanyAsync("Brand To Co");
+        await WithDbAsync(async db =>
+        {
+            var a = await db.TestingCompanies.SingleAsync(c => c.Id == companyA);
+            a.LogoData = [1, 2, 3];
+            a.LogoContentType = "image/png";
+            await db.SaveChangesAsync();
+            return true;
+        });
+        await SeedTesterAsync("br-owner", companyA);
+        var testId = await SeedTestAsync("br-owner", farmA, companyA, complete: true);
+        await WithDbAsync(async db =>
+        {
+            (await db.Users.SingleAsync(u => u.Id == "br-owner")).TestingCompanyId = companyB;
+            await db.SaveChangesAsync();
+            return true;
+        });
+
+        var client = _factory.CreateClientAs(Roles.Tester, "br-owner");
+        var view = await client.GetFromJsonAsync<BrandedTestView>($"/api/tests/{testId}");
+
+        view!.TestingCompanyName.Should().StartWith("Brand From Co");
+        view.TestingCompanyLogo.Should().Be("data:image/png;base64,AQID");
+    }
+
+    [Fact]
+    public async Task Test_view_has_no_branding_when_the_test_has_no_company()
+    {
+        var (_, farmId) = await SeedCompanyAsync("No Brand Co");
+        await SeedTesterAsync("nb-owner", null);
+        var testId = await SeedTestAsync("nb-owner", farmId, null, complete: true);
+
+        var client = _factory.CreateClientAs(Roles.Tester, "nb-owner");
+        var view = await client.GetFromJsonAsync<BrandedTestView>($"/api/tests/{testId}");
+
+        view!.TestingCompanyName.Should().BeNull();
+        view.TestingCompanyLogo.Should().BeNull();
+    }
+
+    private sealed record BrandedTestView(Guid Id, string? TestingCompanyName, string? TestingCompanyLogo);
+
     // ---- Company list ------------------------------------------------------
 
     [Fact]

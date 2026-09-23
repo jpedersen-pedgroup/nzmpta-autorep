@@ -3,6 +3,7 @@ using System.Text.Json;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -163,9 +164,14 @@ public sealed class MigrationRunner
             var img = Row.Str(r, "ImagePath");
             if (img is not null)
             {
-                var (bytes, ct) = DecodeImage(img);
-                if (bytes is not null) { tc.LogoData = bytes; tc.LogoContentType = ct; }
-                else q.Add("Companies", cid.ToString(), "TestingCompany", "logo_decode_failed", "info");
+                // The logo prints on reports, which can only draw PNG, JPEG and SVG — the same rule
+                // as an admin upload. Typed by its bytes (the legacy label defaults to PNG); any
+                // other format is left off and listed, so NZMPTA knows which companies need a new one.
+                var (bytes, _) = DecodeImage(img);
+                var type = bytes is null ? null : LogoImage.Sniff(bytes);
+                if (bytes is null) q.Add("Companies", cid.ToString(), "TestingCompany", "logo_decode_failed", "info");
+                else if (type is null) q.Add("Companies", cid.ToString(), "TestingCompany", "logo_unsupported_format", "info");
+                else { tc.LogoData = bytes; tc.LogoContentType = type; }
             }
             add.Add(tc);
             migrated++;

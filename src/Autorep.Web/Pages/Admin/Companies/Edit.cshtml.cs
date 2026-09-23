@@ -17,11 +17,8 @@ public class EditModel : PageModel
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public int TesterCount { get; private set; }
-    public bool HasLogo { get; private set; }
-    /// <summary>False for a legacy-migrated logo the report can't embed (not PNG/JPEG).</summary>
-    public bool LogoPrintable { get; private set; }
-    /// <summary>Cache-buster for the preview image, so a replaced logo shows straight away.</summary>
-    public string? LogoVersion { get; private set; }
+    /// <summary>The current logo as a data URL for the preview, or null.</summary>
+    public string? LogoPreview { get; private set; }
     public List<string> Errors { get; } = new();
     public string? Message { get; set; }
 
@@ -34,6 +31,7 @@ public class EditModel : PageModel
         public string? PostCode { get; set; }
         public string? Phone { get; set; }
         public string? Email { get; set; }
+        /// <summary>The logo printed on this company's test reports.</summary>
         public IFormFile? Logo { get; set; }
         public bool RemoveLogo { get; set; }
     }
@@ -64,16 +62,20 @@ public class EditModel : PageModel
             await PopulateAsync(company);
             return Page();
         }
-
         if (Input.RemoveLogo)
         {
             company.LogoData = null;
             company.LogoContentType = null;
         }
-        else if (!await CompanyLogo.ApplyAsync(Input.Logo, company, Errors))
+        else
         {
-            await PopulateAsync(company);
-            return Page();
+            var (ok, logo) = await LogoImage.ReadUploadAsync(Input.Logo, Errors);
+            if (!ok)
+            {
+                await PopulateAsync(company);
+                return Page();
+            }
+            if (logo is not null) (company.LogoData, company.LogoContentType) = (logo.Data, logo.ContentType);
         }
 
         company.Name = trimmed;
@@ -102,9 +104,7 @@ public class EditModel : PageModel
     {
         IsActive = company.IsActive;
         CreatedAt = company.CreatedAt;
-        HasLogo = company.LogoData is { Length: > 0 };
-        LogoPrintable = CompanyLogo.IsPrintable(company.LogoData);
-        LogoVersion = HasLogo ? CompanyLogo.ETag(company.LogoData!).Trim('"') : null;
+        LogoPreview = LogoImage.DataUrl(company.LogoData, company.LogoContentType);
         TesterCount = await _db.Users.CountAsync(u => u.TestingCompanyId == company.Id);
     }
 

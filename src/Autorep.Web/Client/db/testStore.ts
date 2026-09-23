@@ -107,6 +107,15 @@ export interface LocalTest {
   calAirFlowMeters?: string | null;
   calPulsatorTesters?: string | null;
   calVacuumGauges?: string | null;
+  /** The Testing Company the work was done for, stamped at sign-off from the tester's cached
+   * company (see companyBrandingSync) so a reprint after the tester changes company still carries
+   * the right letterhead. Superseding versions carry the base version's values. */
+  testingCompanyId?: string | null;
+  testingCompanyName?: string | null;
+  /** When the farm is next due a test, ISO yyyy-mm-dd. Chosen on the sign-off step (twelve
+   * months out unless the tester changes it) and always stamped at sign-off; see nextTestDate.ts.
+   * Absent on tests signed off before it existed, and on migrated tests. */
+  nextTestDate?: string | null;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -132,12 +141,6 @@ export interface LocalTest {
   /** Cumulative amendment history (one record per superseding version, appended at sign-off).
    * Rendered as the final "Amendment history" page of the Test Summary report. */
   amendments?: AmendmentRecord[];
-  /** The Testing Company the test was done for, as the server stamped it at first upload (set from
-   * the pull / server view — never by the device). The report prints this company's logo.
-   * undefined = not known yet (a test that hasn't synced, or was pulled by an older build): the
-   * tester's own company is assumed, which is what the server will stamp. null = the server says
-   * the test has no company, so no logo. */
-  testingCompanyId?: string | null;
 }
 
 /** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */

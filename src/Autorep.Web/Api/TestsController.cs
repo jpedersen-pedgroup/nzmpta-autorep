@@ -3,6 +3,7 @@ using System.Text.Json;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -35,8 +36,11 @@ public class TestsController : ControllerBase
         // Whose test this is, decided server-side: the read-only view words itself differently for
         // your own frozen test than for a colleague's, and it must not guess from display names.
         bool IsMine,
-        // The company the test was done for — whose logo the report prints.
-        Guid? TestingCompanyId = null);
+        // The Testing Company the work was done for (the upload-time stamp, not the viewer's or the
+        // owner's current company), so a report printed from this view carries that company's
+        // letterhead. The logo is a data URL; both are null when the test has no company.
+        string? TestingCompanyName = null,
+        string? TestingCompanyLogo = null);
 
     /// <summary>A row of the Company tests list. Header fields only — no PayloadJson (it carries
     /// the whole capture including a base64 pulsation PDF, so a page of them would be hundreds of
@@ -65,6 +69,13 @@ public class TestsController : ControllerBase
 
         await AuditColleagueViewAsync(test, me, ct);
 
+        var company = test.TestingCompanyId is { } companyId
+            ? await _db.TestingCompanies
+                .Where(c => c.Id == companyId)
+                .Select(c => new { c.Name, c.LogoData, c.LogoContentType })
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         Response.Headers.CacheControl = "no-store";
         return Ok(new TestViewDto(
             test.Id,
@@ -75,7 +86,8 @@ public class TestsController : ControllerBase
             test.PayloadJson,
             test.Tester?.DisplayName,
             test.TesterId == me,
-            test.TestingCompanyId));
+            company?.Name,
+            LogoImage.DataUrl(company?.LogoData, company?.LogoContentType)));
     }
 
     // The Company tests list: completed tests done for the caller's Testing Company, current
