@@ -31,6 +31,21 @@ public class GuidesTests : IClassFixture<AuthedWebAppFactory>
     }
 
     [Fact]
+    public async Task Service_worker_guide_list_matches_the_catalogue()
+    {
+        // sw.js prunes its offline guide copies against GUIDE_FILES (written in by tools/stamp-sw.mjs).
+        // A catalogue edit shipped without `npm run build:prod` would leave a retired guide on devices,
+        // or prune a current one.
+        var catalog = _factory.Services.GetRequiredService<GuideCatalog>();
+        var sw = await _factory.CreateClient().GetStringAsync("/sw.js");
+
+        var line = System.Text.RegularExpressions.Regex.Match(sw, @"const GUIDE_FILES = \[([^\]]*)\];").Groups[1].Value;
+        var files = System.Text.RegularExpressions.Regex.Matches(line, "'([^']+)'").Select(m => m.Groups[1].Value);
+
+        files.Should().BeEquivalentTo(catalog.All.Select(g => g.File));
+    }
+
+    [Fact]
     public async Task Tester_can_fetch_the_tester_guide()
     {
         var client = _factory.CreateClientAs(Roles.Tester);

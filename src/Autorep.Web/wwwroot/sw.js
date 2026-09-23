@@ -11,13 +11,17 @@
 // ignoreSearch, so renaming this cache is the ONLY thing that retires a previous build's assets.
 // The stamper reads APP_SHELL out of this file, and every entry must be a real file under wwwroot
 // so it can be hashed; a served route would build green and then never cache-bust.
-const CACHE_VERSION = 'autorep-8355bd11dd01';
+const CACHE_VERSION = 'autorep-2faefdb195f7';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 // Work-instruction PDFs (/guides/*, GuidesController). Its own cache, filled at runtime, so the
 // admin guides never land in every tester's precache and a deploy doesn't throw ~6 MB away. One
 // entry per guide, keyed on the path without ?v=: a new version overwrites the old copy in place.
 const GUIDE_CACHE = 'autorep-guides-v1';
+// The guide files in the current catalogue (Guides/guides.json), written in by tools/stamp-sw.mjs.
+// A guide dropped from the catalogue is never requested again, so its 404 clean-up below never
+// runs; activation prunes the cache against this list instead.
+const GUIDE_FILES = ['autorep-company-admin-guide.pdf', 'autorep-super-admin-guide.pdf', 'autorep-tester-guide.pdf'];
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/css/site.css',
@@ -76,6 +80,10 @@ function escapeHtml(s) {
 // The offline card doubles as the offline Help page: /Help itself is page HTML (never cached, see
 // above), so list whichever guides this device already holds. Titles come from the X-Guide-Title
 // header the server stamped on each copy.
+function isCurrentGuide(url) {
+  return GUIDE_FILES.includes(new URL(url).pathname.split('/').pop());
+}
+
 async function offlineResponse() {
   let guides = '';
   try {
@@ -83,6 +91,7 @@ async function offlineResponse() {
     const cache = (await caches.has(GUIDE_CACHE)) ? await caches.open(GUIDE_CACHE) : null;
     const links = [];
     for (const request of cache ? await cache.keys() : []) {
+      if (!isCurrentGuide(request.url)) continue;
       const cached = await cache.match(request);
       const title = cached?.headers.get('X-Guide-Title') || new URL(request.url).pathname.split('/').pop();
       links.push(`<li><a href="${escapeHtml(new URL(request.url).pathname)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></li>`);
@@ -127,8 +136,14 @@ async function guideResponse(request, url) {
 
   const type = response.headers.get('Content-Type') || '';
   if (response.ok && !response.redirected && type.startsWith('application/pdf')) {
-    // Awaited, so a warm-up fetch from the page resolves only once the copy is really kept.
-    await cache.put(key, response.clone());
+    // Awaited, so a warm-up fetch from the page resolves only once the copy is really kept. Keeping
+    // it is best-effort: a full device or an exhausted quota must not turn a PDF the server just
+    // sent into a network error.
+    try {
+      await cache.put(key, response.clone());
+    } catch {
+      // Not saved for offline — the guide still opens now.
+    }
     return response;
   }
 
@@ -167,6 +182,20 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+// Drops saved copies of guides no longer in the catalogue, so a retired guide stops opening and
+// being listed offline. Never fails activation.
+async function pruneRetiredGuides() {
+  try {
+    if (!(await caches.has(GUIDE_CACHE))) return;
+    const cache = await caches.open(GUIDE_CACHE);
+    for (const request of await cache.keys()) {
+      if (!isCurrentGuide(request.url)) await cache.delete(request);
+    }
+  } catch {
+    // Left for the next activation.
+  }
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -178,6 +207,7 @@ self.addEventListener('activate', (event) => {
             .map((k) => caches.delete(k))
         )
       )
+      .then(() => pruneRetiredGuides())
       .then(() => self.clients.claim())
       // Tell every open page a new build is in charge. controllerchange covers a page that was
       // listening; this covers one whose script hadn't run yet — the browser queues the message.
