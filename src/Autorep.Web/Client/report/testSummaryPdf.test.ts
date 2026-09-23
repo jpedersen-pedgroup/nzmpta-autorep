@@ -34,7 +34,7 @@ describe("buildTestSummaryDoc — calibration", () => {
     const json = JSON.stringify(
       buildTestSummaryDoc(t, { airFlowMeters: "2030-01-01" }).content,
     );
-    expect(json).toContain("airflow: 27/01/2027");
+    expect(json).toMatch(/Airflow meter[^\]]*27\/01\/2027/);
     expect(json).not.toContain("01/01/2030");
   });
 
@@ -43,14 +43,16 @@ describe("buildTestSummaryDoc — calibration", () => {
     const json = JSON.stringify(
       buildTestSummaryDoc(t, { airFlowMeters: "2027-03-04", vacuumGauges: "2027-05-06" }).content,
     );
-    expect(json).toContain("airflow: 04/03/2027");
-    expect(json).toContain("vacuum: 06/05/2027");
-    expect(json).toContain("pulsator: —");
+    expect(json).toMatch(/Airflow meter[^\]]*04\/03\/2027/);
+    expect(json).toMatch(/Vacuum gauge[^\]]*06\/05\/2027/);
+    expect(json).toMatch(/Pulsation tester[^\]]*"—"/);
   });
 
   it("shows an em dash when neither a stamp nor a profile date exists", () => {
     const json = JSON.stringify(buildTestSummaryDoc(sampleTest()).content);
-    expect(json).toContain("airflow: — · pulsator: — · vacuum: —");
+    for (const label of ["Airflow meter", "Pulsation tester", "Vacuum gauge"]) {
+      expect(json).toMatch(new RegExp(`${label}[^\\]]*"—"`));
+    }
   });
 });
 
@@ -68,7 +70,9 @@ describe("reportDateStamp", () => {
     expect(reportDateStamp("2026-09-14T20:41:48.000Z")).toBe("2026-09-15");
     const t = sampleTest();
     t.markedCompleteAt = "2026-09-14T20:41:48.000Z";
-    expect(JSON.stringify(buildTestSummaryDoc(t).content)).toContain("Completed: 15/09/2026");
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Tested 15 September 2026");
+    expect(json).toContain("15/09/2026");
   });
 
   it("falls back to the raw date for an unparseable timestamp", () => {
@@ -257,5 +261,96 @@ describe("buildTestSummaryDoc", () => {
     expect(json).toContain("Attachments");
     expect(json).toContain("analyser-export.pdf");
     expect(json).toContain("appended to this document");
+  });
+});
+
+describe("buildTestSummaryDoc — layout", () => {
+  /** The index of the first top-level content node whose JSON contains the text. */
+  const nodeIndex = (doc: ReturnType<typeof buildTestSummaryDoc>, text: string) =>
+    (doc.content as unknown[]).findIndex((n) => JSON.stringify(n).includes(text));
+
+  it("puts the farm, faults and comments on page one and starts the working on page two", () => {
+    const t = sampleTest();
+    t.notes = "Settings adjusted at time of test.";
+    const doc = buildTestSummaryDoc(t);
+    const content = doc.content as { pageBreak?: string }[];
+    const config = nodeIndex(doc, "Machine configuration");
+    expect(content[config].pageBreak).toBe("before");
+    // Nothing ahead of the machine configuration breaks the page.
+    expect(content.slice(0, config).some((n) => n.pageBreak)).toBe(false);
+    for (const pageOne of ["Sunny Acres", "Fault summary", "Oil Wicks Dirty", "General comments"]) {
+      expect(nodeIndex(doc, pageOne)).toBeLessThan(config);
+    }
+    for (const later of ["Numerical test results", "Pulsator results", "Visual checks"]) {
+      expect(nodeIndex(doc, later)).toBeGreaterThan(config);
+    }
+  });
+
+  it("leads page one with the MPNZ letterhead and leaves the running header to pages 2+", () => {
+    const doc = buildTestSummaryDoc(sampleTest());
+    expect(JSON.stringify((doc.content as unknown[])[0])).toContain("<svg");
+    const header = doc.header as (page: number, pages: number, size: unknown) => unknown;
+    expect(header(1, 3, {})).toBeNull();
+    const running = JSON.stringify(header(2, 3, {}));
+    expect(running).toContain("<svg");
+    expect(running).toContain("Sunny Acres");
+    expect(running).toContain("Supply 12345");
+  });
+
+  it("puts the testing company's logo and name on the letterhead when there is one", () => {
+    const png = "data:image/png;base64,iVBORw0KGgo=";
+    const doc = buildTestSummaryDoc(sampleTest(), undefined, { companyName: "Sample Testing Co. Ltd", companyLogo: png });
+    const letterhead = JSON.stringify((doc.content as unknown[])[0]);
+    expect(letterhead).toContain(`"image":"${png}"`);
+    expect(JSON.stringify(doc.content)).toContain("TESTED BY");
+    expect(JSON.stringify(doc.content)).toContain("Sample Testing Co. Ltd");
+
+    // An SVG upload is drawn as vectors.
+    const svg = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg"/>')}`;
+    const svgHead = JSON.stringify((buildTestSummaryDoc(sampleTest(), undefined, { companyLogo: svg }).content as unknown[])[0]);
+    expect(svgHead.match(/<svg/g)).toHaveLength(2); // MPNZ + the company's
+
+    // A format pdfmake can't draw is left off rather than breaking the report.
+    const webp = JSON.stringify((buildTestSummaryDoc(sampleTest(), undefined, { companyLogo: "data:image/webp;base64,UklGRg==" }).content as unknown[])[0]);
+    expect(webp).not.toContain("image/webp");
+
+    // No branding: MPNZ alone, no "Tested by".
+    const plain = buildTestSummaryDoc(sampleTest());
+    expect(JSON.stringify((plain.content as unknown[])[0]).match(/<svg/g)).toHaveLength(1);
+    expect(JSON.stringify(plain.content)).not.toContain("TESTED BY");
+  });
+
+  it("drops the empty fault heading when the machine is clean", () => {
+    const t = sampleTest();
+    t.visualFaults = { "vp.oilWater": { status: "ok" } };
+    t.readings = { "tr.workingVacuum": 48 };
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("No faults found");
+    expect(json).not.toContain("Fault summary");
+  });
+
+  it("marks a report generated before sign-off as a draft", () => {
+    const t = sampleTest();
+    t.markedCompleteAt = null;
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("DRAFT");
+    expect(json).toContain("Not yet signed off");
+  });
+
+  it("spells out the arrow the bundled font cannot draw", () => {
+    // airlineDropRR is labelled "Drop receiver → regulator (4c)"; Roboto has no → glyph.
+    const json = JSON.stringify(buildTestSummaryDoc(sampleTest()).content);
+    expect(json).toContain("Drop receiver to regulator (4c)");
+    expect(json).not.toContain("→");
+  });
+
+  it("keeps section headings off the foot of a page", () => {
+    const { pageBreakBefore } = buildTestSummaryDoc(sampleTest());
+    const at = (headlineLevel: number, verticalRatio: number) =>
+      pageBreakBefore!({ headlineLevel, startPosition: { verticalRatio } } as never, {} as never);
+    expect(at(1, 0.95)).toBe(true);
+    expect(at(1, 0.5)).toBe(false);
+    expect(at(2, 0.95)).toBe(true);
+    expect(at(2, 0.88)).toBe(false);
   });
 });
