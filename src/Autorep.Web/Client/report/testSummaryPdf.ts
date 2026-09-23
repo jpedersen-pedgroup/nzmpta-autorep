@@ -282,6 +282,38 @@ function testedByBlock(tester: TesterDetails | null, companyName?: string | null
   return [{ stack: [{ text: "TESTED BY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 }, ...lines], margin: [0, 0, 0, 7] } as Content];
 }
 
+/** What each rating means, for the legend under the fault table (the association's rating scheme,
+ * as the legacy report printed it). */
+export const SEVERITY_MEANING: Record<FaultSeverity, string> = {
+  Critical: "Negatively affects milk quality or animal health and welfare, or is a serious risk to milker health and safety.",
+  Major: "Affects animal comfort, may cause a breakdown, affects the ability to harvest milk efficiently, or compromises milker safety.",
+  Minor: "Has the potential to affect milk quality, animal health and welfare, or milker safety in the future.",
+};
+
+/** The severity legend: each rating's pill beside what it means, kept whole on one page. */
+function severityLegend(): Content {
+  return {
+    stack: [
+      { text: "SEVERITY RATINGS", fontSize: 6.5, bold: true, color: MUTED, characterSpacing: 0.8, margin: [0, 0, 0, 3] },
+      {
+        table: {
+          widths: [52, "*"],
+          body: (["Critical", "Major", "Minor"] as FaultSeverity[]).map((sev) => [
+            severityCell(sev),
+            { text: SEVERITY_MEANING[sev], fontSize: 7.5, color: INK },
+          ]),
+        },
+        layout: {
+          hLineWidth: () => 0, vLineWidth: () => 0,
+          paddingLeft: (i: number) => (i === 0 ? 0 : 8), paddingRight: () => 0, paddingTop: () => 1.5, paddingBottom: () => 1.5,
+        },
+      },
+    ],
+    unbreakable: true,
+    margin: [0, 8, 0, 0],
+  } as Content;
+}
+
 function severityCell(severity: FaultSeverity): TableCell {
   const s = SEVERITY_STYLE[severity] ?? SEVERITY_STYLE.Major;
   return { text: severity.toUpperCase(), fontSize: 7, bold: true, color: s.ink, fillColor: s.fill, alignment: "center", characterSpacing: 0.4 };
@@ -386,7 +418,6 @@ export function buildTestSummaryDoc(
     annualNote,
     field("Completed", test.markedCompleteAt ? fmtDate(test.markedCompleteAt) : "Not yet signed off", true),
     ...testedByBlock(test.testedBy ?? testerFallback ?? null, branding?.companyName),
-    field("Machine", `${plant} · ${config.clusterCount || "—"} clusters`),
     { text: "CALIBRATION EXPIRY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
     {
       table: {
@@ -403,21 +434,6 @@ export function buildTestSummaryDoc(
     } as Content,
   ]);
   const detailsBlock: Content = { columns: [{ width: "58%", stack: [farmPanel] }, { width: "*", stack: [testPanel] }], columnGap: 10 };
-
-  const versionNotice: Content[] =
-    version > 1
-      ? [
-          barPanel(
-            [{
-              text: `Version ${version} — supersedes an earlier completed test${
-                amendmentBlock.length > 0 ? " (all changes are listed in the Amendment history section)" : ""
-              }`,
-              fontSize: 8.5, color: BRAND,
-            }],
-            BRAND, PANEL, [0, 10, 0, 0],
-          ),
-        ]
-      : [];
 
   // --- Result banner + fault summary -------------------------------------------------------------
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -474,7 +490,7 @@ export function buildTestSummaryDoc(
     ? recordedFaultBlock(test)
     : summary.total === 0
       ? []
-      : [grid([52, 78, "*", "*"], faultRows)];
+      : [grid([52, 78, "*", "*"], faultRows), severityLegend()];
 
   // General comments sit under the fault table: what the tester wants the farmer to know that no
   // fault line carries. Migrated tests print theirs inside recordedFaultBlock.
@@ -800,7 +816,6 @@ export function buildTestSummaryDoc(
       letterhead,
       titleLine,
       detailsBlock,
-      ...versionNotice,
       ...resultBanner,
       // A clean machine says so in the banner; an empty heading under it would read as missing.
       ...(faultBlock.length > 0 ? [sectionHeader("Fault summary & recommendations"), ...faultBlock] : []),

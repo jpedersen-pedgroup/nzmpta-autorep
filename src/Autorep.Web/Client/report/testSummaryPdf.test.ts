@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANNUAL_TEST_NOTE, COMPLIANCE_DISCLAIMER, brandingForTest, copyrightNotice, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
+import { ANNUAL_TEST_NOTE, COMPLIANCE_DISCLAIMER, SEVERITY_MEANING, brandingForTest, copyrightNotice, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
 import { defaultMachineConfiguration } from "../wizard/types";
 import type { LocalTest } from "../db/testStore";
 
@@ -154,7 +154,6 @@ describe("buildTestSummaryDoc", () => {
     expect(json).toContain("by tester@local"); // the WHO of the audit trail
     expect(json).toContain("48 kPa");
     expect(json).toContain("50 kPa");
-    expect(json).toContain("Amendment history section"); // banner points at the appendix
   });
 
   it("notes a re-completion with no data changes, and omits the section entirely for v1 tests", () => {
@@ -450,6 +449,34 @@ describe("buildTestSummaryDoc — layout", () => {
     // Unstamped: the fallback names them.
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest(), undefined, undefined, { name: "Fallback Tester" }).content))
       .toContain("Fallback Tester");
+  });
+
+  it("explains the severity ratings under the fault table, and only where there are faults", () => {
+    const doc = buildTestSummaryDoc(sampleTest());
+    const content = doc.content as unknown[];
+    const pageOne = JSON.stringify(content.slice(0, content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"))));
+    expect(pageOne).toContain("SEVERITY RATINGS");
+    for (const meaning of Object.values(SEVERITY_MEANING)) expect(pageOne).toContain(meaning);
+    expect(pageOne.indexOf("SEVERITY RATINGS")).toBeGreaterThan(pageOne.indexOf("Oil Wicks Dirty"));
+
+    const clean = sampleTest();
+    clean.visualFaults = {};
+    clean.readings = {};
+    expect(JSON.stringify(buildTestSummaryDoc(clean).content)).not.toContain("SEVERITY RATINGS");
+  });
+
+  it("keeps page one to the farmer's essentials: no version notice, no machine line", () => {
+    const t = sampleTest();
+    t.version = 2;
+    t.supersedesId = "t0";
+    const content = buildTestSummaryDoc(t).content as unknown[];
+    const config = content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"));
+    const pageOne = JSON.stringify(content.slice(0, config));
+    expect(pageOne).toContain("Version 2"); // the title line says so
+    expect(pageOne).not.toContain("supersedes an earlier completed test");
+    expect(pageOne).not.toContain("MACHINE");
+    // The configuration is still on page two.
+    expect(JSON.stringify(content.slice(config))).toContain("Plant");
   });
 
   it("puts the annual-test reminder with the next test date on page one", () => {
