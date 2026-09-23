@@ -12,6 +12,7 @@ import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
 import { warmReportGenerator } from "../report/generatorChunks";
 import { refreshCompanyLogos } from "./companyLogoSync";
+import { guidesForRoles, TESTER_ROLE, warmGuides } from "../guides/guides";
 
 interface TestSummaryDto {
   clientId: string;
@@ -218,6 +219,9 @@ export async function syncAll(): Promise<SyncResult> {
   // Same moment, same reason: bring the company logo(s) the report prints up to date — a logo the
   // Company Administrator replaced or removed reaches this device here. Never throws.
   void refreshCompanyLogos();
+  // Same moment, same reasoning, for the tester's work instructions (a few MB, a 304 once held):
+  // the Help page can't open offline, but the guide links in the tester app can — from this copy.
+  void warmGuides(guidesForRoles([TESTER_ROLE]));
 
   return { pushed, failed, pulled };
 }

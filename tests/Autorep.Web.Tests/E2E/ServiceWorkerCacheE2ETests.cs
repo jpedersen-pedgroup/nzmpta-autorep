@@ -84,7 +84,7 @@ public class ServiceWorkerCacheE2ETests : IClassFixture<E2EWebAppFactory>, IAsyn
                 @"async (expected) => {
                     const names = await caches.keys();
                     const shell = names.find((k) => k.startsWith('autorep-')
-                        && !k.includes('logos') && !k.includes('fontawesome'));
+                        && !k.includes('logos') && !k.includes('fontawesome') && !k.includes('guides'));
                     if (!shell) return false;
                     const cache = await caches.open(shell);
                     const have = new Set((await cache.keys()).map((r) => new URL(r.url).pathname));
@@ -103,7 +103,7 @@ public class ServiceWorkerCacheE2ETests : IClassFixture<E2EWebAppFactory>, IAsyn
         var json = await page.EvaluateAsync<string>(@"async () => {
             const names = await caches.keys();
             const shell = names.find((k) => k.startsWith('autorep-')
-                && !k.includes('logos') && !k.includes('fontawesome')) ?? null;
+                && !k.includes('logos') && !k.includes('fontawesome') && !k.includes('guides')) ?? null;
             const entries = shell
                 ? (await (await caches.open(shell)).keys()).map((r) => new URL(r.url).pathname)
                 : [];

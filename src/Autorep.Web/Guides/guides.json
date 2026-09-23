@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "The in-app Help & guides catalogue: the ONE place guide metadata lives. The server (Services/GuideCatalog.cs) lists and authorises from it; the client bundle (Client/guides/guides.ts) imports it for the offline links in the tester app.",
+    "To publish a new version of a guide: 1) replace the PDF in this folder under the SAME file name; 2) bump its version and date below; 3) run `npm run build:prod` in src/Autorep.Web, since the client bundle embeds this file; 4) commit the PDF and this file, plus wwwroot/sw.js if the build re-stamped it.",
+    "Devices pick the new copy up by themselves: /guides/* is served with an ETag of the file's hash and the service worker revalidates on every open while online, replacing its offline copy. Links carry ?v=<hash> as well, so no browser cache can hold the old one.",
+    "A NEW guide needs a new entry here (file names lowercase, digits and hyphens only). roles = who sees it and who may download it; a guide an account can't see answers 403.",
+    "The PDFs are deliberately outside wwwroot: everything under wwwroot is served anonymously by UseStaticFiles, and the admin guides must need a sign-in."
+  ],
+  "guides": [
+    {
+      "id": "tester",
+      "title": "Tester work instructions",
+      "description": "Running, signing off and syncing machine tests",
+      "version": "1.1",
+      "date": "2026-09-23",
+      "file": "autorep-tester-guide.pdf",
+      "roles": ["Tester", "CompanyAdministrator", "SuperAdministrator"]
+    },
+    {
+      "id": "company-admin",
+      "title": "Company Administrator work instructions",
+      "description": "Reviewing your company's farms and synced machine tests",
+      "version": "1.0",
+      "date": "2026-08-27",
+      "file": "autorep-company-admin-guide.pdf",
+      "roles": ["CompanyAdministrator", "SuperAdministrator"]
+    },
+    {
+      "id": "super-admin",
+      "title": "Super Administrator work instructions",
+      "description": "Managing testers, companies, standards and reference data",
+      "version": "1.0",
+      "date": "2026-08-27",
+      "file": "autorep-super-admin-guide.pdf",
+      "roles": ["SuperAdministrator"]
+    }
+  ]
+}

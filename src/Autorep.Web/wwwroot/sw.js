@@ -1,5 +1,6 @@
-// Service worker: caches the application shell so the PWA loads offline, and runtime-caches
-// milk-supply company logos (reference data) so testers can see them offline once viewed.
+// Service worker: caches the application shell so the PWA loads offline, runtime-caches
+// milk-supply company logos (reference data) so testers can see them offline once viewed, and keeps
+// the Help & guides work-instruction PDFs on the device once they've been downloaded.
 //
 // Phase 2 (M2) will expand this with IndexedDB for Machine Test data + a sync queue, and
 // should PROACTIVELY pre-cache all active milk-company logos on reference-data sync (not just
@@ -10,9 +11,13 @@
 // ignoreSearch, so renaming this cache is the ONLY thing that retires a previous build's assets.
 // The stamper reads APP_SHELL out of this file, and every entry must be a real file under wwwroot
 // so it can be hashed; a served route would build green and then never cache-bust.
-const CACHE_VERSION = 'autorep-9476fdf4736c';
+const CACHE_VERSION = 'autorep-8355bd11dd01';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
+// Work-instruction PDFs (/guides/*, GuidesController). Its own cache, filled at runtime, so the
+// admin guides never land in every tester's precache and a deploy doesn't throw ~6 MB away. One
+// entry per guide, keyed on the path without ?v=: a new version overwrites the old copy in place.
+const GUIDE_CACHE = 'autorep-guides-v1';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/css/site.css',
@@ -51,19 +56,87 @@ const OFFLINE_HTML = `<!DOCTYPE html>
   p { margin:0 0 1.25rem; line-height:1.5; }
   button { font:inherit; padding:.6rem 1.25rem; border:0; border-radius:6px;
     background:#003893; color:#fff; cursor:pointer; }
+  .guides { margin-top:1.5rem; padding-top:1.25rem; border-top:1px solid #e5e7eb; text-align:left; }
+  .guides h2 { margin:0 0 .5rem; font-size:1rem; color:#003893; }
+  .guides ul { margin:0; padding-left:1.25rem; line-height:1.8; }
+  .guides a { color:#003893; }
 </style>
 <div class="card">
   <h1>You&rsquo;re offline</h1>
   <p>This page needs a connection. A test you already have open keeps working and saves to this
      device &mdash; reconnect and sync to send it in.</p>
   <button onclick="location.reload()">Try again</button>
+  <!--guides-->
 </div>`;
 
-function offlineResponse() {
-  return new Response(OFFLINE_HTML, {
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+// The offline card doubles as the offline Help page: /Help itself is page HTML (never cached, see
+// above), so list whichever guides this device already holds. Titles come from the X-Guide-Title
+// header the server stamped on each copy.
+async function offlineResponse() {
+  let guides = '';
+  try {
+    // has() first: open() would create an empty cache on a device that never kept a guide.
+    const cache = (await caches.has(GUIDE_CACHE)) ? await caches.open(GUIDE_CACHE) : null;
+    const links = [];
+    for (const request of cache ? await cache.keys() : []) {
+      const cached = await cache.match(request);
+      const title = cached?.headers.get('X-Guide-Title') || new URL(request.url).pathname.split('/').pop();
+      links.push(`<li><a href="${escapeHtml(new URL(request.url).pathname)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></li>`);
+    }
+    if (links.length) {
+      guides = `<div class="guides"><h2>Guides saved on this device</h2><ul>${links.join('')}</ul></div>`;
+    }
+  } catch {
+    // No guides to offer — the card still says what it needs to.
+  }
+  return new Response(OFFLINE_HTML.replace('<!--guides-->', guides), {
     status: 503,
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }
   });
+}
+
+// Work-instruction PDFs: network-first with a conditional request, falling back to the device's
+// copy only when the network fails. Not cache-first, even though these are big: the files sit
+// behind sign-in and per-role authorisation, and the Cache API is shared by every account on the
+// device — so while online the server decides every time (an unchanged guide costs a 304), and a
+// signed-out or wrong-role request gets the server's answer, never the cached PDF.
+async function guideResponse(request, url) {
+  const cache = await caches.open(GUIDE_CACHE);
+  const key = url.origin + url.pathname;
+  const cached = await cache.match(key);
+  const etag = cached?.headers.get('ETag');
+
+  let response;
+  try {
+    response = await fetch(url.href, {
+      credentials: 'same-origin',
+      headers: etag ? { 'If-None-Match': etag } : {}
+    });
+  } catch {
+    // Offline — the saved copy (whichever version it is) beats nothing. A guide never opened on
+    // this device gets the offline card, which lists the ones that were.
+    if (cached) return cached;
+    return request.mode === 'navigate' ? offlineResponse() : Response.error();
+  }
+
+  if (response.status === 304 && cached) return cached;
+
+  const type = response.headers.get('Content-Type') || '';
+  if (response.ok && !response.redirected && type.startsWith('application/pdf')) {
+    // Awaited, so a warm-up fetch from the page resolves only once the copy is really kept.
+    await cache.put(key, response.clone());
+    return response;
+  }
+
+  // A retired guide shouldn't linger offline.
+  if (response.status === 404) await cache.delete(key);
+  // Signed out (a followed redirect to the login page), forbidden, or gone: replay the ORIGINAL
+  // request so a navigation gets its real redirect/error page rather than this worker's copy.
+  return fetch(request);
 }
 
 self.addEventListener('install', (event) => {
@@ -100,7 +173,9 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((k) => k !== CACHE_VERSION && k !== LOGO_CACHE && k !== FA_CACHE).map((k) => caches.delete(k))
+          keys
+            .filter((k) => k !== CACHE_VERSION && k !== LOGO_CACHE && k !== FA_CACHE && k !== GUIDE_CACHE)
+            .map((k) => caches.delete(k))
         )
       )
       .then(() => self.clients.claim())
@@ -153,6 +228,13 @@ self.addEventListener('fetch', (event) => {
         })
       )
     );
+    return;
+  }
+
+  // Help & guides PDFs — before the navigation branch, because opening one IS a navigation, and
+  // that branch would answer offline with the card instead of the saved PDF.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/guides/')) {
+    event.respondWith(guideResponse(event.request, url));
     return;
   }
 

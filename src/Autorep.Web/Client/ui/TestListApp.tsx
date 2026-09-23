@@ -8,6 +8,7 @@ import { useEffect, useState } from "preact/hooks";
 import { allTests, deleteTest, putTest, type LocalTest } from "../db/testStore";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { CalibrationPanel } from "./CalibrationPanel";
+import { GuideLink } from "./GuideLink";
 import { showToast } from "./toast";
 
 export function mountTestList(root: HTMLElement): void {
@@ -126,7 +127,8 @@ function TestListApp() {
           6-week renewal highlight and the expired red alert (testing itself is never blocked). */}
       <CalibrationPanel />
 
-      <div style="display:flex;justify-content:flex-end;margin:var(--space-4) 0 var(--space-3)">
+      <div style="display:flex;justify-content:flex-end;gap:var(--space-2);margin:var(--space-4) 0 var(--space-3)">
+        <GuideLink variant="button" />
         <button class="btn btn--secondary btn--sm" disabled={syncing} onClick={() => void doSync()}>
           {syncing ? "Syncing…" : "Sync now"}
         </button>
