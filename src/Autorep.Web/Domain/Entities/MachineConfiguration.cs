@@ -81,6 +81,14 @@ public class MachineConfiguration
     /// lines up with the pump-N readings. Stored as JSON on this row; the Device owns the list.</summary>
     public List<VacuumPumpDetail> VacuumPumps { get; set; } = [];
 
+    /// <summary>The regulators fitted, by type and count. Stored as JSON on this row; the Device owns
+    /// the list. Empty on tests captured before Sep 2026, which kept a type on each pump row.</summary>
+    public List<RegulatorDetail> Regulators { get; set; } = [];
+
+    /// <summary>The Tester's call that the regulators are the right ones and big enough for the
+    /// plant. Null = not answered, which is not the same as No.</summary>
+    public bool? RegulatorsSuitable { get; set; }
+
     public PumpLubrication PumpLubrication { get; set; } = PumpLubrication.OilLubricated;
 
     /// <summary>Variable-speed-drive fitted — adds the minimum-pump-speed vacuum readings.</summary>

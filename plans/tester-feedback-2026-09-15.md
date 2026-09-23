@@ -31,6 +31,8 @@ Ship Phase 0 on its own first and have Jono re-run a test on staging. Then Phase
 
 **Progress, 16 Sep 2026.** Phase 2 + 3.1–3.3 merged (PR #56, `45a6d8d`) and deployed to staging. **3.6** is on branch `claude/tester-feedback-equipment`: vacuum-pump rows (make / model / motor size / drives-milk-pump / regulator type) following the pump count, releaser-pump rows under the existing toggle, both printed on the report and diffed per pump in the amendment history; new `VacuumPump` / `ReleaserPump` catalogues seeded from the legacy OEM tables (140 + 45 rows, make in `Brand`) and an empty `Regulator` catalogue so regulator type is free text until the list is built in admin; and the OEM capacity worked out beside 8a from the catalogue curve, with **no verdict** until the figure is confirmed. Server stores both lists as JSON on the configuration row; the sync DTO takes them as optional fields, so an older device re-syncing a test leaves them alone rather than wiping them.
 
+**Progress, 23 Sep 2026 — Jono's answers.** Branch `claude/vacuum-pumps-regulators-d47c94`. **14d** is now judged: at most 35 L/min per *cluster* (not per pulsator), no minimum; a 30-bale shed on 15 pulsators is allowed 35 × 30. The Daly test (790 on 37 clusters, limit 1295) passes, as legacy passed it. The manual's "30 per 10 units" param is retired. **12b, vented liners**: the 4 per cluster floor still applies, so 4–35 × clusters. **ACRs**: 11b = 10c − 11a and 12b = 10c − 12a are both measured off 10c, so 12b does not include ACR consumption; the app already works it out that way. **Ratio spread** stays pooled, two figures: the analyser reads two channels at a time and the tester enters the highest and lowest whichever side they were on. **OEM capacity beside 8a**: Jono agrees with the maths, but pumps work along a curve, so the figure stays a guide with no verdict. He suggests Mick at Read Industrial (Canterbury), who supply and build vacuum pumps; his number is in Jono's email. **Regulators**: they are now their own list (free-text type + quantity per line, since a shed can run several) plus a Yes / No / not-checked answer to "correct and big enough for this plant?". Tests captured 16–23 Sep read their per-pump regulator types as one line per type.
+
 ## Feedback register
 
 | # | Feedback | ⏱ | Status | Phase |
@@ -139,11 +141,11 @@ Legacy also shows 2g "Required Standard Effective Reserve" and 2h "Required Clea
 
 **12b (F15).** Judge the total against the per-cluster limits (4–12, from the admin standard; `Data/Seed.cs:239`) × `config.clusterCount`, the same way 10d uses "10 + 2 per cluster".
 - Label it "Cluster air admission, total (12b)", with the hint "4–12 L/min × 37 clusters = 148–444", and show the per-cluster average beside it.
-- ❓ NZMPTA, vented liners: the standards sheet says "< 35 l/min/cluster" (⏱ 35:30), and the app applies ≤ 35 per cluster when `linerVented` is set. Confirm this becomes ≤ 35 × clusters, and whether a minimum still applies.
+- ✅ Vented liners: 12b is 4–35 × clusters; the 4 per cluster minimum still applies (Jono, 23 Sep 2026).
 - 🔎 Migrated tests: legacy `CAAClusterAirAdmissionE` holds the total (470 on screen), but it is mapped onto today's per-cluster key (`legacyAdapter.ts:101`). Migrated tests therefore show totals under a per-cluster label. This change fixes the meaning.
 
 **14d ⚠.** Legacy passes 14d = 790 L/min for 19 GEA Autopuls S pulsators (⏱ 16:30). The app's rule is ≤ 30 L/min per 10 units (hint "≤ 120"), so a calculated 14d would fail every shed like this one.
-- ❓ Jono / NZMPTA: what is the 14d limit? Possibly a per-model pulsator consumption.
+- ✅ 14d: ≤ 35 L/min per cluster, no minimum (Jono, 23 Sep 2026).
 - Until that's answered, calculate and show 14d without a verdict.
 
 **Decisions taken in the implementation (15 Sep 2026, branch `claude/tester-feedback-phase1`).**
@@ -293,10 +295,10 @@ Also check (unconfirmed): straight after "Mark as complete & sync", the sign-off
 |---|---|---|
 | "Airline bends size": bend size, or effective length of bends? | Jono | 3.4 |
 | Faulty pulsators: show only on failed 14/15 readings, or also allow a manual "add"? | Jono | 2.3 |
-| 14d limit: legacy passes 790 L/min for 19 pulsators; the app allows 30 per 10 units | Jono / NZMPTA | 14d verdict |
-| Ratio spread (≤ 5%): the app judges the analyser's highest − lowest **pooled across front and back quarters**, as legacy's "Ratio Range Highest / Lowest" did. The standards note in `plans/reference/machine-types-tests-standards.md` reads it per quarter group (front vs front, back vs back — a plant can run different front/back ratios by design, and would fail pooled). Which does NZMPTA apply? Per group would mean capturing four ratio extremes instead of two | Jono / NZMPTA | ratio spread verdict |
+| ~~14d limit~~ **Answered 23 Sep:** ≤ 35 L/min per cluster, no minimum. Now judged | Jono | done |
+| ~~Ratio spread pooled or per group?~~ **Answered 23 Sep:** keep two figures, highest and lowest whichever side (the analyser reads two channels at a time). No change | Jono | done |
 | 12b with vented liners: ≤ 35 × clusters? Any minimum? | NZMPTA | 12b vented rule |
-| OEM pump capacity beside 8a: the app reads the legacy `VPModel` `AirFlow` column as L/min **per rpm** and shows AirFlow × 8c (a De Laval DVP1600 → 1.15 × 1400 = 1610 L/min, its nameplate figure). Is that what legacy compared 8a against, and with what tolerance? Legacy recorded a pass/fail on 8a, so it judged it somehow — the rule isn't in the repo. Until this is settled the figure is shown with no verdict | Jono / NZMPTA | 8a verdict |
+| OEM pump capacity beside 8a: AirFlow × 8c. **Jono, 23 Sep:** the maths is right, but pumps work along a curve, so a clean min/max isn't simple. Suggests Read Industrial's technical team (Mick). Still shown with no verdict | Josh → Read Industrial | 8a verdict |
 | Migrated tests carry their legacy vacuum-pump rows in the payload (`TestVaccumPumpDetails`), but the column names are only in the legacy DB, so the new pump fields are empty for historical tests. Worth mapping, or is forward-only fine? | Josh | migrated pump details |
 | Should the ISO 16 final checks (16a vs 1a, 16b vs 2a) be captured? Legacy has them; the app doesn't | Jono / NZMPTA | — |
 | Cleaning reserve (2h): on Jono's test legacy showed **2064** while the app's formula gives 2118 at 1a = 41.5 (2136 at 41). Same milkline, same plant — the two disagree on the vacuum term (legacy's figure matches the app's formula at v = 43). Which is right per manual p43? | NZMPTA / Josh | 2h verdict |

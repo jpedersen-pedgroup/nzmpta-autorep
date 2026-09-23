@@ -228,6 +228,21 @@ describe("buildTestSummaryDoc", () => {
     expect(json).not.toContain("Pump 2"); // the row that was never filled in is left off
   });
 
+  it("prints the regulators by type and count, and the suitability call only once answered", () => {
+    const t = sampleTest();
+    t.config = { ...t.config, regulators: [{ type: "Servo", quantity: 2 }, {}] };
+    let json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Servo");
+    expect(json).toContain("\"2\"");
+    expect(json).not.toContain("Regulator 2"); // the blank line is left off
+    expect(json).not.toContain("Correct and big enough");
+
+    t.config = { ...t.config, regulatorsSuitable: false };
+    json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Correct and big enough for this plant");
+    expect(json).toMatch(/"text":"No","color":"#dc2626"/);
+  });
+
   it("prints no pump tables when no pump details were captured", () => {
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("Make / model");
   });

@@ -68,6 +68,24 @@ describe("computeChanges", () => {
     expect(changes.some((c) => c.label === "Vacuum pump details")).toBe(false);
   });
 
+  it("records regulator lines by position and the suitability answer, and an older test's per-pump types compare equal", () => {
+    const base = baseTest();
+    base.config = { ...base.config, vacuumPumps: [{ regulatorType: "Servo" }] };
+    delete (base.config as { regulators?: unknown }).regulators;
+    // Writing out the line an older test already read from its pump rows is not a change.
+    expect(computeChanges(base, editedCopy({ config: { ...base.config, regulators: [{ type: "Servo", quantity: 1 }] } }))).toEqual([]);
+    const changes = computeChanges(
+      base,
+      editedCopy({
+        config: { ...base.config, regulators: [{ type: "Servo", quantity: 2 }, { type: "Sentinel", quantity: 1 }], regulatorsSuitable: false },
+      }),
+    );
+    expect(changes).toContainEqual({ section: "Machine configuration", label: "Regulator 1 · Quantity", from: "1", to: "2" });
+    expect(changes).toContainEqual({ section: "Machine configuration", label: "Regulator 2 · Type", from: "—", to: "Sentinel" });
+    expect(changes).toContainEqual({ section: "Machine configuration", label: "Regulators correct and big enough", from: "—", to: "No" });
+    expect(changes.some((c) => c.label === "Regulators")).toBe(false);
+  });
+
   it("ignores pump rows parked beyond the pump count", () => {
     const base = baseTest();
     const edited = editedCopy({ config: { ...base.config, vacuumPumps: [{}, { make: "GEA" }] } });

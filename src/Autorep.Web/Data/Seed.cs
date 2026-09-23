@@ -250,7 +250,7 @@ public static class Seed
             Param("param.ancillary.perUnit", "ACR / milk-meter allowance per unit", "Ancillary", 7.5, "L/min", "Manual p41"),
             Param("param.ancillary.minTotal", "ACR / milk-meter minimum total allowance", "Ancillary", 30, "L/min", "Manual p41"),
             Param("param.perCluster.tenLpm", "Teat spray / vacuum-gate allowance per cluster", "Ancillary", 10, "L/min", "Manual p41"),
-            Param("param.pulsator.consumptionPer10", "Pulsator consumption per 10 units", "Ancillary", 30, "L/min", "Manual p41"),
+            Rule("puls.pulsatorConsumption", "Pulsator consumption per cluster — max", "Ancillary", "atMost", "L/min", "NZMPTA (J. Rowlands, Sep 2026)", limit: 35),
             Rule("add.regulatorLoad", "Peak regulator load — max increase", "Ancillary", "atMost", "kPa", "Manual p61", limit: 2),
 
             // — Cluster air —
@@ -275,6 +275,11 @@ public static class Seed
         {
             db.TestStandards.Add(std);
         }
+
+        // Keys nothing reads any more - removed so the admin page doesn't offer a dead setting.
+        // param.pulsator.consumptionPer10: 14d moved from 30 per 10 units to 35 per cluster (Sep 2026).
+        string[] retired = ["param.pulsator.consumptionPer10"];
+        db.TestStandards.RemoveRange(await db.TestStandards.Where(s => retired.Contains(s.Key)).ToListAsync());
         await db.SaveChangesAsync();
     }
 

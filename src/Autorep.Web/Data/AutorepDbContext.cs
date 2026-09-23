@@ -91,6 +91,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             // ApplyConfig's replace-the-whole-list semantics honest (no orphaned rows).
             cfg.Property(c => c.VacuumPumps).HasConversion(PumpJson<VacuumPumpDetail>(), PumpComparer<VacuumPumpDetail>()).IsRequired();
             cfg.Property(c => c.ReleaserPumps).HasConversion(PumpJson<ReleaserPumpDetail>(), PumpComparer<ReleaserPumpDetail>()).IsRequired();
+            cfg.Property(c => c.Regulators).HasConversion(PumpJson<RegulatorDetail>(), PumpComparer<RegulatorDetail>()).IsRequired();
         });
 
         builder.Entity<AuditEntry>()

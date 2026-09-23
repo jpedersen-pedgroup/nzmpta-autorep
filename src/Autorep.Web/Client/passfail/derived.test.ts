@@ -209,8 +209,7 @@ describe("replay of the 11 Sep 2026 test (legacy screens, 37-cluster herringbone
     expect(verdictOf(config, r, "add.milkSystemLeakage")).toBe("pass"); // 80 ≤ 10 + 2 × 37
     expect(verdictOf(config, r, "add.clusterAirAdmission")).toBe("fail"); // 470 outside 148–444 for 37 clusters
     expect(verdictOf(config, r, "puls.testPulsationReading")).toBe("pass"); // 1.5 ≤ 2
-    // 14d passed in legacy at 790; the app's limit is unconfirmed, so no verdict either way.
-    expect(verdictOf(config, r, "puls.pulsatorConsumption")).toBe("noStandard");
+    expect(verdictOf(config, r, "puls.pulsatorConsumption")).toBe("pass"); // 790 ≤ 35 × 37 = 1295, as legacy passed it
   });
 });
 
@@ -223,11 +222,11 @@ describe("12b is judged as a machine total", () => {
     expect(rule(cfg({ clusterCount: 37 }))).toEqual({ kind: "between", min: 148, max: 444 });
   });
 
-  it("uses the vented-liner ceiling × clusters, and tells the tester that is unconfirmed", () => {
+  it("raises the ceiling to 35 × clusters for vented liners and keeps the 4 × clusters floor", () => {
     const vented = cfg({ clusterCount: 10, linerVented: true });
-    expect(rule(vented)).toEqual({ kind: "atMost", limit: 350 });
+    expect(rule(vented)).toEqual({ kind: "between", min: 40, max: 350 });
     const def = allReadingSections(vented, {}).flatMap((s) => s.readings).find((d) => d.key === "add.clusterAirAdmission")!;
-    expect(def.hint).toMatch(/unconfirmed with NZMPTA/);
+    expect(def.hint).toBe("4–35 per cluster × 10 = 40–350 (vented liners)");
   });
 
   it("has no standard until the cluster count is set", () => {

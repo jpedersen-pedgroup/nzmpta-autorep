@@ -13,6 +13,7 @@ import { flushCalibration } from "./calibrationSync";
 import { initCompanyBranding } from "./companyBrandingSync";
 import { initTesterDetails } from "./testerDetailsSync";
 import { warmReportGenerator } from "../report/generatorChunks";
+import { isBlankRegulatorRow, regulatorRows } from "../wizard/pumpRows";
 import { guidesForRoles, TESTER_ROLE, warmGuides } from "../guides/guides";
 
 interface TestSummaryDto {
@@ -62,6 +63,17 @@ function assertApiResponse(res: Response): void {
   }
 }
 
+/** The config as the server stores it. Regulators always go up as a list (never absent), so the
+ * server can tell this client knows about them and stores the suitability answer with them - an
+ * older test with no list sends the lines read from its pump rows. */
+function configForServer(config: MachineConfiguration): MachineConfiguration {
+  return {
+    ...config,
+    regulators: regulatorRows(config).filter((r) => !isBlankRegulatorRow(r)),
+    regulatorsSuitable: config.regulatorsSuitable ?? null,
+  };
+}
+
 async function pushTest(t: LocalTest): Promise<void> {
   const res = await fetch("/api/sync/tests", {
     method: "POST",
@@ -78,7 +90,7 @@ async function pushTest(t: LocalTest): Promise<void> {
       notes: t.notes ?? null,
       markedCompleteAt: t.markedCompleteAt ?? null,
       createdAt: t.createdAt,
-      config: t.config,
+      config: t.config ? configForServer(t.config) : t.config,
       // Version chain, mirrored out of the payload into its own columns so the server can hide
       // superseded versions from the company-wide list without parsing (and loading) the payload.
       version: t.version ?? 1,
