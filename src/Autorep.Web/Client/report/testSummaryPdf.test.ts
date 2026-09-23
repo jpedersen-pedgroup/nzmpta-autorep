@@ -343,6 +343,26 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(JSON.stringify(plain.content)).not.toContain("TESTED BY");
   });
 
+  it("judges a logo on its bytes, so mislabelled older data can't fail the report", () => {
+    const head = (companyLogo: string) =>
+      buildTestSummaryDoc(sampleTest(), undefined, { companyLogo });
+    // A GIF labelled as PNG (pdfmake would throw on it): left off.
+    const gif = head("data:image/png;base64,R0lGODlhAQABAAAAACw=");
+    expect(gif.images).toBeUndefined();
+    expect(JSON.stringify((gif.content as unknown[])[0])).not.toContain('"image"');
+    // A JPEG labelled as PNG: drawn (pdfkit reads the real format from the bytes).
+    expect(head("data:image/png;base64,/9j/4AAQSkZJRg==").images).toEqual({ companyLogo: "data:image/png;base64,/9j/4AAQSkZJRg==" });
+    // Malformed SVG base64: left off rather than throwing.
+    expect(() => head("data:image/svg+xml;base64,@@@")).not.toThrow();
+  });
+
+  it("decodes an SVG logo as UTF-8, keeping macrons in its text", () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Tāmaki Testing</text></svg>';
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(svg)));
+    const doc = buildTestSummaryDoc(sampleTest(), undefined, { companyLogo: `data:image/svg+xml;base64,${b64}` });
+    expect(JSON.stringify((doc.content as unknown[])[0])).toContain("Tāmaki Testing");
+  });
+
   it("repeats the company logo in the running header on pages 2+", () => {
     const png = "data:image/png;base64,iVBORw0KGgo=";
     const header = buildTestSummaryDoc(sampleTest(), undefined, { companyLogo: png }).header as (p: number, n: number, s: unknown) => unknown;

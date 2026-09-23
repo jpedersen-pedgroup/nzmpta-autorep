@@ -202,24 +202,38 @@ export interface ReportBranding {
 const COMPANY_LOGO_IMAGE = "companyLogo";
 
 /** The raster logo for the `images` dictionary, when the upload is one pdfmake can embed. */
+/** Judged on the image bytes, not the declared type: pdfmake throws on anything that isn't really
+ * a PNG or JPEG, which fails the whole report, and a logo migrated from the legacy system can
+ * carry the wrong label. The base64 of the PNG signature starts "iVBORw0KGgo"; of a JPEG, "/9j/". */
 function rasterLogo(dataUrl: string | null | undefined): string | null {
-  return dataUrl && /^data:image\/(png|jpeg);base64,/.test(dataUrl) ? dataUrl : null;
+  const payload = /^data:image\/[\w.+-]+;base64,(.*)$/s.exec(dataUrl ?? "")?.[1];
+  return payload && (payload.startsWith("iVBORw0KGgo") || payload.startsWith("/9j/")) ? dataUrl! : null;
+}
+
+/** The markup of an SVG logo, or null. Decoded as UTF-8, so a macron in the artwork's text
+ * survives. */
+function svgLogo(dataUrl: string | null | undefined): string | null {
+  const m = /^data:image\/svg\+xml(;base64)?,(.*)$/s.exec(dataUrl ?? "");
+  if (!m) return null;
+  try {
+    const svg = m[1]
+      ? new TextDecoder().decode(Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0)))
+      : decodeURIComponent(m[2]);
+    return svg.includes("<svg") ? svg : null;
+  } catch {
+    return null; // malformed base64 or escapes
+  }
 }
 
 /** A logo from a data URL, fitted inside `fit`. pdfmake draws PNG and JPEG as images (by name —
- * see COMPANY_LOGO_IMAGE) and SVG as vectors; any other upload (WebP, GIF) is left off rather
- * than breaking the report. */
+ * see COMPANY_LOGO_IMAGE) and SVG as vectors; anything else (GIF, WebP, a mislabelled file) is
+ * left off rather than breaking the report. Uploads are restricted to those three formats
+ * (Services/LogoImage.cs), so this only matters for older data. */
 function logoNode(dataUrl: string | null | undefined, fit: [number, number]): Content | null {
-  const m = /^data:(image\/[\w.+-]+)(;base64)?,(.*)$/s.exec(dataUrl ?? "");
-  if (!m) return null;
-  const [, type, b64, payload] = m;
   // Both places a logo goes sit against the right margin.
   if (rasterLogo(dataUrl)) return { image: COMPANY_LOGO_IMAGE, fit, alignment: "right" } as Content;
-  if (type === "image/svg+xml") {
-    const svg = b64 ? atob(payload) : decodeURIComponent(payload);
-    return { svg, fit, alignment: "right" } as Content;
-  }
-  return null;
+  const svg = svgLogo(dataUrl);
+  return svg ? ({ svg, fit, alignment: "right" } as Content) : null;
 }
 
 function severityCell(severity: FaultSeverity): TableCell {

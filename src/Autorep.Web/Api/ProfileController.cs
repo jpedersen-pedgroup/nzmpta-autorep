@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -87,14 +88,8 @@ public class ProfileController : ControllerBase
         if (Request.GetTypedHeaders().IfNoneMatch.Any(t => t.Compare(etag, useStrongComparison: true)))
             return StatusCode(StatusCodes.Status304NotModified);
 
-        return Ok(new CompanyBrandingDto(company.Id, company.Name, LogoDataUrl(company.LogoData, company.LogoContentType)));
+        return Ok(new CompanyBrandingDto(company.Id, company.Name, LogoImage.DataUrl(company.LogoData, company.LogoContentType)));
     }
-
-    /// <summary>A stored logo as a data URL for the on-device report generator, or null.</summary>
-    public static string? LogoDataUrl(byte[]? data, string? contentType) =>
-        data is { Length: > 0 }
-            ? $"data:{contentType ?? "application/octet-stream"};base64,{Convert.ToBase64String(data)}"
-            : null;
 
     private static EntityTagHeaderValue BrandingETag(Guid id, string name, byte[]? logo, string? contentType)
     {

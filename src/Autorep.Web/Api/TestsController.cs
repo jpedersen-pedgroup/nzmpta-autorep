@@ -3,6 +3,7 @@ using System.Text.Json;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -86,7 +87,7 @@ public class TestsController : ControllerBase
             test.Tester?.DisplayName,
             test.TesterId == me,
             company?.Name,
-            ProfileController.LogoDataUrl(company?.LogoData, company?.LogoContentType)));
+            LogoImage.DataUrl(company?.LogoData, company?.LogoContentType)));
     }
 
     // The Company tests list: completed tests done for the caller's Testing Company, current
