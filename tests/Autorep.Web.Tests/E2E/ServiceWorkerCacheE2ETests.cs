@@ -47,6 +47,33 @@ public class ServiceWorkerCacheE2ETests : IClassFixture<E2EWebAppFactory>, IAsyn
         "/lib/fonts/opensans-latin-ext.woff2",
     ];
 
+    /// <summary>
+    /// Re-evaluates an ASYNC page check until it returns true or <paramref name="timeoutMs"/> runs
+    /// out. Not WaitForFunctionAsync: that polls for a truthy *return value*, and an async
+    /// function returns a Promise — always truthy — so it resolves at once without waiting at all.
+    /// Both waits in this test used it that way, which made them no-ops: the test only passed when
+    /// the worker happened to finish precaching before the final read, and a slow CI runner caught
+    /// it with no cache opened yet. Each evaluation is bounded too, so a promise that never
+    /// settles fails the test instead of hanging the CI job.
+    /// </summary>
+    private static async Task<bool> PollAsync(IPage page, string asyncCheck, object? arg, int timeoutMs = 30_000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline)
+        {
+            var remaining = deadline - DateTime.UtcNow;
+            var check = page.EvaluateAsync<bool>(asyncCheck, arg);
+            if (await Task.WhenAny(check, Task.Delay(remaining)) != check)
+            {
+                _ = check.ContinueWith(t => t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                return false;
+            }
+            if (await check) return true;
+            await Task.Delay(100);
+        }
+        return false;
+    }
+
     [Fact]
     public async Task Service_worker_precaches_the_app_shell_and_serves_it_for_versioned_urls()
     {
@@ -65,38 +92,30 @@ public class ServiceWorkerCacheE2ETests : IClassFixture<E2EWebAppFactory>, IAsyn
 
         // Poll for an activated worker rather than awaiting navigator.serviceWorker.ready, which
         // never settles when registration was refused and would therefore hang rather than fail.
-        await page.WaitForFunctionAsync(
+        var active = await PollAsync(page,
             @"async () => {
                 if (!('serviceWorker' in navigator)) return false;
                 const reg = await navigator.serviceWorker.getRegistration();
                 return !!(reg && reg.active);
             }",
-            null,
-            new PageWaitForFunctionOptions { Timeout = 30_000 });
+            null);
+        Assert.True(active, "the service worker never activated within 30 s");
 
         // Wait for the shell to be fully POPULATED, not merely for a cache to exist — precaching
         // is asynchronous, so "a cache named autorep-* is present" is true a moment before its
-        // entries are. Swallow the timeout: the assertions below say exactly what was missing,
-        // which a bare timeout would not.
-        try
-        {
-            await page.WaitForFunctionAsync(
-                @"async (expected) => {
-                    const names = await caches.keys();
-                    const shell = names.find((k) => k.startsWith('autorep-')
-                        && !k.includes('logos') && !k.includes('fontawesome') && !k.includes('guides'));
-                    if (!shell) return false;
-                    const cache = await caches.open(shell);
-                    const have = new Set((await cache.keys()).map((r) => new URL(r.url).pathname));
-                    return expected.every((e) => have.has(e));
-                }",
-                Expected,
-                new PageWaitForFunctionOptions { Timeout = 30_000 });
-        }
-        catch (TimeoutException)
-        {
-            // Deliberately ignored — reported in detail below.
-        }
+        // entries are. A miss isn't fatal here: the assertions below say exactly what was
+        // missing, which a bare timeout would not.
+        await PollAsync(page,
+            @"async (expected) => {
+                const names = await caches.keys();
+                const shell = names.find((k) => k.startsWith('autorep-')
+                    && !k.includes('logos') && !k.includes('fontawesome') && !k.includes('guides'));
+                if (!shell) return false;
+                const cache = await caches.open(shell);
+                const have = new Set((await cache.keys()).map((r) => new URL(r.url).pathname));
+                return expected.every((e) => have.has(e));
+            }",
+            Expected);
 
         // Every key is always present (null rather than undefined, which JSON.stringify drops)
         // so a failure reports what the browser actually had instead of a missing-key error.
