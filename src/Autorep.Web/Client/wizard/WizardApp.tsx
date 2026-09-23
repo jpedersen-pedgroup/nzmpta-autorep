@@ -26,7 +26,7 @@ import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { getCachedCompanyBranding } from "../sync/companyBrandingSync";
-import { proposedNextTestDate } from "./nextTestDate";
+import { nextTestDateAtSignOff, originalCompletedAt } from "./nextTestDate";
 import type { CalibrationDates } from "../calibration/status";
 import { useAppHeaderOffset } from "../ui/appHeaderOffset";
 import { CalibrationAlert } from "../ui/CalibrationPanel";
@@ -430,16 +430,22 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       if (company) companyStamp = { testingCompanyId: company.id, testingCompanyName: company.name };
     }
 
-    // The next test date is always recorded: the tester's choice from this step, else the
-    // twelve-month default they were shown.
-    const nextTestDate = proposedNextTestDate(test, now);
-
     // Re-edit of a completed test: fix the amendment record (what changed vs the superseded
     // version, when, by whom) at sign-off, appended to the cumulative chain the copy carried
     // forward. Replaces any same-version record so a repeated sign-off can't double-log.
+    const base = test.supersedesId ? await getTest(test.supersedesId) : undefined;
+
+    // The next test date is always recorded. An original test: the tester's choice from this
+    // step, else the twelve-month default they were shown. An amendment keeps the original
+    // test's date — carrying out recommendations or fixing a mistake doesn't restart the clock.
+    // The first version's completion comes from the carried chain, or is the base's own when
+    // this is the first amendment.
+    const nextTestDate = nextTestDateAtSignOff(
+      test, now, base, originalCompletedAt(test.amendments) ?? base?.markedCompleteAt,
+    );
+
     let amendments = test.amendments;
     if (test.supersedesId) {
-      const base = await getTest(test.supersedesId);
       const amendedBy = (globalThis as { __autorepTesterName?: unknown }).__autorepTesterName;
       const record = buildAmendmentRecord(
         base, { ...test, nextTestDate }, now, typeof amendedBy === "string" ? amendedBy : undefined,
@@ -510,7 +516,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     },
     onAttachPdf: (file) => void attachPulsationPdf(file),
     onRemovePdf: () => void persistEdit({ pulsationPdf: null, syncState: "local-only" }),
-    onNextTestDateChange: (date) => void persistEdit({ nextTestDate: date }),
+    // An amendment keeps the original test's date; the sign-off step shows it read-only.
+    onNextTestDateChange: (date) => { if (!test.supersedesId) void persistEdit({ nextTestDate: date }); },
   };
 
   const banners = (

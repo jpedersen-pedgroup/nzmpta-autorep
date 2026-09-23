@@ -67,9 +67,11 @@ export function ReviewSignOffStep({
   const isComplete = Boolean(test.markedCompleteAt);
   const reviewable = steps.filter((s) => s.step !== "ReviewSignOff");
   // Before sign-off the picker shows what will be recorded (the default until the tester picks);
-  // after it, the recorded date, read-only.
+  // after it, the recorded date, read-only. An amendment can't change it at all: the date belongs
+  // to the original test, and carrying out its recommendations doesn't restart the clock.
   const nowIso = new Date().toISOString();
-  const nextTestDate = isComplete ? test.nextTestDate : proposedNextTestDate(test, nowIso);
+  const isAmendment = Boolean(test.supersedesId);
+  const nextTestDate = isComplete || isAmendment ? test.nextTestDate : proposedNextTestDate(test, nowIso);
   const nextTestInPast = !isComplete && nextTestDate != null && nextTestDate <= nzDate(nowIso);
 
   const pickFile = (files: FileList | null | undefined) => {
@@ -110,6 +112,11 @@ export function ReviewSignOffStep({
         <label class="signoff__label" for="next-test-date">Next test due</label>
         {isComplete || isServerView ? (
           <div>{nextTestDate ? formatDisplayDate(nextTestDate) : "—"}</div>
+        ) : isAmendment ? (
+          <>
+            <div>{nextTestDate ? formatDisplayDate(nextTestDate) : "Twelve months from the original test"}</div>
+            <div class="form-field__hint">Set by the original test. Amending a test doesn't change when it's next due.</div>
+          </>
         ) : (
           <>
             <DatePicker id="next-test-date" value={nextTestDate} onChange={onNextTestDateChange} />

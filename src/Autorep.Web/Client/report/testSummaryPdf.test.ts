@@ -399,6 +399,12 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(json).toContain("NEXT TEST DUE");
     expect(json).toContain("proposed");
 
+    // A draft amendment carries the original test's date: settled, not proposed.
+    const amending = { ...draft, supersedesId: "t0", version: 2, nextTestDate: "2027-06-11" };
+    const amendJson = JSON.stringify(buildTestSummaryDoc(amending).content);
+    expect(amendJson).toContain("11 June 2027");
+    expect(amendJson).not.toContain("proposed");
+
     // Completed with no recorded date: nothing is invented.
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("NEXT TEST DUE");
   });

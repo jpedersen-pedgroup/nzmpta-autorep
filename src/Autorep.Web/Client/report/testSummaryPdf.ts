@@ -324,17 +324,19 @@ export function buildTestSummaryDoc(
   ]);
   // The next test date is what the farmer most needs from this panel, so it leads it, larger. A
   // signed-off test prints what was recorded (nothing for one signed off before the date existed,
-  // rather than inventing one); a draft prints what sign-off would record, marked as proposed.
-  const nextTestDate = test.markedCompleteAt
-    ? test.nextTestDate ?? null
-    : proposedNextTestDate(test, new Date().toISOString());
+  // rather than inventing one); a draft prints what sign-off would record, marked as proposed. A
+  // draft amendment already carries the original test's date, which is settled, not proposed.
+  const nextTestProposed = !test.markedCompleteAt && !test.supersedesId;
+  const nextTestDate = nextTestProposed
+    ? proposedNextTestDate(test, new Date().toISOString())
+    : test.nextTestDate ?? null;
   const nextTestBlock: Content[] = nextTestDate
     ? [
         { text: "NEXT TEST DUE", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
         {
           text: [
             { text: fmtCalendarDay(nextTestDate), fontSize: 12, bold: true, color: BRAND },
-            ...(test.markedCompleteAt ? [] : [{ text: "  proposed", fontSize: 8, color: MUTED }]),
+            ...(nextTestProposed ? [{ text: "  proposed", fontSize: 8, color: MUTED }] : []),
           ],
           margin: [0, 1, 0, 8],
         } as Content,

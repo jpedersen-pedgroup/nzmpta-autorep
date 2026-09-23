@@ -22,3 +22,26 @@ export function defaultNextTestDate(fromIso: string, timeZone = "Pacific/Aucklan
 export function proposedNextTestDate(test: { nextTestDate?: string | null }, nowIso: string): string {
   return test.nextTestDate ?? defaultNextTestDate(nowIso);
 }
+
+/** The date sign-off records. An original test takes the tester's choice, else twelve months from
+ * sign-off. An amendment (a new version recording recommendations carried out, or a correction)
+ * never moves it: the date belongs to the original test. It keeps the superseded version's date,
+ * and a chain whose original was signed off before the date existed gets twelve months from the
+ * ORIGINAL test's completion, not from the amendment's.
+ * `base` is the version being superseded; `originalCompletedAt` the first version's completion. */
+export function nextTestDateAtSignOff(
+  test: { nextTestDate?: string | null; supersedesId?: string | null },
+  nowIso: string,
+  base?: { nextTestDate?: string | null } | null,
+  originalCompletedAt?: string | null,
+): string {
+  if (!test.supersedesId) return proposedNextTestDate(test, nowIso);
+  return base?.nextTestDate ?? test.nextTestDate ?? defaultNextTestDate(originalCompletedAt ?? nowIso);
+}
+
+/** When the first version of an amended test was completed: the base of the earliest amendment in
+ * the chain. Null when there's no amendment record to read it from. */
+export function originalCompletedAt(amendments: { version: number; baseCompletedAt?: string | null }[] | undefined): string | null {
+  const first = [...(amendments ?? [])].sort((a, b) => a.version - b.version)[0];
+  return first?.baseCompletedAt ?? null;
+}
