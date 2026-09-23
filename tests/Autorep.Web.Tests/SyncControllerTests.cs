@@ -250,26 +250,6 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         config = (object?)null,
     };
 
-    // The device prints the logo of the company the test was done for, so the pull carries the
-    // company stamped at first upload.
-    [Fact]
-    public async Task Pull_carries_the_company_stamped_on_the_test()
-    {
-        var testerId = "tester-logo-" + Guid.NewGuid().ToString("N");
-        var companyId = await SeedTesterInCompanyAsync(testerId, "Stamp Co");
-        var client = _factory.CreateClientAs(Roles.Tester, testerId);
-        var clientId = Guid.NewGuid();
-        (await client.PostAsJsonAsync("/api/sync/tests", UploadPayload(clientId, "Stamp Farm " + clientId)))
-            .EnsureSuccessStatusCode();
-
-        var pulled = await client.GetFromJsonAsync<StampPullResponse>("/api/sync/tests");
-
-        pulled!.Tests.Single(t => t.ClientId == clientId).TestingCompanyId.Should().Be(companyId);
-    }
-
-    private sealed record StampSummary(Guid ClientId, Guid? TestingCompanyId);
-    private sealed record StampPullResponse(List<StampSummary> Tests);
-
     // The farm link must never cross company scope: another company's same-named farm is not
     // "the" farm — linking to it would grant this company visibility of that farm (and its
     // farmer contact details) through the test-derived scoping.

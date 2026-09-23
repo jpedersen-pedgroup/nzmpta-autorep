@@ -1,5 +1,6 @@
 using Autorep.Web.Data;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,8 @@ public class NewModel : PageModel
         public string? PostCode { get; set; }
         public string? Phone { get; set; }
         public string? Email { get; set; }
+        /// <summary>The logo printed on this company's test reports.</summary>
+        public IFormFile? Logo { get; set; }
     }
 
     public void OnGet() { }
@@ -40,8 +43,12 @@ public class NewModel : PageModel
             Errors.Add($"A company named '{trimmed}' already exists.");
             return Page();
         }
+        var (ok, logo) = await LogoImage.ReadUploadAsync(Input.Logo, Errors);
+        if (!ok) return Page();
         _db.TestingCompanies.Add(new TestingCompany
         {
+            LogoData = logo?.Data,
+            LogoContentType = logo?.ContentType,
             Name = trimmed,
             AddressLine1 = Clean(Input.AddressLine1),
             AddressLine2 = Clean(Input.AddressLine2),

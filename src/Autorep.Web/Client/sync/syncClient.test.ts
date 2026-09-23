@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { allTests, deleteTest, getReference, getTest, putReference, putTest, type LocalTest } from "../db/testStore";
+import { allTests, deleteTest, getTest, putTest, type LocalTest } from "../db/testStore";
 import { syncAll, SessionExpiredError } from "./syncClient";
 import { defaultMachineConfiguration } from "../wizard/types";
 
@@ -112,62 +112,6 @@ describe("syncAll", () => {
     const after = await getTest("unauthorised");
     expect(after?.syncState).toBe("local-only");
     expect(after?.everUploaded).toBeFalsy();
-  });
-
-  // The report prints the logo of the company the test was done for, which only the server knows.
-  it("stores the company the server stamped on a pulled test", async () => {
-    const pulled = { ...sample("pulled"), syncState: "uploaded" as const };
-    stubFetch((url) =>
-      url.startsWith("/api/sync/tests")
-        ? jsonResponse({
-            watermark: "2026-07-22T00:00:00.000Z",
-            tests: [{
-              clientId: "pulled", farmName: "Sunny Acres", createdAt: pulled.createdAt,
-              markedCompleteAt: null, config: null, payloadJson: JSON.stringify(pulled),
-              testingCompanyId: "c0ffee00-0000-0000-0000-000000000001",
-            }],
-          })
-        : jsonResponse({}, 404),
-    );
-
-    await syncAll();
-
-    expect((await getTest("pulled"))?.testingCompanyId).toBe("c0ffee00-0000-0000-0000-000000000001");
-  });
-
-  // A device upgraded from a build whose pulls didn't carry testingCompanyId holds old tests
-  // without it, and a delta pull never re-sends them — so the first pull after the upgrade is full.
-  it("does one full pull to backfill the company on tests cached before it existed", async () => {
-    await putReference({ key: "testPullWatermark", version: "2026-07-01T00:00:00.000Z" });
-    await putReference({ key: "testCompanyBackfill", rows: { done: false } }); // as on an upgraded device
-    const pulls: string[] = [];
-    stubFetch((url) => {
-      if (url.startsWith("/api/sync/tests")) { pulls.push(url); return jsonResponse(EMPTY_PULL); }
-      return jsonResponse({}, 404);
-    });
-
-    await syncAll();
-    await syncAll();
-
-    expect(pulls[0]).toBe("/api/sync/tests");
-    expect(pulls[1]).toContain("?since=");
-  });
-
-  // "Synced" has to mean the next report prints the current logo, so the refresh is awaited.
-  it("has the company logo refreshed by the time the sync resolves", async () => {
-    const company = "c0ffee00-0000-0000-0000-000000000002";
-    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
-    stubFetch((url) => {
-      if (url.startsWith("/api/sync/tests")) return jsonResponse(EMPTY_PULL);
-      if (url === "/api/profile/company") return jsonResponse({ id: company });
-      if (url.includes("/logo")) return new Response(png, { status: 200, headers: { "content-type": "image/png", ETag: '"a"' } });
-      return jsonResponse({}, 404);
-    });
-
-    await syncAll();
-
-    const cached = await getReference(`companyLogo:${company}`);
-    expect((cached?.rows as { dataUrl: string | null }).dataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
   it("reports a clean run when every push succeeds", async () => {

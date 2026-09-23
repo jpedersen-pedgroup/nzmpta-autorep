@@ -15,6 +15,17 @@
         <div class="tile__title">All tests</div>
         <div class="tile__desc">Browse every machine test synced from the field.</div>
     </a>
+    <a class="tile" asp-page="/Admin/Tests/Upcoming">
+        <div class="tile__icon"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i></div>
+        <div class="tile__title">Upcoming tests</div>
+        <div class="tile__desc">
+            Farms due for their next machine test.
+            @if (Model.OverdueTestCount > 0)
+            {
+                <span class="badge badge--danger">@Model.OverdueTestCount overdue</span>
+            }
+        </div>
+    </a>
     <a class="tile" asp-page="/Admin/Farms/Index">
         <div class="tile__icon"><i class="fa-solid fa-cow" aria-hidden="true"></i></div>
         <div class="tile__title">Farms</div>

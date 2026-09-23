@@ -62,6 +62,10 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
         builder.Entity<MachineTest>()
             .HasIndex(t => new { t.TestingCompanyId, t.MarkedCompleteAt });
 
+        // Upcoming tests: "this company's tests falling due by <date>".
+        builder.Entity<MachineTest>()
+            .HasIndex(t => new { t.TestingCompanyId, t.NextTestDate });
+
         // "Has a later version of this tester's test superseded it?" — the subquery behind
         // TestScope.CurrentVersionsOnly.
         builder.Entity<MachineTest>()

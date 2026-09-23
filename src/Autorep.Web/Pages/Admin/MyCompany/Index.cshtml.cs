@@ -10,7 +10,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Autorep.Web.Pages.Admin.MyCompany;
 
 // "My company" — the Company Administrator's own Testing Company: its details (read-only; NZMPTA
-// maintains them) and the report logo, which the Company Administrator manages themselves.
+// maintains them) and the report logo, which the Company Administrator manages themselves. The
+// logo follows the same rules as the Super-Admin company editor (LogoImage: PNG, JPEG or SVG,
+// judged by its bytes, up to 1 MB) and reaches devices through the company branding sync.
 //
 // There is deliberately no company id in the route or the form: the company is always the one on
 // the signed-in principal, so it can't be widened by editing a URL or a hidden field (the same rule
@@ -30,9 +32,8 @@ public class IndexModel : PageModel
     /// <summary>Null when the signed-in administrator isn't attached to a Testing Company.</summary>
     public TestingCompany? Company { get; private set; }
     public int TesterCount { get; private set; }
-    public bool HasLogo { get; private set; }
-    public bool LogoPrintable { get; private set; }
-    public string? LogoVersion { get; private set; }
+    /// <summary>The current logo as a data URL for the preview, or null.</summary>
+    public string? LogoPreview { get; private set; }
     public List<string> Errors { get; } = new();
     public string? Message { get; set; }
 
@@ -61,16 +62,16 @@ public class IndexModel : PageModel
             Company.LogoData = null;
             Company.LogoContentType = null;
         }
-        else if (Input.Logo is null || Input.Logo.Length == 0)
+        else
         {
-            Errors.Add("Choose a PNG or JPEG file to upload.");
-            await PopulateAsync(Company);
-            return Page();
-        }
-        else if (!await CompanyLogo.ApplyAsync(Input.Logo, Company, Errors))
-        {
-            await PopulateAsync(Company);
-            return Page();
+            var (ok, logo) = await LogoImage.ReadUploadAsync(Input.Logo, Errors);
+            if (ok && logo is null) Errors.Add("Choose a PNG, JPEG or SVG file to upload.");
+            if (Errors.Count > 0)
+            {
+                await PopulateAsync(Company);
+                return Page();
+            }
+            (Company.LogoData, Company.LogoContentType) = (logo!.Data, logo.ContentType);
         }
 
         // Audited by the AuditInterceptor like any other company change (the logo bytes are
@@ -92,9 +93,7 @@ public class IndexModel : PageModel
 
     private async Task PopulateAsync(TestingCompany company)
     {
-        HasLogo = company.LogoData is { Length: > 0 };
-        LogoPrintable = CompanyLogo.IsPrintable(company.LogoData);
-        LogoVersion = HasLogo ? CompanyLogo.ETag(company.LogoData!).Trim('"') : null;
+        LogoPreview = LogoImage.DataUrl(company.LogoData, company.LogoContentType);
         TesterCount = await _db.Users.CountAsync(u => u.TestingCompanyId == company.Id);
     }
 }

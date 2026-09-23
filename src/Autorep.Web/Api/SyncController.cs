@@ -53,14 +53,14 @@ public class SyncController : ControllerBase
         // Version chain, mirrored out of PayloadJson into columns so the server can filter
         // superseded versions without materialising the payload. Optional: a device queued
         // before these existed still pushes successfully and lands as v1.
-        int? Version = null, Guid? SupersedesClientId = null);
+        int? Version = null, Guid? SupersedesClientId = null,
+        // Mirrored out of PayloadJson for the Upcoming tests page. Null from a device that predates
+        // it leaves a stored date alone.
+        DateOnly? NextTestDate = null);
 
     public record TestSummaryDto(
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
-        DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson,
-        // The company the test was done for (stamped at first upload) — the device prints that
-        // company's logo on the report, not whichever company the tester is with today.
-        Guid? TestingCompanyId = null);
+        DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson);
 
     /// <summary>Pull envelope. Watermark is stored by the Device and sent back as `since` on its
     /// next pull — server clock on both sides, so device clock skew is irrelevant.</summary>
@@ -102,8 +102,7 @@ public class SyncController : ControllerBase
             t.CreatedAt,
             t.MarkedCompleteAt,
             t.Configuration is null ? null : ToDto(t.Configuration),
-            t.PayloadJson,
-            t.TestingCompanyId));
+            t.PayloadJson));
 
         return Ok(new PullResponse(watermark, dtos.ToList()));
     }
@@ -134,6 +133,7 @@ public class SyncController : ControllerBase
             existing.UpdatedAt = DateTimeOffset.UtcNow;
             existing.Version = req.Version ?? existing.Version;
             existing.SupersedesClientId = req.SupersedesClientId ?? existing.SupersedesClientId;
+            existing.NextTestDate = req.NextTestDate ?? existing.NextTestDate;
             // TestingCompanyId is deliberately NOT re-stamped: it records the company the work was
             // done for. Re-deriving it here would drag a tester's old tests into their new company
             // the first time they re-synced after a transfer.
@@ -161,6 +161,7 @@ public class SyncController : ControllerBase
             PayloadJson = req.PayloadJson,
             Version = req.Version ?? 1,
             SupersedesClientId = req.SupersedesClientId,
+            NextTestDate = req.NextTestDate,
         };
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
@@ -192,8 +193,7 @@ public class SyncController : ControllerBase
             test.CreatedAt,
             test.MarkedCompleteAt,
             test.Configuration is null ? null : ToDto(test.Configuration),
-            test.PayloadJson,
-            test.TestingCompanyId));
+            test.PayloadJson));
     }
 
     // Links the synced test to a Farm, always within the tester's company scope so a sync push
