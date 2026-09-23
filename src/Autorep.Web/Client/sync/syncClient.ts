@@ -11,6 +11,7 @@ import { defaultMachineConfiguration, type MachineConfiguration } from "../wizar
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
 import { initCompanyBranding } from "./companyBrandingSync";
+import { initTesterDetails } from "./testerDetailsSync";
 import { warmReportGenerator } from "../report/generatorChunks";
 import { guidesForRoles, TESTER_ROLE, warmGuides } from "../guides/guides";
 
@@ -188,10 +189,12 @@ async function pullTests(): Promise<number> {
 
 /** Push every local-only test, then pull the Tester's tests down. Also flushes a pending
  * offline edit of the tester's calibration dates (kept dirty until the server accepts it) and
- * re-checks the company branding for the report letterhead (a 304 unless an admin changed it). */
+ * re-checks the company branding for the report letterhead (a 304 unless an admin changed it) and
+ * the tester's own details the report names. */
 export async function syncAll(): Promise<SyncResult> {
   await flushCalibration();
   await initCompanyBranding();
+  await initTesterDetails();
   const locals = await allTests();
   let pushed = 0;
   let failed = 0;

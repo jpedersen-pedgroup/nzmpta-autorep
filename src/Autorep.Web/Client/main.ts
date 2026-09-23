@@ -8,6 +8,7 @@ import { initPrivacy } from "./standards/privacySync";
 import { initFarms } from "./sync/farmsSync";
 import { initCalibration } from "./sync/calibrationSync";
 import { initCompanyBranding } from "./sync/companyBrandingSync";
+import { initTesterDetails } from "./sync/testerDetailsSync";
 import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
 import { mountSyncOnly } from "./ui/SyncOnlyApp";
@@ -51,7 +52,7 @@ const isTesterPage =
   document.getElementById("test-list-root") !== null ||
   (wizardHost !== null && !wizardHost.getAttribute("data-server-test"));
 const referenceSyncs = [initStandards, initEquipment, initFaultCatalog, initPrivacy];
-if (isTesterPage) referenceSyncs.push(initFarms, initCalibration, initCompanyBranding);
+if (isTesterPage) referenceSyncs.push(initFarms, initCalibration, initCompanyBranding, initTesterDetails);
 purgeOtherTesterLayouts();
 void purgeStaleLocalData()
   .then((purge) => {

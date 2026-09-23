@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brandingForTest, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
+import { ANNUAL_TEST_NOTE, COMPLIANCE_DISCLAIMER, brandingForTest, copyrightNotice, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
 import { defaultMachineConfiguration } from "../wizard/types";
 import type { LocalTest } from "../db/testStore";
 
@@ -407,6 +407,84 @@ describe("buildTestSummaryDoc — layout", () => {
 
     // Completed with no recorded date: nothing is invented.
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("NEXT TEST DUE");
+  });
+
+  it("prints the compliance disclaimer, word for word, at the end of page one", () => {
+    // Requirements & Scope v1.1, section 7.3.
+    expect(COMPLIANCE_DISCLAIMER).toBe(
+      "This Machine Test may identify numerous hazards, however it in no way guarantees safety compliance for all or any hazard/s. " +
+        "It is the farm owner’s responsibility to ensure that all hazards comply with WorkSafe and relevant NZ Safety Standard/s.",
+    );
+    const t = sampleTest();
+    t.notes = "Settings adjusted.";
+    const doc = buildTestSummaryDoc(t);
+    const content = doc.content as { pageBreak?: string; unbreakable?: boolean }[];
+    const at = content.findIndex((n) => JSON.stringify(n).includes("COMPLIANCE DISCLAIMER"));
+    const config = content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"));
+    expect(at).toBeGreaterThan(content.findIndex((n) => JSON.stringify(n).includes("General comments")));
+    expect(config).toBe(at + 1); // the last thing before page two
+    expect(content[at].unbreakable).toBe(true);
+    expect(JSON.stringify(content[at])).toContain("farm owner’s responsibility");
+  });
+
+  it("names the tester with their company, phone and registration so the farmer can call them", () => {
+    const t = sampleTest();
+    t.testedBy = { name: "Alan Tester", phone: "021 752 097", registrationNumber: "594", registrationExpiry: "2026-10-31" };
+    const json = JSON.stringify(buildTestSummaryDoc(t, undefined, { companyName: "Sample Testing Co. Ltd" }).content);
+    expect(json).toContain("TESTED BY");
+    expect(json).toContain("Alan Tester");
+    expect(json).toContain("Sample Testing Co. Ltd");
+    expect(json).toContain("Phone 021 752 097");
+    expect(json).toContain("NZMPTA registration 594 · expires 31/10/2026");
+  });
+
+  it("prefers the tester stamped on the test over any fallback, and leaves unknown lines off", () => {
+    const t = sampleTest();
+    t.testedBy = { name: "Original Tester" };
+    const json = JSON.stringify(buildTestSummaryDoc(t, undefined, undefined, { name: "Someone Else" }).content);
+    expect(json).toContain("Original Tester");
+    expect(json).not.toContain("Someone Else");
+    expect(json).not.toContain("Phone ");
+    expect(json).not.toContain("NZMPTA registration");
+
+    // Unstamped: the fallback names them.
+    expect(JSON.stringify(buildTestSummaryDoc(sampleTest(), undefined, undefined, { name: "Fallback Tester" }).content))
+      .toContain("Fallback Tester");
+  });
+
+  it("puts the annual-test reminder with the next test date on page one", () => {
+    const t = sampleTest();
+    t.nextTestDate = "2027-06-11";
+    const doc = buildTestSummaryDoc(t);
+    const content = doc.content as unknown[];
+    const config = content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"));
+    const pageOne = JSON.stringify(content.slice(0, config));
+    expect(pageOne).toContain(ANNUAL_TEST_NOTE);
+    expect(pageOne.indexOf(ANNUAL_TEST_NOTE)).toBeGreaterThan(pageOne.indexOf("NEXT TEST DUE"));
+    // Once, on page one: not repeated in the footer.
+    const footer = doc.footer as (page: number, pages: number) => unknown;
+    expect(JSON.stringify(footer(2, 4))).not.toContain(ANNUAL_TEST_NOTE);
+  });
+
+  it("puts the page number and copyright on every page", () => {
+    const footer = buildTestSummaryDoc(sampleTest()).footer as (page: number, pages: number) => unknown;
+    for (const page of [1, 2, 4]) {
+      const json = JSON.stringify(footer(page, 4));
+      expect(json).toContain(`Page ${page} of 4`);
+      expect(json).toContain("New Zealand Milking and Pumping Trade Association");
+    }
+    expect(copyrightNotice(2026)).toBe("© 2026 New Zealand Milking and Pumping Trade Association. All rights reserved.");
+  });
+
+  it("prints the disclaimer on every report: clean, draft and migrated", () => {
+    const clean = sampleTest();
+    clean.visualFaults = {};
+    clean.readings = {};
+    const draft = { ...sampleTest(), markedCompleteAt: null };
+    const migrated = { ...sampleTest(), recordedRecommendations: [], recordedVisualFaults: [], readonly: true };
+    for (const t of [clean, draft, migrated]) {
+      expect(JSON.stringify(buildTestSummaryDoc(t).content)).toContain("COMPLIANCE DISCLAIMER");
+    }
   });
 
   it("marks a report generated before sign-off as a draft", () => {

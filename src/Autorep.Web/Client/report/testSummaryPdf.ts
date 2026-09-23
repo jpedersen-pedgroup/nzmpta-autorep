@@ -6,7 +6,7 @@
 // working (configuration, numbers, per-unit tables, visual checks) starts on page two under a
 // compact running header, and the amendment history closes the document as its own page.
 import type { Content, CustomTableLayout, TDocumentDefinitions, TableCell } from "pdfmake/interfaces";
-import type { LocalTest } from "../db/testStore";
+import type { LocalTest, TesterDetails } from "../db/testStore";
 import type { FaultSeverity } from "../wizard/types";
 import { loadPdfLib, loadPdfMake } from "./generatorChunks";
 import { aggregate } from "../faults/faultAggregator";
@@ -20,10 +20,11 @@ import { getPrivacyContent } from "../config/privacyContent";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { getCachedCompanyBranding, type CompanyBranding } from "../sync/companyBrandingSync";
+import { getCachedTesterDetails } from "../sync/testerDetailsSync";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
 import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
-import { proposedNextTestDate } from "../wizard/nextTestDate";
+import { nzDate, proposedNextTestDate } from "../wizard/nextTestDate";
 import {
   BRAND_DARK,
   BRAND_LIGHT,
@@ -44,6 +45,23 @@ const HEAD_FILL = "#e6ecf6";
 const PASS = "#15803d";
 const FAIL = "#dc2626";
 const FAIL_ROW = "#fdf1f1";
+
+/** The mandatory Compliance Disclaimer (PRD story 43), printed on page one of every report. The
+ * wording is fixed by the signed-off Requirements & Scope v1.1, section 7.3: change it only when
+ * NZMPTA changes that text. */
+export const COMPLIANCE_DISCLAIMER =
+  "This Machine Test may identify numerous hazards, however it in no way guarantees safety compliance " +
+  "for all or any hazard/s. It is the farm owner’s responsibility to ensure that all hazards comply " +
+  "with WorkSafe and relevant NZ Safety Standard/s.";
+
+/** The reminder that sits under the next test date on page one. */
+export const ANNUAL_TEST_NOTE =
+  "Milking machines should be fully tested at least once a year by an NZMPTA Registered Milking Machine Tester.";
+
+/** The copyright line, for the year the report is generated (a New Zealand year). */
+export function copyrightNotice(year: number): string {
+  return `© ${year} New Zealand Milking and Pumping Trade Association. All rights reserved.`;
+}
 
 const SEVERITY_STYLE: Record<FaultSeverity, { ink: string; fill: string }> = {
   Critical: { ink: "#991b1b", fill: "#fde2e2" },
@@ -246,6 +264,24 @@ function logoNode(dataUrl: string | null | undefined, fit: [number, number]): Co
   return svg ? ({ svg, fit, alignment: "right" } as Content) : null;
 }
 
+/** "Tested by" in the Test panel: who did the test and how to reach them, as the farmer needs it
+ * — name, company, phone, and NZMPTA registration number with its expiry. Each line only when known;
+ * nothing at all when neither a tester nor a company is known. */
+function testedByBlock(tester: TesterDetails | null, companyName?: string | null): Content[] {
+  const company = companyName?.trim();
+  if (!tester && !company) return [];
+  const reg = tester?.registrationNumber
+    ? `NZMPTA registration ${tester.registrationNumber}${tester.registrationExpiry ? ` · expires ${formatDisplayDate(tester.registrationExpiry)}` : ""}`
+    : null;
+  const lines: Content[] = [
+    ...(tester ? [{ text: tester.name, fontSize: 9, bold: true, color: INK, margin: [0, 1, 0, 0] } as Content] : []),
+    ...(company ? [{ text: company, fontSize: 8.5, color: INK, margin: [0, tester ? 0 : 1, 0, 0] } as Content] : []),
+    ...(tester?.phone ? [{ text: `Phone ${tester.phone}`, fontSize: 8.5, color: INK } as Content] : []),
+    ...(reg ? [{ text: reg, fontSize: 7.5, color: MUTED } as Content] : []),
+  ];
+  return [{ stack: [{ text: "TESTED BY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 }, ...lines], margin: [0, 0, 0, 7] } as Content];
+}
+
 function severityCell(severity: FaultSeverity): TableCell {
   const s = SEVERITY_STYLE[severity] ?? SEVERITY_STYLE.Major;
   return { text: severity.toUpperCase(), fontSize: 7, bold: true, color: s.ink, fillColor: s.fill, alignment: "center", characterSpacing: 0.4 };
@@ -260,6 +296,7 @@ export function buildTestSummaryDoc(
   test: LocalTest,
   calibrationFallback?: CalibrationDates,
   branding?: ReportBranding,
+  testerFallback?: TesterDetails | null,
 ): TDocumentDefinitions {
   const config = test.config;
   const summary = aggregate(buildFaultInputs(test));
@@ -338,15 +375,17 @@ export function buildTestSummaryDoc(
             { text: fmtCalendarDay(nextTestDate), fontSize: 12, bold: true, color: BRAND },
             ...(nextTestProposed ? [{ text: "  proposed", fontSize: 8, color: MUTED }] : []),
           ],
-          margin: [0, 1, 0, 8],
+          margin: [0, 1, 0, 2],
         } as Content,
       ]
     : [];
+  const annualNote: Content = { text: ANNUAL_TEST_NOTE, fontSize: 7, color: MUTED, lineHeight: 1.1, margin: [0, 0, 0, 8] };
   const testPanel = panel([
     { text: "TEST", fontSize: 7, bold: true, color: BRAND, characterSpacing: 1.2, margin: [0, 0, 0, 3] },
     ...nextTestBlock,
+    annualNote,
     field("Completed", test.markedCompleteAt ? fmtDate(test.markedCompleteAt) : "Not yet signed off", true),
-    ...(branding?.companyName?.trim() ? [field("Tested by", branding.companyName)] : []),
+    ...testedByBlock(test.testedBy ?? testerFallback ?? null, branding?.companyName),
     field("Machine", `${plant} · ${config.clusterCount || "—"} clusters`),
     { text: "CALIBRATION EXPIRY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
     {
@@ -452,6 +491,27 @@ export function buildTestSummaryDoc(
           ),
         ]
       : [];
+
+  // The disclaimer closes page one's summary, on every report (migrated ones included), kept whole
+  // so it never splits across a page break. It follows the faults and comments, so it lands on page
+  // one unless an unusually long fault list has already run onto page two.
+  const disclaimerBlock: Content = {
+    table: {
+      widths: ["*"],
+      body: [[{
+        stack: [
+          { text: "COMPLIANCE DISCLAIMER", fontSize: 6.5, bold: true, color: MUTED, characterSpacing: 0.8, margin: [0, 0, 0, 2] },
+          { text: COMPLIANCE_DISCLAIMER, fontSize: 8, color: INK, lineHeight: 1.15 },
+        ],
+      }]],
+    },
+    layout: {
+      hLineWidth: () => 0.6, vLineWidth: () => 0.6, hLineColor: () => RULE, vLineColor: () => RULE,
+      paddingLeft: () => 9, paddingRight: () => 9, paddingTop: () => 6, paddingBottom: () => 6,
+    },
+    unbreakable: true,
+    margin: [0, 14, 0, 0],
+  } as Content;
 
   // --- Machine configuration (page 2 onward) ----------------------------------------------------
   const flags: string[] = [];
@@ -654,6 +714,8 @@ export function buildTestSummaryDoc(
     ...(companyRaster ? { images: { [COMPANY_LOGO_IMAGE]: companyRaster } } : {}),
     // Page one carries the letterhead swirl and a flourish in the bottom corner; later pages
     // are left plain so the tables read cleanly.
+    // Page one carries the letterhead swirl and a flourish in the bottom corner; later pages
+    // are left plain so the tables read cleanly.
     background: (page, size) =>
       page === 1
         ? [
@@ -691,21 +753,39 @@ export function buildTestSummaryDoc(
               { svg: ruleSwooshSvg(CONTENT_WIDTH), width: CONTENT_WIDTH, margin: [0, 5, 0, 0] },
             ],
           },
+    // Every page: page number, copyright, the admin-managed privacy line and when it was generated.
+    // Page one keeps it all left of the corner flourish; later pages sit it under the lockup's
+    // tapered rule, matching the running header.
     footer: (page, pages) => {
       const privacyFooter = getPrivacyContent().reportFooterText;
+      const copyright = copyrightNotice(Number(nzDate(new Date().toISOString()).slice(0, 4)));
+      const privacy: Content[] = privacyFooter ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [0, 1, 0, 0] } as Content] : [];
+      if (page === 1) {
+        return {
+          margin: [MARGIN_X, 14, MARGIN_X + 175, 0],
+          stack: [
+            { text: [{ text: `Page 1 of ${pages}`, color: INK }, `   ${copyright}`], fontSize: 6.5, color: MUTED },
+            ...privacy,
+            { text: `AutoRep · generated ${generated}`, fontSize: 6, color: MUTED, margin: [0, 1, 0, 0] },
+          ],
+        };
+      }
       return {
-        margin: [MARGIN_X, 14, MARGIN_X, 0],
+        margin: [MARGIN_X, 6, MARGIN_X, 0],
         stack: [
+          { svg: ruleSwooshSvg(CONTENT_WIDTH), width: CONTENT_WIDTH, margin: [0, 0, 0, 4] },
           {
             columns: [
-              { text: `NZMPTA AutoRep · generated ${generated}`, fontSize: 7, color: MUTED },
-              // Page one's number sits clear of the corner flourish.
-              { text: `Page ${page} of ${pages}`, alignment: page === 1 ? "left" : "right", fontSize: 7, color: MUTED, width: page === 1 ? 180 : "*" },
+              { text: copyright, fontSize: 6.5, color: MUTED },
+              { text: `Page ${page} of ${pages}`, alignment: "right", fontSize: 7, color: INK, width: 60 },
             ],
           },
-          ...(privacyFooter
-            ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [0, 2, page === 1 ? 170 : 0, 0] } as Content]
-            : []),
+          {
+            columns: [
+              { stack: privacy.length ? privacy : [{ text: "" }] },
+              { text: `AutoRep · generated ${generated}`, alignment: "right", fontSize: 6, color: MUTED, width: 150, margin: [0, 1, 0, 0] },
+            ],
+          },
         ],
       };
     },
@@ -725,6 +805,7 @@ export function buildTestSummaryDoc(
       // A clean machine says so in the banner; an empty heading under it would read as missing.
       ...(faultBlock.length > 0 ? [sectionHeader("Fault summary & recommendations"), ...faultBlock] : []),
       ...notesBlock,
+      disclaimerBlock,
       // ---- Page two onward: the working ----
       sectionHeader("Machine configuration", true),
       configBlock,
@@ -878,9 +959,14 @@ export function brandingForTest(test: LocalTest, current: CompanyBranding | null
 
 /** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
  * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use.
- * `branding` is given by the read-only server view (the company the test was done for); on the
- * tester's own device it is resolved from the cached company. */
-export async function downloadTestSummaryPdf(test: LocalTest, branding?: ReportBranding): Promise<void> {
+ * `branding` and `testerFallback` are given by the read-only server view (the company the test
+ * was done for, and the tester's name when the test carries no stamped details); on the tester's
+ * own device both are resolved from what this device has cached. */
+export async function downloadTestSummaryPdf(
+  test: LocalTest,
+  branding?: ReportBranding,
+  testerFallback?: TesterDetails | null,
+): Promise<void> {
   const { pdfMake, vfs } = await loadPdfMake();
   // pdfmake 0.3.x: register the Roboto virtual file system.
   (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
@@ -893,8 +979,13 @@ export async function downloadTestSummaryPdf(test: LocalTest, branding?: ReportB
   const calibration = test.markedCompleteAt ? undefined : await getCachedCalibration().catch(() => undefined);
   const letterhead =
     branding ?? brandingForTest(test, await getCachedCompanyBranding().catch(() => null));
+  // A test stamped at sign-off names its own tester. Otherwise the server view says who (or null
+  // for nobody known); on this device an unstamped test (a draft, or one signed off before the
+  // stamp existed) is the signed-in tester's own.
+  const tester = test.testedBy
+    ?? (testerFallback !== undefined ? testerFallback : await getCachedTesterDetails().catch(() => null));
   const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
-    buildTestSummaryDoc(test, calibration, letterhead),
+    buildTestSummaryDoc(test, calibration, letterhead, tester),
   );
 
   if (test.pulsationPdf) {

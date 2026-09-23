@@ -72,6 +72,17 @@ export interface AmendmentRecord {
 }
 
 /** A Machine Test as held on-device (mirrors the server MachineTest + MachineConfiguration). */
+/** Who did a test, as the report names them: stamped at sign-off from the tester's cached profile
+ * (see testerDetailsSync) so a reprint, or a colleague's or admin's view, shows the tester who
+ * actually did the work. */
+export interface TesterDetails {
+  name: string;
+  phone?: string | null;
+  registrationNumber?: string | null;
+  /** NZMPTA registration expiry, ISO yyyy-mm-dd. */
+  registrationExpiry?: string | null;
+}
+
 export interface LocalTest {
   /** Client-generated id (used for upsert-by-ClientId on sync). */
   id: string;
@@ -112,6 +123,8 @@ export interface LocalTest {
    * the right letterhead. Superseding versions carry the base version's values. */
   testingCompanyId?: string | null;
   testingCompanyName?: string | null;
+  /** The tester who did the test, stamped at sign-off. A superseding version keeps the original's. */
+  testedBy?: TesterDetails | null;
   /** When the farm is next due a test, ISO yyyy-mm-dd. Chosen on the sign-off step (twelve
    * months out unless the tester changes it) and always stamped at sign-off; see nextTestDate.ts.
    * Absent on tests signed off before it existed, and on migrated tests. */

@@ -107,6 +107,45 @@ public class ProfileControllerTests : IClassFixture<AuthedWebAppFactory>
         dto.PulsatorTesters.Should().BeNull();
     }
 
+    // ---- Tester details ----------------------------------------------------------------------
+
+    private sealed record TesterDetailsDto(string Name, string? Phone, string? RegistrationNumber, DateOnly? RegistrationExpiry);
+
+    [Fact]
+    public async Task Tester_returns_the_details_the_report_names()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            db.Users.Add(new Tester
+            {
+                Id = "tester-details-1", UserName = "td1@test.local", Email = "td1@test.local",
+                DisplayName = "Alan Tester", PhoneNumber = "021 752 097", CertificateNo = "594",
+                LicenceExpiryDate = new DateOnly(2026, 10, 31),
+            });
+            await db.SaveChangesAsync();
+        }
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-details-1");
+
+        var dto = await client.GetFromJsonAsync<TesterDetailsDto>("/api/profile/tester");
+
+        dto.Should().Be(new TesterDetailsDto("Alan Tester", "021 752 097", "594", new DateOnly(2026, 10, 31)));
+    }
+
+    [Fact]
+    public async Task Tester_without_a_display_name_is_named_by_email()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            db.Users.Add(new Tester { Id = "tester-details-2", UserName = "td2@test.local", Email = "td2@test.local" });
+            await db.SaveChangesAsync();
+        }
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-details-2");
+
+        (await client.GetFromJsonAsync<TesterDetailsDto>("/api/profile/tester"))!.Name.Should().Be("td2@test.local");
+    }
+
     // ---- Company branding ------------------------------------------------------------------
 
     private sealed record CompanyBrandingDto(Guid Id, string Name, string? Logo);
