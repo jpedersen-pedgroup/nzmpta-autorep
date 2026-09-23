@@ -46,9 +46,12 @@ export function withRow<T extends object>(rows: readonly T[] | undefined, index:
   return out;
 }
 
-/** True when nothing has been entered on the row. */
+/** True when nothing has been entered on the row. The retired regulatorType doesn't count: it is
+ * shown with the regulators now (regulatorRows), so a row holding only that has nothing to print. */
 export function isBlankPumpRow(row: VacuumPumpDetail | ReleaserPumpDetail): boolean {
-  return Object.values(row).every((v) => v == null || v === false || (typeof v === "string" && v.trim() === ""));
+  return Object.entries(row).every(
+    ([k, v]) => k === "regulatorType" || v == null || v === false || (typeof v === "string" && v.trim() === ""),
+  );
 }
 
 function padded<T extends object>(rows: readonly T[] | undefined, length: number): T[] {

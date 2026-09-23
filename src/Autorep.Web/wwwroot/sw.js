@@ -11,7 +11,7 @@
 // ignoreSearch, so renaming this cache is the ONLY thing that retires a previous build's assets.
 // The stamper reads APP_SHELL out of this file, and every entry must be a real file under wwwroot
 // so it can be hashed; a served route would build green and then never cache-bust.
-const CACHE_VERSION = 'autorep-862374f8b116';
+const CACHE_VERSION = 'autorep-a6a32b2bb222';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 // Work-instruction PDFs (/guides/*, GuidesController). Its own cache, filled at runtime, so the
