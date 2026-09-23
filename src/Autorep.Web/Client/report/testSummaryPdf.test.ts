@@ -243,6 +243,15 @@ describe("buildTestSummaryDoc", () => {
     expect(json).toMatch(/"text":"No","color":"#dc2626"/);
   });
 
+  it("prints an older test's pump row holding only a regulator type as a regulator, not an empty pump row", () => {
+    const t = sampleTest();
+    t.config = { ...t.config, vacuumPumps: [{ regulatorType: "Servo" }] };
+    delete (t.config as { regulators?: unknown }).regulators;
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).not.toContain("Drives milk pump"); // no vacuum-pump table at all
+    expect(json).toContain("Servo");
+  });
+
   it("prints no pump tables when no pump details were captured", () => {
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("Make / model");
   });

@@ -72,6 +72,8 @@ describe("isBlankPumpRow", () => {
     expect(isBlankPumpRow({ make: "   ", model: null, drivesMilkPump: false })).toBe(true);
     expect(isBlankPumpRow({ motorSize: "7.5" })).toBe(false);
     expect(isBlankPumpRow({ drivesMilkPump: true })).toBe(false);
+    // The retired per-pump regulator type prints with the regulators, not as a pump row.
+    expect(isBlankPumpRow({ regulatorType: "Servo" })).toBe(true);
   });
 });
 
