@@ -23,6 +23,7 @@ import { getCachedCompanyBranding, type CompanyBranding } from "../sync/companyB
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
 import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
+import { proposedNextTestDate } from "../wizard/nextTestDate";
 import {
   BRAND_DARK,
   BRAND_LIGHT,
@@ -88,6 +89,15 @@ function fmtDay(iso?: string | null): string {
   return Number.isNaN(d.getTime())
     ? String(iso)
     : d.toLocaleDateString("en-NZ", { day: "numeric", month: "long", year: "numeric", timeZone: NZ_TIME_ZONE });
+}
+
+/** A stored calendar day (yyyy-mm-dd) spelled out — "15 September 2027". Built from the parts, not
+ * through Date, so no time zone can shift it by a day. */
+function fmtCalendarDay(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
+  if (!m) return ymd;
+  const month = new Date(Date.UTC(2000, Number(m[2]) - 1, 1)).toLocaleString("en-NZ", { month: "long", timeZone: "UTC" });
+  return `${Number(m[3])} ${month} ${m[1]}`;
 }
 
 /** A calibration expiry as dd/mm/yyyy — the stamped snapshot, else the tester's live profile. */
@@ -312,8 +322,27 @@ export function buildTestSummaryDoc(
       columnGap: 10,
     },
   ]);
+  // The next test date is what the farmer most needs from this panel, so it leads it, larger. A
+  // signed-off test prints what was recorded (nothing for one signed off before the date existed,
+  // rather than inventing one); a draft prints what sign-off would record, marked as proposed.
+  const nextTestDate = test.markedCompleteAt
+    ? test.nextTestDate ?? null
+    : proposedNextTestDate(test, new Date().toISOString());
+  const nextTestBlock: Content[] = nextTestDate
+    ? [
+        { text: "NEXT TEST DUE", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
+        {
+          text: [
+            { text: fmtCalendarDay(nextTestDate), fontSize: 12, bold: true, color: BRAND },
+            ...(test.markedCompleteAt ? [] : [{ text: "  proposed", fontSize: 8, color: MUTED }]),
+          ],
+          margin: [0, 1, 0, 8],
+        } as Content,
+      ]
+    : [];
   const testPanel = panel([
     { text: "TEST", fontSize: 7, bold: true, color: BRAND, characterSpacing: 1.2, margin: [0, 0, 0, 3] },
+    ...nextTestBlock,
     field("Completed", test.markedCompleteAt ? fmtDate(test.markedCompleteAt) : "Not yet signed off", true),
     ...(branding?.companyName?.trim() ? [field("Tested by", branding.companyName)] : []),
     field("Machine", `${plant} · ${config.clusterCount || "—"} clusters`),

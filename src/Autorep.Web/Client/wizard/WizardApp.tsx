@@ -26,6 +26,7 @@ import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { getCachedCompanyBranding } from "../sync/companyBrandingSync";
+import { proposedNextTestDate } from "./nextTestDate";
 import type { CalibrationDates } from "../calibration/status";
 import { useAppHeaderOffset } from "../ui/appHeaderOffset";
 import { CalibrationAlert } from "../ui/CalibrationPanel";
@@ -429,6 +430,10 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       if (company) companyStamp = { testingCompanyId: company.id, testingCompanyName: company.name };
     }
 
+    // The next test date is always recorded: the tester's choice from this step, else the
+    // twelve-month default they were shown.
+    const nextTestDate = proposedNextTestDate(test, now);
+
     // Re-edit of a completed test: fix the amendment record (what changed vs the superseded
     // version, when, by whom) at sign-off, appended to the cumulative chain the copy carried
     // forward. Replaces any same-version record so a repeated sign-off can't double-log.
@@ -437,7 +442,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       const base = await getTest(test.supersedesId);
       const amendedBy = (globalThis as { __autorepTesterName?: unknown }).__autorepTesterName;
       const record = buildAmendmentRecord(
-        base, test, now, typeof amendedBy === "string" ? amendedBy : undefined,
+        base, { ...test, nextTestDate }, now, typeof amendedBy === "string" ? amendedBy : undefined,
       );
       amendments = [...(test.amendments ?? []).filter((a) => a.version !== record.version), record];
     }
@@ -449,6 +454,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       amendments,
       ...calStamp,
       ...companyStamp,
+      nextTestDate,
       syncState: "local-only",
       attestations: [
         ...test.attestations,
@@ -504,6 +510,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     },
     onAttachPdf: (file) => void attachPulsationPdf(file),
     onRemovePdf: () => void persistEdit({ pulsationPdf: null, syncState: "local-only" }),
+    onNextTestDateChange: (date) => void persistEdit({ nextTestDate: date }),
   };
 
   const banners = (

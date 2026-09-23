@@ -7,6 +7,9 @@ import { buildFaultInputs } from "../faults/buildFaults";
 import type { LocalTest } from "../db/testStore";
 import type { ResolvedWizardStep, WizardStep } from "./types";
 import { PLANT_LABELS } from "./configLabels";
+import { DatePicker } from "../ui/DatePicker";
+import { formatDisplayDate } from "../calibration/status";
+import { nzDate, proposedNextTestDate } from "./nextTestDate";
 
 function fmtSize(bytes: number): string {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -38,6 +41,8 @@ interface Props {
   /** Attach the pulsation analyser's PDF (validated PDF-only by the caller too). */
   onAttachPdf: (file: File) => void;
   onRemovePdf: () => void;
+  /** The tester's choice of next test date; null returns to the twelve-month default. */
+  onNextTestDateChange: (date: string | null) => void;
 }
 
 export function ReviewSignOffStep({
@@ -53,6 +58,7 @@ export function ReviewSignOffStep({
   onDownloadReport,
   onAttachPdf,
   onRemovePdf,
+  onNextTestDateChange,
 }: Props) {
   const [attested, setAttested] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -60,6 +66,11 @@ export function ReviewSignOffStep({
   const summary = aggregate(buildFaultInputs(test));
   const isComplete = Boolean(test.markedCompleteAt);
   const reviewable = steps.filter((s) => s.step !== "ReviewSignOff");
+  // Before sign-off the picker shows what will be recorded (the default until the tester picks);
+  // after it, the recorded date, read-only.
+  const nowIso = new Date().toISOString();
+  const nextTestDate = isComplete ? test.nextTestDate : proposedNextTestDate(test, nowIso);
+  const nextTestInPast = !isComplete && nextTestDate != null && nextTestDate <= nzDate(nowIso);
 
   const pickFile = (files: FileList | null | undefined) => {
     const file = files?.[0];
@@ -93,6 +104,26 @@ export function ReviewSignOffStep({
         <span class="badge badge--danger">{summary.critical} critical</span>
         <span class="badge badge--warning">{summary.major} major</span>
         <span class="badge">{summary.minor} minor</span>
+      </div>
+
+      <div class="form-field signoff-next">
+        <label class="signoff__label" for="next-test-date">Next test due</label>
+        {isComplete || isServerView ? (
+          <div>{nextTestDate ? formatDisplayDate(nextTestDate) : "—"}</div>
+        ) : (
+          <>
+            <DatePicker id="next-test-date" value={nextTestDate} onChange={onNextTestDateChange} />
+            <div class="form-field__hint">
+              {nextTestInPast ? (
+                <span class="signoff-next__warn">This date isn't in the future — check it before signing off.</span>
+              ) : test.nextTestDate ? (
+                "Printed on the report for the farmer."
+              ) : (
+                "Twelve months from today unless you change it. Printed on the report for the farmer."
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div class="signoff-scroll">

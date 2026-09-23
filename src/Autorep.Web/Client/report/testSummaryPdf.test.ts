@@ -381,6 +381,28 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(json).not.toContain("Fault summary");
   });
 
+  it("prints the recorded next test date on page one", () => {
+    const t = sampleTest();
+    t.nextTestDate = "2027-06-11";
+    const doc = buildTestSummaryDoc(t);
+    const content = doc.content as unknown[];
+    const pageOne = JSON.stringify(content.slice(0, content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"))));
+    expect(pageOne).toContain("NEXT TEST DUE");
+    expect(pageOne).toContain("11 June 2027");
+    expect(pageOne).not.toContain("proposed");
+  });
+
+  it("prints a draft's proposed date, and none for a test signed off before the date existed", () => {
+    const draft = sampleTest();
+    draft.markedCompleteAt = null;
+    const json = JSON.stringify(buildTestSummaryDoc(draft).content);
+    expect(json).toContain("NEXT TEST DUE");
+    expect(json).toContain("proposed");
+
+    // Completed with no recorded date: nothing is invented.
+    expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("NEXT TEST DUE");
+  });
+
   it("marks a report generated before sign-off as a draft", () => {
     const t = sampleTest();
     t.markedCompleteAt = null;
