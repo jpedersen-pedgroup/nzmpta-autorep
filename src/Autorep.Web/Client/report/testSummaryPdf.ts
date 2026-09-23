@@ -73,7 +73,12 @@ const SEVERITY_STYLE: Record<FaultSeverity, { ink: string; fill: string }> = {
 // one fills the same band with the letterhead.
 const MARGIN_X = 40;
 const MARGIN_TOP = 64;
-const MARGIN_BOTTOM = 56;
+// The bottom margin holds the footer plus, on page one, the compliance disclaimer anchored just
+// above it. pdfmake has one set of margins for every page, so the band is reserved on all of them:
+// that's what guarantees page one's content can never run into the disclaimer.
+const FOOTER_HEIGHT = 56;
+const DISCLAIMER_BAND = 34;
+const MARGIN_BOTTOM = FOOTER_HEIGHT + DISCLAIMER_BAND;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 // Where the letterhead swirl sits on page one, and how far down the content must start to clear it.
 const LETTERHEAD_LIFT = 30;
@@ -508,26 +513,27 @@ export function buildTestSummaryDoc(
         ]
       : [];
 
-  // The disclaimer closes page one's summary, on every report (migrated ones included), kept whole
-  // so it never splits across a page break. It follows the faults and comments, so it lands on page
-  // one unless an unusually long fault list has already run onto page two.
-  const disclaimerBlock: Content = {
+  // The disclaimer sits at the foot of page one on every report (migrated ones included), in the
+  // band the bottom margin reserves for it above the footer — so it's always on page one, however
+  // long the fault list, and never collides with the content.
+  const disclaimerPad = 7;
+  const disclaimerAt = (pageHeight: number): Content => ({
     table: {
-      widths: ["*"],
+      widths: [CONTENT_WIDTH - disclaimerPad * 2 - 1.2],
       body: [[{
-        stack: [
-          { text: "COMPLIANCE DISCLAIMER", fontSize: 6.5, bold: true, color: MUTED, characterSpacing: 0.8, margin: [0, 0, 0, 2] },
-          { text: COMPLIANCE_DISCLAIMER, fontSize: 8, color: INK, lineHeight: 1.15 },
+        text: [
+          { text: "COMPLIANCE DISCLAIMER   ", fontSize: 6, bold: true, color: MUTED, characterSpacing: 0.6 },
+          { text: COMPLIANCE_DISCLAIMER, fontSize: 6.8, color: INK },
         ],
+        lineHeight: 1.1,
       }]],
     },
     layout: {
       hLineWidth: () => 0.6, vLineWidth: () => 0.6, hLineColor: () => RULE, vLineColor: () => RULE,
-      paddingLeft: () => 9, paddingRight: () => 9, paddingTop: () => 6, paddingBottom: () => 6,
+      paddingLeft: () => disclaimerPad, paddingRight: () => disclaimerPad, paddingTop: () => 4, paddingBottom: () => 4,
     },
-    unbreakable: true,
-    margin: [0, 14, 0, 0],
-  } as Content;
+    absolutePosition: { x: MARGIN_X, y: pageHeight - MARGIN_BOTTOM + 4 },
+  } as Content);
 
   // --- Machine configuration (page 2 onward) ----------------------------------------------------
   const flags: string[] = [];
@@ -737,6 +743,7 @@ export function buildTestSummaryDoc(
         ? [
             { svg: letterheadSwirlSvg(), width: PAGE_WIDTH, absolutePosition: { x: 0, y: SWIRL_TOP } },
             { svg: footerSwirlSvg(), width: 220, absolutePosition: { x: size.width - 220, y: size.height - 60 } },
+            disclaimerAt(size.height),
           ]
         : null,
     // Pages 2+: the MPNZ mark, the report and farm name, the company logo when there is one, and
@@ -778,7 +785,7 @@ export function buildTestSummaryDoc(
       const privacy: Content[] = privacyFooter ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [0, 1, 0, 0] } as Content] : [];
       if (page === 1) {
         return {
-          margin: [MARGIN_X, 14, MARGIN_X + 175, 0],
+          margin: [MARGIN_X, DISCLAIMER_BAND + 14, MARGIN_X + 175, 0],
           stack: [
             { text: [{ text: `Page 1 of ${pages}`, color: INK }, `   ${copyright}`], fontSize: 6.5, color: MUTED },
             ...privacy,
@@ -787,7 +794,7 @@ export function buildTestSummaryDoc(
         };
       }
       return {
-        margin: [MARGIN_X, 6, MARGIN_X, 0],
+        margin: [MARGIN_X, DISCLAIMER_BAND + 6, MARGIN_X, 0],
         stack: [
           { svg: ruleSwooshSvg(CONTENT_WIDTH), width: CONTENT_WIDTH, margin: [0, 0, 0, 4] },
           {
@@ -820,7 +827,6 @@ export function buildTestSummaryDoc(
       // A clean machine says so in the banner; an empty heading under it would read as missing.
       ...(faultBlock.length > 0 ? [sectionHeader("Fault summary & recommendations"), ...faultBlock] : []),
       ...notesBlock,
-      disclaimerBlock,
       // ---- Page two onward: the working ----
       sectionHeader("Machine configuration", true),
       configBlock,

@@ -408,22 +408,24 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("NEXT TEST DUE");
   });
 
-  it("prints the compliance disclaimer, word for word, at the end of page one", () => {
+  it("anchors the compliance disclaimer, word for word, to the foot of page one", () => {
     // Requirements & Scope v1.1, section 7.3.
     expect(COMPLIANCE_DISCLAIMER).toBe(
       "This Machine Test may identify numerous hazards, however it in no way guarantees safety compliance for all or any hazard/s. " +
         "It is the farm owner’s responsibility to ensure that all hazards comply with WorkSafe and relevant NZ Safety Standard/s.",
     );
-    const t = sampleTest();
-    t.notes = "Settings adjusted.";
-    const doc = buildTestSummaryDoc(t);
-    const content = doc.content as { pageBreak?: string; unbreakable?: boolean }[];
-    const at = content.findIndex((n) => JSON.stringify(n).includes("COMPLIANCE DISCLAIMER"));
-    const config = content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"));
-    expect(at).toBeGreaterThan(content.findIndex((n) => JSON.stringify(n).includes("General comments")));
-    expect(config).toBe(at + 1); // the last thing before page two
-    expect(content[at].unbreakable).toBe(true);
-    expect(JSON.stringify(content[at])).toContain("farm owner’s responsibility");
+    const doc = buildTestSummaryDoc(sampleTest());
+    const size = { width: 595.28, height: 841.89 };
+    const background = doc.background as (page: number, size: object) => unknown;
+    const pageOne = background(1, size) as { absolutePosition?: { y: number } }[];
+    const box = pageOne.find((n) => JSON.stringify(n).includes("COMPLIANCE DISCLAIMER"))!;
+    expect(JSON.stringify(box)).toContain("farm owner’s responsibility");
+    // In the band the bottom margin reserves, so page one's content can never reach it.
+    const [, , , bottom] = doc.pageMargins as number[];
+    expect(box.absolutePosition!.y).toBeGreaterThanOrEqual(size.height - bottom);
+    // Page one only, and not part of the flowing content.
+    expect(JSON.stringify(background(2, size))).not.toContain("COMPLIANCE DISCLAIMER");
+    expect(JSON.stringify(doc.content)).not.toContain("COMPLIANCE DISCLAIMER");
   });
 
   it("names the tester with their company, phone and registration so the farmer can call them", () => {
@@ -510,7 +512,8 @@ describe("buildTestSummaryDoc — layout", () => {
     const draft = { ...sampleTest(), markedCompleteAt: null };
     const migrated = { ...sampleTest(), recordedRecommendations: [], recordedVisualFaults: [], readonly: true };
     for (const t of [clean, draft, migrated]) {
-      expect(JSON.stringify(buildTestSummaryDoc(t).content)).toContain("COMPLIANCE DISCLAIMER");
+      const background = buildTestSummaryDoc(t).background as (page: number, size: object) => unknown;
+      expect(JSON.stringify(background(1, { width: 595.28, height: 841.89 }))).toContain("COMPLIANCE DISCLAIMER");
     }
   });
 
