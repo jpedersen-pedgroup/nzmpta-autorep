@@ -53,7 +53,10 @@ public class SyncController : ControllerBase
         // Version chain, mirrored out of PayloadJson into columns so the server can filter
         // superseded versions without materialising the payload. Optional: a device queued
         // before these existed still pushes successfully and lands as v1.
-        int? Version = null, Guid? SupersedesClientId = null);
+        int? Version = null, Guid? SupersedesClientId = null,
+        // Mirrored out of PayloadJson for the Upcoming tests page. Null from a device that predates
+        // it leaves a stored date alone.
+        DateOnly? NextTestDate = null);
 
     public record TestSummaryDto(
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
@@ -130,6 +133,7 @@ public class SyncController : ControllerBase
             existing.UpdatedAt = DateTimeOffset.UtcNow;
             existing.Version = req.Version ?? existing.Version;
             existing.SupersedesClientId = req.SupersedesClientId ?? existing.SupersedesClientId;
+            existing.NextTestDate = req.NextTestDate ?? existing.NextTestDate;
             // TestingCompanyId is deliberately NOT re-stamped: it records the company the work was
             // done for. Re-deriving it here would drag a tester's old tests into their new company
             // the first time they re-synced after a transfer.
@@ -157,6 +161,7 @@ public class SyncController : ControllerBase
             PayloadJson = req.PayloadJson,
             Version = req.Version ?? 1,
             SupersedesClientId = req.SupersedesClientId,
+            NextTestDate = req.NextTestDate,
         };
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
