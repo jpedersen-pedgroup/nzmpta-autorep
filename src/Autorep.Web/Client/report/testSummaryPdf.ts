@@ -19,6 +19,7 @@ import { pulsatorSummary } from "../passfail/pulsatorStats";
 import { getPrivacyContent } from "../config/privacyContent";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
 import { getCachedCalibration } from "../sync/calibrationSync";
+import { getCachedCompanyBranding, type CompanyBranding } from "../sync/companyBrandingSync";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
 import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
@@ -194,16 +195,29 @@ export interface ReportBranding {
   companyLogo?: string | null;
 }
 
-/** A logo from a data URL, fitted inside `fit`. pdfmake draws PNG and JPEG as images and SVG as
- * vectors; any other upload (WebP, GIF) is left off rather than breaking the report. */
+/** The name the company logo is registered under in the document's `images` dictionary. pdfmake
+ * embeds an inline data-URL image afresh every time it lays one out, so a logo drawn on every page
+ * (and re-measured when a heading is pushed to the next page) was going into the PDF seven times
+ * over; a named image is embedded once. */
+const COMPANY_LOGO_IMAGE = "companyLogo";
+
+/** The raster logo for the `images` dictionary, when the upload is one pdfmake can embed. */
+function rasterLogo(dataUrl: string | null | undefined): string | null {
+  return dataUrl && /^data:image\/(png|jpeg);base64,/.test(dataUrl) ? dataUrl : null;
+}
+
+/** A logo from a data URL, fitted inside `fit`. pdfmake draws PNG and JPEG as images (by name —
+ * see COMPANY_LOGO_IMAGE) and SVG as vectors; any other upload (WebP, GIF) is left off rather
+ * than breaking the report. */
 function logoNode(dataUrl: string | null | undefined, fit: [number, number]): Content | null {
   const m = /^data:(image\/[\w.+-]+)(;base64)?,(.*)$/s.exec(dataUrl ?? "");
   if (!m) return null;
   const [, type, b64, payload] = m;
-  if (type === "image/png" || type === "image/jpeg") return { image: dataUrl!, fit } as Content;
+  // Both places a logo goes sit against the right margin.
+  if (rasterLogo(dataUrl)) return { image: COMPANY_LOGO_IMAGE, fit, alignment: "right" } as Content;
   if (type === "image/svg+xml") {
     const svg = b64 ? atob(payload) : decodeURIComponent(payload);
-    return { svg, fit } as Content;
+    return { svg, fit, alignment: "right" } as Content;
   }
   return null;
 }
@@ -242,6 +256,7 @@ export function buildTestSummaryDoc(
   // The MPNZ lockup on the left and the testing company's logo, when there is one, on the right;
   // the title sits under the swirl so the layout is the same with or without a company logo.
   const companyLogo = logoNode(branding?.companyLogo, [170, 56]);
+  const companyRaster = rasterLogo(branding?.companyLogo);
   const letterhead: Content = {
     columns: [
       { svg: LOGO_LOCKUP_SVG, width: 176 },
@@ -591,6 +606,7 @@ export function buildTestSummaryDoc(
     pageMargins: [MARGIN_X, MARGIN_TOP, MARGIN_X, MARGIN_BOTTOM],
     info: { title: `Test Summary — ${farmName}` },
     defaultStyle: { color: INK },
+    ...(companyRaster ? { images: { [COMPANY_LOGO_IMAGE]: companyRaster } } : {}),
     // Page one carries the letterhead swirl and a flourish in the bottom corner; later pages
     // are left plain so the tables read cleanly.
     background: (page, size) =>
@@ -600,7 +616,8 @@ export function buildTestSummaryDoc(
             { svg: footerSwirlSvg(), width: 220, absolutePosition: { x: size.width - 220, y: size.height - 60 } },
           ]
         : null,
-    // Pages 2+: the mark, the report and farm name, and the lockup's tapered rule underneath.
+    // Pages 2+: the MPNZ mark, the report and farm name, the company logo when there is one, and
+    // the lockup's tapered rule underneath. A fresh node per page: pdfmake lays out what it's given.
     header: (page) =>
       page === 1
         ? null
@@ -620,6 +637,10 @@ export function buildTestSummaryDoc(
                     ],
                     fontSize: 8,
                   },
+                  ...((): Content[] => {
+                    const logo = logoNode(branding?.companyLogo, [84, 22]);
+                    return logo ? [{ width: "auto", stack: [logo], margin: [12, 0, 0, 0] } as Content] : [];
+                  })(),
                 ],
               },
               { svg: ruleSwooshSvg(CONTENT_WIDTH), width: CONTENT_WIDTH, margin: [0, 5, 0, 0] },
@@ -796,9 +817,25 @@ function pdfBuffer(created: CreatedPdf): Promise<Uint8Array> {
   });
 }
 
+/** Which company's letterhead a report generated on this device carries, given the tester's
+ * cached company. A test stamped at sign-off keeps its own company: the cached logo only when the
+ * tester is still with that company, otherwise its name alone (the device holds just the current
+ * company's logo, and printing it on an old employer's test would misattribute the work). An
+ * unstamped test (a draft preview, or one signed off before the stamp existed) takes the tester's
+ * current company. */
+export function brandingForTest(test: LocalTest, current: CompanyBranding | null): ReportBranding | undefined {
+  if (test.testingCompanyId) {
+    if (current?.id === test.testingCompanyId) return { companyName: current.name, companyLogo: current.logo };
+    return test.testingCompanyName ? { companyName: test.testingCompanyName } : undefined;
+  }
+  return current ? { companyName: current.name, companyLogo: current.logo } : undefined;
+}
+
 /** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
- * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use. */
-export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
+ * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use.
+ * `branding` is given by the read-only server view (the company the test was done for); on the
+ * tester's own device it is resolved from the cached company. */
+export async function downloadTestSummaryPdf(test: LocalTest, branding?: ReportBranding): Promise<void> {
   const { pdfMake, vfs } = await loadPdfMake();
   // pdfmake 0.3.x: register the Roboto virtual file system.
   (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
@@ -809,8 +846,10 @@ export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
   // A report previewed before sign-off has no stamped calibration yet — fall back to the
   // tester's current profile so the preview matches what sign-off will record.
   const calibration = test.markedCompleteAt ? undefined : await getCachedCalibration().catch(() => undefined);
+  const letterhead =
+    branding ?? brandingForTest(test, await getCachedCompanyBranding().catch(() => null));
   const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
-    buildTestSummaryDoc(test, calibration),
+    buildTestSummaryDoc(test, calibration, letterhead),
   );
 
   if (test.pulsationPdf) {

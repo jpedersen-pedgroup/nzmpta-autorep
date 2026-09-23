@@ -10,6 +10,7 @@ import { allTests, getTest, putTest, getReference, putReference, type LocalTest 
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
+import { initCompanyBranding } from "./companyBrandingSync";
 import { warmReportGenerator } from "../report/generatorChunks";
 
 interface TestSummaryDto {
@@ -183,9 +184,11 @@ async function pullTests(): Promise<number> {
 }
 
 /** Push every local-only test, then pull the Tester's tests down. Also flushes a pending
- * offline edit of the tester's calibration dates (kept dirty until the server accepts it). */
+ * offline edit of the tester's calibration dates (kept dirty until the server accepts it) and
+ * re-checks the company branding for the report letterhead (a 304 unless an admin changed it). */
 export async function syncAll(): Promise<SyncResult> {
   await flushCalibration();
+  await initCompanyBranding();
   const locals = await allTests();
   let pushed = 0;
   let failed = 0;

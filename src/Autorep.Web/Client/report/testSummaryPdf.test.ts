@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
+import { brandingForTest, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
 import { defaultMachineConfiguration } from "../wizard/types";
 import type { LocalTest } from "../db/testStore";
 
@@ -264,6 +264,28 @@ describe("buildTestSummaryDoc", () => {
   });
 });
 
+describe("brandingForTest", () => {
+  const current = { id: "c1", name: "Current Co", logo: "data:image/png;base64,AQID" };
+
+  it("uses the cached company for a test stamped with it", () => {
+    const t = { ...sampleTest(), testingCompanyId: "c1", testingCompanyName: "Current Co" };
+    expect(brandingForTest(t, current)).toEqual({ companyName: "Current Co", companyLogo: current.logo });
+  });
+
+  it("prints only the stamped name when the tester has since changed company", () => {
+    const t = { ...sampleTest(), testingCompanyId: "old", testingCompanyName: "Old Employer Ltd" };
+    expect(brandingForTest(t, current)).toEqual({ companyName: "Old Employer Ltd" });
+  });
+
+  it("uses the tester's current company for an unstamped test (a draft, or signed off before the stamp)", () => {
+    expect(brandingForTest(sampleTest(), current)).toEqual({ companyName: "Current Co", companyLogo: current.logo });
+  });
+
+  it("has no branding when there is no company either way", () => {
+    expect(brandingForTest(sampleTest(), null)).toBeUndefined();
+  });
+});
+
 describe("buildTestSummaryDoc — layout", () => {
   /** The index of the first top-level content node whose JSON contains the text. */
   const nodeIndex = (doc: ReturnType<typeof buildTestSummaryDoc>, text: string) =>
@@ -301,7 +323,8 @@ describe("buildTestSummaryDoc — layout", () => {
     const png = "data:image/png;base64,iVBORw0KGgo=";
     const doc = buildTestSummaryDoc(sampleTest(), undefined, { companyName: "Sample Testing Co. Ltd", companyLogo: png });
     const letterhead = JSON.stringify((doc.content as unknown[])[0]);
-    expect(letterhead).toContain(`"image":"${png}"`);
+    expect(letterhead).toContain(`"image":"companyLogo"`);
+    expect(doc.images).toEqual({ companyLogo: png }); // registered once, drawn by name
     expect(JSON.stringify(doc.content)).toContain("TESTED BY");
     expect(JSON.stringify(doc.content)).toContain("Sample Testing Co. Ltd");
 
@@ -318,6 +341,15 @@ describe("buildTestSummaryDoc — layout", () => {
     const plain = buildTestSummaryDoc(sampleTest());
     expect(JSON.stringify((plain.content as unknown[])[0]).match(/<svg/g)).toHaveLength(1);
     expect(JSON.stringify(plain.content)).not.toContain("TESTED BY");
+  });
+
+  it("repeats the company logo in the running header on pages 2+", () => {
+    const png = "data:image/png;base64,iVBORw0KGgo=";
+    const header = buildTestSummaryDoc(sampleTest(), undefined, { companyLogo: png }).header as (p: number, n: number, s: unknown) => unknown;
+    expect(JSON.stringify(header(2, 3, {}))).toContain(`"image":"companyLogo"`);
+    expect(JSON.stringify(header(3, 3, {}))).toContain(`"image":"companyLogo"`);
+    const plain = buildTestSummaryDoc(sampleTest()).header as (p: number, n: number, s: unknown) => unknown;
+    expect(JSON.stringify(plain(2, 3, {}))).not.toContain('"image"');
   });
 
   it("drops the empty fault heading when the machine is clean", () => {

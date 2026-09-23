@@ -20,11 +20,12 @@ import { fetchFarm } from "../farms";
 import { buildAmendmentRecord } from "../versioning/amendments";
 import { deriveReadings } from "../passfail/derived";
 import { useServerOnline } from "../connectivity";
-import { downloadTestSummaryPdf } from "../report/testSummaryPdf";
+import { downloadTestSummaryPdf, type ReportBranding } from "../report/testSummaryPdf";
 import { ReportGeneratorUnavailableError } from "../report/generatorChunks";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { getCachedCalibration } from "../sync/calibrationSync";
+import { getCachedCompanyBranding } from "../sync/companyBrandingSync";
 import type { CalibrationDates } from "../calibration/status";
 import { useAppHeaderOffset } from "../ui/appHeaderOffset";
 import { CalibrationAlert } from "../ui/CalibrationPanel";
@@ -67,6 +68,9 @@ interface ServerTestDto {
   payloadJson: string | null;
   testerName: string | null;
   isMine: boolean;
+  /** The company the test was done for (server-stamped), for the report letterhead. */
+  testingCompanyName?: string | null;
+  testingCompanyLogo?: string | null;
 }
 
 /** Build a read-only LocalTest from a server fetch. Migrated legacy payloads are adapted to
@@ -155,6 +159,10 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   const [test, setTest] = useState<LocalTest | null>(null);
   const [error, setError] = useState<LoadFailure | null>(null);
   const [colleagueName, setColleagueName] = useState<string | null>(null);
+  // Read-only server view: the letterhead comes from the server, for the company the test was
+  // done for — never from this device's cache, which holds the VIEWER's company (or none, for an
+  // admin).
+  const [serverBranding, setServerBranding] = useState<ReportBranding | undefined>(undefined);
   const [reloadKey, setReloadKey] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -197,6 +205,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
           const dto = (await res.json()) as ServerTestDto;
           if (active) {
             setTest(localTestFromServer(dto));
+            setServerBranding({ companyName: dto.testingCompanyName ?? null, companyLogo: dto.testingCompanyLogo ?? null });
             // Only a colleague's name is worth surfacing — naming yourself on your own test is
             // noise, and would word the read-only banner as if someone else owned it.
             setColleagueName(dto.isMine ? null : dto.testerName);
@@ -411,6 +420,15 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       };
     }
 
+    // Stamp the company the work was done for, so a reprint after the tester changes company
+    // still carries this one's letterhead. A version already stamped (a superseding copy carries
+    // the original's) keeps it; a tester with no company stamps nothing.
+    let companyStamp: Partial<LocalTest> = {};
+    if (!test.testingCompanyId) {
+      const company = await getCachedCompanyBranding();
+      if (company) companyStamp = { testingCompanyId: company.id, testingCompanyName: company.name };
+    }
+
     // Re-edit of a completed test: fix the amendment record (what changed vs the superseded
     // version, when, by whom) at sign-off, appended to the cumulative chain the copy carried
     // forward. Replaces any same-version record so a repeated sign-off can't double-log.
@@ -430,6 +448,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       readings: deriveReadings(test.config, test.readings),
       amendments,
       ...calStamp,
+      ...companyStamp,
       syncState: "local-only",
       attestations: [
         ...test.attestations,
@@ -470,7 +489,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     onResync: () => void runSync("Re-synced"),
     onDownloadReport: () => {
       setGenerating(true);
-      void downloadTestSummaryPdf(test)
+      void downloadTestSummaryPdf(test, serverBranding)
         .catch((e) =>
           // A missing generator chunk is recoverable and the tester can act on it — don't bury it
           // under the generic message.

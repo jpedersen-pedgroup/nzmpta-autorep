@@ -107,6 +107,11 @@ export interface LocalTest {
   calAirFlowMeters?: string | null;
   calPulsatorTesters?: string | null;
   calVacuumGauges?: string | null;
+  /** The Testing Company the work was done for, stamped at sign-off from the tester's cached
+   * company (see companyBrandingSync) so a reprint after the tester changes company still carries
+   * the right letterhead. Superseding versions carry the base version's values. */
+  testingCompanyId?: string | null;
+  testingCompanyName?: string | null;
   notes?: string;
   createdAt: string;
   updatedAt: string;
