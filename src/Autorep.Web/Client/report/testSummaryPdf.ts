@@ -23,7 +23,7 @@ import { getCachedCompanyBranding, type CompanyBranding } from "../sync/companyB
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
 import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
-import { proposedNextTestDate } from "../wizard/nextTestDate";
+import { nzDate, proposedNextTestDate } from "../wizard/nextTestDate";
 import {
   BRAND_DARK,
   BRAND_LIGHT,
@@ -52,6 +52,15 @@ export const COMPLIANCE_DISCLAIMER =
   "This Machine Test may identify numerous hazards, however it in no way guarantees safety compliance " +
   "for all or any hazard/s. It is the farm owner’s responsibility to ensure that all hazards comply " +
   "with WorkSafe and relevant NZ Safety Standard/s.";
+
+/** The reminder that sits under the next test date on page one. */
+export const ANNUAL_TEST_NOTE =
+  "Milking machines should be fully tested at least once a year by an NZMPTA Registered Milking Machine Tester.";
+
+/** The copyright line, for the year the report is generated (a New Zealand year). */
+export function copyrightNotice(year: number): string {
+  return `© ${year} New Zealand Milking and Pumping Trade Association. All rights reserved.`;
+}
 
 const SEVERITY_STYLE: Record<FaultSeverity, { ink: string; fill: string }> = {
   Critical: { ink: "#991b1b", fill: "#fde2e2" },
@@ -346,13 +355,15 @@ export function buildTestSummaryDoc(
             { text: fmtCalendarDay(nextTestDate), fontSize: 12, bold: true, color: BRAND },
             ...(nextTestProposed ? [{ text: "  proposed", fontSize: 8, color: MUTED }] : []),
           ],
-          margin: [0, 1, 0, 8],
+          margin: [0, 1, 0, 2],
         } as Content,
       ]
     : [];
+  const annualNote: Content = { text: ANNUAL_TEST_NOTE, fontSize: 7, color: MUTED, lineHeight: 1.1, margin: [0, 0, 0, 8] };
   const testPanel = panel([
     { text: "TEST", fontSize: 7, bold: true, color: BRAND, characterSpacing: 1.2, margin: [0, 0, 0, 3] },
     ...nextTestBlock,
+    annualNote,
     field("Completed", test.markedCompleteAt ? fmtDate(test.markedCompleteAt) : "Not yet signed off", true),
     ...(branding?.companyName?.trim() ? [field("Tested by", branding.companyName)] : []),
     field("Machine", `${plant} · ${config.clusterCount || "—"} clusters`),
@@ -683,6 +694,8 @@ export function buildTestSummaryDoc(
     ...(companyRaster ? { images: { [COMPANY_LOGO_IMAGE]: companyRaster } } : {}),
     // Page one carries the letterhead swirl and a flourish in the bottom corner; later pages
     // are left plain so the tables read cleanly.
+    // Page one carries the letterhead swirl and a flourish in the bottom corner; later pages
+    // are left plain so the tables read cleanly.
     background: (page, size) =>
       page === 1
         ? [
@@ -720,21 +733,39 @@ export function buildTestSummaryDoc(
               { svg: ruleSwooshSvg(CONTENT_WIDTH), width: CONTENT_WIDTH, margin: [0, 5, 0, 0] },
             ],
           },
+    // Every page: page number, copyright, the admin-managed privacy line and when it was generated.
+    // Page one keeps it all left of the corner flourish; later pages sit it under the lockup's
+    // tapered rule, matching the running header.
     footer: (page, pages) => {
       const privacyFooter = getPrivacyContent().reportFooterText;
+      const copyright = copyrightNotice(Number(nzDate(new Date().toISOString()).slice(0, 4)));
+      const privacy: Content[] = privacyFooter ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [0, 1, 0, 0] } as Content] : [];
+      if (page === 1) {
+        return {
+          margin: [MARGIN_X, 14, MARGIN_X + 175, 0],
+          stack: [
+            { text: [{ text: `Page 1 of ${pages}`, color: INK }, `   ${copyright}`], fontSize: 6.5, color: MUTED },
+            ...privacy,
+            { text: `AutoRep · generated ${generated}`, fontSize: 6, color: MUTED, margin: [0, 1, 0, 0] },
+          ],
+        };
+      }
       return {
-        margin: [MARGIN_X, 14, MARGIN_X, 0],
+        margin: [MARGIN_X, 6, MARGIN_X, 0],
         stack: [
+          { svg: ruleSwooshSvg(CONTENT_WIDTH), width: CONTENT_WIDTH, margin: [0, 0, 0, 4] },
           {
             columns: [
-              { text: `NZMPTA AutoRep · generated ${generated}`, fontSize: 7, color: MUTED },
-              // Page one's number sits clear of the corner flourish.
-              { text: `Page ${page} of ${pages}`, alignment: page === 1 ? "left" : "right", fontSize: 7, color: MUTED, width: page === 1 ? 180 : "*" },
+              { text: copyright, fontSize: 6.5, color: MUTED },
+              { text: `Page ${page} of ${pages}`, alignment: "right", fontSize: 7, color: INK, width: 60 },
             ],
           },
-          ...(privacyFooter
-            ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [0, 2, page === 1 ? 170 : 0, 0] } as Content]
-            : []),
+          {
+            columns: [
+              { stack: privacy.length ? privacy : [{ text: "" }] },
+              { text: `AutoRep · generated ${generated}`, alignment: "right", fontSize: 6, color: MUTED, width: 150, margin: [0, 1, 0, 0] },
+            ],
+          },
         ],
       };
     },

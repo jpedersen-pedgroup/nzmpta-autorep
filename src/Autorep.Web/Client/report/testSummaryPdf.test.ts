@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { COMPLIANCE_DISCLAIMER, brandingForTest, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
+import { ANNUAL_TEST_NOTE, COMPLIANCE_DISCLAIMER, brandingForTest, copyrightNotice, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
 import { defaultMachineConfiguration } from "../wizard/types";
 import type { LocalTest } from "../db/testStore";
 
@@ -425,6 +425,30 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(config).toBe(at + 1); // the last thing before page two
     expect(content[at].unbreakable).toBe(true);
     expect(JSON.stringify(content[at])).toContain("farm owner’s responsibility");
+  });
+
+  it("puts the annual-test reminder with the next test date on page one", () => {
+    const t = sampleTest();
+    t.nextTestDate = "2027-06-11";
+    const doc = buildTestSummaryDoc(t);
+    const content = doc.content as unknown[];
+    const config = content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"));
+    const pageOne = JSON.stringify(content.slice(0, config));
+    expect(pageOne).toContain(ANNUAL_TEST_NOTE);
+    expect(pageOne.indexOf(ANNUAL_TEST_NOTE)).toBeGreaterThan(pageOne.indexOf("NEXT TEST DUE"));
+    // Once, on page one: not repeated in the footer.
+    const footer = doc.footer as (page: number, pages: number) => unknown;
+    expect(JSON.stringify(footer(2, 4))).not.toContain(ANNUAL_TEST_NOTE);
+  });
+
+  it("puts the page number and copyright on every page", () => {
+    const footer = buildTestSummaryDoc(sampleTest()).footer as (page: number, pages: number) => unknown;
+    for (const page of [1, 2, 4]) {
+      const json = JSON.stringify(footer(page, 4));
+      expect(json).toContain(`Page ${page} of 4`);
+      expect(json).toContain("New Zealand Milking and Pumping Trade Association");
+    }
+    expect(copyrightNotice(2026)).toBe("© 2026 New Zealand Milking and Pumping Trade Association. All rights reserved.");
   });
 
   it("prints the disclaimer on every report: clean, draft and migrated", () => {
