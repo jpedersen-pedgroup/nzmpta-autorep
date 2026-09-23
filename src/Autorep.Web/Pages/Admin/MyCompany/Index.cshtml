@@ -1,0 +1,55 @@
+@page
+@model Autorep.Web.Pages.Admin.MyCompany.IndexModel
+@{
+    ViewData["Title"] = "My company";
+    var c = Model.Company;
+}
+
+@if (c is null)
+{
+    <div class="page-header">
+        <div class="page-header__heading"><h1>My company</h1></div>
+    </div>
+    <div class="card empty" style="max-width:640px">
+        <div class="empty__title">You're not linked to a testing company</div>
+        <p>Ask NZMPTA to attach your account to your testing company, then you can manage its report logo here.</p>
+    </div>
+}
+else
+{
+    var address = string.Join(", ", new[] { c.AddressLine1, c.AddressLine2, c.Town, c.PostCode }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
+    <div class="page-header">
+        <div class="page-header__heading">
+            <h1>@c.Name</h1>
+            <p>@Model.TesterCount tester(s)</p>
+        </div>
+        <div class="page-header__actions">
+            <a class="btn btn--secondary" asp-page="/Admin/Index">Back</a>
+        </div>
+    </div>
+
+    @if (Model.Message is not null) { <div class="alert alert--success">@Model.Message</div> }
+
+    <div class="card" style="max-width:640px">
+        <h2 class="card__title">Report logo</h2>
+        <p style="color:var(--text-muted)">Printed at the top of every Test Summary report your testers produce.</p>
+        <form method="post" enctype="multipart/form-data">
+            <partial name="_CompanyLogoField"
+                     model="new Autorep.Web.Pages.Admin.CompanyLogoField(c.Id, c.Name, Model.HasLogo, Model.LogoPrintable, Model.LogoVersion)" />
+            @if (Model.Errors.Any())
+            {
+                <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+            }
+            <div class="form-actions"><button type="submit" class="btn">Save logo</button></div>
+        </form>
+    </div>
+
+    <div class="card" style="max-width:640px">
+        <h2 class="card__title">Details</h2>
+        <div class="form-field"><label>Address</label><div>@(address.Length > 0 ? address : "—")</div></div>
+        <div class="form-field"><label>Phone</label><div>@(c.Phone ?? "—")</div></div>
+        <div class="form-field"><label>Email</label><div>@(c.Email ?? "—")</div></div>
+        <div class="form-field__hint">NZMPTA maintains these details — contact them if anything needs changing.</div>
+    </div>
+}

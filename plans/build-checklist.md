@@ -99,6 +99,7 @@
 ### M5 — Admin portal — users, companies & reference data
 - [x] ✅ Tester CRUD — list, create, edit, deactivate, reset password, force-logout (`Pages/Admin/Testers/*`)
 - [x] ✅ Testing Company CRUD (`Pages/Admin/Companies/*`)
+- [x] ✅ Testing Company **report logo** — Company Administrator uploads / replaces / removes their own company's logo on **My company** (`Pages/Admin/MyCompany`, company taken from the signed-in user, never the route/form); Super-Admin does any company from `Companies/Edit`. PNG/JPEG only (checked by magic bytes), ≤ 1 MB. Served at `/api/testing-companies/{id}/logo` (content-hash ETag); devices sync it into IndexedDB as a data URL (`Client/sync/companyLogoSync.ts`) so the Test Summary prints it offline, beside the title. Legacy-migrated logos that aren't PNG/JPEG are flagged on the admin page and skipped on the report.
 - [x] ✅ Role assignment + licence-expiry management (`Pages/Admin/Testers/Edit`)
 - [x] ✅ Self-service password reset + forced-reset-on-first-login (`Pages/Account/ForgotPassword`, `ResetPassword`)
 - [x] ✅ 2FA **enrolment** — TOTP setup, challenge, recovery codes (`Pages/Account/SetupAuthenticator`, `TwoFactorChallenge`, `RecoveryCodes`)

@@ -67,6 +67,8 @@ interface ServerTestDto {
   payloadJson: string | null;
   testerName: string | null;
   isMine: boolean;
+  /** The company the test was done for — whose logo its report prints. */
+  testingCompanyId?: string | null;
 }
 
 /** Build a read-only LocalTest from a server fetch. Migrated legacy payloads are adapted to
@@ -117,6 +119,8 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
     everUploaded: true,
     readonly: true,
     version: typeof base.version === "number" ? base.version : 1,
+    // Server-authoritative (never the payload): null = no company, so the report prints no logo.
+    testingCompanyId: dto.testingCompanyId ?? null,
   };
 }
 
@@ -470,7 +474,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     onResync: () => void runSync("Re-synced"),
     onDownloadReport: () => {
       setGenerating(true);
-      void downloadTestSummaryPdf(test)
+      void downloadTestSummaryPdf(test, { refreshLogo: !!serverTestId })
         .catch((e) =>
           // A missing generator chunk is recoverable and the tester can act on it — don't bury it
           // under the generic message.

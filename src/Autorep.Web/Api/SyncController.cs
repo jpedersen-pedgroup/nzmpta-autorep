@@ -57,7 +57,10 @@ public class SyncController : ControllerBase
 
     public record TestSummaryDto(
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
-        DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson);
+        DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson,
+        // The company the test was done for (stamped at first upload) — the device prints that
+        // company's logo on the report, not whichever company the tester is with today.
+        Guid? TestingCompanyId = null);
 
     /// <summary>Pull envelope. Watermark is stored by the Device and sent back as `since` on its
     /// next pull — server clock on both sides, so device clock skew is irrelevant.</summary>
@@ -99,7 +102,8 @@ public class SyncController : ControllerBase
             t.CreatedAt,
             t.MarkedCompleteAt,
             t.Configuration is null ? null : ToDto(t.Configuration),
-            t.PayloadJson));
+            t.PayloadJson,
+            t.TestingCompanyId));
 
         return Ok(new PullResponse(watermark, dtos.ToList()));
     }
@@ -188,7 +192,8 @@ public class SyncController : ControllerBase
             test.CreatedAt,
             test.MarkedCompleteAt,
             test.Configuration is null ? null : ToDto(test.Configuration),
-            test.PayloadJson));
+            test.PayloadJson,
+            test.TestingCompanyId));
     }
 
     // Links the synced test to a Farm, always within the tester's company scope so a sync push

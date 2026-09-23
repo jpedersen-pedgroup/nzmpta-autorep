@@ -77,6 +77,42 @@ describe("reportDateStamp", () => {
   });
 });
 
+describe("buildTestSummaryDoc — company logo header", () => {
+  const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+  // The header as it was before logos existed — a report with no logo must be unchanged.
+  const PLAIN_HEADER = [
+    { text: "Milking Machine Test Summary", fontSize: 16, bold: true, color: "#003893" },
+    { text: "NZMPTA AutoRep", fontSize: 9, color: "#64748b", margin: [0, 0, 0, 10] },
+  ];
+
+  it("renders exactly the original header when there is no logo", () => {
+    for (const logo of [undefined, null, ""]) {
+      const content = buildTestSummaryDoc(sampleTest(), undefined, logo).content as unknown[];
+      expect(content.slice(0, 2)).toEqual(PLAIN_HEADER);
+    }
+  });
+
+  it("puts the logo beside the title, scaled to fit with its aspect ratio kept", () => {
+    const content = buildTestSummaryDoc(sampleTest(), undefined, LOGO).content as unknown[];
+    expect(content[0]).toEqual({
+      columns: [
+        { width: "*", stack: PLAIN_HEADER },
+        { width: "auto", stack: [{ image: LOGO, fit: [150, 48], alignment: "right" }] },
+      ],
+      columnGap: 12,
+    });
+    // The rest of the document follows straight on — the farm block is next.
+    expect(JSON.stringify(content[1])).toContain("Sunny Acres");
+  });
+
+  it("keeps the version line under the header on an amended test", () => {
+    const t = { ...sampleTest(), version: 2 };
+    const content = buildTestSummaryDoc(t, undefined, LOGO).content as unknown[];
+    expect(JSON.stringify(content[0])).toContain('"margin":[0,0,0,2]');
+    expect(JSON.stringify(content[1])).toContain("Version 2");
+  });
+});
+
 describe("buildTestSummaryDoc", () => {
   it("builds a document with the core sections and farm name", () => {
     const doc = buildTestSummaryDoc(sampleTest());

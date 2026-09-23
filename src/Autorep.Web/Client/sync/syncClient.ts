@@ -11,6 +11,7 @@ import { defaultMachineConfiguration, type MachineConfiguration } from "../wizar
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
 import { warmReportGenerator } from "../report/generatorChunks";
+import { refreshCompanyLogos } from "./companyLogoSync";
 
 interface TestSummaryDto {
   clientId: string;
@@ -20,6 +21,8 @@ interface TestSummaryDto {
   config: MachineConfiguration | null;
   /** Full offline capture payload (the serialised LocalTest) for exact rehydration. */
   payloadJson: string | null;
+  /** The company the server stamped on the test (absent from an older server). */
+  testingCompanyId?: string | null;
 }
 
 interface PullResponse {
@@ -171,6 +174,8 @@ async function pullTests(): Promise<number> {
       syncState: "uploaded",
       everUploaded: true,
     };
+    // Server-authoritative: the company stamped on the test decides whose logo its report prints.
+    if (r.testingCompanyId !== undefined) local = { ...local, testingCompanyId: r.testingCompanyId };
 
     await putTest(local);
     added++;
@@ -210,6 +215,9 @@ export async function syncAll(): Promise<SyncResult> {
   // printing works on-farm later on a device that has never printed before. Deliberately not
   // awaited: it is ~2.4 MB and no one should wait on it to see their tests.
   void warmReportGenerator();
+  // Same moment, same reason: bring the company logo(s) the report prints up to date — a logo the
+  // Company Administrator replaced or removed reaches this device here. Never throws.
+  void refreshCompanyLogos();
 
   return { pushed, failed, pulled };
 }

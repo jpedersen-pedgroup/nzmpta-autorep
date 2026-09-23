@@ -13,6 +13,7 @@ import { pulsatorSummary } from "../passfail/pulsatorStats";
 import { getPrivacyContent } from "../config/privacyContent";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
 import { getCachedCalibration } from "../sync/calibrationSync";
+import { reportLogoFor } from "../sync/companyLogoSync";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
 import { isBlankPumpRow, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
@@ -61,11 +62,40 @@ function sectionHeader(text: string): Content {
   return { text, fontSize: 12, bold: true, color: BRAND, margin: [0, 14, 0, 4] };
 }
 
+/** Largest box the testing company's logo is scaled into (pt), aspect ratio preserved. About the
+ * height of the title + subtitle it sits beside, so the header doesn't grow much. */
+const LOGO_FIT: [number, number] = [150, 48];
+
+/** The report's title block, with the testing company's logo (a PNG/JPEG data URL) on the right
+ * when there is one. Without a logo it is exactly the header the report has always had. */
+export function reportHeader(subtitleBottomMargin: number, companyLogo?: string | null): Content[] {
+  const title: Content[] = [
+    { text: "Milking Machine Test Summary", fontSize: 16, bold: true, color: BRAND },
+    { text: "NZMPTA AutoRep", fontSize: 9, color: MUTED, margin: [0, 0, 0, subtitleBottomMargin] },
+  ];
+  if (!companyLogo) return title;
+  return [
+    {
+      columns: [
+        { width: "*", stack: title },
+        // Stacked because an image's own `width` means points, which clashes with the column's.
+        { width: "auto", stack: [{ image: companyLogo, fit: LOGO_FIT, alignment: "right" }] },
+      ],
+      columnGap: 12,
+    },
+  ];
+}
+
 /** Builds the pdfmake document definition for the Test Summary. Pure — unit-testable.
  * `calibrationFallback` is the tester's live profile calibration, used only for a test that
  * hasn't been stamped yet (a report previewed before sign-off); a completed test always
- * reprints its own stamped snapshot. */
-export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: CalibrationDates): TDocumentDefinitions {
+ * reprints its own stamped snapshot. `companyLogo` is the testing company's logo as a PNG/JPEG
+ * data URL (see companyLogoSync), or absent for none. */
+export function buildTestSummaryDoc(
+  test: LocalTest,
+  calibrationFallback?: CalibrationDates,
+  companyLogo?: string | null,
+): TDocumentDefinitions {
   const config = test.config;
   const summary = aggregate(buildFaultInputs(test));
   const completed = fmtDate(test.markedCompleteAt);
@@ -367,8 +397,7 @@ export function buildTestSummaryDoc(test: LocalTest, calibrationFallback?: Calib
       };
     },
     content: [
-      { text: "Milking Machine Test Summary", fontSize: 16, bold: true, color: BRAND },
-      { text: "NZMPTA AutoRep", fontSize: 9, color: MUTED, margin: [0, 0, 0, (test.version ?? 1) > 1 ? 2 : 10] },
+      ...reportHeader((test.version ?? 1) > 1 ? 2 : 10, companyLogo),
       ...((test.version ?? 1) > 1
         ? [{
             text: `Version ${test.version} — supersedes an earlier completed test${
@@ -518,8 +547,10 @@ function pdfBuffer(created: CreatedPdf): Promise<Uint8Array> {
 }
 
 /** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
- * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use. */
-export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
+ * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use.
+ * `refreshLogo` re-checks the company logo online first (the read-only server view); otherwise
+ * the logo synced to this device is used, so printing works offline. */
+export async function downloadTestSummaryPdf(test: LocalTest, opts: { refreshLogo?: boolean } = {}): Promise<void> {
   const { pdfMake, vfs } = await loadPdfMake();
   // pdfmake 0.3.x: register the Roboto virtual file system.
   (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
@@ -530,14 +561,33 @@ export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
   // A report previewed before sign-off has no stamped calibration yet — fall back to the
   // tester's current profile so the preview matches what sign-off will record.
   const calibration = test.markedCompleteAt ? undefined : await getCachedCalibration().catch(() => undefined);
-  const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
-    buildTestSummaryDoc(test, calibration),
-  );
+  const logo = await reportLogoFor(test, { refresh: opts.refreshLogo });
+  const create = (withLogo: string | null) =>
+    (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
+      buildTestSummaryDoc(test, calibration, withLogo),
+    );
+
+  // pdfmake only decodes the logo while laying the document out, so render it once up front: a
+  // logo it can't read (truncated, an unusual PNG/JPEG variant) must cost the report its logo,
+  // never the report itself.
+  let created: CreatedPdf;
+  let rendered: Uint8Array | null = null;
+  if (logo) {
+    try {
+      created = create(logo);
+      rendered = await pdfBuffer(created);
+    } catch {
+      created = create(null);
+      rendered = await pdfBuffer(created);
+    }
+  } else {
+    created = create(null);
+  }
 
   if (test.pulsationPdf) {
     try {
       const { PDFDocument } = await loadPdfLib();
-      const summaryDoc = await PDFDocument.load(await pdfBuffer(created));
+      const summaryDoc = await PDFDocument.load(rendered ?? (await pdfBuffer(created)));
       const attachDoc = await PDFDocument.load(base64ToBytes(test.pulsationPdf.base64));
       const pages = await summaryDoc.copyPages(attachDoc, attachDoc.getPageIndices());
       for (const page of pages) summaryDoc.addPage(page);
@@ -549,5 +599,6 @@ export async function downloadTestSummaryPdf(test: LocalTest): Promise<void> {
       showToast("The attached PDF could not be appended — downloaded the summary without it.", "error");
     }
   }
-  created.download(name);
+  if (rendered) downloadBlob(rendered, name);
+  else created.download(name);
 }

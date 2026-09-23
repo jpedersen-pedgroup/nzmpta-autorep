@@ -114,6 +114,27 @@ describe("syncAll", () => {
     expect(after?.everUploaded).toBeFalsy();
   });
 
+  // The report prints the logo of the company the test was done for, which only the server knows.
+  it("stores the company the server stamped on a pulled test", async () => {
+    const pulled = { ...sample("pulled"), syncState: "uploaded" as const };
+    stubFetch((url) =>
+      url.startsWith("/api/sync/tests")
+        ? jsonResponse({
+            watermark: "2026-07-22T00:00:00.000Z",
+            tests: [{
+              clientId: "pulled", farmName: "Sunny Acres", createdAt: pulled.createdAt,
+              markedCompleteAt: null, config: null, payloadJson: JSON.stringify(pulled),
+              testingCompanyId: "c0ffee00-0000-0000-0000-000000000001",
+            }],
+          })
+        : jsonResponse({}, 404),
+    );
+
+    await syncAll();
+
+    expect((await getTest("pulled"))?.testingCompanyId).toBe("c0ffee00-0000-0000-0000-000000000001");
+  });
+
   it("reports a clean run when every push succeeds", async () => {
     await putTest(sample("ok1"));
     await putTest(sample("ok2"));

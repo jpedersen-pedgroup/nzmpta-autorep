@@ -107,7 +107,10 @@ public class AuditInterceptor : SaveChangesInterceptor
     // Serializes the entity's properties for the audit blob, with redaction:
     //  - secret/security properties are masked (never stored), and
     //  - MachineTest.PayloadJson (bulk farm-owner PII) is reduced to a length + SHA-256 hash so the
-    //    audit trail stays tamper-evident without retaining the PII for 7 years.
+    //    audit trail stays tamper-evident without retaining the PII for 7 years, and
+    //  - binary columns (company logos) get the same length + hash treatment: otherwise every save
+    //    of a company — even a phone-number fix — would copy its logo into the audit row twice
+    //    (before and after), as base64, for 7 years.
     private static string Serialize(EntityEntry entry, bool current)
     {
         var dict = new Dictionary<string, object?>();
@@ -118,10 +121,14 @@ public class AuditInterceptor : SaveChangesInterceptor
 
             if (IsSensitive(name)) dict[name] = Redacted;
             else if (name == nameof(Domain.Entities.MachineTest.PayloadJson)) dict[name] = SummarizePayload(value as string);
+            else if (value is byte[] bytes) dict[name] = SummarizeBytes(bytes);
             else dict[name] = value;
         }
         return JsonSerializer.Serialize(dict);
     }
+
+    private static string SummarizeBytes(byte[] bytes) =>
+        $"[binary: len={bytes.Length} sha256={Convert.ToHexString(SHA256.HashData(bytes))}]";
 
     private static string? SummarizePayload(string? payload)
     {

@@ -132,6 +132,12 @@ export interface LocalTest {
   /** Cumulative amendment history (one record per superseding version, appended at sign-off).
    * Rendered as the final "Amendment history" page of the Test Summary report. */
   amendments?: AmendmentRecord[];
+  /** The Testing Company the test was done for, as the server stamped it at first upload (set from
+   * the pull / server view — never by the device). The report prints this company's logo.
+   * undefined = not known yet (a test that hasn't synced, or was pulled by an older build): the
+   * tester's own company is assumed, which is what the server will stamp. null = the server says
+   * the test has no company, so no logo. */
+  testingCompanyId?: string | null;
 }
 
 /** A reference-data blob synced from the server (standards, later catalogs), keyed by name. */

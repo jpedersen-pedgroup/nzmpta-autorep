@@ -1,5 +1,6 @@
 using Autorep.Web.Data;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,11 @@ public class EditModel : PageModel
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public int TesterCount { get; private set; }
+    public bool HasLogo { get; private set; }
+    /// <summary>False for a legacy-migrated logo the report can't embed (not PNG/JPEG).</summary>
+    public bool LogoPrintable { get; private set; }
+    /// <summary>Cache-buster for the preview image, so a replaced logo shows straight away.</summary>
+    public string? LogoVersion { get; private set; }
     public List<string> Errors { get; } = new();
     public string? Message { get; set; }
 
@@ -28,6 +34,8 @@ public class EditModel : PageModel
         public string? PostCode { get; set; }
         public string? Phone { get; set; }
         public string? Email { get; set; }
+        public IFormFile? Logo { get; set; }
+        public bool RemoveLogo { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync()
@@ -56,6 +64,18 @@ public class EditModel : PageModel
             await PopulateAsync(company);
             return Page();
         }
+
+        if (Input.RemoveLogo)
+        {
+            company.LogoData = null;
+            company.LogoContentType = null;
+        }
+        else if (!await CompanyLogo.ApplyAsync(Input.Logo, company, Errors))
+        {
+            await PopulateAsync(company);
+            return Page();
+        }
+
         company.Name = trimmed;
         company.AddressLine1 = Clean(Input.AddressLine1);
         company.AddressLine2 = Clean(Input.AddressLine2);
@@ -82,6 +102,9 @@ public class EditModel : PageModel
     {
         IsActive = company.IsActive;
         CreatedAt = company.CreatedAt;
+        HasLogo = company.LogoData is { Length: > 0 };
+        LogoPrintable = CompanyLogo.IsPrintable(company.LogoData);
+        LogoVersion = HasLogo ? CompanyLogo.ETag(company.LogoData!).Trim('"') : null;
         TesterCount = await _db.Users.CountAsync(u => u.TestingCompanyId == company.Id);
     }
 

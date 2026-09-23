@@ -65,6 +65,10 @@
                         <a asp-page="/Admin/Index">Home</a>
                         <a asp-page="/Admin/Tests/Index">All tests</a>
                         <a asp-page="/Admin/Farms/Index">Farms</a>
+                        @if (!isSuperAdmin)
+                        {
+                            <a asp-page="/Admin/MyCompany/Index">My company</a>
+                        }
                         @if (isSuperAdmin)
                         {
                             <a asp-page="/Admin/Testers/Index">Testers</a>

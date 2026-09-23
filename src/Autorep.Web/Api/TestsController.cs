@@ -34,7 +34,9 @@ public class TestsController : ControllerBase
         SyncController.ConfigDto? Config, string? PayloadJson, string? TesterName,
         // Whose test this is, decided server-side: the read-only view words itself differently for
         // your own frozen test than for a colleague's, and it must not guess from display names.
-        bool IsMine);
+        bool IsMine,
+        // The company the test was done for — whose logo the report prints.
+        Guid? TestingCompanyId = null);
 
     /// <summary>A row of the Company tests list. Header fields only — no PayloadJson (it carries
     /// the whole capture including a base64 pulsation PDF, so a page of them would be hundreds of
@@ -72,7 +74,8 @@ public class TestsController : ControllerBase
             test.Configuration is null ? null : SyncController.ToDto(test.Configuration),
             test.PayloadJson,
             test.Tester?.DisplayName,
-            test.TesterId == me));
+            test.TesterId == me,
+            test.TestingCompanyId));
     }
 
     // The Company tests list: completed tests done for the caller's Testing Company, current
