@@ -8,7 +8,6 @@ import {
   ancillaryAllowance,
   cleaningReserve,
   pulsatorSections,
-  requiredAirflow,
   requiredEffectiveReserve,
   testRecordSections,
 } from "./standards";
@@ -49,11 +48,6 @@ describe("cleaningReserve (manual p43)", () => {
 });
 
 describe("allowances (manual p41)", () => {
-  it("pulsator consumption: 30 L/min per 10 units", () => {
-    expect(requiredAirflow(10)).toBe(30);
-    expect(requiredAirflow(11)).toBe(60);
-    expect(requiredAirflow(60)).toBe(180);
-  });
   it("ACR/meter allowance: 7.5 per unit, min 30, rounded up to 10s, ×2 with bail gates", () => {
     expect(ancillaryAllowance(2, false)).toBe(30);
     expect(ancillaryAllowance(20, false)).toBe(150);
@@ -148,13 +142,17 @@ describe("airflow tests rules (manual p41 / ISO C.5)", () => {
     expect(ratio.rule).toEqual({ kind: "atMost", limit: 5 });
   });
 
-  it("pulsator consumption (14d) is calculated but carries no verdict until NZMPTA confirms the limit", () => {
-    // Legacy passed 790 L/min for 19 units; the manual's 30-per-10-units allowance would fail it.
-    const def = reading(pulsatorSections(config), "puls.pulsatorConsumption");
+  it("pulsator consumption (14d) is at most 35 per cluster - not per pulsator - with no minimum", () => {
+    const def = reading(pulsatorSections(config, { "puls.pulsatorConsumption": 500 }), "puls.pulsatorConsumption");
     expect(def.derived).toBe("14a − 14c");
-    expect(def.rule).toEqual({ kind: "none" });
-    expect(def.hint).toMatch(/allowance 60/);
-    expect(def.hint).toMatch(/under review/);
+    expect(def.rule).toEqual({ kind: "atMost", limit: 700 }); // 35 × 20 clusters
+    expect(def.hint).toBe("≤ 35 per cluster × 20 = ≤ 700 · 25.0 per cluster");
+  });
+
+  it("pulsator consumption (14d) takes an admin per-cluster override, and has no standard without clusters", () => {
+    applyStandardsOverrides([{ key: "puls.pulsatorConsumption", label: "", category: "", kind: "atMost", limit: 30 }]);
+    expect(reading(pulsatorSections(config), "puls.pulsatorConsumption").rule).toEqual({ kind: "atMost", limit: 600 });
+    expect(reading(pulsatorSections({ ...config, clusterCount: 0 }), "puls.pulsatorConsumption").rule).toEqual({ kind: "none" });
   });
 
   it("test pulsation is judged on the drop (15b = 1a − 15a ≤ 2 kPa), where legacy recorded the verdict", () => {

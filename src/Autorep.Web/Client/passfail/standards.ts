@@ -31,13 +31,6 @@ export function requiredEffectiveReserve(clusters: number): number | null {
   return EFFECTIVE_RESERVE[clusters - 1] ?? null;
 }
 
-/** Pulsator air consumption allowance — manual p41: 30 L/min per 10 units (1–10:30 … 51–60:180;
- * the per-10-units pattern extends beyond the printed table). */
-export function requiredAirflow(clusters: number): number | null {
-  if (clusters < 1) return null;
-  return paramFor("param.pulsator.consumptionPer10", 30) * Math.ceil(clusters / 10);
-}
-
 /** Cleaning Reserve (L/min) — manual p43: required when a wash-solution injection (slug) system
  * is fitted. CR = π/4 × d² × 8 × ((100 − v)/100) × 0.06 with d = milkline INTERNAL diameter (mm,
  * = OD − 2 mm wall — reproduces the manual's worked examples exactly: OD75 @44 → 1125, OD50 @46
@@ -109,7 +102,7 @@ export const MAX_OEM_PUMPS = 8;
 /** The formula shown on the OEM row - the calculation itself lives in derived.ts. */
 export const OEM_CAPACITY_FORMULA = "8c x the catalogue's L/min per rpm";
 
-/** What the catalogue says about this pump, and the caveat that it carries no verdict yet. */
+/** What the catalogue says about this pump, and the caveat that it carries no verdict. */
 function oemHint(pump: VacuumPumpModel, rpm: number | undefined): string {
   const parts = [`${pump.make} ${pump.model}: ${pump.airFlow} L/min per rpm`];
   if (pump.minRpm != null && pump.maxRpm != null) {
@@ -120,7 +113,9 @@ function oemHint(pump: VacuumPumpModel, rpm: number | undefined): string {
     );
     if (rpm != null && (rpm < pump.minRpm || rpm > pump.maxRpm)) parts.push("8c is outside that range");
   }
-  parts.push("no verdict - figure to be confirmed with NZMPTA");
+  // Jono, 23 Sep 2026: the arithmetic is right, but a pump works along a curve, so a single figure
+  // is not a clean min/max. Kept as a guide until a pump supplier confirms how to judge it.
+  parts.push("a guide only, no verdict - pumps work along a curve");
   return parts.join(" · ");
 }
 
@@ -353,7 +348,7 @@ export function testRecordSections(
   // against the OEM curve (manual p31 / ISO 5.3.2).
 // When the pump's make and model are in the legacy catalogue its curve is known, so the spec is
   // worked out beside the tested figure (Jono, 15 Sep 2026: "put the spec there ... and then here
-  // we're putting in what we tested"). It carries no verdict until NZMPTA confirms the comparison.
+  // we're putting in what we tested"). It carries no verdict: see oemHint.
   const correction = atmosFactor !== 1 ? `× ${atmosFactor} altitude correction, then ` : "";
   const pumpHint = `${correction}compare to OEM curve`;
   const pumpReadings: ReadingDef[] = [];
@@ -410,20 +405,22 @@ export function airflowSections(
   const pumpCapacity: number | null = readings["tr.pumpCapacityTotal"] ?? null;
   // Cluster air admission is the machine TOTAL (10c − 12a, as legacy calculated it), judged at the
   // per-cluster band (manual p42 / ISO D.6: 4–12 L/min) × the cluster count — 37 clusters → 148–444.
-  // Vented liners: the manual's ≤ 35 per cluster (pp41–42) × count; whether the manual means that
-  // as a total is unconfirmed with NZMPTA (plan, Phase 1). The admin standard stays per cluster.
+  // Vented liners raise the ceiling to the manual's 35 per cluster (pp41–42) but keep the 4 per
+  // cluster floor (Jono, 23 Sep 2026: the 4 litre minimum still applies). The admin standard stays
+  // per cluster.
   const clusters = config.clusterCount;
   const ventedMax = paramFor("param.clusterAir.ventedMax", 35);
+  const caaBand = ruleFor("add.clusterAirAdmission", { kind: "between", min: 4, max: 12 });
   const caaPerCluster: PassFailRule = config.linerVented
-    ? { kind: "atMost", limit: ventedMax }
-    : ruleFor("add.clusterAirAdmission", { kind: "between", min: 4, max: 12 });
+    ? { kind: "between", min: caaBand.kind === "between" || caaBand.kind === "atLeast" ? caaBand.min : 4, max: ventedMax }
+    : caaBand;
   const caaRule: PassFailRule = clusters > 0 ? perUnitTotal(caaPerCluster, clusters) : { kind: "none" };
   const caaTotal = readings["add.clusterAirAdmission"];
   const caaHint =
     clusters > 0
       ? `${describeLimit(caaPerCluster)} per cluster × ${clusters} = ${describeLimit(caaRule)}` +
         (caaTotal != null ? ` · ${(caaTotal / clusters).toFixed(1)} per cluster` : "") +
-        (config.linerVented ? " · vented liners — limit unconfirmed with NZMPTA" : "")
+        (config.linerVented ? " (vented liners)" : "")
       : "set the cluster count for the standard";
   const vacLeakPct = paramFor("param.vacLeak.pctOfPumpCapacity", 5);
   const vacLeakLimit = pumpCapacity != null ? Math.round((vacLeakPct / 100) * pumpCapacity) : null;
@@ -584,10 +581,20 @@ export function pulsatorSections(
   readings: Record<string, number> = {},
 ): ReadingSection[] {
   const workingVacuum = readings["tr.workingVacuum"];
-  // Manual p41: pulsator consumption allowance = 30 L/min per 10 units — shown for information
-  // only. Legacy passed 790 L/min for 19 GEA Autopuls S units on a real test, which this rule
-  // would fail, so 14d carries no verdict until NZMPTA confirms the limit (plan, Phase 1).
-  const consumptionAllowance = requiredAirflow(config.clusterCount);
+  // Pulsator consumption is at most 35 L/min per CLUSTER, not per pulsator, with no minimum: a
+  // 30-bale shed on 15 pulsators is allowed 35 × 30 (Jono, 23 Sep 2026 - a DeLaval EP100 uses about
+  // all of it, a Waikato Smartpulse as little as 10). It replaces the manual p41 "30 per 10 units"
+  // reading, which failed the 790 L/min legacy passed for 19 units on 37 clusters. The admin
+  // standard is per cluster, like 12b.
+  const clusters = config.clusterCount;
+  const consumptionPerCluster = ruleFor("puls.pulsatorConsumption", { kind: "atMost", limit: 35 });
+  const consumptionRule: PassFailRule = clusters > 0 ? perUnitTotal(consumptionPerCluster, clusters) : { kind: "none" };
+  const consumption = readings["puls.pulsatorConsumption"];
+  const consumptionHint =
+    clusters > 0
+      ? `${describeLimit(consumptionPerCluster)} per cluster × ${clusters} = ${describeLimit(consumptionRule)}` +
+        (consumption != null ? ` · ${(consumption / clusters).toFixed(1)} per cluster` : "")
+      : "set the cluster count for the standard";
   // Manual p40 / ISO D.2.17: chamber vacuum within 2 kPa of the working vacuum — judged on the
   // drop (15b = 1a − 15a), which is where legacy recorded the verdict.
   const chamberDelta = paramFor("param.chamberVac.maxDelta", 2);
@@ -609,12 +616,8 @@ export function pulsatorSections(
           label: "Pulsator consumption (14d)",
           unit: "L/min",
           derived: "14a − 14c",
-          hint:
-            (consumptionAllowance != null ? `manual allowance ${consumptionAllowance} (30 per 10 units) · ` : "") +
-            "limit under review with NZMPTA — no verdict",
-          // Through ruleFor so NZMPTA can switch a limit on from the admin standards page once the
-          // question is settled, without a deploy.
-          rule: ruleFor("puls.pulsatorConsumption", { kind: "none" }),
+          hint: consumptionHint,
+          rule: consumptionRule,
         },
         { key: "puls.airflowVacuumSystem", label: "Airflow — vacuum system (14e)", unit: "L/min", rule: { kind: "none" } },
         { key: "puls.vacuumSystemAncillary", label: "Vacuum-system ancillary consumption (14f)", unit: "L/min", derived: "14c − 14e", rule: { kind: "none" } },
@@ -642,8 +645,9 @@ export function pulsatorSections(
         // The machine-level extremes off the analyser — legacy's "Rate Range Fastest / Slowest"
         // and "Ratio Range Highest / Lowest". The spread checks (manual pp49–53 / ISO Table D.5)
         // are judged on these, not on the faulty-pulsator rows, which are only a subset. The ratio
-        // pair is pooled across front and back quarters, as legacy captured it; whether NZMPTA
-        // wants it per quarter group (front vs front, back vs back) is an open question in the plan.
+        // pair is pooled across front and back quarters, as legacy captured it: the analyser reads
+        // two channels at a time, so the tester enters the highest and lowest whichever side they
+        // were on (Jono, 23 Sep 2026, asked about four per-group figures and chose to keep two).
         { key: "puls.rateFastest", label: "Fastest pulsator rate", unit: "ppm", hint: "from the analyser, all units", rule: { kind: "none" } },
         { key: "puls.rateSlowest", label: "Slowest pulsator rate", unit: "ppm", rule: { kind: "none" } },
         {
@@ -654,7 +658,7 @@ export function pulsatorSections(
           hint: `≤ ${rateSpreadRule.limit} ppm between pulsators`,
           rule: rateSpreadRule,
         },
-        { key: "puls.ratioHighest", label: "Highest pulsator ratio", unit: "%", hint: "from the analyser, all units", rule: { kind: "none" } },
+        { key: "puls.ratioHighest", label: "Highest pulsator ratio", unit: "%", hint: "from the analyser, all units, front or back", rule: { kind: "none" } },
         { key: "puls.ratioLowest", label: "Lowest pulsator ratio", unit: "%", rule: { kind: "none" } },
         {
           key: "puls.ratioSpread",
