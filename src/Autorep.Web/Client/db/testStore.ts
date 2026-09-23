@@ -107,6 +107,15 @@ export interface LocalTest {
   calAirFlowMeters?: string | null;
   calPulsatorTesters?: string | null;
   calVacuumGauges?: string | null;
+  /** The Testing Company the work was done for, stamped at sign-off from the tester's cached
+   * company (see companyBrandingSync) so a reprint after the tester changes company still carries
+   * the right letterhead. Superseding versions carry the base version's values. */
+  testingCompanyId?: string | null;
+  testingCompanyName?: string | null;
+  /** When the farm is next due a test, ISO yyyy-mm-dd. Chosen on the sign-off step (twelve
+   * months out unless the tester changes it) and always stamped at sign-off; see nextTestDate.ts.
+   * Absent on tests signed off before it existed, and on migrated tests. */
+  nextTestDate?: string | null;
   notes?: string;
   createdAt: string;
   updatedAt: string;

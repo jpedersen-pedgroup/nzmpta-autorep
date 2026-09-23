@@ -317,6 +317,7 @@ export function computeChanges(base: LocalTest, edited: LocalTest): FieldChange[
 
   const other: Array<[string, unknown, unknown]> = [
     ["General comments", base.notes, edited.notes],
+    ["Next test date", base.nextTestDate, edited.nextTestDate],
     ["Calibration expiry — airflow meters", base.calAirFlowMeters, edited.calAirFlowMeters],
     ["Calibration expiry — pulsator testers", base.calPulsatorTesters, edited.calPulsatorTesters],
     ["Calibration expiry — vacuum gauges", base.calVacuumGauges, edited.calVacuumGauges],

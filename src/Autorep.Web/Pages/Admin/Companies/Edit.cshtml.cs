@@ -1,5 +1,6 @@
 using Autorep.Web.Data;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,8 @@ public class EditModel : PageModel
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public int TesterCount { get; private set; }
+    /// <summary>The current logo as a data URL for the preview, or null.</summary>
+    public string? LogoPreview { get; private set; }
     public List<string> Errors { get; } = new();
     public string? Message { get; set; }
 
@@ -28,6 +31,9 @@ public class EditModel : PageModel
         public string? PostCode { get; set; }
         public string? Phone { get; set; }
         public string? Email { get; set; }
+        /// <summary>The logo printed on this company's test reports.</summary>
+        public IFormFile? Logo { get; set; }
+        public bool RemoveLogo { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync()
@@ -56,6 +62,22 @@ public class EditModel : PageModel
             await PopulateAsync(company);
             return Page();
         }
+        if (Input.RemoveLogo)
+        {
+            company.LogoData = null;
+            company.LogoContentType = null;
+        }
+        else
+        {
+            var (ok, logo) = await LogoImage.ReadUploadAsync(Input.Logo, Errors);
+            if (!ok)
+            {
+                await PopulateAsync(company);
+                return Page();
+            }
+            if (logo is not null) (company.LogoData, company.LogoContentType) = (logo.Data, logo.ContentType);
+        }
+
         company.Name = trimmed;
         company.AddressLine1 = Clean(Input.AddressLine1);
         company.AddressLine2 = Clean(Input.AddressLine2);
@@ -82,6 +104,7 @@ public class EditModel : PageModel
     {
         IsActive = company.IsActive;
         CreatedAt = company.CreatedAt;
+        LogoPreview = LogoImage.DataUrl(company.LogoData, company.LogoContentType);
         TesterCount = await _db.Users.CountAsync(u => u.TestingCompanyId == company.Id);
     }
 

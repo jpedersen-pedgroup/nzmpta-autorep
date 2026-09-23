@@ -106,4 +106,83 @@ public class ProfileControllerTests : IClassFixture<AuthedWebAppFactory>
         dto!.AirFlowMeters.Should().Be(new DateOnly(2027, 1, 27));
         dto.PulsatorTesters.Should().BeNull();
     }
+
+    // ---- Company branding ------------------------------------------------------------------
+
+    private sealed record CompanyBrandingDto(Guid Id, string Name, string? Logo);
+
+    private async Task<Guid> SeedCompanyTesterAsync(string testerId, byte[]? logo, string name = "Brand Co")
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var company = new TestingCompany { Name = name, LogoData = logo, LogoContentType = logo is null ? null : "image/png" };
+        db.TestingCompanies.Add(company);
+        db.Users.Add(new Tester { Id = testerId, UserName = $"{testerId}@test.local", DisplayName = "Brand Tester", TestingCompanyId = company.Id });
+        await db.SaveChangesAsync();
+        return company.Id;
+    }
+
+    private async Task SetLogoAsync(Guid companyId, byte[] logo)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        (await db.TestingCompanies.FindAsync(companyId))!.LogoData = logo;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Company_returns_the_testers_company_with_its_logo_as_a_data_url()
+    {
+        var companyId = await SeedCompanyTesterAsync("brand-1", [1, 2, 3], "Sample Testing Co");
+        var client = _factory.CreateClientAs(Roles.Tester, "brand-1");
+
+        var dto = await client.GetFromJsonAsync<CompanyBrandingDto>("/api/profile/company");
+
+        dto!.Id.Should().Be(companyId);
+        dto.Name.Should().Be("Sample Testing Co");
+        dto.Logo.Should().Be("data:image/png;base64,AQID");
+    }
+
+    [Fact]
+    public async Task Company_without_a_logo_returns_a_null_logo()
+    {
+        await SeedCompanyTesterAsync("brand-2", null);
+        var client = _factory.CreateClientAs(Roles.Tester, "brand-2");
+
+        var dto = await client.GetFromJsonAsync<CompanyBrandingDto>("/api/profile/company");
+
+        dto!.Logo.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Company_is_no_content_for_a_tester_without_a_company()
+    {
+        await SeedTesterAsync("brand-3");
+        var client = _factory.CreateClientAs(Roles.Tester, "brand-3");
+
+        (await client.GetAsync("/api/profile/company")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task Company_answers_304_until_the_logo_changes()
+    {
+        var companyId = await SeedCompanyTesterAsync("brand-4", [1, 2, 3]);
+        var client = _factory.CreateClientAs(Roles.Tester, "brand-4");
+
+        var first = await client.GetAsync("/api/profile/company");
+        var etag = first.Headers.ETag;
+        etag.Should().NotBeNull();
+
+        var again = new HttpRequestMessage(HttpMethod.Get, "/api/profile/company");
+        again.Headers.IfNoneMatch.Add(etag!);
+        var unchanged = await client.SendAsync(again);
+        unchanged.StatusCode.Should().Be(HttpStatusCode.NotModified, "the device already holds this logo");
+
+        await SetLogoAsync(companyId, [9, 9, 9]);
+        var afterChange = new HttpRequestMessage(HttpMethod.Get, "/api/profile/company");
+        afterChange.Headers.IfNoneMatch.Add(etag!);
+        var changed = await client.SendAsync(afterChange);
+        changed.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await changed.Content.ReadFromJsonAsync<CompanyBrandingDto>())!.Logo.Should().Be("data:image/png;base64,CQkJ");
+    }
 }

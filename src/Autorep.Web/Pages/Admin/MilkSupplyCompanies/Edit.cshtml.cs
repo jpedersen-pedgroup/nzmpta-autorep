@@ -1,5 +1,6 @@
 using Autorep.Web.Data;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -70,10 +71,15 @@ public class EditModel : PageModel
             c.LogoData = null;
             c.LogoContentType = null;
         }
-        else if (!await LogoUpload.ApplyAsync(Input.Logo, c, Errors))
+        else
         {
-            await PopulateAsync(c);
-            return Page();
+            var (ok, logo) = await LogoImage.ReadUploadAsync(Input.Logo, Errors);
+            if (!ok)
+            {
+                await PopulateAsync(c);
+                return Page();
+            }
+            if (logo is not null) (c.LogoData, c.LogoContentType) = (logo.Data, logo.ContentType);
         }
 
         c.Name = trimmed;
