@@ -1,0 +1,132 @@
+@page
+@model Autorep.Web.Pages.Admin.Tests.UpcomingModel
+@using Autorep.Web.Domain
+@using Autorep.Web.Pages.Admin.Tests
+@{
+    ViewData["Title"] = "Upcoming tests";
+}
+
+<div class="page-header">
+    <div class="page-header__heading">
+        <h1>Upcoming tests</h1>
+        <p>Farms due for their next machine test, from each farm's most recent test.</p>
+    </div>
+</div>
+
+@if (Model.NoCompany)
+{
+    <div class="empty">
+        <div class="empty__title">You're not attached to a testing company</div>
+        <p class="empty__text">Upcoming tests are listed for your company's farms. Ask an NZMPTA administrator to add you to your company.</p>
+    </div>
+    return;
+}
+
+<div class="upcoming-stats">
+    <div class="upcoming-stat @(Model.OverdueCount > 0 ? "upcoming-stat--overdue" : "")">
+        <div class="upcoming-stat__value">@Model.OverdueCount</div>
+        <div class="upcoming-stat__label">Overdue</div>
+    </div>
+    <div class="upcoming-stat @(Model.DueSoonCount > 0 ? "upcoming-stat--soon" : "")">
+        <div class="upcoming-stat__value">@Model.DueSoonCount</div>
+        <div class="upcoming-stat__label">Due in the next @UpcomingModel.DueSoonDays days</div>
+    </div>
+    <div class="upcoming-stat">
+        <div class="upcoming-stat__value">@Model.Rows.Count</div>
+        <div class="upcoming-stat__label">Listed</div>
+    </div>
+</div>
+
+<form method="get" class="list-filters">
+    <select name="window" onchange="this.form.submit()" aria-label="How far ahead">
+        @foreach (var w in UpcomingModel.Windows)
+        {
+            <option value="@w.Days" selected="@(w.Days == Model.Window)">@w.Label</option>
+        }
+    </select>
+    @if (Model.IsSuperAdmin)
+    {
+        <select name="companyId" onchange="this.form.submit()" aria-label="Filter by company">
+            <option value="">All companies</option>
+            @foreach (var o in Model.CompanyOptions)
+            {
+                <option value="@o.Value" selected="@o.Selected">@o.Text</option>
+            }
+        </select>
+    }
+    <noscript><button type="submit" class="btn btn--secondary">Show</button></noscript>
+</form>
+
+@if (!Model.Rows.Any())
+{
+    <div class="empty">
+        <div class="empty__title">Nothing due</div>
+        <p class="empty__text">
+            No farm is overdue or due in this period. Farms appear here once a test recording a next
+            test date has been signed off; tests signed off before next test dates were recorded aren't listed.
+        </p>
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Due</th>
+                    <th>Farm</th>
+                    <th>Region</th>
+                    <th>Farmer</th>
+                    @if (Model.IsSuperAdmin) { <th>Company</th> }
+                    <th>Last tested</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    var days = r.NextTestDate.DayNumber - Model.Today.DayNumber;
+                    <tr>
+                        <td>
+                            <div>@r.NextTestDate.ToString("dd MMM yyyy")</div>
+                            @if (days < 0)
+                            {
+                                <span class="badge badge--danger">Overdue @(-days) day@(days == -1 ? "" : "s")</span>
+                            }
+                            else if (days == 0)
+                            {
+                                <span class="badge badge--danger">Due today</span>
+                            }
+                            else if (days <= UpcomingModel.DueSoonDays)
+                            {
+                                <span class="badge badge--warning">In @days day@(days == 1 ? "" : "s")</span>
+                            }
+                            else
+                            {
+                                <span class="td-muted">In @days days</span>
+                            }
+                        </td>
+                        <td>
+                            <div>@r.FarmName</div>
+                            @if (r.SupplyNumber is not null) { <div class="td-muted">Supply @r.SupplyNumber</div> }
+                        </td>
+                        <td class="td-muted">@(r.Region ?? "—")</td>
+                        <td>
+                            <div>@(r.FarmerName ?? "—")</div>
+                            @if (r.ContactPhone is not null)
+                            {
+                                <a class="td-muted" href="tel:@r.ContactPhone.Replace(" ", "")">@r.ContactPhone</a>
+                            }
+                        </td>
+                        @if (Model.IsSuperAdmin) { <td class="td-muted">@(r.CompanyName ?? "—")</td> }
+                        <td>
+                            <div>@r.LastTestedAt.ToNz().ToString("dd MMM yyyy")</div>
+                            @if (r.TesterName is not null) { <div class="td-muted">@r.TesterName</div> }
+                        </td>
+                        <td><a class="btn btn--secondary btn--sm" href="/Admin/Tests/View/@r.TestId">View test</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
