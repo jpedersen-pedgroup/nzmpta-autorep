@@ -178,6 +178,27 @@ public class UpcomingTestsTests : IClassFixture<AuthedWebAppFactory>
         page.CompanyId.Should().BeNull();
     }
 
+    // A farm another company has since tested stays on our list, due from our own last test, so we
+    // can try to win the work back; nothing of the other company's test shows.
+    [Fact]
+    public async Task A_farm_another_company_has_since_tested_stays_on_our_list()
+    {
+        var w = await World.CreateAsync();
+        var farm = w.Farm("Switched");
+        var ours = w.Test(farm, w.CompanyA, 400, -20);
+        w.Test(farm, w.CompanyB, 10, 355);
+        await w.Db.SaveChangesAsync();
+
+        var page = PageAs(w.Db, "admin-a", Roles.CompanyAdministrator);
+        await page.OnGetAsync();
+
+        var row = page.Rows.Should().ContainSingle().Subject;
+        row.TestId.Should().Be(ours.Id);
+        row.CompanyName.Should().Be("Company A");
+        row.NextTestDate.Should().Be(Today.AddDays(-20));
+        page.OverdueCount.Should().Be(1);
+    }
+
     [Fact]
     public async Task A_company_admin_without_a_company_sees_nothing()
     {

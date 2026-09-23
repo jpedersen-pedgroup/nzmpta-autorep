@@ -94,8 +94,11 @@ public class UpcomingModel : PageModel
 
     /// <summary>Each farm's latest completed current-version test in scope that carries a next test
     /// date on or before <paramref name="horizon"/> (or any date when null). A farm is on the list
-    /// only when no later completed test exists for it in the same scope. Static so a test can check
-    /// it translates to SQL Server, which the in-memory provider used elsewhere can't prove.</summary>
+    /// only when no later completed test exists for it in the same scope. Deliberately the same
+    /// scope, not every company: a farm another company has since tested stays on this company's
+    /// list, due from this company's own last test, so they have the chance to win the work back
+    /// (and nothing about the other company's test is revealed). Static so a test can check it
+    /// translates to SQL Server, which the in-memory provider used elsewhere can't prove.</summary>
     public static IQueryable<Row> Query(AutorepDbContext db, Guid? companyId, DateOnly? horizon)
     {
         var tests = db.MachineTests.Where(t => t.MarkedCompleteAt != null);
