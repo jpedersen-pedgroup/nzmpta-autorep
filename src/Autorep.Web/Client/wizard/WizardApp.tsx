@@ -31,6 +31,7 @@ import type { CalibrationDates } from "../calibration/status";
 import { useAppHeaderOffset } from "../ui/appHeaderOffset";
 import { CalibrationAlert } from "../ui/CalibrationPanel";
 import { LayoutMenu } from "../ui/LayoutMenu";
+import { GuideLink } from "../ui/GuideLink";
 import { showToast } from "../ui/toast";
 import { applyCheckAll, type ChecklistSection } from "./visualChecklist";
 import { computeCompleted, currentStepFor, visibleSteps } from "./wizardProgress";
@@ -557,14 +558,19 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       current={current}
       onGo={(step) => void go(step)}
       online={online}
+      // The tester guide rides in the same slot as the cog, so every layout shows it without each
+      // shell having to know about it — and it opens offline, unlike the Help page.
       layoutMenu={
-        <LayoutMenu
-          value={layout}
-          onChange={(next) => {
-            setLayout(next);
-            setLayoutState(next);
-          }}
-        />
+        <>
+          <GuideLink variant="icon" />
+          <LayoutMenu
+            value={layout}
+            onChange={(next) => {
+              setLayout(next);
+              setLayoutState(next);
+            }}
+          />
+        </>
       }
       banners={banners}
       // "saved on device" would be a lie for a server view — this test isn't stored here.

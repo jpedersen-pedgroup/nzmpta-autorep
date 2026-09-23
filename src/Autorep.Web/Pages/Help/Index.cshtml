@@ -1,0 +1,68 @@
+@page
+@model Autorep.Web.Pages.Help.IndexModel
+@{
+    ViewData["Title"] = "Help & guides";
+}
+
+<section class="welcome">
+    <h1>Help &amp; guides</h1>
+    <p>Step-by-step work instructions for AutoRep. Each opens as a PDF in a new tab.</p>
+</section>
+
+@if (Model.Guides.Count == 0)
+{
+    <div class="empty">
+        <div class="empty__title">No guides for your account</div>
+        <p class="empty__text">Contact NZMPTA if you need the AutoRep work instructions.</p>
+    </div>
+}
+else
+{
+    <ul class="guide-list">
+        @foreach (var g in Model.Guides)
+        {
+            <li class="guide">
+                <div class="guide__icon"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i></div>
+                <div class="guide__body">
+                    <div class="guide__title">@g.Title</div>
+                    <div class="guide__desc">@g.Description</div>
+                    <div class="guide__meta">
+                        Version @g.Version · @g.Date.ToString("dd MMM yyyy") · @IndexModel.FormatSize(g.SizeBytes)
+                    </div>
+                </div>
+                <a class="btn btn--secondary guide__open" href="@g.Url" target="_blank" rel="noopener"
+                   data-guide-href="@g.Url" aria-label="Open @g.Title (PDF, opens in a new tab)">
+                    Open <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                </a>
+            </li>
+        }
+    </ul>
+    <p class="guide-list__note">
+        <i class="fa-solid fa-wifi" aria-hidden="true"></i>
+        Guides are kept on this device once they've been downloaded, so they still open without a
+        connection.
+        @if (User.IsInRole(Autorep.Web.Domain.Roles.Tester))
+        {
+            <text>The tester guide is also on <strong>My tests</strong> and in the header of every test, so a
+            test that's already open can bring it up with no signal.</text>
+        }
+    </p>
+}
+
+@section Scripts {
+    <script>
+        // Keep this account's guides on the device for offline use. The service worker saves each
+        // PDF as it passes through (see sw.js, GUIDE_CACHE) and revalidates with the ETag, so once a
+        // guide is held this costs a 304, not a download. Skipped when no worker controls the page
+        // (nothing would keep the file) and when the browser asks to save data.
+        (function () {
+            if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+            if (navigator.connection && navigator.connection.saveData) return;
+            document.querySelectorAll('[data-guide-href]').forEach(function (a) {
+                fetch(a.getAttribute('data-guide-href'), { credentials: 'same-origin' })
+                    .then(function (r) { if (r.body) r.body.cancel(); })
+                    .catch(function () { /* offline or signed out — the next visit tries again */ });
+            });
+        })();
+    </script>
+}

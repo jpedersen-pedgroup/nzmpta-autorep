@@ -77,11 +77,24 @@ const shellParts = appShellUrls(sw).map((url) => {
   return `${url}:${createHash("sha256").update(content).digest("hex")}`;
 });
 
+// --- the guide catalogue ------------------------------------------------------------------------
+// sw.js prunes its guide cache against this list on activation (a retired guide is never requested
+// again, so nothing else would clear it). Written in here so it can't drift from Guides/guides.json,
+// and part of the fingerprint so a catalogue change always ships a new worker to do the pruning.
+const guidesPattern = /const GUIDE_FILES = \[[^\]]*\];/;
+if (!guidesPattern.test(sw)) fail("no GUIDE_FILES line found in sw.js — refusing to continue.");
+const guideFiles = JSON.parse(readFileSync(resolve(projectRoot, "Guides/guides.json"), "utf8"))
+  .guides.map((g) => g.file)
+  .sort();
+// An empty list would prune every device's saved guides.
+if (!guideFiles.length) fail("Guides/guides.json lists no guides — refusing to continue.");
+const guidesLine = `const GUIDE_FILES = [${guideFiles.map((f) => `'${f}'`).join(", ")}];`;
+
 // Sorted within each section so filesystem ordering can't change the result.
-const fingerprint = ["bundle", ...bundleParts.sort(), "shell", ...shellParts.sort()].join("\n");
+const fingerprint = ["bundle", ...bundleParts.sort(), "shell", ...shellParts.sort(), "guides", ...guideFiles].join("\n");
 const stamp = createHash("sha256").update(fingerprint).digest("hex").slice(0, 12);
 
-const stamped = sw.replace(pattern, `$1${stamp}$2`);
+const stamped = sw.replace(pattern, `$1${stamp}$2`).replace(guidesPattern, guidesLine);
 if (stamped === sw) {
   console.log(`[stamp-sw] CACHE_VERSION already autorep-${stamp}`);
 } else {

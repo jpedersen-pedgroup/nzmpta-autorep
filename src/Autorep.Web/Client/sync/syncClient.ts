@@ -12,6 +12,7 @@ import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
 import { initCompanyBranding } from "./companyBrandingSync";
 import { warmReportGenerator } from "../report/generatorChunks";
+import { guidesForRoles, TESTER_ROLE, warmGuides } from "../guides/guides";
 
 interface TestSummaryDto {
   clientId: string;
@@ -215,6 +216,9 @@ export async function syncAll(): Promise<SyncResult> {
   // printing works on-farm later on a device that has never printed before. Deliberately not
   // awaited: it is ~2.4 MB and no one should wait on it to see their tests.
   void warmReportGenerator();
+  // Same moment, same reasoning, for the tester's work instructions (a few MB, a 304 once held):
+  // the Help page can't open offline, but the guide links in the tester app can — from this copy.
+  void warmGuides(guidesForRoles([TESTER_ROLE]));
 
   return { pushed, failed, pulled };
 }

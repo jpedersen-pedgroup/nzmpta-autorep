@@ -16,6 +16,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Help & guides: the work-instruction PDFs and their catalogue, read from the content root by
+         GuideCatalog. Outside wwwroot so they are only reachable through the signed-in
+         GuidesController, never as anonymous static files — so they must be published explicitly. -->
+    <Content Include="Guides\*.pdf" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="Guides\guides.json" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.4.0" />
     <PackageReference Include="Azure.Identity" Version="1.13.1" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.22.2" />
