@@ -45,6 +45,14 @@ const PASS = "#15803d";
 const FAIL = "#dc2626";
 const FAIL_ROW = "#fdf1f1";
 
+/** The mandatory Compliance Disclaimer (PRD story 43), printed on page one of every report. The
+ * wording is fixed by the signed-off Requirements & Scope v1.1, section 7.3: change it only when
+ * NZMPTA changes that text. */
+export const COMPLIANCE_DISCLAIMER =
+  "This Machine Test may identify numerous hazards, however it in no way guarantees safety compliance " +
+  "for all or any hazard/s. It is the farm owner’s responsibility to ensure that all hazards comply " +
+  "with WorkSafe and relevant NZ Safety Standard/s.";
+
 const SEVERITY_STYLE: Record<FaultSeverity, { ink: string; fill: string }> = {
   Critical: { ink: "#991b1b", fill: "#fde2e2" },
   Major: { ink: "#9a3412", fill: "#feead7" },
@@ -453,6 +461,27 @@ export function buildTestSummaryDoc(
         ]
       : [];
 
+  // The disclaimer closes page one's summary, on every report (migrated ones included), kept whole
+  // so it never splits across a page break. It follows the faults and comments, so it lands on page
+  // one unless an unusually long fault list has already run onto page two.
+  const disclaimerBlock: Content = {
+    table: {
+      widths: ["*"],
+      body: [[{
+        stack: [
+          { text: "COMPLIANCE DISCLAIMER", fontSize: 6.5, bold: true, color: MUTED, characterSpacing: 0.8, margin: [0, 0, 0, 2] },
+          { text: COMPLIANCE_DISCLAIMER, fontSize: 8, color: INK, lineHeight: 1.15 },
+        ],
+      }]],
+    },
+    layout: {
+      hLineWidth: () => 0.6, vLineWidth: () => 0.6, hLineColor: () => RULE, vLineColor: () => RULE,
+      paddingLeft: () => 9, paddingRight: () => 9, paddingTop: () => 6, paddingBottom: () => 6,
+    },
+    unbreakable: true,
+    margin: [0, 14, 0, 0],
+  } as Content;
+
   // --- Machine configuration (page 2 onward) ----------------------------------------------------
   const flags: string[] = [];
   if (config.vsdFitted) flags.push("VSD");
@@ -725,6 +754,7 @@ export function buildTestSummaryDoc(
       // A clean machine says so in the banner; an empty heading under it would read as missing.
       ...(faultBlock.length > 0 ? [sectionHeader("Fault summary & recommendations"), ...faultBlock] : []),
       ...notesBlock,
+      disclaimerBlock,
       // ---- Page two onward: the working ----
       sectionHeader("Machine configuration", true),
       configBlock,

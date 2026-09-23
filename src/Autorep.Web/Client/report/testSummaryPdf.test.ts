@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brandingForTest, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
+import { COMPLIANCE_DISCLAIMER, brandingForTest, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
 import { defaultMachineConfiguration } from "../wizard/types";
 import type { LocalTest } from "../db/testStore";
 
@@ -407,6 +407,35 @@ describe("buildTestSummaryDoc — layout", () => {
 
     // Completed with no recorded date: nothing is invented.
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("NEXT TEST DUE");
+  });
+
+  it("prints the compliance disclaimer, word for word, at the end of page one", () => {
+    // Requirements & Scope v1.1, section 7.3.
+    expect(COMPLIANCE_DISCLAIMER).toBe(
+      "This Machine Test may identify numerous hazards, however it in no way guarantees safety compliance for all or any hazard/s. " +
+        "It is the farm owner’s responsibility to ensure that all hazards comply with WorkSafe and relevant NZ Safety Standard/s.",
+    );
+    const t = sampleTest();
+    t.notes = "Settings adjusted.";
+    const doc = buildTestSummaryDoc(t);
+    const content = doc.content as { pageBreak?: string; unbreakable?: boolean }[];
+    const at = content.findIndex((n) => JSON.stringify(n).includes("COMPLIANCE DISCLAIMER"));
+    const config = content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"));
+    expect(at).toBeGreaterThan(content.findIndex((n) => JSON.stringify(n).includes("General comments")));
+    expect(config).toBe(at + 1); // the last thing before page two
+    expect(content[at].unbreakable).toBe(true);
+    expect(JSON.stringify(content[at])).toContain("farm owner’s responsibility");
+  });
+
+  it("prints the disclaimer on every report: clean, draft and migrated", () => {
+    const clean = sampleTest();
+    clean.visualFaults = {};
+    clean.readings = {};
+    const draft = { ...sampleTest(), markedCompleteAt: null };
+    const migrated = { ...sampleTest(), recordedRecommendations: [], recordedVisualFaults: [], readonly: true };
+    for (const t of [clean, draft, migrated]) {
+      expect(JSON.stringify(buildTestSummaryDoc(t).content)).toContain("COMPLIANCE DISCLAIMER");
+    }
   });
 
   it("marks a report generated before sign-off as a draft", () => {
