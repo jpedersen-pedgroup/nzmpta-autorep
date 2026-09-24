@@ -84,7 +84,9 @@ export function computeCompleted(t: LocalTest): Set<WizardStep> {
   }
   if (recordedRows(t.clusterRows).length > 0) done.add("IndividualClusterTest");
   const faults = buildFaultInputs(t);
-  if (faults.every((f) => f.key != null && (t.recommendations[f.key] ?? "").trim().length > 0)) {
+  // A fault counts as written up once it shows a recommendation - typed, or the catalogue default
+  // the tester left as it was (see buildFaults.ts).
+  if (faults.every((f) => f.key != null && (f.recommendation ?? "").trim().length > 0)) {
     done.add("FaultSummary");
   }
   return done;
@@ -123,7 +125,7 @@ export function stepProgress(t: LocalTest, step: WizardStep): number {
       // agrees (every() over an empty list is true), and the two must not disagree.
       if (faults.length === 0) return 1;
       // Same guard as computeCompleted — a fault with no key can't carry a recommendation.
-      const written = faults.filter((f) => f.key != null && (t.recommendations[f.key] ?? "").trim().length > 0);
+      const written = faults.filter((f) => f.key != null && (f.recommendation ?? "").trim().length > 0);
       return written.length / faults.length;
     }
     case "ReviewSignOff":
