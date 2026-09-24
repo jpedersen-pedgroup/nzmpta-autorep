@@ -7,6 +7,7 @@ import { allReadingSections } from "../passfail/standards";
 import { recommendationFor } from "../reference/faultCatalog";
 import { evaluate } from "../passfail/passFail";
 import type { FaultInput } from "./faultAggregator";
+import { readingRecommendation } from "./readingRecommendations";
 
 export function buildFaultInputs(test: LocalTest): FaultInput[] {
   const config = test.config;
@@ -42,7 +43,7 @@ export function buildFaultInputs(test: LocalTest): FaultInput[] {
           description: `${r.label}: ${v} ${r.unit}`,
           severity: "Major",
           source: "Numerical tests",
-          recommendation: test.recommendations[r.key],
+          recommendation: test.recommendations[r.key] ?? readingRecommendation(r, v),
         });
       }
     }
