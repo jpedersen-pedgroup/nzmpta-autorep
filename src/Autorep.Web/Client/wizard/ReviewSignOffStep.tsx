@@ -1,7 +1,8 @@
 // Review & Sign-Off — a read-only summary of the test (farm, plant, fault counts, step
 // completion), a Tester attestation, and Mark-as-Complete which stamps the completion time and
-// syncs to the server. Once complete it shows the synced state + a (coming-soon) report action.
-import { useRef, useState } from "preact/hooks";
+// syncs to the server. Once complete it shows the synced state and the report download: the full
+// report in one tap, or just the sections the tester picks.
+import { useMemo, useRef, useState } from "preact/hooks";
 import { aggregate } from "../faults/faultAggregator";
 import { buildFaultInputs } from "../faults/buildFaults";
 import type { LocalTest } from "../db/testStore";
@@ -10,6 +11,8 @@ import { PLANT_LABELS } from "./configLabels";
 import { DatePicker } from "../ui/DatePicker";
 import { formatDisplayDate } from "../calibration/status";
 import { nzDate, proposedNextTestDate } from "./nextTestDate";
+import { reportPartOptions, type ReportPart } from "../report/testSummaryPdf";
+import { ReportSectionPicker } from "./ReportSectionPicker";
 
 function fmtSize(bytes: number): string {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -37,7 +40,8 @@ interface Props {
   colleagueName?: string | null;
   onMarkComplete: () => void;
   onResync: () => void;
-  onDownloadReport: () => void;
+  /** Download the report — the full report, or `only` those sections of it. */
+  onDownloadReport: (only?: ReportPart[]) => void;
   /** Attach the pulsation analyser's PDF (validated PDF-only by the caller too). */
   onAttachPdf: (file: File) => void;
   onRemovePdf: () => void;
@@ -62,9 +66,16 @@ export function ReviewSignOffStep({
 }: Props) {
   const [attested, setAttested] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // The sections of the download in progress (none: the full report), for the busy message.
+  const [printing, setPrinting] = useState<ReportPart[] | undefined>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const summary = aggregate(buildFaultInputs(test));
   const isComplete = Boolean(test.markedCompleteAt);
+  const partOptions = useMemo(() => (isComplete ? reportPartOptions(test) : []), [test, isComplete]);
+  const download = (only?: ReportPart[]) => {
+    setPrinting(only);
+    onDownloadReport(only);
+  };
   const reviewable = steps.filter((s) => s.step !== "ReviewSignOff");
   // Before sign-off the picker shows what will be recorded (the default until the tester picks);
   // after it, the recorded date, read-only. An amendment can't change it at all: the date belongs
@@ -204,9 +215,10 @@ export function ReviewSignOffStep({
               )}
             </p>
             <div class="form-actions">
-              <button class="btn" disabled={generating} onClick={onDownloadReport}>
+              <button class="btn" disabled={generating} onClick={() => download()}>
                 {generating ? "Generating…" : "Download report (PDF)"}
               </button>
+              <ReportSectionPicker options={partOptions} disabled={generating} onDownload={download} />
               {!isServerView && (
                 <button class="btn btn--secondary" disabled={syncing} onClick={onResync}>
                   {syncing ? "Syncing…" : "Sync again"}
@@ -234,7 +246,7 @@ export function ReviewSignOffStep({
       {generating && (
         <div class="busy-overlay" role="status">
           <span class="spinner" aria-hidden="true" />
-          {test.pulsationPdf ? "Merging PDFs…" : "Generating report…"}
+          {test.pulsationPdf && (!printing || printing.includes("analyser")) ? "Merging PDFs…" : "Generating report…"}
         </div>
       )}
     </div>

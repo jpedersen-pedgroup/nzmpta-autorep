@@ -1,6 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { ANNUAL_TEST_NOTE, COMPLIANCE_DISCLAIMER, SEVERITY_MEANING, brandingForTest, copyrightNotice, buildTestSummaryDoc, reportDateStamp } from "./testSummaryPdf";
+import {
+  ANNUAL_TEST_NOTE,
+  COMPLIANCE_DISCLAIMER,
+  REPORT_PARTS,
+  SEVERITY_MEANING,
+  brandingForTest,
+  copyrightNotice,
+  buildTestSummaryDoc,
+  reportDateStamp,
+  reportFileName,
+  reportPartOptions,
+  type ReportPart,
+} from "./testSummaryPdf";
 import { defaultMachineConfiguration } from "../wizard/types";
+import { allReadingSections } from "../passfail/standards";
 import type { LocalTest } from "../db/testStore";
 
 function sampleTest(): LocalTest {
@@ -88,7 +101,7 @@ describe("buildTestSummaryDoc", () => {
     expect(json).toContain("Milking Machine Test Summary");
     expect(json).toContain("Sunny Acres");
     expect(json).toContain("Fault summary");
-    expect(json).toContain("Numerical test results");
+    expect(json).toContain("Vacuum tests (ISO 1–9)");
     expect(json).toContain("Pulsator results");
   });
 
@@ -272,7 +285,7 @@ describe("buildTestSummaryDoc", () => {
     expect(json).toContain("VSD settings adjusted");
     // The comments follow the fault table, ahead of the numbers.
     expect(json.indexOf("General comments")).toBeGreaterThan(json.indexOf("Fault summary"));
-    expect(json.indexOf("General comments")).toBeLessThan(json.indexOf("Numerical test results"));
+    expect(json.indexOf("General comments")).toBeLessThan(json.indexOf("Vacuum tests"));
 
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("General comments");
   });
@@ -326,7 +339,7 @@ describe("buildTestSummaryDoc — layout", () => {
     for (const pageOne of ["Sunny Acres", "Fault summary", "Oil Wicks Dirty", "General comments"]) {
       expect(nodeIndex(doc, pageOne)).toBeLessThan(config);
     }
-    for (const later of ["Numerical test results", "Pulsator results", "Visual checks"]) {
+    for (const later of ["Vacuum tests", "Pulsator results", "Visual checks"]) {
       expect(nodeIndex(doc, later)).toBeGreaterThan(config);
     }
   });
@@ -564,5 +577,135 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(at(1, 0.5)).toBe(false);
     expect(at(2, 0.95)).toBe(true);
     expect(at(2, 0.88)).toBe(false);
+  });
+
+  it("prints every entered reading in the full report, under its test family", () => {
+    const t = sampleTest();
+    t.config = { ...t.config, vsdFitted: true, hasAcr: true, hasMilkMeters: true, hasTeatSprayer: true, hasBailGates: true, hasReleaserPump: true };
+    const sections = allReadingSections(t.config);
+    t.readings = Object.fromEntries(sections.map((s) => [s.readings[0].key, 1]));
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    for (const s of sections) expect(json).toContain(s.title);
+    // Families in flowchart order, each under its own heading.
+    const families = ["Vacuum tests (ISO 1–9)", "Airflow tests (ISO 10–12)", "Individual cluster tests (ISO 13)", "Pulsation & ancillary (ISO 14–15)", "Additional tests"];
+    const at = families.map((f) => json.indexOf(f));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+  });
+});
+
+describe("printing some of the report", () => {
+  const size = { width: 595.28, height: 841.89 };
+  const only = (t: LocalTest, parts: ReportPart[]) => buildTestSummaryDoc(t, undefined, undefined, undefined, parts);
+  const nodes = (doc: ReturnType<typeof buildTestSummaryDoc>) => doc.content as { pageBreak?: string }[];
+
+  it("offers the sections this test has something in, in report order", () => {
+    const t = sampleTest();
+    // ISO 1–9 readings, one pulsator row, the visual checks and the sign-off attestation — no
+    // airflow, cluster or additional readings, no attachment, no amendments.
+    expect(reportPartOptions(t).map((o) => o.part)).toEqual(["summary", "machine", "vacuum", "pulsation", "visual", "audit"]);
+
+    t.readings = { ...t.readings, "add.airflowVacuumSystem": 900, "add.regulatorLoad": 1 };
+    t.clusterRows = [{ id: "c1", unit: "4", values: { totalAirAdmission: "14" } }];
+    t.pulsationPdf = { name: "analyser-export.pdf", base64: "JVBERi0=", size: 1234, attachedAt: t.updatedAt };
+    t.amendments = [{ version: 2, amendedAt: "2026-07-06T00:00:00.000Z", baseVersion: 1, changes: [] }];
+    const options = reportPartOptions(t);
+    expect(options.map((o) => o.part)).toEqual([...REPORT_PARTS]);
+    expect(options.find((o) => o.part === "analyser")?.hint).toContain("analyser-export.pdf");
+    expect(options.find((o) => o.part === "audit")?.label).toBe("Attestations & amendment history");
+    expect(options.find((o) => o.part === "pulsation")?.label).toBe("Pulsation & ancillary (ISO 14–15)");
+
+    // A migrated test's report has no visual checks, so neither does its picker.
+    const migrated = { ...sampleTest(), recordedRecommendations: [], recordedVisualFaults: [], readonly: true };
+    expect(reportPartOptions(migrated).map((o) => o.part)).not.toContain("visual");
+  });
+
+  it("prints only the chosen sections, in report order, the working from page two", () => {
+    const doc = only(sampleTest(), ["visual", "summary"]);
+    const json = JSON.stringify(doc.content);
+    expect(json).toContain("Fault summary");
+    expect(json).toContain("Visual checks");
+    for (const left of ["Machine configuration", "Vacuum tests", "Pulsator results", "Attestations"]) {
+      expect(json).not.toContain(left);
+    }
+    const visual = nodes(doc).findIndex((n) => JSON.stringify(n).includes("Visual checks"));
+    expect(nodes(doc)[visual].pageBreak).toBe("before");
+    expect(nodes(doc).filter((n) => n.pageBreak)).toHaveLength(1);
+    expect(json.indexOf("Fault summary")).toBeLessThan(json.indexOf("Visual checks"));
+  });
+
+  it("opens with the first chosen section under the running header when the summary is left out", () => {
+    const doc = only(sampleTest(), ["pulsation", "machine"]);
+    expect(JSON.stringify(nodes(doc)[0])).toContain("Machine configuration");
+    expect(nodes(doc).some((n) => n.pageBreak)).toBe(false);
+    expect(JSON.stringify(doc.content)).not.toContain("NEXT TEST DUE");
+    // Page one names the farm in the running header, and is laid out as a working page.
+    const header = doc.header as (page: number, pages: number, size: unknown) => unknown;
+    expect(JSON.stringify(header(1, 2, size))).toContain("Sunny Acres");
+    const background = doc.background as (page: number, size: object) => unknown[];
+    expect(background(1, size)).toHaveLength(1); // the disclaimer alone: no letterhead swirl
+    const footer = doc.footer as (page: number, pages: number) => unknown;
+    expect(JSON.stringify(footer(1, 2))).toContain("<svg"); // the working pages' tapered rule…
+    const summaryFooter = buildTestSummaryDoc(sampleTest()).footer as typeof footer;
+    expect(JSON.stringify(summaryFooter(1, 2))).not.toContain("<svg"); // …where the summary page has none
+  });
+
+  it("keeps the compliance disclaimer on page one of every print", () => {
+    for (const parts of [["summary"], ["visual"], ["audit"], ["pulsation", "additional"]] as ReportPart[][]) {
+      const background = only(sampleTest(), parts).background as (page: number, size: object) => unknown;
+      expect(JSON.stringify(background(1, size))).toContain("COMPLIANCE DISCLAIMER");
+      expect(JSON.stringify(background(2, size))).not.toContain("COMPLIANCE DISCLAIMER");
+    }
+  });
+
+  it("doesn't leave page one blank when the amendment history prints first", () => {
+    const t = sampleTest();
+    t.attestations = [];
+    t.amendments = [{ version: 2, amendedAt: "2026-07-06T00:00:00.000Z", baseVersion: 1, changes: [] }];
+    const alone = nodes(only(t, ["audit"]));
+    expect(JSON.stringify(alone[0])).toContain("Amendment history");
+    expect(alone[0].pageBreak).toBeUndefined();
+    // With the rest of the report it still starts a page of its own.
+    const full = nodes(buildTestSummaryDoc(t));
+    expect(full.find((n) => JSON.stringify(n).includes("Amendment history"))?.pageBreak).toBe("before");
+  });
+
+  it("prints each family's per-unit table with its own readings", () => {
+    const t = sampleTest();
+    t.readings = { ...t.readings, "puls.airlineStability": 3 };
+    t.clusterRows = [{ id: "c1", unit: "4", values: { totalAirAdmission: "14" } }];
+    const pulsation = JSON.stringify(only(t, ["pulsation"]).content);
+    expect(pulsation).toContain("Pulsator results");
+    expect(pulsation).toContain("Pulsator airline stability");
+    expect(pulsation).not.toContain("Cluster results");
+    const cluster = JSON.stringify(only(t, ["cluster"]).content);
+    expect(cluster).toContain("Cluster results");
+    expect(cluster).not.toContain("Pulsator results");
+  });
+
+  it("leaves the analyser note off when the analyser report isn't printed", () => {
+    const t = sampleTest();
+    t.pulsationPdf = { name: "analyser-export.pdf", base64: "JVBERi0=", size: 1234, attachedAt: t.updatedAt };
+    expect(JSON.stringify(only(t, ["summary", "visual"]).content)).not.toContain("analyser-export.pdf");
+    expect(JSON.stringify(only(t, ["summary", "analyser"]).content)).toContain("appended to this document");
+  });
+
+  it("prints the summary rather than a blank document when nothing printable was chosen", () => {
+    for (const parts of [[], ["airflow"]] as ReportPart[][]) {
+      const json = JSON.stringify(only(sampleTest(), parts).content);
+      expect(json).toContain("Fault summary");
+      expect(json).not.toContain("Machine configuration");
+    }
+  });
+});
+
+describe("reportFileName", () => {
+  it("marks a print of only some sections, so it can't pass for the full report", () => {
+    const t = sampleTest();
+    t.markedCompleteAt = "2026-09-14T20:41:48.000Z";
+    expect(reportFileName(t)).toBe("Test Summary - Sunny Acres - 2026-09-15.pdf");
+    expect(reportFileName(t, ["summary"])).toBe("Test Summary - Sunny Acres - 2026-09-15 - selected sections.pdf");
+    // Every section the test has, chosen one by one, is the full report.
+    expect(reportFileName(t, reportPartOptions(t).map((o) => o.part))).toBe("Test Summary - Sunny Acres - 2026-09-15.pdf");
   });
 });
