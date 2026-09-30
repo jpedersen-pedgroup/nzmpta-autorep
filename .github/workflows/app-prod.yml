@@ -37,19 +37,45 @@ jobs:
             exit 1
           fi
 
+  # Mirrors build-test in app.yml. wwwroot/js/dist is git-ignored and no MSBuild target runs npm,
+  # so the client has to be bundled here or dotnet publish ships without the PWA's JavaScript.
   build:
     name: Build + test
     needs: guard
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: main
 
+      - name: Record commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/Autorep.Web/package-lock.json
+
+      - name: Install client deps
+        run: npm ci
+        working-directory: src/Autorep.Web
+
+      - name: Client typecheck + tests + bundle
+        run: |
+          npm run typecheck
+          npm test
+          npm run build:prod
+        working-directory: src/Autorep.Web
 
       - name: Restore
         run: dotnet restore Autorep.sln
@@ -57,8 +83,43 @@ jobs:
       - name: Build
         run: dotnet build Autorep.sln --no-restore --configuration Release
 
-      - name: Test
-        run: dotnet test Autorep.sln --no-build --configuration Release --verbosity normal
+      - name: Test (unit + integration)
+        run: >
+          dotnet test Autorep.sln --no-build --configuration Release
+          --filter "Category!=E2E"
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ${{ github.workspace }}/TestResults
+
+      - name: Publish test results to job summary
+        if: always()
+        shell: pwsh
+        run: |
+          $trx = Get-ChildItem "${{ github.workspace }}/TestResults" -Filter *.trx -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $trx) { "No test results (.trx) found." | Out-File $env:GITHUB_STEP_SUMMARY -Append; exit 0 }
+          [xml]$doc = Get-Content $trx.FullName
+          $c = $doc.TestRun.ResultSummary.Counters
+          $total = [int]$c.total; $passed = [int]$c.passed; $failed = [int]$c.failed
+          $icon = if ($failed -eq 0) { "✅" } else { "❌" }
+          $lines = @()
+          $lines += "## $icon Test results: $passed/$total passed"
+          $lines += ""
+          $lines += "Finished $($doc.TestRun.Times.finish) - commit ${{ steps.commit.outputs.sha }}"
+          $lines += ""
+          $lines += "| Test | Result |"
+          $lines += "|---|---|"
+          foreach ($r in $doc.TestRun.Results.UnitTestResult) {
+            $mark = switch ($r.outcome) { "Passed" { "✅ Pass" } "Failed" { "❌ Fail" } default { "$($r.outcome)" } }
+            $lines += "| $($r.testName) | $mark |"
+          }
+          $lines | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload test results (TRX)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-prod
+          path: ${{ github.workspace }}/TestResults/**/*.trx
+          retention-days: 90
 
       - name: Publish
         run: dotnet publish src/Autorep.Web/Autorep.Web.csproj --no-build --configuration Release --output ./publish
@@ -70,9 +131,69 @@ jobs:
           path: ./publish
           retention-days: 30
 
+  # app.yml's e2e job, but run after build against the commit build recorded, so the browser
+  # tests cover exactly what deploy ships even if main moves while this workflow is running.
+  e2e:
+    name: E2E (Playwright)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build test project
+        run: dotnet build tests/Autorep.Web.Tests/Autorep.Web.Tests.csproj --configuration Release
+
+      - name: Install Playwright browsers
+        run: pwsh tests/Autorep.Web.Tests/bin/Release/net9.0/playwright.ps1 install --with-deps chromium
+
+      - name: Run E2E tests
+        run: >
+          dotnet test tests/Autorep.Web.Tests/Autorep.Web.Tests.csproj --no-build --configuration Release
+          --filter "Category=E2E"
+          --logger "trx;LogFileName=e2e-results.trx"
+          --results-directory ${{ github.workspace }}/TestResults
+
+      - name: Publish E2E results to job summary
+        if: always()
+        shell: pwsh
+        run: |
+          $trx = Get-ChildItem "${{ github.workspace }}/TestResults" -Filter *.trx -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $trx) { "No E2E results (.trx) found." | Out-File $env:GITHUB_STEP_SUMMARY -Append; exit 0 }
+          [xml]$doc = Get-Content $trx.FullName
+          $c = $doc.TestRun.ResultSummary.Counters
+          $total = [int]$c.total; $passed = [int]$c.passed; $failed = [int]$c.failed
+          $icon = if ($failed -eq 0) { "✅" } else { "❌" }
+          $lines = @()
+          $lines += "## $icon E2E (Playwright): $passed/$total passed"
+          $lines += ""
+          $lines += "Finished $($doc.TestRun.Times.finish) - commit ${{ needs.build.outputs.sha }}"
+          $lines += ""
+          $lines += "| Test | Result |"
+          $lines += "|---|---|"
+          foreach ($r in $doc.TestRun.Results.UnitTestResult) {
+            $mark = switch ($r.outcome) { "Passed" { "✅ Pass" } "Failed" { "❌ Fail" } default { "$($r.outcome)" } }
+            $lines += "| $($r.testName) | $mark |"
+          }
+          $lines | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload E2E results (TRX)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-prod
+          path: ${{ github.workspace }}/TestResults/**/*.trx
+          retention-days: 90
+
   deploy:
     name: Deploy to prod
-    needs: build
+    needs: [build, e2e]
     runs-on: ubuntu-latest
     environment: prod   # second gate — reviewers approve again before deploy
     steps:
