@@ -1067,7 +1067,52 @@ main {
 .signoff-actions { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
 .signoff-actions .form-check { margin-bottom: 0; }
 .signoff-complete { padding: var(--space-3); background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-sm); }
-.signoff-complete .form-actions { margin-top: var(--space-3); padding-top: 0; border-top: none; }
+.signoff-complete .form-actions { margin-top: var(--space-3); padding-top: 0; border-top: none; flex-wrap: wrap; }
+
+/* "Choose sections…" — the layout cog's pop-out, holding a checklist of the report's sections. */
+.report-picker { position: relative; display: inline-flex; }
+.report-picker__popup {
+  width: min(360px, calc(100vw - 2rem));
+  max-height: calc(100vh - 1rem);
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+.report-picker__head { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-3); }
+.report-picker__heading {
+  flex: 1;
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-subtle);
+}
+.report-picker__quick {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  padding: 0.2rem 0.45rem;
+  color: var(--brand);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.report-picker__quick:hover, .report-picker__quick:focus-visible { background: var(--surface-alt); }
+.report-picker__option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.report-picker__option:hover { background: var(--surface-alt); }
+.report-picker__option input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--brand); cursor: pointer; }
+.report-picker__name { display: block; font-size: 0.9375rem; }
+.report-picker__hint { display: block; font-size: 0.8125rem; color: var(--text-muted); }
+.report-picker__foot { margin-top: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-2); border-top: 1px solid var(--border); }
+.report-picker__note { margin: 0 0 var(--space-3); font-size: 0.75rem; color: var(--text-muted); }
 
 /* Confirm-ready action (sign-off attested) */
 .btn--success { background: var(--success); border-color: var(--success); }

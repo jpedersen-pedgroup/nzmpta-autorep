@@ -510,9 +510,9 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     persistEdit: (patch) => void persistEdit(patch),
     onMarkComplete: () => void markComplete(),
     onResync: () => void runSync("Re-synced"),
-    onDownloadReport: () => {
+    onDownloadReport: (only) => {
       setGenerating(true);
-      void downloadTestSummaryPdf(test, serverBranding, serverTester)
+      void downloadTestSummaryPdf(test, serverBranding, serverTester, only)
         .catch((e) =>
           // A missing generator chunk is recoverable and the tester can act on it — don't bury it
           // under the generic message.

@@ -21,6 +21,7 @@ import { additionalTestSections, airflowSections, testRecordSections } from "../
 import { preStartSections, runningSectionsFor, type ChecklistSection } from "./visualChecklist";
 import { runningSectionKeys } from "./wizardProgress";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
+import type { ReportPart } from "../report/testSummaryPdf";
 
 /** Everything a step body needs from the wizard. Built once by WizardApp and handed to whichever
  * shell is active. */
@@ -45,7 +46,8 @@ export interface StepContext {
   persistEdit(patch: Partial<LocalTest>): void;
   onMarkComplete(): void;
   onResync(): void;
-  onDownloadReport(): void;
+  /** The full report, or `only` those sections of it. */
+  onDownloadReport(only?: ReportPart[]): void;
   onAttachPdf(file: File): void;
   onRemovePdf(): void;
   /** The tester's choice of next test date on the sign-off step; null returns to the default. */
@@ -193,7 +195,7 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
           colleagueName={ctx.colleagueName}
           onMarkComplete={() => ctx.onMarkComplete()}
           onResync={() => ctx.onResync()}
-          onDownloadReport={() => ctx.onDownloadReport()}
+          onDownloadReport={(only) => ctx.onDownloadReport(only)}
           onAttachPdf={(file) => ctx.onAttachPdf(file)}
           onRemovePdf={() => ctx.onRemovePdf()}
           onNextTestDateChange={(date) => ctx.onNextTestDateChange(date)}

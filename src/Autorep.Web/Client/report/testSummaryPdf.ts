@@ -3,15 +3,26 @@
 //
 // Layout (tester feedback F19): page one is what the farmer acts on — the MPNZ letterhead, farm
 // and test details, the fault summary with its recommendations, and the tester's comments. The
-// working (configuration, numbers, per-unit tables, visual checks) starts on page two under a
-// compact running header, and the amendment history closes the document as its own page.
+// working (configuration, then each family of tests with its per-unit table, visual checks) starts
+// on page two under a compact running header — straight after the summary, when that runs over
+// onto page two itself — and the amendment history closes the document as its own page.
+//
+// Each of those is a part the tester can print on its own (see REPORT_PARTS) — the legacy app
+// printed its seven reports one by one, and a tester still often wants only some of them.
 import type { Content, CustomTableLayout, TDocumentDefinitions, TableCell } from "pdfmake/interfaces";
 import type { LocalTest, TesterDetails } from "../db/testStore";
 import type { FaultSeverity } from "../wizard/types";
 import { loadPdfLib, loadPdfMake } from "./generatorChunks";
 import { aggregate } from "../faults/faultAggregator";
 import { buildFaultInputs } from "../faults/buildFaults";
-import { allReadingSections } from "../passfail/standards";
+import {
+  additionalTestSections,
+  airflowSections,
+  individualClusterSections,
+  pulsatorSections,
+  testRecordSections,
+  type ReadingSection,
+} from "../passfail/standards";
 import { evaluate, type PassFailRule } from "../passfail/passFail";
 import { preStartSections, runningSectionsFor } from "../wizard/visualChecklist";
 import { resolveWizard } from "../wizard/wizardStepResolver";
@@ -58,9 +69,50 @@ export const COMPLIANCE_DISCLAIMER =
 export const ANNUAL_TEST_NOTE =
   "Milking machines should be fully tested at least once a year by an NZMPTA Registered Milking Machine Tester.";
 
+/** What the general comments box says when the tester left none. */
+export const NO_GENERAL_COMMENTS = "No general comments were recorded for this test.";
+
 /** The copyright line, for the year the report is generated (a New Zealand year). */
 export function copyrightNotice(year: number): string {
   return `© ${year} New Zealand Milking and Pumping Trade Association. All rights reserved.`;
+}
+
+/** The parts of the report, in print order. The full report is every part that has something in
+ * it; the sign-off step's section picker prints any selection of them. The legacy app's seven
+ * reports are all here — the numbers split by wizard step, as the rebuilt wizard captures them —
+ * plus the audit trail and the attached analyser report, whose pages go on the end. */
+export const REPORT_PARTS = [
+  "summary",
+  "machine",
+  "vacuum",
+  "airflow",
+  "cluster",
+  "pulsation",
+  "additional",
+  "visual",
+  "analyser",
+  "audit",
+] as const;
+export type ReportPart = (typeof REPORT_PARTS)[number];
+
+/** Each working part's heading on the report, which the section picker calls it too. The test
+ * families carry their wizard steps' names. */
+const PART_HEADINGS = {
+  machine: "Machine configuration",
+  vacuum: "Vacuum tests (ISO 1–9)",
+  airflow: "Airflow tests (ISO 10–12)",
+  cluster: "Individual cluster tests (ISO 13)",
+  pulsation: "Pulsation & ancillary (ISO 14–15)",
+  additional: "Additional tests",
+  visual: "Visual checks",
+} as const satisfies Partial<Record<ReportPart, string>>;
+
+/** A part as the section picker lists it. */
+export interface ReportPartOption {
+  part: ReportPart;
+  label: string;
+  /** A second line, where the name alone doesn't say what prints. */
+  hint?: string;
 }
 
 const SEVERITY_STYLE: Record<FaultSeverity, { ink: string; fill: string }> = {
@@ -177,7 +229,7 @@ function motorText(v?: string | null): string {
 
 /** A section heading: brand-blue title over a short dark bar that runs into a light rule.
  * headlineLevel lets pageBreakBefore keep it off the foot of a page. */
-function sectionHeader(text: string, pageBreak = false): Content {
+function sectionHeader(text: string): Content {
   return {
     stack: [
       { text, fontSize: 12.5, bold: true, color: BRAND, headlineLevel: 1 },
@@ -189,8 +241,22 @@ function sectionHeader(text: string, pageBreak = false): Content {
       },
     ],
     margin: [0, 16, 0, 6],
-    ...(pageBreak ? { pageBreak: "before" } : {}),
   } as Content;
+}
+
+/** The node, starting a new page. */
+function startsPage(node: Content): Content {
+  return { ...(node as object), pageBreak: "before" } as Content;
+}
+
+/** Marks the heading the working starts at, after the summary. pageBreakBefore starts page two
+ * with it — unless the summary has already run onto page two (a long fault list, or comments that
+ * didn't fit), when it carries straight on under the summary instead of leaving that page all but
+ * empty. A static page break can't tell the two apart. */
+const WORKING_STARTS = "workingStarts";
+
+function startsWorking(node: Content): Content {
+  return { ...(node as object), id: WORKING_STARTS } as Content;
 }
 
 function subHeader(text: string): Content {
@@ -324,17 +390,39 @@ function severityCell(severity: FaultSeverity): TableCell {
   return { text: severity.toUpperCase(), fontSize: 7, bold: true, color: s.ink, fillColor: s.fill, alignment: "center", characterSpacing: 0.4 };
 }
 
-/** Builds the pdfmake document definition for the Test Summary. Pure — unit-testable.
- * `calibrationFallback` is the tester's live profile calibration, used only for a test that
- * hasn't been stamped yet (a report previewed before sign-off); a completed test always
- * reprints its own stamped snapshot. `branding` is the testing company shown beside the MPNZ
- * mark; without it the letterhead carries MPNZ alone. */
-export function buildTestSummaryDoc(
+/** The compliance disclaimer, boxed at the foot of page one of every report (migrated ones and
+ * partial prints included), in the band the bottom margin reserves for it above the footer — so
+ * it's always on page one, however long the fault list, and never collides with the content. */
+function disclaimerAt(pageHeight: number): Content {
+  const pad = 7;
+  return {
+    table: {
+      widths: [CONTENT_WIDTH - pad * 2 - 1.2],
+      body: [[{
+        text: [
+          { text: "COMPLIANCE DISCLAIMER   ", fontSize: 6, bold: true, color: MUTED, characterSpacing: 0.6 },
+          { text: COMPLIANCE_DISCLAIMER, fontSize: 6.8, color: INK },
+        ],
+        lineHeight: 1.1,
+      }]],
+    },
+    layout: {
+      hLineWidth: () => 0.6, vLineWidth: () => 0.6, hLineColor: () => RULE, vLineColor: () => RULE,
+      paddingLeft: () => pad, paddingRight: () => pad, paddingTop: () => 4, paddingBottom: () => 4,
+    },
+    absolutePosition: { x: MARGIN_X, y: pageHeight - MARGIN_BOTTOM + 4 },
+  } as Content;
+}
+
+/** Every part of the report for this test, each headed and ready to print. A part with nothing
+ * in it for this test — no airflow readings, say, or no analyser report attached — is empty. The
+ * arguments are buildTestSummaryDoc's. */
+function reportParts(
   test: LocalTest,
   calibrationFallback?: CalibrationDates,
   branding?: ReportBranding,
   testerFallback?: TesterDetails | null,
-): TDocumentDefinitions {
+): Record<ReportPart, Content[]> {
   const config = test.config;
   const summary = aggregate(buildFaultInputs(test));
   const version = test.version ?? 1;
@@ -354,7 +442,6 @@ export function buildTestSummaryDoc(
   // The MPNZ lockup on the left and the testing company's logo, when there is one, on the right;
   // the title sits under the swirl so the layout is the same with or without a company logo.
   const companyLogo = logoNode(branding?.companyLogo, [170, 56]);
-  const companyRaster = rasterLogo(branding?.companyLogo);
   const letterhead: Content = {
     columns: [
       { svg: LOGO_LOCKUP_SVG, width: 176 },
@@ -498,42 +585,18 @@ export function buildTestSummaryDoc(
       : [grid([52, 78, "*", "*"], faultRows), severityLegend()];
 
   // General comments sit under the fault table: what the tester wants the farmer to know that no
-  // fault line carries. Migrated tests print theirs inside recordedFaultBlock.
+  // fault line carries. The box prints on every report, migrated ones included, and says so when
+  // there are none: a missing box reads as though the comments had dropped off the report.
   const notes = test.notes?.trim();
-  const notesBlock: Content[] =
-    !isLegacy && notes
-      ? [
-          barPanel(
-            [
-              { text: "General comments", fontSize: 9.5, bold: true, color: BRAND, margin: [0, 0, 0, 3] },
-              { text: notes, fontSize: 9, color: INK, lineHeight: 1.2 },
-            ],
-            BRAND_LIGHT, PANEL, [0, 12, 0, 0],
-          ),
-        ]
-      : [];
-
-  // The disclaimer sits at the foot of page one on every report (migrated ones included), in the
-  // band the bottom margin reserves for it above the footer — so it's always on page one, however
-  // long the fault list, and never collides with the content.
-  const disclaimerPad = 7;
-  const disclaimerAt = (pageHeight: number): Content => ({
-    table: {
-      widths: [CONTENT_WIDTH - disclaimerPad * 2 - 1.2],
-      body: [[{
-        text: [
-          { text: "COMPLIANCE DISCLAIMER   ", fontSize: 6, bold: true, color: MUTED, characterSpacing: 0.6 },
-          { text: COMPLIANCE_DISCLAIMER, fontSize: 6.8, color: INK },
-        ],
-        lineHeight: 1.1,
-      }]],
-    },
-    layout: {
-      hLineWidth: () => 0.6, vLineWidth: () => 0.6, hLineColor: () => RULE, vLineColor: () => RULE,
-      paddingLeft: () => disclaimerPad, paddingRight: () => disclaimerPad, paddingTop: () => 4, paddingBottom: () => 4,
-    },
-    absolutePosition: { x: MARGIN_X, y: pageHeight - MARGIN_BOTTOM + 4 },
-  } as Content);
+  const notesBlock: Content = barPanel(
+    [
+      { text: "General comments", fontSize: 9.5, bold: true, color: BRAND, margin: [0, 0, 0, 3] },
+      notes
+        ? { text: notes, fontSize: 9, color: INK, lineHeight: 1.2 }
+        : { text: NO_GENERAL_COMMENTS, fontSize: 9, color: MUTED },
+    ],
+    BRAND_LIGHT, PANEL, [0, 12, 0, 0],
+  );
 
   // --- Machine configuration (page 2 onward) ----------------------------------------------------
   const flags: string[] = [];
@@ -608,31 +671,43 @@ export function buildTestSummaryDoc(
   if (releaserRows.length > 1) pumpBlock.push(grid(["auto", "*", "auto"], releaserRows, [0, 10, 0, 0]));
 
   // --- Numerical readings ----------------------------------------------------------------------
-  const readingBlocks: Content[] = [];
-  for (const sec of allReadingSections(config, test.readings)) {
-    const entered = sec.readings.filter((r) => test.readings[r.key] != null);
-    if (entered.length === 0) continue;
-    const body: TableCell[][] = [[th("Reading"), th("Value"), th("Standard"), th("Result")]];
-    for (const r of entered) {
-      const v = test.readings[r.key];
-      // As-recorded verdict for migrated tests; recompute for live ones.
-      const verdict = test.verdicts?.[r.key] ?? evaluate(v, r.rule);
-      const fill = verdict === "fail" ? FAIL_ROW : undefined;
-      body.push([
-        { text: r.label, fillColor: fill },
-        { text: `${v} ${r.unit}`, fillColor: fill },
-        { text: describeRule(r.rule, r.unit), color: MUTED, fillColor: fill },
-        verdict === "noStandard"
-          ? { text: "—", color: MUTED, fillColor: fill }
-          : { text: verdict.toUpperCase(), color: verdict === "pass" ? PASS : FAIL, bold: true, fontSize: 8, fillColor: fill },
-      ]);
+  // A table per ISO group with a reading entered, grouped by test family (the wizard's steps, in
+  // flowchart order — allReadingSections' order), so each family prints as a part of its own.
+  const readingBlocks = (sections: ReadingSection[]): Content[] => {
+    const out: Content[] = [];
+    for (const sec of sections) {
+      const entered = sec.readings.filter((r) => test.readings[r.key] != null);
+      if (entered.length === 0) continue;
+      const body: TableCell[][] = [[th("Reading"), th("Value"), th("Standard"), th("Result")]];
+      for (const r of entered) {
+        const v = test.readings[r.key];
+        // As-recorded verdict for migrated tests; recompute for live ones.
+        const verdict = test.verdicts?.[r.key] ?? evaluate(v, r.rule);
+        const fill = verdict === "fail" ? FAIL_ROW : undefined;
+        body.push([
+          { text: r.label, fillColor: fill },
+          { text: `${v} ${r.unit}`, fillColor: fill },
+          { text: describeRule(r.rule, r.unit), color: MUTED, fillColor: fill },
+          verdict === "noStandard"
+            ? { text: "—", color: MUTED, fillColor: fill }
+            : { text: verdict.toUpperCase(), color: verdict === "pass" ? PASS : FAIL, bold: true, fontSize: 8, fillColor: fill },
+        ]);
+      }
+      out.push(subHeader(sec.title));
+      out.push(grid(["*", 70, 80, 44], body));
     }
-    readingBlocks.push(subHeader(sec.title));
-    readingBlocks.push(grid(["*", 70, 80, 44], body));
-  }
+    return out;
+  };
+  const vacuumReadings = readingBlocks(testRecordSections(config, test.readings));
+  const airflowReadings = readingBlocks(airflowSections(config, test.readings));
+  const clusterReadings = readingBlocks(individualClusterSections(config));
+  const pulsationReadings = readingBlocks(pulsatorSections(config, test.readings));
+  const additionalReadings = readingBlocks(additionalTestSections(config, test.readings));
 
   // --- Per-unit rows ---------------------------------------------------------------------------
-  const unitBlocks: Content[] = [];
+  // Each table prints with its family's readings: the pulsators under pulsation, the clusters
+  // under the individual cluster tests.
+  const pulsatorTable: Content[] = [];
   const pulsatorRows = recordedRows(test.pulsatorRows);
   if (pulsatorRows.length) {
     const s = pulsatorSummary(pulsatorRows, test.config.pulsatorModel);
@@ -645,8 +720,8 @@ export function buildTestSummaryDoc(
     ];
     // Neutral on the report: tests captured before "Enter all" was removed can carry a row for
     // every unit, and those were never all faulty.
-    unitBlocks.push(sectionHeader("Pulsator results"));
-    unitBlocks.push(grid(["*", "*", "*", "*", "*", "*", "*", "*"], body));
+    pulsatorTable.push(subHeader("Pulsator results"));
+    pulsatorTable.push(grid(["*", "*", "*", "*", "*", "*", "*", "*"], body));
     // The rate/ratio spread is judged on the analyser's machine-level extremes and printed with
     // the numerical results; the recorded units are a subset, so only the model-band checks on
     // them are printed here.
@@ -661,8 +736,9 @@ export function buildTestSummaryDoc(
         text: s.ratioBandOk ? " PASS" : " FAIL", color: s.ratioBandOk ? PASS : FAIL, bold: true,
       });
     }
-    if (bandParts.length) unitBlocks.push({ text: bandParts, fontSize: 9, color: INK, margin: [0, 5, 0, 0] });
+    if (bandParts.length) pulsatorTable.push({ text: bandParts, fontSize: 9, color: INK, margin: [0, 5, 0, 0] });
   }
+  const clusterTable: Content[] = [];
   const clusterRows = recordedRows(test.clusterRows);
   if (clusterRows.length) {
     const body: TableCell[][] = [
@@ -672,8 +748,8 @@ export function buildTestSummaryDoc(
         ...["totalAirAdmission", "leakage", "airVent"].map((key) => r.values[key] ?? ""),
       ]),
     ];
-    unitBlocks.push(sectionHeader("Individual cluster tests"));
-    unitBlocks.push(grid([70, "*", "*", "*"], body));
+    clusterTable.push(subHeader("Cluster results"));
+    clusterTable.push(grid([70, "*", "*", "*"], body));
   }
 
   // --- Visual checks ---------------------------------------------------------------------------
@@ -742,6 +818,102 @@ export function buildTestSummaryDoc(
       ]
     : [];
 
+  const section = (part: keyof typeof PART_HEADINGS, blocks: Content[]): Content[] =>
+    blocks.length > 0 ? [sectionHeader(PART_HEADINGS[part]), ...blocks] : [];
+
+  return {
+    // Page one: what the farmer acts on.
+    summary: [
+      letterhead,
+      titleLine,
+      detailsBlock,
+      ...resultBanner,
+      // A clean machine says so in the banner; an empty heading under it would read as missing.
+      ...(faultBlock.length > 0 ? [sectionHeader("Fault summary & recommendations"), ...faultBlock] : []),
+      notesBlock,
+    ],
+    // The working.
+    machine: section("machine", [configBlock, ...pumpBlock]),
+    // ISO 1–9 are the core of every test, so this part always prints — if only to say that
+    // nothing was entered.
+    vacuum: section("vacuum", vacuumReadings.length > 0 ? vacuumReadings : [{ text: "No readings entered.", fontSize: 9, color: MUTED }]),
+    airflow: section("airflow", airflowReadings),
+    cluster: section("cluster", [...clusterReadings, ...clusterTable]),
+    pulsation: section("pulsation", [...pulsationReadings, ...pulsatorTable]),
+    additional: section("additional", additionalReadings),
+    // Migrated tests show their recorded faults in the Fault Summary; the recomputed visual-checks
+    // section (driven by the empty visualFaults map) is omitted for them.
+    visual: isLegacy ? [] : section("visual", visualBlock),
+    analyser: attachmentBlock,
+    audit: [...(attestRows.length > 0 ? [sectionHeader("Attestations"), ...attestRows] : []), ...amendmentBlock],
+  };
+}
+
+/** The parts this test has something to print in, in report order, as the sign-off step's
+ * section picker lists them. The summary, machine configuration and vacuum tests always print;
+ * the rest only when there's something in them. */
+export function reportPartOptions(test: LocalTest): ReportPartOption[] {
+  const parts = reportParts(test);
+  return REPORT_PARTS.filter((p) => parts[p].length > 0).map((part): ReportPartOption => {
+    switch (part) {
+      case "summary":
+        return { part, label: "Test summary", hint: "Page one: farm and test details, faults, recommendations and comments" };
+      case "analyser":
+        return { part, label: "Pulsation analyser report", hint: `${test.pulsationPdf?.name ?? "The attached PDF"}, added at the end` };
+      case "audit": {
+        const amended = (test.amendments?.length ?? 0) > 0;
+        const attested = test.attestations.length > 0;
+        return { part, label: amended ? (attested ? "Attestations & amendment history" : "Amendment history") : "Attestations" };
+      }
+      default:
+        return { part, label: PART_HEADINGS[part] };
+    }
+  });
+}
+
+/** The parts a print holds, in report order: those chosen that have something in them, or every
+ * part that does when there was no choice. A choice with nothing printable in it gets the summary
+ * rather than a blank document. */
+function partsToPrint(parts: Record<ReportPart, Content[]>, only?: readonly ReportPart[]): ReportPart[] {
+  const printed = REPORT_PARTS.filter((p) => parts[p].length > 0 && (!only || only.includes(p)));
+  return printed.length > 0 ? printed : ["summary"];
+}
+
+/** The node, as the first thing in the document. A part that starts its own page (the amendment
+ * history) would otherwise leave page one blank in front of it. */
+function opensDocument(node: Content): Content {
+  const { pageBreak, ...rest } = node as { pageBreak?: unknown };
+  return (pageBreak ? rest : node) as Content;
+}
+
+/** Builds the pdfmake document definition for the Test Summary. Pure — unit-testable.
+ * `calibrationFallback` is the tester's live profile calibration, used only for a test that
+ * hasn't been stamped yet (a report previewed before sign-off); a completed test always
+ * reprints its own stamped snapshot. `branding` is the testing company shown beside the MPNZ
+ * mark; without it the letterhead carries MPNZ alone. `only` prints just those parts (the
+ * sign-off step's section picker); without it, the full report. */
+export function buildTestSummaryDoc(
+  test: LocalTest,
+  calibrationFallback?: CalibrationDates,
+  branding?: ReportBranding,
+  testerFallback?: TesterDetails | null,
+  only?: readonly ReportPart[],
+): TDocumentDefinitions {
+  const parts = reportParts(test, calibrationFallback, branding, testerFallback);
+  const printed = partsToPrint(parts, only);
+  // With the summary, page one is the letterhead and the working starts on page two (see
+  // WORKING_STARTS). Without it, every page is a working page — running header, plain footer —
+  // and page one keeps the compliance disclaimer.
+  const withSummary = printed[0] === "summary";
+  const content: Content[] = [];
+  printed.forEach((part, i) => {
+    const [head, ...rest] = parts[part];
+    content.push(i === 0 ? opensDocument(head) : withSummary && i === 1 ? startsWorking(head) : head, ...rest);
+  });
+
+  const farm = test.farm;
+  const farmName = farm?.name ?? test.farmName ?? "—";
+  const companyRaster = rasterLogo(branding?.companyLogo);
   const generated = new Date().toLocaleString("en-NZ", { timeZone: NZ_TIME_ZONE });
 
   return {
@@ -750,22 +922,24 @@ export function buildTestSummaryDoc(
     info: { title: `Test Summary — ${farmName}` },
     defaultStyle: { color: INK },
     ...(companyRaster ? { images: { [COMPANY_LOGO_IMAGE]: companyRaster } } : {}),
-    // Page one carries the letterhead swirl and a flourish in the bottom corner; later pages
-    // are left plain so the tables read cleanly.
-    // Page one carries the letterhead swirl and a flourish in the bottom corner; later pages
-    // are left plain so the tables read cleanly.
+    // Page one carries the letterhead swirl and a flourish in the bottom corner, when it's the
+    // summary, and the disclaimer whatever it is; later pages are left plain so the tables read
+    // cleanly.
     background: (page, size) =>
-      page === 1
-        ? [
-            { svg: letterheadSwirlSvg(), width: PAGE_WIDTH, absolutePosition: { x: 0, y: SWIRL_TOP } },
-            { svg: footerSwirlSvg(), width: 220, absolutePosition: { x: size.width - 220, y: size.height - 60 } },
-            disclaimerAt(size.height),
-          ]
-        : null,
-    // Pages 2+: the MPNZ mark, the report and farm name, the company logo when there is one, and
-    // the lockup's tapered rule underneath. A fresh node per page: pdfmake lays out what it's given.
+      page !== 1
+        ? null
+        : withSummary
+          ? [
+              { svg: letterheadSwirlSvg(), width: PAGE_WIDTH, absolutePosition: { x: 0, y: SWIRL_TOP } },
+              { svg: footerSwirlSvg(), width: 220, absolutePosition: { x: size.width - 220, y: size.height - 60 } },
+              disclaimerAt(size.height),
+            ]
+          : [disclaimerAt(size.height)],
+    // Working pages: the MPNZ mark, the report and farm name, the company logo when there is one,
+    // and the lockup's tapered rule underneath. A fresh node per page: pdfmake lays out what it's
+    // given.
     header: (page) =>
-      page === 1
+      page === 1 && withSummary
         ? null
         : {
             margin: [MARGIN_X, 22, MARGIN_X, 0],
@@ -793,13 +967,13 @@ export function buildTestSummaryDoc(
             ],
           },
     // Every page: page number, copyright, the admin-managed privacy line and when it was generated.
-    // Page one keeps it all left of the corner flourish; later pages sit it under the lockup's
-    // tapered rule, matching the running header.
+    // The summary page keeps it all left of the corner flourish; working pages sit it under the
+    // lockup's tapered rule, matching the running header.
     footer: (page, pages) => {
       const privacyFooter = getPrivacyContent().reportFooterText;
       const copyright = copyrightNotice(Number(nzDate(new Date().toISOString()).slice(0, 4)));
       const privacy: Content[] = privacyFooter ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [0, 1, 0, 0] } as Content] : [];
-      if (page === 1) {
+      if (page === 1 && withSummary) {
         return {
           margin: [MARGIN_X, DISCLAIMER_BAND + 14, MARGIN_X + 175, 0],
           stack: [
@@ -828,35 +1002,15 @@ export function buildTestSummaryDoc(
         ],
       };
     },
-    // Keep a heading with what follows it: one that would land in the last stretch of a page
+    // The working starts page two unless the summary already reaches it (WORKING_STARTS). And
+    // keep a heading with what follows it: one that would land in the last stretch of a page
     // starts the next page instead (a "Visual checks" heading was stranded at a page foot).
     pageBreakBefore: (node) => {
+      if (node.id === WORKING_STARTS && node.startPosition?.pageNumber === 1) return true;
       const at = node.startPosition?.verticalRatio ?? 0;
       return (node.headlineLevel === 1 && at > 0.86) || (node.headlineLevel === 2 && at > 0.92);
     },
-    content: [
-      // ---- Page one: what the farmer acts on ----
-      letterhead,
-      titleLine,
-      detailsBlock,
-      ...resultBanner,
-      // A clean machine says so in the banner; an empty heading under it would read as missing.
-      ...(faultBlock.length > 0 ? [sectionHeader("Fault summary & recommendations"), ...faultBlock] : []),
-      ...notesBlock,
-      // ---- Page two onward: the working ----
-      sectionHeader("Machine configuration", true),
-      configBlock,
-      ...pumpBlock,
-      sectionHeader("Numerical test results"),
-      ...(readingBlocks.length > 0 ? readingBlocks : [{ text: "No readings entered.", fontSize: 9, color: MUTED } as Content]),
-      ...unitBlocks,
-      // Migrated tests show their recorded faults in the Fault Summary above; the recomputed
-      // visual-checks section (driven by the empty visualFaults map) is omitted for them.
-      ...(isLegacy ? [] : [sectionHeader("Visual checks"), ...visualBlock]),
-      ...attachmentBlock,
-      ...(attestRows.length > 0 ? [sectionHeader("Attestations"), ...attestRows] : []),
-      ...amendmentBlock,
-    ],
+    content,
   };
 }
 
@@ -867,7 +1021,7 @@ function buildAmendmentBlock(test: LocalTest): Content[] {
   if (amendments.length === 0) return [];
 
   const out: Content[] = [
-    { ...(sectionHeader("Amendment history") as object), pageBreak: "before" } as Content,
+    startsPage(sectionHeader("Amendment history")),
     {
       text: "This test has been amended since it was first completed. Each version below lists every recorded change against the version it replaced. Earlier versions remain on record.",
       fontSize: 9, color: MUTED, margin: [0, 0, 0, 6],
@@ -909,13 +1063,12 @@ function buildAmendmentBlock(test: LocalTest): Content[] {
   return out;
 }
 
-// Fault Summary block for a migrated test: recorded faults + section recommendations + comment,
-// exactly as recorded (no recompute).
+// Fault Summary block for a migrated test: recorded faults + section recommendations, exactly as
+// recorded (no recompute). Its comment prints in the general comments box, as a live test's does.
 function recordedFaultBlock(test: LocalTest): Content[] {
   const recs = test.recordedRecommendations ?? [];
   const faults = test.recordedVisualFaults ?? [];
-  const comment = test.notes?.trim();
-  if (faults.length === 0 && recs.length === 0 && !comment) {
+  if (faults.length === 0 && recs.length === 0) {
     return [{ text: "No faults or recommendations were recorded for this test.", color: PASS, fontSize: 10, margin: [0, 4, 0, 0] }];
   }
   const out: Content[] = [];
@@ -926,10 +1079,6 @@ function recordedFaultBlock(test: LocalTest): Content[] {
   for (const r of recs) {
     out.push(subHeader(r.label));
     out.push({ text: r.text, fontSize: 9 });
-  }
-  if (comment) {
-    out.push(subHeader("General comments"));
-    out.push({ text: comment, fontSize: 9 });
   }
   return out;
 }
@@ -942,6 +1091,14 @@ export function reportDateStamp(iso: string, timeZone: string = NZ_TIME_ZONE): s
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
   // en-CA is the locale whose numeric date form is yyyy-mm-dd.
   return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone }).format(d);
+}
+
+/** The report's file name: the farm and the day of sign-off, marked when only some of the
+ * sections were printed so a partial copy can't pass for the full report in someone's inbox. */
+export function reportFileName(test: LocalTest, only?: readonly ReportPart[]): string {
+  const farm = (test.farm?.name ?? test.farmName ?? "farm").replace(/[^\w\- ]+/g, "");
+  const partial = only != null && reportPartOptions(test).some((o) => !only.includes(o.part));
+  return `Test Summary - ${farm} - ${reportDateStamp(test.markedCompleteAt ?? test.updatedAt)}${partial ? " - selected sections" : ""}.pdf`;
 }
 
 function base64ToBytes(b64: string): Uint8Array {
@@ -998,19 +1155,19 @@ export function brandingForTest(test: LocalTest, current: CompanyBranding | null
  * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use.
  * `branding` and `testerFallback` are given by the read-only server view (the company the test
  * was done for, and the tester's name when the test carries no stamped details); on the tester's
- * own device both are resolved from what this device has cached. */
+ * own device both are resolved from what this device has cached. `only` prints just those parts
+ * of the report — the analyser's pages among them only when "analyser" is chosen. */
 export async function downloadTestSummaryPdf(
   test: LocalTest,
   branding?: ReportBranding,
   testerFallback?: TesterDetails | null,
+  only?: readonly ReportPart[],
 ): Promise<void> {
   const { pdfMake, vfs } = await loadPdfMake();
   // pdfmake 0.3.x: register the Roboto virtual file system.
   (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
 
-  const name = `Test Summary - ${(test.farm?.name ?? test.farmName ?? "farm").replace(/[^\w\- ]+/g, "")} - ${
-    reportDateStamp(test.markedCompleteAt ?? test.updatedAt)
-  }.pdf`;
+  const name = reportFileName(test, only);
   // A report previewed before sign-off has no stamped calibration yet — fall back to the
   // tester's current profile so the preview matches what sign-off will record.
   const calibration = test.markedCompleteAt ? undefined : await getCachedCalibration().catch(() => undefined);
@@ -1022,10 +1179,10 @@ export async function downloadTestSummaryPdf(
   const tester = test.testedBy
     ?? (testerFallback !== undefined ? testerFallback : await getCachedTesterDetails().catch(() => null));
   const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
-    buildTestSummaryDoc(test, calibration, letterhead, tester),
+    buildTestSummaryDoc(test, calibration, letterhead, tester, only),
   );
 
-  if (test.pulsationPdf) {
+  if (test.pulsationPdf && (!only || only.includes("analyser"))) {
     try {
       const { PDFDocument } = await loadPdfLib();
       const summaryDoc = await PDFDocument.load(await pdfBuffer(created));
