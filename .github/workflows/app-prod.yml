@@ -13,8 +13,9 @@ on:
         required: true
         default: ''
 
+# Read-only by default. Only the jobs that log in to Azure opt in to id-token: write, so no other
+# job — or the code and packages it runs — can mint an Azure token. See infra/CICD.md.
 permissions:
-  id-token: write
   contents: read
 
 concurrency:
@@ -196,6 +197,9 @@ jobs:
     needs: [build, e2e]
     runs-on: ubuntu-latest
     environment: prod   # second gate — reviewers approve again before deploy
+    permissions:
+      id-token: write   # required for federated OIDC
+      contents: read
     steps:
       - name: Download publish artifact
         uses: actions/download-artifact@v4
