@@ -4,8 +4,8 @@
 // Layout (tester feedback F19): page one is what the farmer acts on — the MPNZ letterhead, farm
 // and test details, the fault summary with its recommendations, and the tester's comments. The
 // working (configuration, then each family of tests with its per-unit table, visual checks) starts
-// on page two under a compact running header, and the amendment history closes the document as
-// its own page.
+// on page two under a compact running header — straight after the summary, when that runs over
+// onto page two itself — and the amendment history closes the document as its own page.
 //
 // Each of those is a part the tester can print on its own (see REPORT_PARTS) — the legacy app
 // printed its seven reports one by one, and a tester still often wants only some of them.
@@ -68,6 +68,9 @@ export const COMPLIANCE_DISCLAIMER =
 /** The reminder that sits under the next test date on page one. */
 export const ANNUAL_TEST_NOTE =
   "Milking machines should be fully tested at least once a year by an NZMPTA Registered Milking Machine Tester.";
+
+/** What the general comments box says when the tester left none. */
+export const NO_GENERAL_COMMENTS = "No general comments were recorded for this test.";
 
 /** The copyright line, for the year the report is generated (a New Zealand year). */
 export function copyrightNotice(year: number): string {
@@ -244,6 +247,16 @@ function sectionHeader(text: string): Content {
 /** The node, starting a new page. */
 function startsPage(node: Content): Content {
   return { ...(node as object), pageBreak: "before" } as Content;
+}
+
+/** Marks the heading the working starts at, after the summary. pageBreakBefore starts page two
+ * with it — unless the summary has already run onto page two (a long fault list, or comments that
+ * didn't fit), when it carries straight on under the summary instead of leaving that page all but
+ * empty. A static page break can't tell the two apart. */
+const WORKING_STARTS = "workingStarts";
+
+function startsWorking(node: Content): Content {
+  return { ...(node as object), id: WORKING_STARTS } as Content;
 }
 
 function subHeader(text: string): Content {
@@ -572,20 +585,18 @@ function reportParts(
       : [grid([52, 78, "*", "*"], faultRows), severityLegend()];
 
   // General comments sit under the fault table: what the tester wants the farmer to know that no
-  // fault line carries. Migrated tests print theirs inside recordedFaultBlock.
+  // fault line carries. The box prints on every report, migrated ones included, and says so when
+  // there are none: a missing box reads as though the comments had dropped off the report.
   const notes = test.notes?.trim();
-  const notesBlock: Content[] =
-    !isLegacy && notes
-      ? [
-          barPanel(
-            [
-              { text: "General comments", fontSize: 9.5, bold: true, color: BRAND, margin: [0, 0, 0, 3] },
-              { text: notes, fontSize: 9, color: INK, lineHeight: 1.2 },
-            ],
-            BRAND_LIGHT, PANEL, [0, 12, 0, 0],
-          ),
-        ]
-      : [];
+  const notesBlock: Content = barPanel(
+    [
+      { text: "General comments", fontSize: 9.5, bold: true, color: BRAND, margin: [0, 0, 0, 3] },
+      notes
+        ? { text: notes, fontSize: 9, color: INK, lineHeight: 1.2 }
+        : { text: NO_GENERAL_COMMENTS, fontSize: 9, color: MUTED },
+    ],
+    BRAND_LIGHT, PANEL, [0, 12, 0, 0],
+  );
 
   // --- Machine configuration (page 2 onward) ----------------------------------------------------
   const flags: string[] = [];
@@ -819,7 +830,7 @@ function reportParts(
       ...resultBanner,
       // A clean machine says so in the banner; an empty heading under it would read as missing.
       ...(faultBlock.length > 0 ? [sectionHeader("Fault summary & recommendations"), ...faultBlock] : []),
-      ...notesBlock,
+      notesBlock,
     ],
     // The working.
     machine: section("machine", [configBlock, ...pumpBlock]),
@@ -846,7 +857,7 @@ export function reportPartOptions(test: LocalTest): ReportPartOption[] {
   return REPORT_PARTS.filter((p) => parts[p].length > 0).map((part): ReportPartOption => {
     switch (part) {
       case "summary":
-        return { part, label: "Test summary", hint: "Page one: farm and test details, faults and recommendations" };
+        return { part, label: "Test summary", hint: "Page one: farm and test details, faults, recommendations and comments" };
       case "analyser":
         return { part, label: "Pulsation analyser report", hint: `${test.pulsationPdf?.name ?? "The attached PDF"}, added at the end` };
       case "audit": {
@@ -890,14 +901,14 @@ export function buildTestSummaryDoc(
 ): TDocumentDefinitions {
   const parts = reportParts(test, calibrationFallback, branding, testerFallback);
   const printed = partsToPrint(parts, only);
-  // With the summary, page one is the letterhead and the working starts on page two. Without it,
-  // every page is a working page — running header, plain footer — and page one keeps the
-  // compliance disclaimer.
+  // With the summary, page one is the letterhead and the working starts on page two (see
+  // WORKING_STARTS). Without it, every page is a working page — running header, plain footer —
+  // and page one keeps the compliance disclaimer.
   const withSummary = printed[0] === "summary";
   const content: Content[] = [];
   printed.forEach((part, i) => {
     const [head, ...rest] = parts[part];
-    content.push(i === 0 ? opensDocument(head) : withSummary && i === 1 ? startsPage(head) : head, ...rest);
+    content.push(i === 0 ? opensDocument(head) : withSummary && i === 1 ? startsWorking(head) : head, ...rest);
   });
 
   const farm = test.farm;
@@ -991,9 +1002,11 @@ export function buildTestSummaryDoc(
         ],
       };
     },
-    // Keep a heading with what follows it: one that would land in the last stretch of a page
+    // The working starts page two unless the summary already reaches it (WORKING_STARTS). And
+    // keep a heading with what follows it: one that would land in the last stretch of a page
     // starts the next page instead (a "Visual checks" heading was stranded at a page foot).
     pageBreakBefore: (node) => {
+      if (node.id === WORKING_STARTS && node.startPosition?.pageNumber === 1) return true;
       const at = node.startPosition?.verticalRatio ?? 0;
       return (node.headlineLevel === 1 && at > 0.86) || (node.headlineLevel === 2 && at > 0.92);
     },
@@ -1050,13 +1063,12 @@ function buildAmendmentBlock(test: LocalTest): Content[] {
   return out;
 }
 
-// Fault Summary block for a migrated test: recorded faults + section recommendations + comment,
-// exactly as recorded (no recompute).
+// Fault Summary block for a migrated test: recorded faults + section recommendations, exactly as
+// recorded (no recompute). Its comment prints in the general comments box, as a live test's does.
 function recordedFaultBlock(test: LocalTest): Content[] {
   const recs = test.recordedRecommendations ?? [];
   const faults = test.recordedVisualFaults ?? [];
-  const comment = test.notes?.trim();
-  if (faults.length === 0 && recs.length === 0 && !comment) {
+  if (faults.length === 0 && recs.length === 0) {
     return [{ text: "No faults or recommendations were recorded for this test.", color: PASS, fontSize: 10, margin: [0, 4, 0, 0] }];
   }
   const out: Content[] = [];
@@ -1067,10 +1079,6 @@ function recordedFaultBlock(test: LocalTest): Content[] {
   for (const r of recs) {
     out.push(subHeader(r.label));
     out.push({ text: r.text, fontSize: 9 });
-  }
-  if (comment) {
-    out.push(subHeader("General comments"));
-    out.push({ text: comment, fontSize: 9 });
   }
   return out;
 }

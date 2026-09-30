@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
+import type { TDocumentDefinitions } from "pdfmake/interfaces";
 import {
   ANNUAL_TEST_NOTE,
   COMPLIANCE_DISCLAIMER,
+  NO_GENERAL_COMMENTS,
   REPORT_PARTS,
   SEVERITY_MEANING,
   brandingForTest,
@@ -277,17 +279,42 @@ describe("buildTestSummaryDoc", () => {
     expect(json).not.toContain("OilLubricated");
   });
 
-  it("prints general comments under the fault summary, and only when there are some", () => {
+  it("prints general comments under the fault summary", () => {
     const t = sampleTest();
     t.notes = "Regulation undershoot was excessive — VSD settings adjusted at time of test.";
     const json = JSON.stringify(buildTestSummaryDoc(t).content);
     expect(json).toContain("General comments");
     expect(json).toContain("VSD settings adjusted");
+    expect(json).not.toContain(NO_GENERAL_COMMENTS);
     // The comments follow the fault table, ahead of the numbers.
     expect(json.indexOf("General comments")).toBeGreaterThan(json.indexOf("Fault summary"));
     expect(json.indexOf("General comments")).toBeLessThan(json.indexOf("Vacuum tests"));
+  });
 
-    expect(JSON.stringify(buildTestSummaryDoc(sampleTest()).content)).not.toContain("General comments");
+  it("says so when there are no general comments, rather than leaving the box off", () => {
+    // None at all, or only whitespace.
+    for (const notes of [undefined, "  \n "]) {
+      const json = JSON.stringify(buildTestSummaryDoc({ ...sampleTest(), notes }).content);
+      expect(json).toContain("General comments");
+      expect(json).toContain(NO_GENERAL_COMMENTS);
+      expect(json.indexOf(NO_GENERAL_COMMENTS)).toBeGreaterThan(json.indexOf("Fault summary"));
+    }
+    // A clean machine too: under its banner.
+    const clean = { ...sampleTest(), visualFaults: {}, readings: {} };
+    const json = JSON.stringify(buildTestSummaryDoc(clean).content);
+    expect(json.indexOf(NO_GENERAL_COMMENTS)).toBeGreaterThan(json.indexOf("No faults found"));
+  });
+
+  it("prints a migrated test's comment in the same box, and says so when it has none", () => {
+    const migrated: LocalTest = { ...sampleTest(), recordedRecommendations: [], recordedVisualFaults: [], readonly: true };
+    const none = JSON.stringify(buildTestSummaryDoc(migrated).content);
+    expect(none).toContain("No faults or recommendations were recorded for this test.");
+    expect(none).toContain(NO_GENERAL_COMMENTS);
+
+    const commented = JSON.stringify(buildTestSummaryDoc({ ...migrated, notes: "Replaced the pump belts on the day." }).content);
+    expect(commented).toContain("Replaced the pump belts on the day.");
+    expect(commented).not.toContain(NO_GENERAL_COMMENTS);
+    expect(commented.match(/General comments/g)).toHaveLength(1); // the box, not a second heading
   });
 
   it("notes the appended pulsation PDF when one is attached", () => {
@@ -331,9 +358,14 @@ describe("buildTestSummaryDoc — layout", () => {
     const t = sampleTest();
     t.notes = "Settings adjusted at time of test.";
     const doc = buildTestSummaryDoc(t);
-    const content = doc.content as { pageBreak?: string }[];
+    const content = doc.content as { id?: string; pageBreak?: string }[];
     const config = nodeIndex(doc, "Machine configuration");
-    expect(content[config].pageBreak).toBe("before");
+    // pdfmake is asked to break before the machine configuration while it would sit on page one…
+    const breaksBefore = (pageNumber: number) =>
+      doc.pageBreakBefore!({ id: content[config].id, startPosition: { pageNumber, verticalRatio: 0.2 } } as never, {} as never);
+    expect(breaksBefore(1)).toBe(true);
+    // …but not once the summary has run onto page two: then it carries on under it.
+    expect(breaksBefore(2)).toBe(false);
     // Nothing ahead of the machine configuration breaks the page.
     expect(content.slice(0, config).some((n) => n.pageBreak)).toBe(false);
     for (const pageOne of ["Sunny Acres", "Fault summary", "Oil Wicks Dirty", "General comments"]) {
@@ -597,7 +629,7 @@ describe("buildTestSummaryDoc — layout", () => {
 describe("printing some of the report", () => {
   const size = { width: 595.28, height: 841.89 };
   const only = (t: LocalTest, parts: ReportPart[]) => buildTestSummaryDoc(t, undefined, undefined, undefined, parts);
-  const nodes = (doc: ReturnType<typeof buildTestSummaryDoc>) => doc.content as { pageBreak?: string }[];
+  const nodes = (doc: ReturnType<typeof buildTestSummaryDoc>) => doc.content as { id?: string; pageBreak?: string }[];
 
   it("offers the sections this test has something in, in report order", () => {
     const t = sampleTest();
@@ -628,9 +660,12 @@ describe("printing some of the report", () => {
     for (const left of ["Machine configuration", "Vacuum tests", "Pulsator results", "Attestations"]) {
       expect(json).not.toContain(left);
     }
+    // The visual checks are where the working starts, so they're what starts page two.
     const visual = nodes(doc).findIndex((n) => JSON.stringify(n).includes("Visual checks"));
-    expect(nodes(doc)[visual].pageBreak).toBe("before");
-    expect(nodes(doc).filter((n) => n.pageBreak)).toHaveLength(1);
+    const breaksBefore = (pageNumber: number) =>
+      doc.pageBreakBefore!({ id: nodes(doc)[visual].id, startPosition: { pageNumber, verticalRatio: 0.2 } } as never, {} as never);
+    expect(breaksBefore(1)).toBe(true);
+    expect(nodes(doc).some((n) => n.pageBreak)).toBe(false);
     expect(json.indexOf("Fault summary")).toBeLessThan(json.indexOf("Visual checks"));
   });
 
@@ -696,6 +731,46 @@ describe("printing some of the report", () => {
       expect(json).toContain("Fault summary");
       expect(json).not.toContain("Machine configuration");
     }
+  });
+});
+
+// Laid out for real with the app's pdfmake build, so these see where pages actually fall.
+describe("page two, laid out", () => {
+  /** How many pages the document takes. pdfmake writes into the definition as it lays it out, so
+   * each layout needs a freshly built one — as each download builds its own. */
+  async function pageCount(doc: TDocumentDefinitions): Promise<number> {
+    const [pdfMakeModule, vfsModule, { PDFDocument }] = await Promise.all([
+      import("pdfmake/build/pdfmake"),
+      import("pdfmake/build/vfs_fonts"),
+      import("pdf-lib"),
+    ]);
+    const pdfMake = ((pdfMakeModule as { default?: unknown }).default ?? pdfMakeModule) as {
+      addVirtualFileSystem(vfs: unknown): void;
+      createPdf(doc: TDocumentDefinitions): { getBuffer(): Promise<Uint8Array> };
+    };
+    pdfMake.addVirtualFileSystem((vfsModule as { default?: unknown }).default ?? vfsModule);
+    return (await PDFDocument.load(await pdfMake.createPdf(doc).getBuffer())).getPageCount();
+  }
+  const summaryAndMachine = (t: LocalTest) => buildTestSummaryDoc(t, undefined, undefined, undefined, ["summary", "machine"]);
+
+  it("starts the working on page two when the summary fits page one", async () => {
+    expect(await pageCount(summaryAndMachine(sampleTest()))).toBe(2);
+    // The machine configuration would otherwise have fitted under it on page one.
+    expect(await pageCount({ ...summaryAndMachine(sampleTest()), pageBreakBefore: () => false })).toBe(1);
+  });
+
+  it("carries the working on under a summary that has run onto page two", async () => {
+    const t = sampleTest();
+    t.notes = Array.from({ length: 36 }, (_, i) => `${i + 1}. Adjusted and rechecked on site.`).join("\n");
+    // The comments spill onto page two and the machine configuration follows them there.
+    expect(await pageCount(summaryAndMachine(t))).toBe(2);
+    // A fixed break before it — the old layout — pushed it to page three, stranding the comments.
+    const doc = summaryAndMachine(t);
+    const fixedBreak = {
+      ...doc,
+      content: (doc.content as { id?: string }[]).map((n) => (n.id ? { ...n, pageBreak: "before" } : n)),
+    } as TDocumentDefinitions;
+    expect(await pageCount(fixedBreak)).toBe(3);
   });
 });
 
