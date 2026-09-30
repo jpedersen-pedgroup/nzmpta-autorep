@@ -16,18 +16,23 @@ export interface PopoverStyle {
   minWidth?: number;
 }
 
+/** `keepInView`: when the popup fits neither above nor below its control, lay it over the control
+ * inside the viewport rather than running off the foot of the screen. For a tall dialog-like
+ * popup (the report section picker); a list under a text box stays below it, so the typing isn't
+ * covered. The popup's own max-height has to keep it within the viewport for this to hold. */
 export function usePopover(
   open: boolean,
   anchorRef: RefObject<HTMLElement>,
   popupRef: RefObject<HTMLElement>,
   onClose: () => void,
-  opts?: { matchWidth?: boolean },
+  opts?: { matchWidth?: boolean; keepInView?: boolean },
 ): PopoverStyle | null {
   const [style, setStyle] = useState<PopoverStyle | null>(null);
   // Once placed, keep the same side while it still fits — otherwise a combobox that
   // grows/shrinks as it filters near the bottom of the screen flips on every keystroke.
   const placedAbove = useRef(false);
   const matchWidth = opts?.matchWidth ?? false;
+  const keepInView = opts?.keepInView ?? false;
 
   useLayoutEffect(() => {
     if (!open) {
@@ -56,8 +61,13 @@ export function usePopover(
       const fitsAbove = rect.top - GAP - popH >= VIEWPORT_PAD;
       const above = placedAbove.current ? fitsAbove : !fitsBelow && fitsAbove;
       placedAbove.current = above;
-      // Clamp so the popup is always reachable even when neither side truly fits.
-      const top = Math.max(VIEWPORT_PAD, above ? rect.top - GAP - popH : rect.bottom + GAP);
+      // Clamp so the popup is always reachable even when neither side truly fits: its top never
+      // goes above the viewport, and with keepInView its foot never goes below it either.
+      const below = rect.bottom + GAP;
+      const top = Math.max(
+        VIEWPORT_PAD,
+        above ? rect.top - GAP - popH : keepInView ? Math.min(below, vh - VIEWPORT_PAD - popH) : below,
+      );
       const left = Math.max(VIEWPORT_PAD, Math.min(rect.left, vw - popW - VIEWPORT_PAD));
       const minWidth = matchWidth ? rect.width : undefined;
       setStyle((prev) =>
@@ -93,7 +103,7 @@ export function usePopover(
       document.removeEventListener("keydown", onKeyDown);
       ro?.disconnect();
     };
-  }, [open, matchWidth]);
+  }, [open, matchWidth, keepInView]);
 
   return style;
 }

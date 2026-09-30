@@ -21,7 +21,9 @@ export function ReportSectionPicker({ options, disabled, onDownload }: Props) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const style = usePopover(open, anchorRef, popupRef, () => setOpen(false));
+  // Ten sections can outgrow the room either side of the button on a phone held sideways: then it
+  // sits over the button, inside the screen (its max-height keeps it shorter than the viewport).
+  const style = usePopover(open, anchorRef, popupRef, () => setOpen(false), { keepInView: true });
 
   useEffect(() => {
     if (open) popupRef.current?.querySelector<HTMLInputElement>("input")?.focus();
