@@ -40,26 +40,10 @@ Note the three values — they go into GitHub repo variables in step 4.
 
 ### 2. Add federated credentials (no secrets exchanged)
 
-One per identity context the workflow runs under:
+One per GitHub Environment. Every job that logs in to Azure declares `environment: staging` or `environment: prod`, which makes its token's subject `repo:<repo>:environment:<name>` — so these two are all Azure needs to trust. Don't add `pull_request` or `ref:refs/heads/main` credentials; see [Who can get an Azure token](#who-can-get-an-azure-token).
 
 ```powershell
 $REPO = "jpedersen-pedgroup/nzmpta-autorep"
-
-# PRs (any branch in the repo)
-az ad app federated-credential create --id $APP_ID --parameters '{
-  "name": "github-pr",
-  "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:'$REPO':pull_request",
-  "audiences": ["api://AzureADTokenExchange"]
-}'
-
-# Pushes to main
-az ad app federated-credential create --id $APP_ID --parameters '{
-  "name": "github-main",
-  "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:'$REPO':ref:refs/heads/main",
-  "audiences": ["api://AzureADTokenExchange"]
-}'
 
 # Staging environment (workflows that use `environment: staging`)
 az ad app federated-credential create --id $APP_ID --parameters '{
@@ -98,7 +82,7 @@ az role assignment create `
   --scope "/subscriptions/$SUB_ID/resourceGroups/rg-nzmpta-autorep-prod"
 ```
 
-Owner is scoped to the RGs only — not the whole subscription.
+Owner is scoped to the RGs only — not the whole subscription. Better still, give prod its own identity so nothing that can reach staging can reach prod: [Recommended hardening](#recommended-hardening), item 2.
 
 ### 4. Set GitHub repo variables
 
@@ -125,7 +109,7 @@ gh variable set AZURE_SUBSCRIPTION_ID --body $SUB_ID
 In GitHub repo → **Settings → Environments → New environment**:
 
 - **staging** — no protection rules needed (auto-deploys on every main push).
-- **prod** — add a **Required reviewer** (yourself) so prod deploys can't fire without approval.
+- **prod** — add a **Required reviewer** (yourself) so prod deploys can't fire without approval, and under **Deployment branches and tags** pick **Selected branches and tags** → `main`, so only `main`'s copy of a workflow can deploy to prod.
 
 For each environment, add one **secret**:
 
@@ -159,9 +143,60 @@ Should see: `validate` job runs successfully and `deploy-staging` is skipped (no
 
 To test the actual deploy: merge a PR with an infra change (e.g. add a tag), watch the `deploy-staging` job complete, then check Azure for the change.
 
+## Who can get an Azure token
+
+GitHub only issues an OIDC token to a job with `id-token: write`, and Azure only accepts one whose `subject` matches a federated credential. Both are kept narrow:
+
+- **Permissions.** Each workflow is read-only at the top (`permissions: contents: read`), and only the jobs that run `azure/login` opt back in with their own `permissions` block. Build, test and guard jobs — and the npm/NuGet code they execute — can't mint a token. A new job that needs Azure needs that block *and* an `environment:`.
+- **Subjects.** Every Azure job runs in a GitHub Environment, so its token's subject is `repo:<repo>:environment:staging` or `…:environment:prod`, and those are the only credentials step 2 creates. There's deliberately no `pull_request` or `ref:refs/heads/main` credential: no Azure job presents those subjects, so all they would do is let jobs *outside* an environment in.
+
+The permissions keep compromised dependencies out, not people with write access: a same-repo PR or branch push runs its own copy of the workflow, so its author can ask for any permission and name any environment. (PRs from forks can't request a token or read secrets.) What limits them is which environments a run can enter and what the identity behind each one can touch — hence the steps below.
+
+### Recommended hardening
+
+1. **Delete the PR and `main` credentials** if you created them from an earlier version of step 2. Nothing uses them.
+
+   ```powershell
+   az ad app federated-credential delete --id $APP_ID --federated-credential-id github-pr
+   az ad app federated-credential delete --id $APP_ID --federated-credential-id github-main
+   ```
+
+2. **Give prod its own identity.** Step 3 makes one service principal Owner on both resource groups, and `staging` can't be limited to `main` because `infra.yml` runs PR what-ifs in it — so anyone who can push a branch can get an `environment:staging` token and, through it, Owner on the prod resource group. (Staging's `SQL_ADMIN_PASSWORD` is exposed the same way — don't reuse it for prod.) Move prod to a second App Registration that trusts only the `prod` environment. With the variables from steps 1–3 still set:
+
+   ```powershell
+   $PROD_APP_NAME = "github-actions-nzmpta-autorep-prod"
+   az ad app create --display-name $PROD_APP_NAME
+   $PROD_APP_ID = az ad app list --display-name $PROD_APP_NAME --query "[0].appId" -o tsv
+   az ad sp create --id $PROD_APP_ID
+   $PROD_SP_OBJECT_ID = az ad sp show --id $PROD_APP_ID --query id -o tsv
+   ```
+
+   Add the `github-env-prod` credential from step 2 to it (same command with `--id $PROD_APP_ID`), then:
+
+   ```powershell
+   az role assignment create `
+     --assignee $PROD_SP_OBJECT_ID `
+     --role Owner `
+     --scope "/subscriptions/$SUB_ID/resourceGroups/rg-nzmpta-autorep-prod"
+
+   # An environment variable overrides the repo-level one, so prod jobs switch
+   # identity without any workflow change.
+   gh variable set AZURE_CLIENT_ID --env prod --body $PROD_APP_ID
+
+   # Leave the original identity staging-only.
+   az ad app federated-credential delete --id $APP_ID --federated-credential-id github-env-prod
+   az role assignment delete `
+     --assignee $SP_OBJECT_ID `
+     --role Owner `
+     --scope "/subscriptions/$SUB_ID/resourceGroups/rg-nzmpta-autorep-prod"
+   ```
+
+3. **Lock down `prod` and `main`.** Give the `prod` environment required reviewers *and* limit its deployment branches to `main` (step 5). The branch rule matters because a run dispatched from another branch uses that branch's copy of the workflow — `app-prod.yml`'s `ref: main` checkout doesn't help if the workflow itself was edited. The rule is only as strong as `main`, so protect `main` too (require a pull request before merging).
+
 ## Common failures
 
-- **`AADSTS70021: No matching federated identity record found`** — the federated credential's `subject` doesn't match the workflow context. The most common cause is forgetting to add the per-environment credential. Re-read step 2.
+- **`AADSTS70021: No matching federated identity record found`** — the federated credential's `subject` doesn't match the workflow context. The most common cause is forgetting to add the per-environment credential. Re-read step 2. A job that logs in to Azure without an `environment:` fails the same way — by design there's no PR or `main` credential, so give the job an environment.
+- **`Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable`** (from `azure/login`) — the job has no `id-token: write`. Workflows are read-only by default; give the job its own `permissions` block with `id-token: write` and `contents: read`.
 - **`AuthorizationFailed: ... does not have authorization to perform action 'Microsoft.Authorization/roleAssignments/write'`** — the SP only has Contributor, needs Owner. Step 3.
 - **`Required environment 'prod' could not be found`** — create the prod environment in GitHub repo settings. Step 5.
 - **Workflow runs but `what-if` says "no changes"** — that's success! Means staging matches your local infra.
