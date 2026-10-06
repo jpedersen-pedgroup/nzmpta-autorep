@@ -143,6 +143,15 @@ builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFac
     opts.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
+// How soon a security-stamp change (force sign-out, password reset, two-factor reset, deactivate)
+// reaches a session that is already signed in. Identity's default is 30 minutes; the admin
+// buttons promise "signed out everywhere", so re-check every minute. One user read per signed-in
+// user per minute, at most.
+builder.Services.Configure<SecurityStampValidatorOptions>(opts =>
+{
+    opts.ValidationInterval = TimeSpan.FromMinutes(1);
+});
+
 // JWT for the sync API (sits alongside cookie auth used by Razor Pages).
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddScoped<JwtTokenService>();

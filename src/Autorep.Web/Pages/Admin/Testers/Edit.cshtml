@@ -150,7 +150,7 @@
         {
             <p style="color:var(--text-muted)">
                 <strong>Enabled.</strong> Reset it if they've lost their authenticator app and their recovery codes.
-                This signs them out everywhere and forgets their trusted devices; their next sign-in is password only.
+                This signs them out everywhere (within a minute) and forgets their trusted devices; their next sign-in is password only.
                 A Super Administrator is then made to set up a new authenticator before they can continue.
             </p>
             <form method="post" asp-page-handler="ResetTwoFactor"

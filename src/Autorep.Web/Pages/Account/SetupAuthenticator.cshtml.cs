@@ -15,6 +15,10 @@ namespace Autorep.Web.Pages.Account;
 /// that can't scan), proves the app has it by checking one code, then turns two-factor on and
 /// hands over the recovery codes. For a role that must have two-factor this is also where the
 /// middleware parks the account until it's done.
+///
+/// An account that already has an authenticator sees a confirmation instead: replacing the key
+/// is a POST (<see cref="OnPostReplaceAsync"/>), never a side effect of opening the page, so a
+/// prefetch, a refresh or a change of mind leaves the working app working.
 /// </summary>
 public class SetupAuthenticatorModel : PageModel
 {
@@ -43,9 +47,12 @@ public class SetupAuthenticatorModel : PageModel
     /// <summary>True when this account's role requires two-factor - the page says so and offers
     /// no way out but sign-out.</summary>
     public bool Required { get; set; }
-    /// <summary>True when an authenticator is already enrolled and this is a re-enrolment (a new
-    /// phone); the old app stops working the moment the new one is verified.</summary>
-    public bool Replacing { get; set; }
+    /// <summary>An authenticator is already enrolled: the page asks for confirmation before
+    /// replacing it, and shows no key.</summary>
+    public bool Enrolled { get; set; }
+    /// <summary>A replacement (or an admin reset) has cleared the old authenticator and the new
+    /// one is yet to be verified; the old app and old recovery codes are already dead.</summary>
+    public bool ReplacementInProgress { get; set; }
 
     [BindProperty]
     public string Code { get; set; } = string.Empty;
@@ -62,10 +69,31 @@ public class SetupAuthenticatorModel : PageModel
         return Page();
     }
 
+    /// <summary>Starts a replacement: the old key and two-factor flag go now, by the user's
+    /// explicit choice, and the page then shows the new key to enrol. A Super-Administrator is
+    /// held here by the middleware until the new app is verified; anyone else can still cancel
+    /// and re-enrol later, but is warned that the old app no longer works.</summary>
+    public async Task<IActionResult> OnPostReplaceAsync()
+    {
+        var user = await _users.GetUserAsync(User);
+        if (user is null) return Forbid();
+        if (!user.TwoFactorEnabled) return RedirectToPage();
+
+        await _users.SetTwoFactorEnabledAsync(user, false);
+        await _users.ResetAuthenticatorKeyAsync(user);
+        // Both roll the security stamp (and the principal now carries "must enrol" for a required
+        // role); re-issue this session's cookie so the user stays signed in to finish.
+        await _signIn.RefreshSignInAsync(user);
+        await _audit.WriteAsync(HttpContext, user.Email!, user.Id, "2fa-replacement-started");
+        return RedirectToPage();
+    }
+
     public async Task<IActionResult> OnPostAsync()
     {
         var user = await _users.GetUserAsync(User);
         if (user is null) return Forbid();
+        // No code form is shown to an enrolled account; a stale or crafted POST changes nothing.
+        if (user.TwoFactorEnabled) return RedirectToPage();
 
         var verificationCode = Code.Replace(" ", string.Empty).Replace("-", string.Empty);
         var isValid = await _users.VerifyTwoFactorTokenAsync(
@@ -95,12 +123,17 @@ public class SetupAuthenticatorModel : PageModel
     private async Task LoadAsync(Tester user)
     {
         Required = MfaPolicy.IsRequiredFor(await _users.GetRolesAsync(user));
-        Replacing = user.TwoFactorEnabled;
+        Enrolled = user.TwoFactorEnabled;
+        if (Enrolled) return; // confirmation only - the working key is not shown or touched
 
-        // A re-enrolment gets a new key: the one in the lost phone must stop working.
+        // Old recovery codes still on file with two-factor off: a replacement or an admin reset
+        // cleared the authenticator and this enrolment finishes it (the codes are regenerated then).
+        ReplacementInProgress = await _users.CountRecoveryCodesAsync(user) > 0;
+
         var key = await _users.GetAuthenticatorKeyAsync(user);
-        if (string.IsNullOrEmpty(key) || (Replacing && Request.Method == HttpMethods.Get))
+        if (string.IsNullOrEmpty(key))
         {
+            // First enrolment: nothing is invalidated by minting the key here.
             await _users.ResetAuthenticatorKeyAsync(user);
             key = await _users.GetAuthenticatorKeyAsync(user);
             // Resetting the key also rolls the security stamp, which would sign this very session

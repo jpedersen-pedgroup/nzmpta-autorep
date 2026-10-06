@@ -150,7 +150,7 @@ public class EditModel : PageModel
         // Invalidates auth cookies AND the "trust this device" cookies, which carry the stamp too.
         await _users.UpdateSecurityStampAsync(EditingUser!);
         await _refresh.RevokeAllAsync(EditingUser!.Id, "two-factor-reset");
-        Message = "Two-factor reset. Their next sign-in needs the password only; a Super Administrator will be asked to set up a new authenticator straight away.";
+        Message = "Two-factor reset. Open sessions end within a minute; their next sign-in needs the password only, and a Super Administrator will be asked to set up a new authenticator straight away.";
         await LoadAsync(hydrateForGet: true);
         return Page();
     }

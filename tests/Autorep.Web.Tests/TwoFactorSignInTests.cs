@@ -222,4 +222,54 @@ public class TwoFactorSignInTests : IClassFixture<CookieAuthWebAppFactory>
         var ok = await client.PostAsJsonAsync("/api/auth/login", new { email = plainTester, password = Password });
         ok.StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task Replacing_the_authenticator_is_an_explicit_step_and_the_old_one_works_until_then()
+    {
+        var email = Email("sa-new-phone");
+        var (user, oldKey) = await _factory.CreateUserAsync(email, Password, [Roles.SuperAdministrator], twoFactor: true);
+        await _factory.WithUserAsync(user.Id, (u, t) => u.GenerateNewTwoFactorRecoveryCodesAsync(t, 10));
+        var browser = _factory.CreateBrowser();
+        await browser.LoginAsync(email, Password);
+        await browser.SubmitCodeAsync(Totp.Now(oldKey!));
+
+        // Opening (or refreshing, or prefetching) the page changes nothing and shows no key.
+        for (var i = 0; i < 2; i++)
+        {
+            var confirm = await browser.GetAsync("/Account/SetupAuthenticator");
+            confirm.StatusCode.Should().Be(HttpStatusCode.OK);
+            var html = await confirm.Content.ReadAsStringAsync();
+            // (The layout has inline SVG icons of its own; the QR code sits in .qr-code.)
+            html.Should().Contain("Replace authenticator").And.NotContain("qr-code").And.NotContain("Verify and enable");
+        }
+        (await _factory.WithUserAsync(user.Id, (u, t) => u.GetAuthenticatorKeyAsync(t))).Should().Be(oldKey);
+        (await _factory.WithUserAsync(user.Id, (u, t) => u.GetTwoFactorEnabledAsync(t))).Should().BeTrue();
+
+        // The explicit step: the old key goes, two-factor is off until the new app verifies, and a
+        // Super-Administrator is held on the page meanwhile.
+        var replace = await browser.PostFormAsync("/Account/SetupAuthenticator", new Dictionary<string, string>(),
+            postUrl: "/Account/SetupAuthenticator?handler=Replace");
+        replace.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var newKey = await _factory.WithUserAsync(user.Id, (u, t) => u.GetAuthenticatorKeyAsync(t));
+        newKey.Should().NotBeNull().And.NotBe(oldKey);
+        (await _factory.WithUserAsync(user.Id, (u, t) => u.GetTwoFactorEnabledAsync(t))).Should().BeFalse();
+        (await browser.GetAsync("/Admin")).Location().Should().Be("/Account/SetupAuthenticator");
+
+        var setup = await browser.GetAsync("/Account/SetupAuthenticator");
+        var setupHtml = await setup.Content.ReadAsStringAsync();
+        setupHtml.Should().Contain("<svg").And.Contain("previous authenticator and recovery codes no longer work");
+
+        // The old app is dead, the new one gets in; recovery codes are reissued.
+        (await browser.PostFormAsync("/Account/SetupAuthenticator", new Dictionary<string, string> { ["Code"] = Totp.Now(oldKey!) }))
+            .StatusCode.Should().Be(HttpStatusCode.OK, "the old key must not verify");
+        var done = await browser.PostFormAsync("/Account/SetupAuthenticator", new Dictionary<string, string> { ["Code"] = Totp.Now(newKey!) });
+        done.Location().Should().Be("/Account/RecoveryCodes");
+        (await _factory.WithUserAsync(user.Id, (u, t) => u.GetTwoFactorEnabledAsync(t))).Should().BeTrue();
+        (await _factory.WithUserAsync(user.Id, (u, t) => u.CountRecoveryCodesAsync(t))).Should().Be(10);
+        (await browser.GetAsync("/Admin")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await browser.LogoutAsync();
+        (await browser.LoginAsync(email, Password)).Location().Should().StartWith("/Account/TwoFactorChallenge");
+        (await browser.SubmitCodeAsync(Totp.Now(newKey!))).Location().Should().Be("/");
+    }
 }
