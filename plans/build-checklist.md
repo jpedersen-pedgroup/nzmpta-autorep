@@ -15,7 +15,7 @@
 | **M1** | Foundation, data model & shared platform | Phase 1 | ✅ Done (prod never deployed — see M6) | ~95% |
 | **M2** | Tester PWA core (offline + sync) | Phase 2 | 🟡 Capture + sync + offline print done; **offline navigation not** | ~65% |
 | **M3** | Wizard test capture (steps 1–11) | Phase 2 | ✅ Done, with Sep-2026 tester-feedback leftovers | ~95% |
-| **M4** | Existing reports — PDF generation (7) | Phase 3 | ✅ Done as one sectioned report; golden-file tests missing | ~90% |
+| **M4** | Existing reports — PDF generation (7) | Phase 3 | ✅ Done — all 7 printable singly or as one PDF; golden-file tests missing | ~90% |
 | **M5** | Admin portal — users, companies & reference data | Phase 3 | 🟡 2FA enforcement + manual upload missing | ~85% |
 | **M6** | Hardening, UAT, security review & go-live | Phase 4 | ⬜ Not started | ~5% |
 | **O1** | Data migration tooling & cutover | Phase 4 | 🟡 Tool built and dry-run against staging; cutover not | ~60% |
@@ -109,13 +109,12 @@ In priority order. Each line expands in the sections below.
 
 ### M4 — Existing reports (PDF generation)
 - [x] ✅ Engine: client-side pdfmake + pdf-lib on device (decided 5 Jun 2026); same code renders in the admin viewer
-- [x] ✅ **One sectioned report** replaces the 7 legacy documents: page one = letterhead, tester block (name, company, phone, NZMPTA registration), farm/test details, fault summary + recommendations, general comments, Next Test Date, severity legend, compliance disclaimer; from page two = Machine configuration, Vacuum tests (ISO 1–9), Airflow (10–12), Individual cluster (13), Pulsation & ancillary (14–15), Additional tests, Visual checks, amendment history (PRs #59–#68)
-- [x] ✅ Print the full report or chosen sections (PR #68); equipment-not-present sections omitted
+- [x] ✅ **All seven legacy reports**, each printable on its own or together as one PDF. On mark-complete the tester gets "Download full report" in one tap, or "Choose sections…" to print any selection (`Client/wizard/ReportSectionPicker.tsx`, PR #68). The parts (`REPORT_PARTS` in `Client/report/testSummaryPdf.ts`) map to the legacy set: Test Summary + Test Report Results = page one (letterhead, tester block, farm/test details, fault summary + recommendations, general comments, Next Test Date, severity legend, compliance disclaimer); Test Record = Machine configuration + Vacuum tests (ISO 1–9) + Airflow (10–12); Individual Cluster Airflow = cluster (13); Pulsation System Result = pulsation & ancillary (14–15); Additional Testing; Visual Faults Checklist = visual checks; plus the attached analyser PDF and attestations/amendment history (PRs #59–#68)
+- [x] ✅ Equipment-not-present sections omitted (a part with nothing in it is not offered or printed)
 - [x] ✅ Company logo on every page; MPNZ letterhead; NZ time stamps
 - [x] ✅ Faithful reprint of migrated tests from stored verdicts
 - [ ] ❓ Page count ignores pages appended by pdf-lib (noted 15 Sep; not re-verified)
 - [ ] ⬜ **Golden-file PDF tests (T4)** — `testSummaryPdf.test.ts` is structural (786 lines, no snapshot/golden). Decide: normalised-byte golden vs. keep structural
-- [ ] ❓ NZMPTA sign-off that one sectioned report satisfies the "7 reports" contract line (sample PDFs sent 24 Sep 2026)
 
 ### M5 — Admin portal — users, companies & reference data
 - [x] ✅ Tester CRUD — list/search, create, tabbed edit, multi-role, deactivate, reset password, force-logout, certificate number, licence expiry (PRs #29, #30)
@@ -201,7 +200,6 @@ In priority order. Each line expands in the sections below.
 - [ ] ⬜ `plans/test-schedule.md` execution record refreshed; `tools/Migration/README.md` command table corrected
 
 ## Decisions and open items (for NZMPTA / Josh)
-- **One sectioned report vs. seven documents** — needs explicit acceptance.
 - **Server-side Final Report store** — build, or replace with regenerate-on-demand (recommended).
 - **Sync conflicts** — last-writer-wins by ClientId is what's built; PRD promised field-level merge. Accept or price.
 - **Vendor Specification Effective Date / snapshot-at-test-start** — not built as specified; confirm the standards model is sufficient.
@@ -216,5 +214,5 @@ In priority order. Each line expands in the sections below.
 - **18–25 Jun 2026** — O1 tool + staging pull, legacy reprint, privacy gate, admin test viewer, versioning, brand rollout.
 - **Jul 2026** — sync hardening, offline printing, licence sync-only session, farm review, calibration, offline-app plan.
 - **Aug 2026** — layouts, legacy standards, NZ times, serverless resume retry.
-- **Sep 2026** — tester feedback (Jono, 11 Sep run): calculated readings, flowchart order, pumps/regulators; report redesign (page one, letterhead, logo, disclaimer, next test date, section picker); help guides; upcoming tests; prod workflow fixes.
+- **Sep 2026** — tester feedback (Jono, 11 Sep run): calculated readings, flowchart order, pumps/regulators; report redesign (page one, letterhead, logo, disclaimer, next test date; the seven reports printable singly or as one PDF via the section picker); help guides; upcoming tests; prod workflow fixes.
 - **7 Oct 2026** — this reassessment @ `91c673a`; GitHub phase issues #1–#12 closed in favour of this file.

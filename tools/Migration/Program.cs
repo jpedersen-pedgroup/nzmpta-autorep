@@ -1,11 +1,10 @@
 using Nzmpta.AutoRep.Migration.Pipeline;
 using Nzmpta.AutoRep.Migration.Source;
 
-// autorep-migrate — AutoRep O1 legacy data-migration tool.
-// Commands (only validate-source is implemented in this increment):
-//   validate-source [--conn "<legacy connection string>"]   read-only pre-flight integrity report
-//   dry-run         --target staging                          (next increment) idempotent upsert into staging
-//   cutover         --target production --confirm "<token>"   (next increment) guarded single-shot production run
+// autorep-migrate — AutoRep O1 legacy data-migration tool. See README.md for the full option list.
+//   validate-source [--conn "<legacy>"]                         read-only pre-flight integrity report
+//   dry-run  --target-conn "<staging>" [--out <dir>] [--limit n]  idempotent upsert into staging + CSVs
+//   cutover  --target-conn "<prod>" --confirm "GO-LIVE…"          the same run, behind CutoverGuard
 
 const string DefaultLegacyConn =
     "Server=localhost,1433;Database=Autorep_bak;Integrated Security=True;TrustServerCertificate=True;Encrypt=False";
@@ -110,9 +109,16 @@ static void PrintHelp()
     Console.WriteLine("      duplicate-GUID hazards, satellite join-key integrity, and the migration-relevant");
     Console.WriteLine("      data-quality numbers. Modifies nothing.");
     Console.WriteLine();
-    Console.WriteLine("  dry-run  --target staging                        (not yet implemented)");
-    Console.WriteLine("  cutover  --target production --confirm \"<token>\" (not yet implemented)");
+    Console.WriteLine("  autorep-migrate dry-run --target-conn \"<staging connection string>\" [--out <dir>] [--limit <n>]");
+    Console.WriteLine("      Idempotent upsert into the target in FK order (companies, testers, farms, tests).");
+    Console.WriteLine("      Writes data-quality.csv (PII-redacted quarantine) and reconciliation.csv to --out");
+    Console.WriteLine("      (default: migration-output/ beside the binary). --limit processes only the first n tests.");
     Console.WriteLine();
-    Console.WriteLine("Connection string resolution order: --conn, then $AUTOREP_LEGACY_CONN, then the");
-    Console.WriteLine("local default (localhost,1433 / Autorep_bak / Integrated Security).");
+    Console.WriteLine("  autorep-migrate cutover --target-conn \"<prod connection string>\" --confirm \"GO-LIVE...\"");
+    Console.WriteLine("      The same run against production. Refused unless the token starts with GO-LIVE, the");
+    Console.WriteLine("      target is not in australiaeast, and the target holds no MachineTests (single-shot).");
+    Console.WriteLine();
+    Console.WriteLine("Legacy connection: --conn, then $AUTOREP_LEGACY_CONN, then the local default");
+    Console.WriteLine("(localhost,1433 / Autorep_bak / Integrated Security).");
+    Console.WriteLine("Target connection: --target-conn, then $AUTOREP_TARGET_CONN (required for dry-run/cutover).");
 }
