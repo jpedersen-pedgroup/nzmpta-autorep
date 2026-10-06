@@ -16,7 +16,7 @@
 | **M2** | Tester PWA core (offline + sync) | Phase 2 | 🟡 Capture + sync + offline print done; **offline navigation not** | ~65% |
 | **M3** | Wizard test capture (steps 1–11) | Phase 2 | ✅ Done, with Sep-2026 tester-feedback leftovers | ~95% |
 | **M4** | Existing reports — PDF generation (7) | Phase 3 | 🟡 Report built and split into selectable sections; Test Report Results not separately selectable; golden-file tests missing | ~90% |
-| **M5** | Admin portal — users, companies & reference data | Phase 3 | 🟡 2FA enforcement + manual upload missing | ~85% |
+| **M5** | Admin portal — users, companies & reference data | Phase 3 | 🟡 Company-admin test edits (PRD 49–50), 2FA enforcement (in PR #71) and manual upload missing | ~80% |
 | **M6** | Hardening, UAT, security review & go-live | Phase 4 | ⬜ Not started | ~5% |
 | **O1** | Data migration tooling & cutover | Phase 4 | 🟡 Tool built and dry-run against staging; cutover not | ~60% |
 | **O2** | Admin test view & edit + audit | Phase 3 | 🟡 **View only** — no edit, soft-delete, filters or audit panel | ~30% |
@@ -33,7 +33,7 @@ In priority order. Each line expands in the sections below.
 3. **Offline tester shell (M2)** — `plans/offline-tester-app.md` Phases 2–4: navigation offline, cold launch offline, start-a-test offline, storage durability. Today every page navigation needs the server (`wwwroot/sw.js:281-282`).
 4. **M6 hardening** — `plans/m6-infra-review.md` is untouched: security review, load test, alert rules, custom domain + certificate, test restore, WAF decision, remove the personal SQL admin, `CostCentre` tag, security headers/CSP (only HSTS is set today, `Program.cs:235`).
 5. **O1 cutover** — NZMPTA review of the data-quality CSV, report-parity review of sample migrated tests, a real region check before cutover, cutover runbook, parallel run, legacy decommission. (`tools/Migration/README.md` now documents the tool as built.)
-6. **Contracted items never started:** server-side Final Report store (`/api/sync/final-report`), 2FA enforcement (30 days / new device), Test Standard Manual upload, Vendor Specification Effective Date (❓ — see M5).
+6. **Contracted items never started:** Company Administrator edits of the final summary / recommendations on their company's tests as a new version (PRD stories 49–50, rebuild plan Phase 9 — distinct from the Super-Administrator O2 surface), server-side Final Report store (`/api/sync/final-report`), Test Standard Manual upload, Vendor Specification Effective Date (❓ — see M5). 2FA enforcement is in PR #71.
 7. **Tester-feedback leftovers** (`plans/tester-feedback-2026-09-15.md`): oil-vs-water recommendation split by pump lubrication (4.1), ISO 16 final checks, and the open questions owned by Jono / Maria / NZMPTA.
 8. **Tests still owed:** golden-file PDF (T4), wizard happy-path Playwright (T5), real-device iPad UAT incl. the 7-day storage rule (T6).
 
@@ -132,7 +132,8 @@ In priority order. Each line expands in the sections below.
 - [x] ✅ Standard Recommendation Wording — delivered as the **Fault Observations catalogue** (CMM severity + recommendation, admin CRUD, device sync); reading-level defaults in `Client/faults/readingRecommendations.ts`
 - [ ] ⬜ Test Standard Manual upload (versioned, retained, downloadable)
 - [x] ✅ Region & Milk Supply Company catalogues (CRUD, islands, logos)
-- [x] ✅ Farm Details — list with filters + cross-links, tabbed edit, NZ Post autocomplete, company scoping, pending-review approval (PRs #17, #32, #35)
+- [x] ✅ Farm Details — list with filters + cross-links, tabbed edit, NZ Post autocomplete, company scoping, pending-review approval (PRs #17, #32, #35). This is the farm half of PRD story 49
+- [ ] ⬜ **Company Administrator edits the final summary / recommendations on their company's tests** (PRD stories 49–50; rebuild plan Phase 9) — field-restricted (summary, recommendations, general comments), scoped to their own company, saved as a **new version** with the Company Administrator as actor and the amendment trail the tester-side edit already writes. Today the admin viewer is read-only and `Api/TestsController.cs` has GET actions only. Contracted under M5, not optional O2: build it as the first slice of the admin write path, reusing `Client/versioning/amendments.ts`
 - [x] ✅ **Upcoming tests** page — farms due or overdue (PR #62); dashboard counts (pending farms, overdue tests)
 - [x] ✅ Admin timestamps in NZ local time (PR #53)
 - [ ] 🟡 Company-level reporting for Company Administrators — scoped test list + upcoming/overdue is all there is; ❓ confirm whether NZMPTA wants more (e.g. tests per tester, export)
@@ -163,17 +164,17 @@ In priority order. Each line expands in the sections below.
 ### O1 — Data migration tooling & cutover
 - [x] ✅ Standalone console tool `tools/Migration`: `validate-source`, `dry-run --target-conn "<staging>" [--limit n]`, `cutover --target-conn "<prod>" --confirm "GO-LIVE…"` (target also via `$AUTOREP_TARGET_CONN`; `--limit` is refused on `cutover`). Documented in `tools/Migration/README.md`
 - [x] ✅ Legacy read access obtained; full staging pull done 18 Jun 2026 (22,797 tests, 35 tables); 4 review findings fixed 19 Jun
-- [x] ✅ Mapping: companies → testers → farms → tests + config + payload, deterministic ids, idempotent re-run; duplicate-GUID handling; owner-orphans to a synthetic tester; NZ time conversion; 83 company logos + certificate numbers; deleted tests excluded and reported
+- [x] ✅ Mapping: companies → testers → farms → tests + config + payload, deterministic ids; a re-run **skips** rows whose ids already exist (it does not update them — see the fresh-run item below); duplicate-GUID handling; owner-orphans to a synthetic tester; NZ time conversion; 83 company logos + certificate numbers; deleted tests excluded and reported
 - [x] ✅ Quarantine + PII-redacted data-quality CSV (`data-quality.csv`) + per-entity reconciliation counts (`reconciliation.csv`)
 - [x] ✅ Cutover guard (`Pipeline/CutoverGuard.cs`): `GO-LIVE` confirm token, target must hold zero `MachineTests` (single-shot), and a server **name** containing `australiaeast` is refused
 - [ ] ⬜ **Real data-residency check before cutover** — the guard's region test is a hostname sniff; `infra/modules/sql.bicep` names servers `sql-<base>` with no region in them, so a non-NZ target normally passes. Verify the target's actual Azure location (ARM lookup in the guard, or an explicit pre-check in the runbook) before the first production run
 - [x] ✅ Migrated tests attributed to the migrated tester; reprint faithfully from stored verdicts (M2/M4)
-- [ ] ❓ Migrated testers flagged for forced password reset — believed yes (mirrors admin create); verify in `MigrationRunner`
+- [x] ✅ Migrated testers flagged for forced password reset (`MigrationRunner` sets `ForcedPasswordResetRequired = true`); legacy-inactive accounts carry a far-future lockout
 - [ ] ⬜ **NZMPTA review of the data-quality CSV** (quarantined rows, excluded deletes)
 - [ ] ⬜ **Report-parity review** — sample migrated tests regenerated and compared with legacy prints (Maria)
 - [ ] ❓ Map legacy `TestVaccumPumpDetails` into the new pump fields, or accept forward-only (Josh)
 - [ ] ⬜ Cutover runbook (pre-checks, run, post-checks, rollback) + golden-record migration test
-- [ ] ⬜ Fresh dry-run against staging on the final schema before cutover
+- [ ] ⬜ **Fresh dry-run into a cleared staging database** before the parity review and again before cutover. The runner is skip-only: after a mapping fix or a source correction, rows already in staging keep their old values and the CSV reports them as skipped, so a re-run over the June load does not validate the fix. Clear the target first (or make the runner a real upsert)
 
 ### M6 — Hardening, UAT support, security review & go-live
 *Detail in `plans/m6-infra-review.md` — nothing there is ticked.*
