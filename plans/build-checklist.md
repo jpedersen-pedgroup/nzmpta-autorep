@@ -84,7 +84,8 @@ In priority order. Each line expands in the sections below.
 - [ ] ⬜ Playwright offline suite (`plans/offline-tester-app.md` §7) — cold launch, navigate, capture, print offline, PII-in-cache assertion
 - ~~Offline farm creation~~ — **cut 22 Jul 2026**; online-only by design
 - ~~Reference-data delta endpoint `GET /api/sync/reference-data?asOf=`~~ — superseded by per-catalogue versioned syncs; no further work
-- ~~Sync Reconciliation Engine / `SyncConflict`~~ — ❓ last-writer-wins by ClientId today; no field-level merge or conflict record. PRD §Decisions promised field-level merge. Low real-world risk (tester and admin edit disjoint fields) but **confirm with NZMPTA** that this is acceptable or add to O2.
+- [ ] 🟡 **Automatic sync on reconnect** — `syncAll()` runs only from the sign-off attempt and the "Sync now" buttons; the online/visibility listeners in `Client/connectivity.ts` just re-probe `/health`. A test completed offline stays device-only until the tester presses Sync (PRD story 34 wants it uploaded automatically). Trigger a sync on the online event and on tab focus when there are `local-only` tests; retry with backoff.
+- [ ] ⬜ **Sync reconciliation (contracted, PRD §Decisions)** — field-level merge + a `SyncConflict` record visible in the admin portal. Today `POST /api/sync/tests` is last-writer-wins by ClientId. Becomes a real risk the moment O2 admin editing lands (tester offline edit vs admin edit of the same test), so build it with O2 — see the O2 section.
 
 ### M3 — Wizard test capture (steps 1–11)
 - [x] ✅ Single offline-first Preact wizard; **ISO flowchart step order**, show-on-fail cluster step, three layouts (hub / rail / scroll) chosen from a header cog (PRs #43–#48, #56)
@@ -101,6 +102,7 @@ In priority order. Each line expands in the sections below.
 - [x] ✅ Wizard Step Resolver, Pass/Fail Calculator, Fault Aggregator — .NET + TS mirrors over shared fixtures (`tests/fixtures/*`)
 - [ ] 🟡 Tester-feedback leftovers (`plans/tester-feedback-2026-09-15.md`): **4.1 oil-vs-water** observations split by pump lubrication (still one "Oil / water" item, `visualChecklist.ts:33-35`); **ISO 16 final checks** (16a vs 1a, 16b vs 2a) not captured; 15b relabel; buttons with no fault list (claw inlet/outlet, long milk tube)
 - [ ] ❓ Open questions for Jono / Maria / NZMPTA: airline bends size vs length; manual "add faulty pulsator"; vented 12b minimum; 2h cleaning-reserve formula vs legacy; shell condition under Claw; oil wording; 8a verdict (Read Industrial)
+- [ ] ⬜ **Repeat-farm "Next test" (PRD story 11)** — start a new test for a farm pre-populated with the machine configuration from that farm's last test. Today `/App/Tests/New` picks a farm and opens a blank wizard; `Client/ui/TestListApp.tsx` offers View/Edit only, so the whole configuration is re-keyed on every annual visit.
 - [ ] ⬜ Playwright wizard happy-path (Rotary full ancillaries; Herringbone minimal) — unit coverage is strong, E2E is not
 
 ---
@@ -142,6 +144,7 @@ In priority order. Each line expands in the sections below.
 - [ ] ⬜ Audit panel — version timeline + per-field diffs + attestation events (data exists in the payload)
 - [ ] ⬜ Report download / regenerate from the admin viewer (same generator; no server store needed)
 - [ ] ⬜ Soft-delete with mandatory reason (no `IsDeleted`/`DeletedAt` on `MachineTest` today)
+- [ ] ⬜ **Sync reconciliation** — once admins can edit, a tester's queued offline edit and an admin edit of the same test can collide. Contracted answer (PRD §Decisions): field-level merge where the edited field sets don't overlap, last-writer-wins per field where they do, both states kept as versions, and a `SyncConflict` record surfaced in the admin list ("has conflicts" filter). Build alongside the edit path, not after it.
 - [ ] ⬜ O2 Playwright path (admin edits synced test → new version → report regenerates)
 
 ### O3 — Pulsation-data PDF upload & merge into Final Report
@@ -188,7 +191,6 @@ In priority order. Each line expands in the sections below.
 ## Out of contracted scope (add only by written variation)
 - [ ] ⛔ **O4** Proactive notification schedule — $2,500. *Note:* the Upcoming tests page (PR #62) already surfaces due/overdue farms to admins; O4 would add the emails.
 - [ ] ⛔ **O5** Vendor self-service portal — $3,500
-- [ ] ⛔ Sync conflict UI / field-level merge — if NZMPTA wants it, price it (see M2 note)
 
 > **O3** formal written variation + final price — ❓ still to confirm with NZMPTA.
 
@@ -201,11 +203,10 @@ In priority order. Each line expands in the sections below.
 
 ## Decisions and open items (for NZMPTA / Josh)
 - **Server-side Final Report store** — build, or replace with regenerate-on-demand (recommended).
-- **Sync conflicts** — last-writer-wins by ClientId is what's built; PRD promised field-level merge. Accept or price.
 - **Vendor Specification Effective Date / snapshot-at-test-start** — not built as specified; confirm the standards model is sufficient.
 - **Equipment types** — 8 built vs 11 in the contract line; name the missing three or close.
-- **2FA mechanism** (TOTP only vs email fallback) and enforcement cadence — never confirmed.
-- **Farm details propagate vs snapshot**, **test company ownership follows the tester** — both still the propagate model (see 5 Jun notes); unchanged.
+- **2FA mechanism** (TOTP only vs email fallback) — never confirmed; enforcement for Super-Administrators is being built regardless.
+- **Farm details propagate vs snapshot** — still the propagate model: editing a farm updates it for every test of that farm. *(The sibling question about test company ownership is resolved: `MachineTest.TestingCompanyId` is stamped on first upload and deliberately never re-stamped, so a tester who changes company does not take their history with them — `CompanyTestVisibilityTests`.)*
 - **Tester-feedback open questions** — see `plans/tester-feedback-2026-09-15.md` §Open questions.
 
 ## History
