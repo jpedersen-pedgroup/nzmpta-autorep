@@ -24,7 +24,7 @@ All three are implemented (`Program.cs`). `dry-run` and `cutover` run the same p
 |---|---|
 | `validate-source` | Read-only pre-flight against the legacy DB: row counts, duplicate-GUID hazards, satellite join-key integrity, identity/branding sources. Modifies nothing. |
 | `dry-run` | Idempotent upsert into the target (staging): companies → testers → farms → tests + config + payload, in FK order. Every target row is keyed by a deterministic id derived from its legacy identity, so a re-run converges rather than duplicates. Writes the data-quality CSV and the reconciliation CSV. |
-| `cutover --confirm "GO-LIVE…"` | The same run against production, behind `Pipeline/CutoverGuard.cs`: refuses unless the confirm token starts with `GO-LIVE`, the target server is not in `australiaeast`, and the target holds **zero** `MachineTests`. Single-shot by construction — a second run is refused by the empty-target check. |
+| `cutover --confirm "GO-LIVE…"` | The same run against production, behind `Pipeline/CutoverGuard.cs`: refuses unless the confirm token starts with `GO-LIVE`, the target server **name** does not contain `australiaeast`, and the target holds **zero** `MachineTests`. Single-shot by construction — a second run is refused by the empty-target check, which is also why `--limit` is rejected here. **The region test is a hostname sniff, not a lookup of the server's Azure location** (the Bicep names servers `sql-<base>` with no region in them), so confirm the target's location yourself before running — see the O1 items in `plans/build-checklist.md`. |
 
 ### Options
 
@@ -34,7 +34,7 @@ All three are implemented (`Program.cs`). `dry-run` and `cutover` run the same p
 | `--target-conn "<target conn>"` | `dry-run`, `cutover` | Target database. Falls back to `$AUTOREP_TARGET_CONN`. Required — exit code 2 if neither is set. |
 | `--confirm "<token>"` | `cutover` | Must start with `GO-LIVE`. Exit code 3 if the guard refuses. |
 | `--out <dir>` | `dry-run`, `cutover` | Where the CSVs go. Default: `migration-output/` beside the built binary. |
-| `--limit <n>` | `dry-run`, `cutover` | Process only the first *n* logical tests (companies, testers and farms still migrate in full). For quick smoke runs; not for a real cutover. |
+| `--limit <n>` | `dry-run` only | Process only the first *n* logical tests (companies, testers and farms still migrate in full), for quick smoke runs. Refused with `cutover` (exit code 2): a partial production load would then be locked in by the empty-target guard. |
 
 Options take `--key value` or `--key=value`.
 

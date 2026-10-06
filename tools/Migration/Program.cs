@@ -48,6 +48,14 @@ switch (command)
         }
 
         int? limit = int.TryParse(options.GetValueOrDefault("limit"), out var lim) ? lim : null;
+        if (isCutover && options.ContainsKey("limit"))
+        {
+            // A partial production load would pass, and the next (full) run would then be refused
+            // by the empty-target guard - leaving production half-migrated with no way forward
+            // but a manual rollback. Smoke runs belong in dry-run.
+            Console.Error.WriteLine("CUTOVER REFUSED: --limit is not allowed with cutover; use dry-run for a partial run.");
+            return 2;
+        }
 
         var runner = new MigrationRunner(new MigrationRunner.Options(legacyConn, targetConn, outDir, isCutover, limit));
         return await runner.RunAsync();

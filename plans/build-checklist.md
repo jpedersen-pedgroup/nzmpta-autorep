@@ -15,7 +15,7 @@
 | **M1** | Foundation, data model & shared platform | Phase 1 | ✅ Done (prod never deployed — see M6) | ~95% |
 | **M2** | Tester PWA core (offline + sync) | Phase 2 | 🟡 Capture + sync + offline print done; **offline navigation not** | ~65% |
 | **M3** | Wizard test capture (steps 1–11) | Phase 2 | ✅ Done, with Sep-2026 tester-feedback leftovers | ~95% |
-| **M4** | Existing reports — PDF generation (7) | Phase 3 | ✅ Done — all 7 printable singly or as one PDF; golden-file tests missing | ~90% |
+| **M4** | Existing reports — PDF generation (7) | Phase 3 | 🟡 Report built and split into selectable sections; Test Report Results not separately selectable; golden-file tests missing | ~90% |
 | **M5** | Admin portal — users, companies & reference data | Phase 3 | 🟡 2FA enforcement + manual upload missing | ~85% |
 | **M6** | Hardening, UAT, security review & go-live | Phase 4 | ⬜ Not started | ~5% |
 | **O1** | Data migration tooling & cutover | Phase 4 | 🟡 Tool built and dry-run against staging; cutover not | ~60% |
@@ -32,7 +32,7 @@ In priority order. Each line expands in the sections below.
 2. **O2 admin edit** — edit a synced test into a new version, soft-delete with a mandatory reason, list filter chips, audit panel. The admin viewer today is read-only (`Pages/Admin/Tests/View.cshtml` → wizard bundle in read-only mode).
 3. **Offline tester shell (M2)** — `plans/offline-tester-app.md` Phases 2–4: navigation offline, cold launch offline, start-a-test offline, storage durability. Today every page navigation needs the server (`wwwroot/sw.js:281-282`).
 4. **M6 hardening** — `plans/m6-infra-review.md` is untouched: security review, load test, alert rules, custom domain + certificate, test restore, WAF decision, remove the personal SQL admin, `CostCentre` tag, security headers/CSP (only HSTS is set today, `Program.cs:235`).
-5. **O1 cutover** — NZMPTA review of the data-quality CSV, report-parity review of sample migrated tests, cutover runbook, parallel run, legacy decommission. The tool's README still calls `dry-run`/`cutover` unbuilt; both exist in `tools/Migration/Program.cs`.
+5. **O1 cutover** — NZMPTA review of the data-quality CSV, report-parity review of sample migrated tests, a real region check before cutover, cutover runbook, parallel run, legacy decommission. (`tools/Migration/README.md` now documents the tool as built.)
 6. **Contracted items never started:** server-side Final Report store (`/api/sync/final-report`), 2FA enforcement (30 days / new device), Test Standard Manual upload, Vendor Specification Effective Date (❓ — see M5).
 7. **Tester-feedback leftovers** (`plans/tester-feedback-2026-09-15.md`): oil-vs-water recommendation split by pump lubrication (4.1), ISO 16 final checks, and the open questions owned by Jono / Maria / NZMPTA.
 8. **Tests still owed:** golden-file PDF (T4), wizard happy-path Playwright (T5), real-device iPad UAT incl. the 7-day storage rule (T6).
@@ -111,7 +111,9 @@ In priority order. Each line expands in the sections below.
 
 ### M4 — Existing reports (PDF generation)
 - [x] ✅ Engine: client-side pdfmake + pdf-lib on device (decided 5 Jun 2026); same code renders in the admin viewer
-- [x] ✅ **All seven legacy reports**, each printable on its own or together as one PDF. On mark-complete the tester gets "Download full report" in one tap, or "Choose sections…" to print any selection (`Client/wizard/ReportSectionPicker.tsx`, PR #68). The parts (`REPORT_PARTS` in `Client/report/testSummaryPdf.ts`) map to the legacy set: Test Summary + Test Report Results = page one (letterhead, tester block, farm/test details, fault summary + recommendations, general comments, Next Test Date, severity legend, compliance disclaimer); Test Record = Machine configuration + Vacuum tests (ISO 1–9) + Airflow (10–12); Individual Cluster Airflow = cluster (13); Pulsation System Result = pulsation & ancillary (14–15); Additional Testing; Visual Faults Checklist = visual checks; plus the attached analyser PDF and attestations/amendment history (PRs #59–#68)
+- [x] ✅ **The report, as one PDF or any selection of its sections.** On mark-complete the tester gets "Download full report" in one tap, or "Choose sections…" (`Client/wizard/ReportSectionPicker.tsx`, PR #68). The ten parts (`REPORT_PARTS` in `Client/report/testSummaryPdf.ts`): Test summary (page one: letterhead, tester block, farm/test details, fault summary + recommendations, general comments, Next Test Date, severity legend, compliance disclaimer), Machine configuration, Vacuum tests (ISO 1–9), Airflow (10–12), Individual cluster tests (13), Pulsation & ancillary (14–15), Additional tests, Visual checks, the attached analyser PDF, and attestations/amendment history (PRs #59–#68)
+- [x] ✅ Six of the seven legacy reports are selectable on their own: Test Summary (page one), Test Record (= Machine configuration + ISO 1–9 + ISO 10–12), Individual Cluster Airflow (13), Pulsation System Result (14–15), Additional Testing, Visual Faults Checklist
+- [ ] 🟡 **Test Report Results** — the legacy per-fault results-and-recommendations document — prints only as the fault table inside page one; there is no `results` part, so it can't be chosen without the rest of the summary. Either add it as its own part or have NZMPTA accept the merged page one (the sample PDFs sent 24 Sep show the merged form)
 - [x] ✅ Equipment-not-present sections omitted (a part with nothing in it is not offered or printed)
 - [x] ✅ Company logo on every page; MPNZ letterhead; NZ time stamps
 - [x] ✅ Faithful reprint of migrated tests from stored verdicts
@@ -159,10 +161,12 @@ In priority order. Each line expands in the sections below.
 ## Phase 4 — Hardening & cutover  ·  M6 + O1  ·  🟡 ~30%
 
 ### O1 — Data migration tooling & cutover
-- [x] ✅ Standalone console tool `tools/Migration` with `validate-source`, `dry-run --target staging`, `cutover --target production --confirm` (`Program.cs:20-56`; the README table is stale — update it)
+- [x] ✅ Standalone console tool `tools/Migration`: `validate-source`, `dry-run --target-conn "<staging>" [--limit n]`, `cutover --target-conn "<prod>" --confirm "GO-LIVE…"` (target also via `$AUTOREP_TARGET_CONN`; `--limit` is refused on `cutover`). Documented in `tools/Migration/README.md`
 - [x] ✅ Legacy read access obtained; full staging pull done 18 Jun 2026 (22,797 tests, 35 tables); 4 review findings fixed 19 Jun
 - [x] ✅ Mapping: companies → testers → farms → tests + config + payload, deterministic ids, idempotent re-run; duplicate-GUID handling; owner-orphans to a synthetic tester; NZ time conversion; 83 company logos + certificate numbers; deleted tests excluded and reported
-- [x] ✅ Quarantine + PII-redacted data-quality CSV; cutover guard (empty target, confirm token, NZ region, PII gate)
+- [x] ✅ Quarantine + PII-redacted data-quality CSV (`data-quality.csv`) + per-entity reconciliation counts (`reconciliation.csv`)
+- [x] ✅ Cutover guard (`Pipeline/CutoverGuard.cs`): `GO-LIVE` confirm token, target must hold zero `MachineTests` (single-shot), and a server **name** containing `australiaeast` is refused
+- [ ] ⬜ **Real data-residency check before cutover** — the guard's region test is a hostname sniff; `infra/modules/sql.bicep` names servers `sql-<base>` with no region in them, so a non-NZ target normally passes. Verify the target's actual Azure location (ARM lookup in the guard, or an explicit pre-check in the runbook) before the first production run
 - [x] ✅ Migrated tests attributed to the migrated tester; reprint faithfully from stored verdicts (M2/M4)
 - [ ] ❓ Migrated testers flagged for forced password reset — believed yes (mirrors admin create); verify in `MigrationRunner`
 - [ ] ⬜ **NZMPTA review of the data-quality CSV** (quarantined rows, excluded deletes)
@@ -215,5 +219,5 @@ In priority order. Each line expands in the sections below.
 - **18–25 Jun 2026** — O1 tool + staging pull, legacy reprint, privacy gate, admin test viewer, versioning, brand rollout.
 - **Jul 2026** — sync hardening, offline printing, licence sync-only session, farm review, calibration, offline-app plan.
 - **Aug 2026** — layouts, legacy standards, NZ times, serverless resume retry.
-- **Sep 2026** — tester feedback (Jono, 11 Sep run): calculated readings, flowchart order, pumps/regulators; report redesign (page one, letterhead, logo, disclaimer, next test date; the seven reports printable singly or as one PDF via the section picker); help guides; upcoming tests; prod workflow fixes.
+- **Sep 2026** — tester feedback (Jono, 11 Sep run): calculated readings, flowchart order, pumps/regulators; report redesign (page one, letterhead, logo, disclaimer, next test date; section picker to print the whole report or chosen sections); help guides; upcoming tests; prod workflow fixes.
 - **7 Oct 2026** — this reassessment @ `91c673a`; GitHub phase issues #1–#12 closed in favour of this file.
