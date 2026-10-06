@@ -1,15 +1,29 @@
 @page
 @model Autorep.Web.Pages.Account.SetupAuthenticatorModel
 @{
-    ViewData["Title"] = "Set up two-factor authentication";
+    ViewData["Title"] = Model.Replacing ? "Set up a new authenticator" : "Set up two-factor authentication";
 }
 
 <div class="page-header">
     <div class="page-header__heading">
-        <h1>Set up two-factor authentication</h1>
+        <h1>@ViewData["Title"]</h1>
         <p>Add an extra step to your sign-in with an authenticator app.</p>
     </div>
 </div>
+
+@if (Model.Required && !Model.Replacing)
+{
+    <div class="alert alert--info" style="max-width:640px">
+        <strong>Two-factor authentication is required for Super Administrator accounts.</strong>
+        Finish these three steps to continue to the admin portal. It takes about two minutes.
+    </div>
+}
+@if (Model.Replacing)
+{
+    <div class="alert alert--warning" style="max-width:640px">
+        You already have an authenticator. Verifying a code from a new app below replaces it — the old app and your old recovery codes stop working.
+    </div>
+}
 
 <div class="card" style="max-width:640px">
     <h2 class="card__title">1. Install an authenticator app</h2>
@@ -20,14 +34,13 @@
 
 <div class="card" style="max-width:640px">
     <h2 class="card__title">2. Add this account</h2>
-    <p style="color:var(--text-muted)">Either scan the URI in the app, or enter the shared key manually:</p>
-    <div style="background:var(--surface-alt);padding:1rem;border-radius:var(--radius);font-family:var(--font-mono);word-break:break-all;margin-bottom:0.5rem">
-        @Model.SharedKey
-    </div>
-    <details>
-        <summary style="cursor:pointer;color:var(--text-muted);font-size:0.875rem">Show otpauth URI</summary>
-        <div style="background:var(--surface-alt);padding:1rem;border-radius:var(--radius);font-family:var(--font-mono);word-break:break-all;margin-top:0.5rem;font-size:0.8125rem">
-            @Model.AuthenticatorUri
+    <p style="color:var(--text-muted)">Scan this code with the app:</p>
+    <div class="qr-code" aria-label="QR code for the authenticator app">@Html.Raw(Model.QrCodeSvg)</div>
+    <details style="margin-top:0.75rem">
+        <summary style="cursor:pointer;color:var(--text-muted);font-size:0.875rem">Can't scan? Enter the key manually</summary>
+        <p style="color:var(--text-muted);font-size:0.875rem;margin:0.5rem 0 0.25rem">Type this key into the app (spaces don't matter), with time-based codes:</p>
+        <div style="background:var(--surface-alt);padding:1rem;border-radius:var(--radius);font-family:var(--font-mono);word-break:break-all">
+            @Model.SharedKey
         </div>
     </details>
 </div>
@@ -46,7 +59,10 @@
         }
         <div class="form-actions">
             <button type="submit" class="btn">Verify and enable</button>
-            <a class="btn btn--secondary" asp-page="/Account/Manage">Cancel</a>
+            @if (!Model.Required || Model.Replacing)
+            {
+                <a class="btn btn--secondary" asp-page="/Account/Manage">Cancel</a>
+            }
         </div>
     </form>
 </div>

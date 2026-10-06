@@ -33,6 +33,10 @@ public class E2EWebAppFactory : WebApplicationFactory<Program>
     public Guid FarmId { get; private set; }
     public const string AdminEmail = "e2e-admin@local";
     public const string AdminPassword = "E2EPassword123!";
+    /// <summary>The seeded admin's Base32 authenticator key: two-factor is required for a
+    /// Super-Administrator, so every E2E sign-in goes through the real challenge with a code
+    /// the test computes (see <see cref="Totp"/>).</summary>
+    public string AdminAuthenticatorKey { get; private set; } = "";
     public const string FarmName = "E2E Test Farm";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -101,7 +105,10 @@ public class E2EWebAppFactory : WebApplicationFactory<Program>
             admin.TermsAcceptedAt = DateTimeOffset.UtcNow;
             admin.TermsAcceptedLicenceExpiry = admin.LicenceExpiryDate;
             await users.UpdateAsync(admin);
+            await users.ResetAuthenticatorKeyAsync(admin);
+            await users.SetTwoFactorEnabledAsync(admin, true);
         }
+        AdminAuthenticatorKey = (await users.GetAuthenticatorKeyAsync((await users.FindByEmailAsync(AdminEmail))!))!;
 
         var db = sp.GetRequiredService<AutorepDbContext>();
         var farm = await db.Farms.FirstOrDefaultAsync(f => f.Name == FarmName);

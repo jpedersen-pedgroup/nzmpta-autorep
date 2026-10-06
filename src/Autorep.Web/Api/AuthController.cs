@@ -60,8 +60,18 @@ public class AuthController : ControllerBase
             return Unauthorized();
         }
 
-        // Licence check (pure Testers only — admins can sign in regardless).
         var roles = await _users.GetRolesAsync(user);
+
+        // This endpoint has no second step, so a password alone must never mint a token for an
+        // account that has (or must have) two-factor. The PWA signs in through the cookie
+        // pipeline, which does the challenge; this path is for devices with nothing to protect.
+        if (user.TwoFactorEnabled || MfaPolicy.IsRequiredFor(roles))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { error = "two-factor-required" });
+        }
+
+        // Licence check (pure Testers only — admins can sign in regardless).
         var isPureTester = roles.Contains(Roles.Tester)
             && !roles.Contains(Roles.SuperAdministrator)
             && !roles.Contains(Roles.CompanyAdministrator);
@@ -100,6 +110,16 @@ public class AuthController : ControllerBase
             return StatusCode(StatusCodes.Status423Locked);
 
         var roles = await _users.GetRolesAsync(user);
+
+        // Two-factor turned on (or the role now requires it) since the token was issued: the
+        // token line ends here, the same as at login.
+        if (user.TwoFactorEnabled || MfaPolicy.IsRequiredFor(roles))
+        {
+            await _refresh.RevokeAllAsync(user.Id, "two-factor-required");
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { error = "two-factor-required" });
+        }
+
         var isPureTester = roles.Contains(Roles.Tester)
             && !roles.Contains(Roles.SuperAdministrator)
             && !roles.Contains(Roles.CompanyAdministrator);

@@ -145,6 +145,35 @@
                 <button type="submit" class="btn btn--secondary">Force sign out</button>
             </div>
         </form>
+        <h3 class="section-title">Two-factor authentication</h3>
+        @if (Model.EditingUser.TwoFactorEnabled)
+        {
+            <p style="color:var(--text-muted)">
+                <strong>Enabled.</strong> Reset it if they've lost their authenticator app and their recovery codes.
+                This signs them out everywhere and forgets their trusted devices; their next sign-in is password only.
+                A Super Administrator is then made to set up a new authenticator before they can continue.
+            </p>
+            <form method="post" asp-page-handler="ResetTwoFactor"
+                  onsubmit="return confirm('Reset two-factor for this account? They will be signed out everywhere and their authenticator and recovery codes will stop working.');">
+                <div class="form-actions">
+                    <button type="submit" class="btn btn--danger">Reset two-factor</button>
+                </div>
+            </form>
+        }
+        else
+        {
+            <p style="color:var(--text-muted)">
+                <strong>Not set up.</strong>
+                @if (Model.Details.SelectedRoles.Contains(Roles.SuperAdministrator))
+                {
+                    <text>Required for Super Administrators: they'll be asked to set it up at their next sign-in.</text>
+                }
+                else
+                {
+                    <text>Optional for this role; they can set it up under Account settings.</text>
+                }
+            </p>
+        }
     </div>
 
     <div class="tab-panel form-tabs-card__panel" id="tester-panel-account" hidden>

@@ -139,6 +139,22 @@ public class EditModel : PageModel
         return Page();
     }
 
+    /// <summary>The way back in for someone who has lost both the authenticator app and their
+    /// recovery codes. Clears the enrolment and ends every session and trusted device: the next
+    /// sign-in is password only (a Super Administrator is then made to enrol again at once).</summary>
+    public async Task<IActionResult> OnPostResetTwoFactorAsync()
+    {
+        if (!await LoadAsync(hydrateForGet: false)) return NotFound();
+        await _users.SetTwoFactorEnabledAsync(EditingUser!, false);
+        await _users.ResetAuthenticatorKeyAsync(EditingUser!);
+        // Invalidates auth cookies AND the "trust this device" cookies, which carry the stamp too.
+        await _users.UpdateSecurityStampAsync(EditingUser!);
+        await _refresh.RevokeAllAsync(EditingUser!.Id, "two-factor-reset");
+        Message = "Two-factor reset. Their next sign-in needs the password only; a Super Administrator will be asked to set up a new authenticator straight away.";
+        await LoadAsync(hydrateForGet: true);
+        return Page();
+    }
+
     public async Task<IActionResult> OnPostToggleActiveAsync()
     {
         if (!await LoadAsync(hydrateForGet: false)) return NotFound();
