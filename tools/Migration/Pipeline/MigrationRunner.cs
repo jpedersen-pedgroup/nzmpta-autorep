@@ -524,13 +524,21 @@ public sealed class MigrationRunner
     private HashSet<Guid> _seen = new();
 
     /// <summary>The migrated tester who owns the test and, from the same legacy user row, the
-    /// company it was done under. A test whose owner was not migrated (quarantined, or unknown
-    /// to the legacy Users table) goes to the synthetic tester - but keeps the company when the
-    /// legacy user row named one, so it is not lost from that company's history.</summary>
+    /// company it was done under - the legacy test row's own CompanyID first (the company as at
+    /// the test, so a tester who has since moved companies does not take their history with them,
+    /// which is also how the new app stamps TestingCompanyId), and the owner's current company
+    /// only when the test row has none that maps. A test whose owner was not migrated
+    /// (quarantined, or unknown to the legacy Users table) goes to the synthetic tester but keeps
+    /// that company, so it is not lost from the company's history.</summary>
     private (string TesterId, Guid? CompanyId) ResolveOwner(LogicalTest lt, IdMaps ids, Quarantine q)
     {
         var uid = Row.Int(lt.Header, "UserID");
-        var company = uid is { } u ? ids.UserCompany.GetValueOrDefault(u) : null;
+        Guid? company = null;
+        if (Row.Int(lt.Header, "CompanyID") is { } testCompany && ids.Company.TryGetValue(testCompany, out var mapped))
+            company = mapped;
+        else if (uid is { } u)
+            company = ids.UserCompany.GetValueOrDefault(u);
+
         if (uid is not null && ids.User.TryGetValue(uid.Value, out var tid))
             return (tid, company);
         q.Add("Tests", lt.SourceGuid.ToString(), "MachineTest", "test_owner_unresolved");

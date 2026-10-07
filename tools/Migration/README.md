@@ -62,7 +62,10 @@ dotnet run --project tools/Migration -- cutover --target-conn "Server=...prod...
 - `reconciliation.csv` — per-entity counts: `Entity,SourceRows,Migrated,SkippedExisting`, also
   printed to the console. Every row is in its own entity's units (the Farms row counts distinct
   farms — keyed farms plus one placeholder per farm-less test — not the tests that reference
-  them), so `SourceRows = Migrated + SkippedExisting` on a clean run. Quarantine totals are not in it. Nor is `data-quality.csv` a quarantine
+  them). `SourceRows = Migrated + SkippedExisting + rows excluded` - companies and testers can be
+  excluded (a company with no name, a user with no email or a colliding username), so for those
+  two entities the gap is the excluded count; farms and tests have no exclusions, so for them the
+  two sides match on a clean run. Quarantine totals are not in it. Nor is `data-quality.csv` a quarantine
   count: it also holds informational findings about rows that *were* migrated (an inactive tester,
   a suffixed company name, a defaulted configuration), and one legacy row can produce several
   lines. To count excluded rows, filter it to the `Reason` codes that mean "not migrated"
