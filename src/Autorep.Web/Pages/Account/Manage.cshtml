@@ -11,22 +11,49 @@
     </div>
 </div>
 
+@if (Model.Recovered)
+{
+    <div class="alert alert--warning" style="max-width:640px">
+        <strong>You signed in with a recovery code.</strong> If you've lost your authenticator app, set up a new one now — it replaces the old app and issues fresh recovery codes.
+        @if (Model.RecoveryCodesLeft <= 2)
+        {
+            <text>You have @Model.RecoveryCodesLeft recovery code@(Model.RecoveryCodesLeft == 1 ? "" : "s") left.</text>
+        }
+    </div>
+}
 @if (Model.Message is not null)
 {
     <div class="alert alert--success">@Model.Message</div>
+}
+@if (Model.Error is not null)
+{
+    <div class="alert alert--danger">@Model.Error</div>
 }
 
 <div class="card" style="max-width:640px">
     <h2 class="card__title">Two-factor authentication</h2>
     @if (Model.TwoFactorEnabled)
     {
-        <p style="color:var(--text-muted)">Two-factor is <strong>enabled</strong> for your account.</p>
-        <form method="post" asp-page-handler="DisableTwoFactor">
-            <div class="form-actions">
-                <button type="submit" class="btn btn--danger">Disable two-factor</button>
-                <a class="btn btn--secondary" asp-page="/Account/RecoveryCodes">Regenerate recovery codes</a>
-            </div>
-        </form>
+        <p style="color:var(--text-muted)">
+            Two-factor is <strong>enabled</strong> for your account.
+            You have <strong>@Model.RecoveryCodesLeft</strong> recovery code@(Model.RecoveryCodesLeft == 1 ? "" : "s") left.
+            @if (Model.TwoFactorRequired)
+            {
+                <text>It's required for Super Administrator accounts, so it can't be switched off.</text>
+            }
+        </p>
+        <div class="form-actions" style="flex-wrap:wrap">
+            <a class="btn btn--secondary" asp-page="/Account/SetupAuthenticator">Set up a new authenticator</a>
+            <form method="post" asp-page="/Account/RecoveryCodes" asp-page-handler="Regenerate" style="margin:0">
+                <button type="submit" class="btn btn--secondary">Regenerate recovery codes</button>
+            </form>
+            @if (!Model.TwoFactorRequired)
+            {
+                <form method="post" asp-page-handler="DisableTwoFactor" style="margin:0">
+                    <button type="submit" class="btn btn--danger">Disable two-factor</button>
+                </form>
+            }
+        </div>
     }
     else
     {

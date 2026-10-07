@@ -37,12 +37,15 @@ public class FarmAutocompleteE2ETests : IClassFixture<E2EWebAppFactory>, IAsyncL
         });
         var page = await context.NewPageAsync();
 
-        // 1. Sign in as the seeded Super-Administrator.
+        // 1. Sign in as the seeded Super-Administrator: password, then the authenticator code.
         await page.GotoAsync("/Account/Login");
         await page.FillAsync("#Input_Email", E2EWebAppFactory.AdminEmail);
         await page.FillAsync("#Input_Password", E2EWebAppFactory.AdminPassword);
         await page.ClickAsync("button[type=submit]");
-        await page.WaitForURLAsync(url => !url.Contains("/Account/Login"));
+        await page.WaitForURLAsync(url => url.Contains("/Account/TwoFactorChallenge"));
+        await page.FillAsync("#Input_Code", Totp.Now(_factory.AdminAuthenticatorKey));
+        await page.ClickAsync("button[type=submit]");
+        await page.WaitForURLAsync(url => !url.Contains("/Account/"));
 
         // 2. Open the seeded farm's edit page.
         await page.GotoAsync($"/Admin/Farms/Edit/{_factory.FarmId}");

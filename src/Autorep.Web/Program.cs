@@ -75,6 +75,8 @@ builder.Services
     .AddEntityFrameworkStores<AutorepDbContext>()
     // Marks a lapsed Tester's principal sync-only on every sign-in path (see LicenceScope).
     .AddClaimsPrincipalFactory<TesterClaimsPrincipalFactory>()
+    // Records in each session when the second factor was last proved (see MfaPolicy.SessionStampKey).
+    .AddSignInManager<TesterSignInManager>()
     .AddDefaultTokenProviders();
 
 builder.Services.ConfigureApplicationCookie(opts =>
@@ -127,6 +129,33 @@ else
 
 // Emails Company Administrators when a tester sets up a farm in the field (review flow).
 builder.Services.AddScoped<FarmReviewNotifier>();
+
+// Sign-in: the audit row for every attempt, and the gates (forced reset, lapsed licence, stale
+// terms) that run once an account is actually in - after the password, or after the 2FA code.
+builder.Services.AddScoped<LoginAudit>();
+builder.Services.AddScoped<SignInGates>();
+
+// "Trust this device" after a two-factor code. Identity's default is 14 days; the requirement
+// (and the checkbox label) is 30, and it is a hard 30: the cookie handler's default sliding
+// expiration would re-issue the cookie whenever it is used past half-life, so a device in regular
+// use would never be challenged again. The cookie carries the security stamp, so a force-logout,
+// password reset or two-factor reset withdraws the trust early.
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorRememberMeScheme, opts =>
+{
+    opts.ExpireTimeSpan = MfaPolicy.TrustedDeviceLifetime;
+    opts.SlidingExpiration = false;
+    opts.Cookie.HttpOnly = true;
+    opts.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+});
+
+// How soon a security-stamp change (force sign-out, password reset, two-factor reset, deactivate)
+// reaches a session that is already signed in. Identity's default is 30 minutes; the admin
+// buttons promise "signed out everywhere", so re-check every minute. One user read per signed-in
+// user per minute, at most.
+builder.Services.Configure<SecurityStampValidatorOptions>(opts =>
+{
+    opts.ValidationInterval = TimeSpan.FromMinutes(1);
+});
 
 // JWT for the sync API (sits alongside cookie auth used by Razor Pages).
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
@@ -248,6 +277,8 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.UseAuthentication();
+// A Super-Administrator without two-factor goes to set-up and nowhere else (403 on /api/*).
+app.UseMiddleware<MfaEnrolmentMiddleware>();
 app.UseAuthorization();
 
 app.MapRazorPages();
