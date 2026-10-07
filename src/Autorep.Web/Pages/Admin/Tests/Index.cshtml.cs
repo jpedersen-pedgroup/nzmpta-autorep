@@ -195,13 +195,15 @@ public static class AdminTestQuery
         }
 
         // The tested date: when the test was signed off (an administrator's version keeps that date),
-        // or when it was started, while it's in progress. New Zealand calendar days.
-        if (f.From is { } from)
+        // or when it was started, while it's in progress. New Zealand calendar days. A bound at either
+        // end of the calendar excludes nothing, and has no instant to compare with (the day after the
+        // last one doesn't exist; the first one's NZ midnight is before year 1 in UTC): it's left off.
+        if (f.From is { } from && from > DateOnly.MinValue)
         {
             var start = NzTime.StartOf(from);
             query = query.Where(t => (t.MarkedCompleteAt ?? t.CreatedAt) >= start);
         }
-        if (f.To is { } to)
+        if (f.To is { } to && to < DateOnly.MaxValue)
         {
             var end = NzTime.StartOf(to.AddDays(1));
             query = query.Where(t => (t.MarkedCompleteAt ?? t.CreatedAt) < end);

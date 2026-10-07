@@ -142,6 +142,10 @@ public partial class AdminTestListFilterTests : IClassFixture<AuthedWebAppFactor
 
         var upTo10th = await ListAsync(SuperAdmin(), $"companyId={company}&to=2026-03-10");
         upTo10th.Should().Contain(lateOn10th.Name).And.NotContain(earlyOn11th.Name);
+
+        // The calendar's own ends are valid dates that exclude nothing — not a 500.
+        var everything = await ListAsync(SuperAdmin(), $"companyId={company}&from=0001-01-01&to=9999-12-31");
+        everything.Should().Contain(lateOn10th.Name).And.Contain(earlyOn11th.Name).And.Contain(on12th.Name);
     }
 
     [Fact]
