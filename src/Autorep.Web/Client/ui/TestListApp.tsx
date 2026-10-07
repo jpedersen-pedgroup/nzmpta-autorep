@@ -9,6 +9,7 @@ import { allTests, deleteTest, putTest, TESTS_CHANGED_EVENT, type LocalTest } fr
 import { describeStorage, storageReport } from "../storage/durability";
 import { syncAll, SessionExpiredError, type SyncResult } from "../sync/syncClient";
 import { hasUnfinishedSibling, madeByOther, replacedIds, rivalsOf } from "../versioning/chain";
+import { clearRemoved, deletedOnServer, removedTests, type Deletion, type RemovedTest } from "../sync/removals";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { GuideLink } from "./GuideLink";
 import { showToast } from "./toast";
@@ -62,22 +63,42 @@ function canDelete(t: LocalTest): boolean {
   return !t.markedCompleteAt && t.syncState === "local-only" && !t.everUploaded;
 }
 
-/** The note added to a sync's toast when tests were combined with an edit made on the server. */
+/** The note added to a sync's toast when tests were combined with an edit made on the server, or
+ * removed because NZMPTA deleted them. */
 export function mergedNote(r: SyncResult): string {
-  if (!r.merged) return "";
-  return ` ${r.merged === 1 ? "1 test was" : `${r.merged} tests were`} changed on the server while you were editing — ` +
-    "your changes were combined with theirs as a new version. Check it before you print it again.";
+  let note = "";
+  if (r.merged) {
+    note += ` ${r.merged === 1 ? "1 test was" : `${r.merged} tests were`} changed on the server while you were editing — ` +
+      "your changes were combined with theirs as a new version. Check it before you print it again.";
+  }
+  if (r.removed) {
+    note += ` ${r.removed === 1 ? "1 test was" : `${r.removed} tests were`} deleted by NZMPTA and removed from this device.`;
+  }
+  return note;
+}
+
+function when(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function TestListApp() {
   const [tests, setTests] = useState<LocalTest[] | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [deleting, setDeleting] = useState<LocalTest | null>(null);
+  // Tests NZMPTA deleted: those removed from this device (until the tester says OK), and those
+  // still here because they hold unsent edits.
+  const [removed, setRemoved] = useState<RemovedTest[]>([]);
+  const [deletions, setDeletions] = useState<Record<string, Deletion>>({});
 
   const [storageLine, setStorageLine] = useState<string | null>(null);
 
-  const reload = async () =>
+  const reload = async () => {
     setTests((await allTests()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+    setRemoved(await removedTests());
+    setDeletions(await deletedOnServer());
+  };
   const refreshStorage = () => void storageReport().then((r) => setStorageLine(describeStorage(r)));
 
   useEffect(() => {
@@ -111,7 +132,7 @@ function TestListApp() {
           "error",
         );
       } else {
-        showToast(`Synced — ${r.pushed} pushed, ${r.pulled} pulled.${mergedNote(r)}`, r.merged ? "info" : "success");
+        showToast(`Synced — ${r.pushed} pushed, ${r.pulled} pulled.${mergedNote(r)}`, r.merged || r.removed ? "info" : "success");
       }
     } catch (e) {
       await reload();
@@ -196,6 +217,30 @@ function TestListApp() {
         </p>
       )}
 
+      {removed.length > 0 && (
+        <div class="alert alert--warning" role="status" data-removed-tests>
+          🗑 <strong>NZMPTA deleted {removed.length === 1 ? "a test" : `${removed.length} tests`}</strong>, so{" "}
+          {removed.length === 1 ? "it has" : "they have"} been removed from this device:
+          <ul class="removed-tests">
+            {removed.map((r) => (
+              <li key={r.id}>
+                {r.farmName || "Untitled test"}
+                {r.version > 1 ? ` (version ${r.version})` : ""}
+                {r.deletedAt ? `, deleted ${when(r.deletedAt)}` : ""}
+                {r.reason ? <>: “{r.reason}”</> : ""}
+                {r.hadUnsentChanges ? " — the changes you hadn't sent went up first and are kept with it." : ""}
+              </li>
+            ))}
+          </ul>
+          <button
+            class="btn btn--secondary btn--sm"
+            onClick={() => void clearRemoved().then(() => setRemoved([]))}
+          >
+            OK
+          </button>
+        </div>
+      )}
+
       {tests.length === 0 ? (
         <div class="empty">
           <div class="empty__title">No tests yet</div>
@@ -228,6 +273,14 @@ function TestListApp() {
                     {(t.version ?? 1) > 1 && <> <span class="badge">v{t.version}</span></>}
                     {supersededIds.has(t.id) && <> <span class="badge">superseded</span></>}
                     <VersionBadge test={t} tests={tests} />
+                    {deletions[t.id] && (
+                      <>
+                        {" "}
+                        <span class="badge badge--danger" title={deletions[t.id].reason ?? undefined}>
+                          deleted by NZMPTA
+                        </span>
+                      </>
+                    )}
                   </td>
                   <td class="td-actions">
                     {canDelete(t) && (

@@ -3,9 +3,11 @@
 // elsewhere while this one is still unfinished. In the admin portal, also the controls for editing a
 // completed test as its next version (O2; PRD stories 49–50).
 import type { ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 import type { LocalTest } from "../db/testStore";
 import { authorOf, madeByOther, rivalsOf } from "../versioning/chain";
 import type { EditScope } from "../versioning/adminEdit";
+import type { Deletion } from "../sync/removals";
 import type { SavedReportState } from "../versioning/adminReport";
 
 function when(iso?: string | null): string {
@@ -18,13 +20,26 @@ function when(iso?: string | null): string {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** Provenance of this version, for anyone looking at it: tester, colleague or administrator. */
-export function VersionNotices({ test, others }: { test: LocalTest; others: readonly LocalTest[] }) {
+/** Provenance of this version, for anyone looking at it: tester, colleague or administrator. On a
+ * tester's device, also a test NZMPTA has deleted that is still here because it holds unsent edits. */
+export function VersionNotices({ test, others, deletion }: {
+  test: LocalTest;
+  others: readonly LocalTest[];
+  deletion?: Deletion | null;
+}) {
   const own = madeByOther(test);
   const rivals = test.markedCompleteAt ? [] : rivalsOf(test, others);
   const merge = own?.merge;
   return (
     <>
+      {deletion && (
+        <div class="alert alert--danger version-note" data-version-note="deleted">
+          🗑 <strong>NZMPTA deleted this test</strong>
+          {deletion.at ? ` on ${when(deletion.at)}` : ""}
+          {deletion.reason ? <>: “{deletion.reason}”</> : "."} Your changes on this device are still sent —
+          they're kept with the deleted test — and then it's removed from this device.
+        </div>
+      )}
       {own && merge && (
         <div class="alert alert--info version-note" data-version-note="merged">
           🔀 <strong>Combined automatically</strong> on {when(own.amendedAt)}. Version {merge.headVersion}
@@ -73,6 +88,11 @@ export interface AdminView {
   draft?: { version: number; startedAt: string } | null;
   testerName?: string | null;
   completedAt?: string | null;
+  /** Soft-deleted: who, when and why. */
+  deletion?: { at?: string | null; by?: string | null; reason?: string | null } | null;
+  /** A Super-Administrator may delete it (when it isn't) or restore it (when it is). */
+  canDelete?: boolean;
+  canRestore?: boolean;
 }
 
 /** Why a save didn't happen, as the edit bar words it. */
@@ -104,12 +124,17 @@ interface AdminEditBarProps {
   onSave(): void;
   onCancel(): void;
   onDownload(): void;
+  /** Soft-delete the test with a reason; resolves with a message when it didn't happen. */
+  onDelete(reason: string): Promise<string | null>;
+  onRestore(): Promise<string | null>;
 }
 
 const BLOCKED_TEXT: Record<string, string> = {
   "in-progress": "It hasn't been signed off yet, so it's still the tester's draft. It can be edited once it's complete.",
   migrated: "It was migrated from AutoRep Plus and reprints from the results recorded at the time, so it can't be edited here.",
   "no-record": "It was synced before full test records were kept, so there's nothing here to edit.",
+  deleted: "It has been deleted, so it can't be edited. Reload the page to see who deleted it and why.",
+  busy: "The test changed on the server at the same moment (the tester's device may have just synced it). Save again — your changes are still here.",
 };
 
 function problemText(problem: SaveProblem): ComponentChildren {
@@ -220,7 +245,9 @@ export function AdminEditBar(props: AdminEditBarProps) {
           )}
         </div>
       )}
-      {view.editScope ? (
+      {view.deletion ? (
+        <DeletedNotice deletion={view.deletion} canRestore={Boolean(view.canRestore)} onRestore={props.onRestore} />
+      ) : view.editScope ? (
         <div class="alert alert--info admin-edit__offer">
           📝 <strong>Version {view.version}</strong>
           {view.completedAt ? `, completed ${when(view.completedAt)}` : ""}
@@ -256,6 +283,107 @@ export function AdminEditBar(props: AdminEditBarProps) {
           is shown as recorded at the time of testing.
         </div>
       )}
+      {view.canDelete && <DeleteControl onDelete={props.onDelete} />}
     </>
+  );
+}
+
+/** A soft-deleted test, as the admin viewer shows it — with Restore for a Super-Administrator. */
+function DeletedNotice({ deletion, canRestore, onRestore }: {
+  deletion: NonNullable<AdminView["deletion"]>;
+  canRestore: boolean;
+  onRestore(): Promise<string | null>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div class="alert alert--danger admin-edit__deleted" role="status">
+      🗑 <strong>Deleted</strong>
+      {deletion.by ? ` by ${deletion.by}` : ""}
+      {deletion.at ? ` on ${when(deletion.at)}` : ""}
+      {deletion.reason ? <>: “{deletion.reason}”</> : "."} Every version of this test is hidden from the lists
+      and from Upcoming, and has been removed from the tester's device. It stays on record.{" "}
+      {canRestore && (
+        <button
+          class="btn btn--sm btn--secondary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setError(await onRestore());
+            setBusy(false);
+          }}
+        >
+          {busy ? "Restoring…" : "Restore"}
+        </button>
+      )}
+      {error && <p class="admin-edit__problem" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+/** Soft-delete (PRD story 70): a Super-Administrator's, with a reason, confirmed in a dialog. */
+function DeleteControl({ onDelete }: { onDelete(reason: string): Promise<string | null> }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const close = () => {
+    if (busy) return;
+    setOpen(false);
+    setReason("");
+    setError(null);
+  };
+  const submit = async () => {
+    if (!reason.trim()) {
+      setError("Give a reason — it's kept with the deleted test.");
+      return;
+    }
+    setBusy(true);
+    setError(await onDelete(reason.trim()));
+    setBusy(false);
+  };
+  return (
+    <div class="admin-edit__danger">
+      <button class="btn btn--danger-soft btn--sm" onClick={() => setOpen(true)}>
+        Delete test…
+      </button>
+      {open && (
+        <div
+          class="modal-overlay open"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) close();
+          }}
+        >
+          <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-test-title">
+            <div class="modal__title" id="delete-test-title">Delete this test?</div>
+            <p>
+              Every version of it is hidden from the lists and from Upcoming, and removed from the tester's
+              device at its next sync. Changes the tester hasn't sent yet are never lost: they're kept with the
+              deleted test. It stays on record, with your reason, and can be restored.
+            </p>
+            <label class="admin-edit__label" for="delete-reason">
+              Reason <span class="admin-edit__hint">(required)</span>
+            </label>
+            <textarea
+              id="delete-reason"
+              class="admin-edit__reason"
+              rows={3}
+              maxLength={500}
+              value={reason}
+              onInput={(e) => setReason((e.currentTarget as HTMLTextAreaElement).value)}
+            />
+            {error && <p class="admin-edit__problem" role="alert">{error}</p>}
+            <div class="form-actions">
+              <button class="btn btn--danger" disabled={busy} onClick={() => void submit()}>
+                {busy ? "Deleting…" : "Delete test"}
+              </button>
+              <button class="btn btn--secondary" disabled={busy} onClick={close}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

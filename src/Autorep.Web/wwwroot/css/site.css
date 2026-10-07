@@ -1959,3 +1959,6 @@ main {
 .admin-edit__report { margin: var(--space-2) 0 0; font-size: 0.875rem; }
 .admin-edit__draft { margin: var(--space-2) 0 0; color: #92400e; }
 .version-note strong { font-weight: 600; }
+.admin-edit__danger { display: flex; justify-content: flex-end; margin: calc(-1 * var(--space-2)) 0 var(--space-4); }
+.admin-edit__deleted .btn { margin-left: var(--space-2); }
+.removed-tests { margin: var(--space-2) 0 var(--space-3); padding-left: 1.25rem; }

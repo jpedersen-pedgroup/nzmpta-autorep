@@ -259,6 +259,41 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         await page.Locator("[data-version-note=admin]", new() { HasText = $"made by {AdminEditE2EWebAppFactory.AdminName} (Super Administrator)" }).WaitForAsync();
     }
 
+    // PRD story 70: NZMPTA deletes a test (with a reason) and it leaves the tester's device at the next
+    // sync — said out loud, not silently.
+    [Fact]
+    public async Task A_soft_deleted_test_leaves_the_testers_device()
+    {
+        var (testId, clientId) = await _factory.SeedCompletedTestAsync("Kereru Knoll");
+        var (testerContext, tester) = await NewTesterPageAsync(_browser, _factory.BaseUrl);
+        await using var _ = testerContext;
+        await SignInAsync(tester);
+        await tester.GotoAsync("/App/Tests");
+        await tester.GetByRole(AriaRole.Button, new() { Name = "Sync now" }).ClickAsync();
+        var row = tester.Locator("tr", new() { HasText = "Kereru Knoll" });
+        await row.WaitForAsync();
+
+        var (adminContext, admin) = await SuperAdminAsync();
+        await using var __ = adminContext;
+        await admin.GotoAsync($"/Admin/Tests/View/{testId}");
+        await admin.GetByRole(AriaRole.Button, new() { Name = "Delete test…" }).ClickAsync();
+        await admin.FillAsync("#delete-reason", "Duplicate of another test");
+        await ShotAsync(admin, "o2-delete-dialog");
+        await admin.GetByRole(AriaRole.Button, new() { Name = "Delete test", Exact = true }).ClickAsync();
+        await admin.Locator(".admin-edit__deleted", new() { HasText = "Duplicate of another test" }).WaitForAsync();
+        await ShotAsync(admin, "o2-admin-deleted-view");
+
+        await tester.GetByRole(AriaRole.Button, new() { Name = "Sync now" }).ClickAsync();
+        await tester.Locator("[data-removed-tests]", new() { HasText = "Kereru Knoll" }).WaitForAsync();
+        Assert.Equal(0, await row.CountAsync());
+        Assert.Null(await LocalTestJsonAsync(tester, _factory.TesterId, clientId.ToString()));
+        await ShotAsync(tester, "o2-tester-after-delete");
+
+        var deleted = await WithDbAsync(db => db.MachineTests.SingleAsync(t => t.Id == testId));
+        Assert.True(deleted.IsDeleted);
+        Assert.Equal("Duplicate of another test", deleted.DeletedReason);
+    }
+
     /// <summary>An administrator's version of the test, made through the same service the portal uses.</summary>
     private async Task<Guid> SaveAdminVersionAsync(Guid testId, Action<JsonObject> change)
     {

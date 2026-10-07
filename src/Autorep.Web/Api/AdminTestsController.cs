@@ -19,9 +19,46 @@ namespace Autorep.Web.Api;
 [Route("api/admin/tests")]
 [Authorize(Roles = Roles.SuperAdministrator + "," + Roles.CompanyAdministrator)]
 public class AdminTestsController(
-    AutorepDbContext db, AdminVersioning versioning, FinalReportStore reports, UserManager<Tester> users)
+    AutorepDbContext db, AdminVersioning versioning, TestDeletion deletion, FinalReportStore reports,
+    UserManager<Tester> users)
     : ControllerBase
 {
+    public record ReasonRequest(string? Reason);
+
+    /// <summary>
+    /// Soft-deletes the test version <paramref name="id"/> belongs to — every version of it — with a
+    /// required reason (PRD story 70). Super-Administrator only. It leaves every list and the
+    /// tester's device; the rows stay on record and can be restored.
+    /// </summary>
+    [HttpPost("{id:guid}/delete")]
+    [Authorize(Roles = Roles.SuperAdministrator)]
+    public async Task<IActionResult> Delete(Guid id, [FromBody] ReasonRequest req, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var me = await users.GetUserAsync(User);
+        if (me is null) return Forbid();
+        return Answer(await deletion.DeleteAsync(id, req.Reason, me.Id, ct));
+    }
+
+    /// <summary>Undoes a soft-delete: every version of the test comes back, and returns to the
+    /// tester's device on its next sync. Super-Administrator only.</summary>
+    [HttpPost("{id:guid}/restore")]
+    [Authorize(Roles = Roles.SuperAdministrator)]
+    public async Task<IActionResult> Restore(Guid id, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var me = await users.GetUserAsync(User);
+        if (me is null) return Forbid();
+        return Answer(await deletion.RestoreAsync(id, me.Id, ct));
+    }
+
+    private IActionResult Answer(TestDeletion.Result result) => result switch
+    {
+        TestDeletion.Done done => Ok(new { versions = done.Versions.Count }),
+        TestDeletion.Invalid invalid => BadRequest(new { error = "invalid", message = invalid.Message }),
+        TestDeletion.Conflict conflict => Conflict(new { error = conflict.Error }),
+        _ => NotFound(),
+    };
     /// <summary>The edited test (the browser's LocalTest, with this edit's amendment record appended
     /// to its history) and why it was changed.</summary>
     public record SaveVersionRequest(string? PayloadJson, string? Reason);

@@ -78,9 +78,14 @@ public class SyncController : ControllerBase
         // The second parent of an automatic merge (see MergeTests), when a device re-sends one.
         Guid? MergedFromClientId = null);
 
+    /// <summary>A test as the pull delivers it. A soft-deleted one comes as a TOMBSTONE —
+    /// <c>Deleted</c> set, with when and why — so the device removes its copy (or, if it holds edits
+    /// the server hasn't seen, keeps and flags it). The payload still comes too: a device older than
+    /// tombstones would otherwise overwrite its copy with an empty shell.</summary>
     public record TestSummaryDto(
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
-        DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson);
+        DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson,
+        bool Deleted = false, DateTimeOffset? DeletedAt = null, string? DeletedReason = null);
 
     /// <summary>Pull envelope. Watermark is stored by the Device and sent back as `since` on its
     /// next pull — server clock on both sides, so device clock skew is irrelevant. <c>Next</c> is the
@@ -110,10 +115,14 @@ public class SyncController : ControllerBase
     // stores each page as it lands: the newest tests are on screen while the tail is still coming,
     // and an interrupted pull resumes rather than starting over. It keeps the FIRST page's
     // watermark, so anything written while it paged comes back on the next pull. The cursor is an
-    // offset over a total order (created, then id): rows are never deleted and a row never leaves
-    // the since-window once in it, so the only thing that can shift under a cursor is a row arriving
-    // at the top — which re-delivers a row (harmless: the pull upserts), never skips one. Without
-    // ?limit= the answer is the whole set, exactly as a device that predates paging expects.
+    // offset over a total order (created, then id), which is only safe while rows never LEAVE the
+    // result set: a row leaving it ahead of the cursor would shift the rest up and the next page
+    // would skip one. So a soft-deleted test is never filtered out here — it stays, as a tombstone
+    // (TestSummaryDto.Deleted) — and a row's UpdatedAt only ever moves forward, so nothing leaves the
+    // since-window either. Rows can only ARRIVE (a new version at the top, or an old row whose
+    // UpdatedAt moved, wherever it sorts), which shifts the rest down: a row re-delivered, never one
+    // skipped, and the pull upserts. Without ?limit= the answer is the whole set, exactly as a device
+    // that predates paging expects.
     //
     // ?attachments=omit leaves the pulsation analyser PDFs' bytes on the server (marking each
     // attachment as held there): the device fetches one back from tests/{clientId}/pulsation-pdf
@@ -170,7 +179,10 @@ public class SyncController : ControllerBase
                 t.Configuration is null ? null : ToDto(t.Configuration),
                 omitAttachments
                     ? PulsationPayload.WithoutBytes(t.PayloadJson)
-                    : await _attachments.RehydrateAsync(t.PayloadJson, t.TesterId, t.ClientId!.Value, ct)));
+                    : await _attachments.RehydrateAsync(t.PayloadJson, t.TesterId, t.ClientId!.Value, ct),
+                t.IsDeleted,
+                t.DeletedAt,
+                t.DeletedReason));
         }
 
         return Ok(new PullResponse(watermark, dtos, next));
@@ -184,7 +196,7 @@ public class SyncController : ControllerBase
         var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new InvalidOperationException("No NameIdentifier claim on principal.");
         var payload = await _db.MachineTests
-            .Where(t => t.TesterId == testerId && t.ClientId == clientId)
+            .Where(t => t.TesterId == testerId && t.ClientId == clientId && !t.IsDeleted)
             .Select(t => t.PayloadJson)
             .FirstOrDefaultAsync(ct);
 
@@ -232,9 +244,17 @@ public class SyncController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.FarmName))
             return BadRequest(new { error = "FarmName is required" });
 
+        // Signed off already: unchanged, or refused — deleted or not (the pull's tombstone tells the
+        // device about a deletion).
         if (await FrozenAsync(testerId, req, ct) is { } frozen) return frozen;
 
-        if (req.SupersedesClientId is { } parent
+        // A test NZMPTA has soft-deleted stays deleted. What the device sends is still kept with it —
+        // it may be the only copy of the tester's latest edits — and the answer says so, so the device
+        // can tell the tester. There's nothing to reconcile with.
+        var deleted = await DeletedLineageAsync(testerId, req.ClientId, req.SupersedesClientId, ct);
+
+        if (deleted is null
+            && req.SupersedesClientId is { } parent
             && await _reconciliation.CollisionAsync(testerId, req.ClientId, parent, ct) is { } collision)
         {
             await _reconciliation.NotePendingAsync(collision.Base, collision.Head, req.ClientId, SyncConflictSource.Push, ct);
@@ -249,6 +269,24 @@ public class SyncController : ControllerBase
         try
         {
             stored = await StoreAsync(req, testerId, ct);
+            // Deleted between that check and the parent being read for this write: it still joins the
+            // deleted test. (A deletion committing after the read makes this save fail instead: the
+            // parent's stamp has moved.)
+            deleted ??= stored.Parent is { IsDeleted: true } deletedParent ? deletedParent : null;
+            if (deleted is not null)
+            {
+                // Versions that arrived before this one (a device sends in whatever order its store
+                // lists them) and have just taken its root join the deletion with it.
+                var now = DateTimeOffset.UtcNow;
+                foreach (var row in stored.Adopted.Prepend(stored.Test).Where(r => !r.IsDeleted))
+                {
+                    row.IsDeleted = true;
+                    row.DeletedAt = deleted.DeletedAt;
+                    row.DeletedById = deleted.DeletedById;
+                    row.DeletedReason = deleted.DeletedReason;
+                    row.UpdatedAt = now;
+                }
+            }
             await _db.SaveChangesAsync(ct);
         }
         catch (DbUpdateConcurrencyException)
@@ -262,6 +300,9 @@ public class SyncController : ControllerBase
         if (stored.NewFarm is { PendingReviewSince: not null } farm)
             await _reviewNotifier.NotifyPendingFarmAsync(farm,
                 $"{Request.Scheme}://{Request.Host}/Admin/Farms/Edit/{farm.Id}", ct);
+
+        if (deleted is not null)
+            return Ok(new { id = stored.Test.Id, status = "deleted", deletedAt = deleted.DeletedAt, reason = deleted.DeletedReason });
 
         return stored.Created
             ? CreatedAtAction(nameof(GetTest), new { id = stored.Test.Id }, new { id = stored.Test.Id, status = "created" })
@@ -301,6 +342,9 @@ public class SyncController : ControllerBase
         var baseVersion = await _db.MachineTests
             .FirstOrDefaultAsync(t => t.TesterId == testerId && t.ClientId == baseClientId, ct);
         if (baseVersion is null) return NotFound(new { error = "The version these were made from isn't on the server." });
+        // Deleted since the 409: nothing to combine with. The device's next push stores its version
+        // with the deleted test (see UploadTest).
+        if (baseVersion.IsDeleted) return StatusCode(StatusCodes.Status410Gone, new { error = "deleted" });
 
         var versions = await TestLineage.VersionsAsync(_db, baseVersion, ct);
         var head = TestLineage.Head(versions, excludingClientId: incoming.ClientId);
@@ -466,15 +510,36 @@ public class SyncController : ControllerBase
             await SummaryOf(collision.Base.Id), await SummaryOf(collision.Head.Id), collision.Head.Version);
     }
 
-    /// <summary>What a push stored: the row, whether it was new, and a farm it had to create.</summary>
-    private sealed record Stored(MachineTest Test, bool Created, Farm? NewFarm);
+    /// <summary>The deleted version a push belongs with, when its test has been soft-deleted: the row
+    /// itself, the version it was made from, or any other version of the test it joins (by the root it
+    /// takes, which is its parent's when the parent is here) — so a deletion further up the chain is
+    /// found too, not only one in the parent. A version that arrives before its own parent can't be
+    /// placed yet; it joins the deletion when the parent arrives (see UploadTest).</summary>
+    private async Task<MachineTest?> DeletedLineageAsync(string testerId, Guid clientId, Guid? parentClientId, CancellationToken ct)
+    {
+        var root = await TestLineage.RootForNewVersionAsync(_db, testerId, clientId, parentClientId, ct);
+        return await _db.MachineTests.AsNoTracking()
+            .Where(t => t.TesterId == testerId && t.IsDeleted
+                && (t.ClientId == clientId
+                    || (parentClientId != null && t.ClientId == parentClientId)
+                    || t.ClientId == root
+                    || t.RootClientId == root))
+            .OrderBy(t => t.DeletedAt)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>What a push stored: the row, whether it was new, a farm it had to create, the version it
+    /// was made from (as read for this write), and versions that had arrived before it and now take
+    /// its root.</summary>
+    private sealed record Stored(MachineTest Test, bool Created, Farm? NewFarm, MachineTest? Parent, IReadOnlyList<MachineTest> Adopted);
 
     /// <summary>
     /// Upserts a pushed test (not yet saved). A new VERSION of a test already on the server stays
     /// with that test: the same farm and the same company as its parent, whatever company the tester
     /// is with now — an amendment is more work on the original test, not a new test for the tester's
-    /// current employer. A version signed off here renews its parent's <see cref="MachineTest.SuccessorStamp"/>,
-    /// so a rival writer that checked the same parent fails rather than forking the test.
+    /// current employer. A version signed off here, or a new one started, renews its parent's
+    /// <see cref="MachineTest.SuccessorStamp"/>, so a rival writer that read the same parent fails
+    /// rather than forking the test — or, for a deletion, rather than missing the new version.
     /// </summary>
     private async Task<Stored> StoreAsync(UploadTestRequest req, string testerId, CancellationToken ct)
     {
@@ -493,7 +558,7 @@ public class SyncController : ControllerBase
         var parent = req.SupersedesClientId is { } parentId
             ? await _db.MachineTests.FirstOrDefaultAsync(t => t.TesterId == testerId && t.ClientId == parentId, ct)
             : null;
-        if (parent is not null && req.MarkedCompleteAt is not null && existing?.MarkedCompleteAt is null)
+        if (parent is not null && (existing is null || (req.MarkedCompleteAt is not null && existing.MarkedCompleteAt is null)))
             parent.SuccessorStamp = Guid.NewGuid();
 
         if (existing is not null)
@@ -510,7 +575,7 @@ public class SyncController : ControllerBase
             // done for. Re-deriving it here would drag a tester's old tests into their new company
             // the first time they re-synced after a transfer.
             ApplyConfig(existing, req.Config);
-            return new Stored(existing, false, null);
+            return new Stored(existing, false, null, parent, []);
         }
 
         Farm? newFarm = null;
@@ -532,7 +597,7 @@ public class SyncController : ControllerBase
         }
 
         var root = await TestLineage.RootForNewVersionAsync(_db, testerId, req.ClientId, req.SupersedesClientId, ct);
-        await TestLineage.AdoptDescendantsAsync(_db, testerId, req.ClientId, root, ct);
+        var adopted = await TestLineage.AdoptDescendantsAsync(_db, testerId, req.ClientId, root, ct);
 
         var test = new MachineTest
         {
@@ -553,7 +618,7 @@ public class SyncController : ControllerBase
         };
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
-        return new Stored(test, true, newFarm);
+        return new Stored(test, true, newFarm, parent, adopted);
     }
 
     [HttpGet("tests/{id:guid}")]
@@ -563,7 +628,7 @@ public class SyncController : ControllerBase
         var test = await _db.MachineTests
             .Include(t => t.Farm)
             .Include(t => t.Configuration)
-            .FirstOrDefaultAsync(t => t.Id == id && t.TesterId == testerId, ct);
+            .FirstOrDefaultAsync(t => t.Id == id && t.TesterId == testerId && !t.IsDeleted, ct);
         if (test is null) return NotFound();
 
         // Project to the DTO rather than returning the raw entity (avoids leaking the Farm

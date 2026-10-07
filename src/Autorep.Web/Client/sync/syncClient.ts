@@ -13,8 +13,9 @@
 // the pair to /api/sync/tests/merge; every version stays on record. A pull brings an
 // administrator's version of a test down like any other (it carries the tester's id), and the
 // version it replaces goes read-only through the supersedes link.
-import { allTests, currentTesterId, currentTesterName, getTest, putTest, getReference, putReference, storeOwner, type LocalTest } from "../db/testStore";
+import { allTests, currentTesterId, currentTesterName, deleteTest, getTest, putTest, getReference, putReference, storeOwner, type LocalTest } from "../db/testStore";
 import { mergeVersions } from "../versioning/merge";
+import { deletedOnServer, forgetDeletedOnServer, noteDeletedOnServer, noteRemoved } from "./removals";
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
@@ -35,6 +36,10 @@ interface TestSummaryDto {
   config: MachineConfiguration | null;
   /** Full offline capture payload (the serialised LocalTest) for exact rehydration. */
   payloadJson: string | null;
+  /** A tombstone: NZMPTA soft-deleted this test (sync/removals.ts). */
+  deleted?: boolean;
+  deletedAt?: string | null;
+  deletedReason?: string | null;
 }
 
 interface PullResponse {
@@ -68,6 +73,8 @@ export interface SyncResult {
   /** Pushed tests that arrived after another edit of the same test and were combined with it.
    * Present only when there were some. */
   merged?: number;
+  /** Tests removed from this device because NZMPTA deleted them. Present only when there were some. */
+  removed?: number;
 }
 
 /** The server's answer to a version that arrived second (SyncController.CollisionResponse). */
@@ -184,6 +191,12 @@ async function pushTest(t: LocalTest): Promise<boolean> {
     }
   }
   if (!res.ok) throw new Error(`Push failed (${res.status})`);
+  // NZMPTA deleted this test: the server kept what was sent with the deleted test. Flag the copy here
+  // — it's removed once a pull confirms the deletion — so the tester is told rather than surprised.
+  const answer = (await res.json().catch(() => null)) as { status?: string; deletedAt?: string | null; reason?: string | null } | null;
+  if (answer?.status === "deleted") {
+    await noteDeletedOnServer(t.id, { at: answer.deletedAt ?? null, reason: answer.reason ?? null });
+  }
   await markSent(t);
   return false;
 }
@@ -254,7 +267,7 @@ async function markSent(sent: LocalTest): Promise<void> {
  * again. The watermark kept is the FIRST page's, so anything written while paging comes back on
  * the next pull (see SyncController.ListTests). The analyser PDFs' bytes stay on the server.
  */
-async function pullTests(): Promise<number> {
+async function pullTests(): Promise<{ added: number; removed: number }> {
   let since: string | null = null;
   try {
     since = (await getReference(WATERMARK_KEY))?.version ?? null;
@@ -274,6 +287,7 @@ async function pullTests(): Promise<number> {
   let watermark = progress?.watermark ?? null;
   let restarted = false;
   let added = 0;
+  let removed = 0;
   for (;;) {
     const params = new URLSearchParams({ limit: String(PULL_PAGE_SIZE), attachments: "omit" });
     if (since) params.set("since", since);
@@ -290,7 +304,9 @@ async function pullTests(): Promise<number> {
     if (!res.ok) throw new Error(`Pull failed (${res.status})`);
     const page = (await res.json()) as PullResponse;
     watermark ??= page.watermark;
-    added += await storePulled(Array.isArray(page.tests) ? page.tests : []);
+    const stored = await storePulled(Array.isArray(page.tests) ? page.tests : []);
+    added += stored.added;
+    removed += stored.removed;
     if (!page.next) break;
     cursor = page.next;
     await putReference({ key: PROGRESS_KEY, rows: { since, watermark, cursor } satisfies PullProgress });
@@ -300,7 +316,7 @@ async function pullTests(): Promise<number> {
   // its saved progress next time (safe — the loop upserts) instead of losing the tail.
   await putReference({ key: WATERMARK_KEY, version: watermark });
   await putReference({ key: PROGRESS_KEY, rows: null });
-  return added;
+  return { added, removed };
 }
 
 /** A test the server sent (a pull, or a collision answer) as this device holds it: clean, since the
@@ -365,21 +381,51 @@ function localFromSummary(r: TestSummaryDto): LocalTest {
   };
 }
 
-async function storePulled(remote: readonly TestSummaryDto[]): Promise<number> {
+async function storePulled(remote: readonly TestSummaryDto[]): Promise<{ added: number; removed: number }> {
   let added = 0;
+  let removed = 0;
+  const flagged = new Set(Object.keys(await deletedOnServer()));
   for (const r of remote) {
     // A DIRTY local copy wins (it holds edits the server hasn't seen — they'll push next).
     // A CLEAN ("uploaded") copy is by definition one the server has seen, so the server's
     // current state replaces it — otherwise a device that pulled an in-progress draft would
     // keep it stale forever and never receive the completed version or its amendment history.
     const existing = await getTest(r.clientId);
+
+    if (r.deleted) {
+      // NZMPTA deleted this test. A copy the server already has goes; one with unsent edits never
+      // does — it's flagged, still goes up, and goes once a later pull finds it clean.
+      if (!existing) continue;
+      if (existing.syncState !== "uploaded") {
+        await noteDeletedOnServer(existing.id, { at: r.deletedAt ?? null, reason: r.deletedReason ?? null });
+        flagged.add(existing.id);
+        continue;
+      }
+      // Flagged means it held edits when the deletion first reached it; they've gone up since.
+      const hadUnsentChanges = flagged.delete(existing.id);
+      await deleteTest(existing.id);
+      if (hadUnsentChanges) await forgetDeletedOnServer(existing.id);
+      await noteRemoved({
+        id: existing.id,
+        farmName: existing.farmName,
+        version: existing.version ?? 1,
+        deletedAt: r.deletedAt ?? null,
+        reason: r.deletedReason ?? null,
+        hadUnsentChanges,
+      });
+      removed++;
+      continue;
+    }
+
+    // Not (or no longer — restored) deleted.
+    if (flagged.delete(r.clientId)) await forgetDeletedOnServer(r.clientId);
     if (existing && existing.syncState !== "uploaded") continue;
 
     // The server leaves analyser PDFs' bytes behind; keep this device's copy if it holds one.
     await putTest(keepHeldBytes(existing, localFromSummary(r)));
     added++;
   }
-  return added;
+  return { added, removed };
 }
 
 /** Dispatched on window when a sync starts and finishes (`detail.running`). */
@@ -448,7 +494,7 @@ async function runSync(): Promise<SyncResult> {
       failed++;
     }
   }
-  const pulled = await pullTests();
+  const { added: pulled, removed } = await pullTests();
   // The server just accepted this session end to end.
   reportSessionOk();
   // Now that the server is known to hold them, let go of analyser PDFs this device has kept
@@ -469,5 +515,8 @@ async function runSync(): Promise<SyncResult> {
   // the Help page can't open offline, but the guide links in the tester app can — from this copy.
   void warmGuides(guidesForRoles([TESTER_ROLE]));
 
-  return merged > 0 ? { pushed, failed, pulled, merged } : { pushed, failed, pulled };
+  const result: SyncResult = { pushed, failed, pulled };
+  if (merged > 0) result.merged = merged;
+  if (removed > 0) result.removed = removed;
+  return result;
 }

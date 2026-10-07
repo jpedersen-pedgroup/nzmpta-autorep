@@ -102,14 +102,15 @@ public static class TestLineage
 
     /// <summary>A version that reaches the server after versions made from it adopts them: anything
     /// provisionally rooted at its ClientId takes its root instead (a no-op for an original, whose
-    /// root is its own ClientId already).</summary>
-    public static async Task AdoptDescendantsAsync(
+    /// root is its own ClientId already). Returns the rows it adopted (tracked, not yet saved).</summary>
+    public static async Task<List<MachineTest>> AdoptDescendantsAsync(
         AutorepDbContext db, string testerId, Guid clientId, Guid root, CancellationToken ct)
     {
-        if (root == clientId) return;
+        if (root == clientId) return [];
         var provisional = await db.MachineTests
             .Where(t => t.TesterId == testerId && t.RootClientId == clientId && t.ClientId != clientId)
             .ToListAsync(ct);
         foreach (var row in provisional) row.RootClientId = root;
+        return provisional;
     }
 }

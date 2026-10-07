@@ -4,6 +4,7 @@ using Autorep.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Autorep.Web.Migrations
 {
     [DbContext(typeof(AutorepDbContext))]
-    partial class AutorepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007103852_MachineTestSoftDelete")]
+    partial class MachineTestSoftDelete
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -229,37 +232,6 @@ namespace Autorep.Web.Migrations
                         .IsUnique();
 
                     b.ToTable("FaultObservations");
-                });
-
-            modelBuilder.Entity("Autorep.Web.Domain.Entities.FinalReportBlob", b =>
-                {
-                    b.Property<Guid>("MachineTestId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("BlobKey")
-                        .IsRequired()
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<string>("Sha256")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("StoredAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("StoredBy")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("MachineTestId");
-
-                    b.ToTable("FinalReportBlobs");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.MachineConfiguration", b =>
@@ -1091,17 +1063,6 @@ namespace Autorep.Web.Migrations
                     b.Navigation("MilkSupplyCompany");
 
                     b.Navigation("Region");
-                });
-
-            modelBuilder.Entity("Autorep.Web.Domain.Entities.FinalReportBlob", b =>
-                {
-                    b.HasOne("Autorep.Web.Domain.Entities.MachineTest", "MachineTest")
-                        .WithOne()
-                        .HasForeignKey("Autorep.Web.Domain.Entities.FinalReportBlob", "MachineTestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("MachineTest");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.MachineConfiguration", b =>
