@@ -134,11 +134,14 @@ builder.Services.AddScoped<LoginAudit>();
 builder.Services.AddScoped<SignInGates>();
 
 // "Trust this device" after a two-factor code. Identity's default is 14 days; the requirement
-// (and the checkbox label) is 30. The cookie carries the security stamp, so a force-logout,
+// (and the checkbox label) is 30, and it is a hard 30: the cookie handler's default sliding
+// expiration would re-issue the cookie whenever it is used past half-life, so a device in regular
+// use would never be challenged again. The cookie carries the security stamp, so a force-logout,
 // password reset or two-factor reset withdraws the trust early.
 builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorRememberMeScheme, opts =>
 {
     opts.ExpireTimeSpan = MfaPolicy.TrustedDeviceLifetime;
+    opts.SlidingExpiration = false;
     opts.Cookie.HttpOnly = true;
     opts.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
