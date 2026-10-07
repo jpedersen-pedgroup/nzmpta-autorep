@@ -1,6 +1,7 @@
 // Storage Account (StorageV2, Standard_LRS) with public access disabled and a Private Endpoint for blob.
 // Shared-key access disabled — only Managed Identity / Azure AD auth.
-// Two containers seeded: final-reports (Final Report PDFs) and pulsation-data (uploaded Pulsation PDFs).
+// Two containers seeded: final-reports (Final Report PDFs) and pulsation-data (uploaded Pulsation PDFs),
+// both immutable (version-level WORM) for pdfRetentionDays — seven years — per blob version.
 
 @description('Azure region')
 param location string
@@ -19,6 +20,15 @@ param privateDnsZoneId string
 
 @description('Log Analytics workspace ID for diagnostic settings')
 param logAnalyticsWorkspaceId string
+
+// Seven years (7 × 365 + 2 leap days): the PRD's audit window. Every version of a Final Report or a
+// pulsation analyser PDF is immutable (WORM) for this long after it is written: it can't be deleted,
+// and an overwrite keeps the old version. The policy is UNLOCKED — an Owner can still shorten or
+// remove it — until NZMPTA confirms the period; locking it is a separate, irreversible step.
+@description('Days each version of a PDF in final-reports and pulsation-data stays immutable (WORM).')
+@minValue(1)
+@maxValue(146000)
+param pdfRetentionDays int = 2557
 
 // Storage account names: 3–24 chars, lowercase alphanumeric only, globally unique.
 var storageAccountName = take('st${replace(resourceBase, '-', '')}', 24)
@@ -59,16 +69,50 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2024-01-01'
   }
 }
 
+// Version-level immutability (WORM) on both PDF containers, with a default time-based retention
+// policy that every new blob version inherits (pdfRetentionDays, unlocked). What it means for the app
+// (Services/Pdfs/BlobPdfStore.cs): a put of new bytes over an existing key — a Final Report sent again
+// with different bytes — still succeeds and keeps the previous version; a delete fails (the app never
+// deletes); pulsation keys are content-addressed, so they are never overwritten at all.
+//
+// ONE-WAY: once a container supports version-level immutability it can't be turned off, and the
+// storage account can't be deleted while such a container holds blobs. A NEW container gets it at
+// creation (prod). An EXISTING container (staging) must be migrated before this deploys, or the
+// deployment fails — see the PR that added this for the two commands per container.
 resource finalReportsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2024-01-01' = {
   parent: blobService
   name: 'final-reports'
-  properties: { publicAccess: 'None' }
+  properties: {
+    publicAccess: 'None'
+    immutableStorageWithVersioning: { enabled: true }
+  }
+}
+
+resource finalReportsRetention 'Microsoft.Storage/storageAccounts/blobServices/containers/immutabilityPolicies@2024-01-01' = {
+  parent: finalReportsContainer
+  name: 'default'
+  properties: {
+    immutabilityPeriodSinceCreationInDays: pdfRetentionDays
+    allowProtectedAppendWrites: false
+  }
 }
 
 resource pulsationDataContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2024-01-01' = {
   parent: blobService
   name: 'pulsation-data'
-  properties: { publicAccess: 'None' }
+  properties: {
+    publicAccess: 'None'
+    immutableStorageWithVersioning: { enabled: true }
+  }
+}
+
+resource pulsationDataRetention 'Microsoft.Storage/storageAccounts/blobServices/containers/immutabilityPolicies@2024-01-01' = {
+  parent: pulsationDataContainer
+  name: 'default'
+  properties: {
+    immutabilityPeriodSinceCreationInDays: pdfRetentionDays
+    allowProtectedAppendWrites: false
+  }
 }
 
 resource pe 'Microsoft.Network/privateEndpoints@2024-05-01' = {
