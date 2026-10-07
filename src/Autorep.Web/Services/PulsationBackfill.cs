@@ -41,9 +41,13 @@ public sealed record PulsationBackfillResult(
 /// </summary>
 public sealed class PulsationBackfill
 {
-    private const int BatchSize = 20;
     /// <summary>A row seen changing this many times in one pass is left for the next pass.</summary>
     private const int MaxRetriesPerRow = 3;
+
+    /// <summary>How long the scan for candidates may take. Finding them means reading every test's
+    /// payload: on staging's serverless database, holding the migrated history, it ran past SQL's
+    /// default 30 s (8 Oct 2026). It runs once per pass; each candidate is then read by its key.</summary>
+    private static readonly TimeSpan ScanTimeout = TimeSpan.FromMinutes(10);
 
     private readonly AutorepDbContext _db;
     private readonly IPdfStore _store;
@@ -64,53 +68,71 @@ public sealed class PulsationBackfill
     {
         int inline = 0, moved = 0, wouldMove = 0, changed = 0, unreadable = 0, failed = 0;
         long bytes = 0;
-        // Rows left inline (a dry run, unreadable ones) still match, and sort first among what's
-        // left — the pass works in order — so the next page starts past them.
-        var leftInline = 0;
-        var retries = new Dictionary<Guid, int>();
 
-        while (!ct.IsCancellationRequested)
+        // One scan finds the candidates, and only their ids come back; each is then read by its key.
+        // A cheap filter in SQL — PulsationPayload decides whether a row really holds an attachment.
+        var ids = await WithScanTimeoutAsync(() => _db.MachineTests.AsNoTracking()
+            .Where(t => t.PayloadJson != null && t.PayloadJson.Contains("\"base64\""))
+            .OrderBy(t => t.CreatedAt).ThenBy(t => t.Id)
+            .Select(t => t.Id)
+            .ToListAsync(ct));
+
+        foreach (var id in ids)
         {
-            var batch = await _db.MachineTests.AsNoTracking()
-                // A cheap filter in SQL; PulsationPayload decides whether it really is an attachment.
-                .Where(t => t.PayloadJson != null && t.PayloadJson.Contains("\"base64\""))
-                .OrderBy(t => t.CreatedAt).ThenBy(t => t.Id)
-                .Skip(leftInline).Take(BatchSize)
-                .Select(t => new Candidate(t.Id, t.TesterId, t.ClientId, t.UpdatedAt, t.PayloadJson!))
-                .ToListAsync(ct);
-            if (batch.Count == 0) break;
-
-            foreach (var row in batch)
+            if (ct.IsCancellationRequested) break;
+            for (var attempt = 1; ; attempt++)
             {
+                var row = await _db.MachineTests.AsNoTracking()
+                    .Where(t => t.Id == id)
+                    .Select(t => new Candidate(t.Id, t.TesterId, t.ClientId, t.UpdatedAt, t.PayloadJson!))
+                    .FirstOrDefaultAsync(ct);
+                if (row is null) break;
+
                 var (outcome, size) = await MoveAsync(row, dryRun, ct);
+                // Pushed again between the read and the write: read it again — it may no longer hold
+                // bytes, or still does under a newer stamp.
+                if (outcome == Outcome.ChangedMeanwhile && attempt < MaxRetriesPerRow) continue;
                 switch (outcome)
                 {
                     case Outcome.Moved:
                         inline++; moved++; bytes += size;
                         break;
                     case Outcome.WouldMove:
-                        inline++; wouldMove++; bytes += size; leftInline++;
-                        break;
-                    case Outcome.NotInline:
-                        leftInline++;
+                        inline++; wouldMove++; bytes += size;
                         break;
                     case Outcome.Unreadable:
-                        inline++; unreadable++; leftInline++;
+                        inline++; unreadable++;
                         break;
                     case Outcome.ChangedMeanwhile:
-                        // Read again next page: it may have dropped out, or still hold bytes.
-                        retries[row.Id] = retries.GetValueOrDefault(row.Id) + 1;
-                        if (retries[row.Id] >= MaxRetriesPerRow) { changed++; leftInline++; }
+                        changed++;
                         break;
                     case Outcome.StoreDown:
                         failed++;
                         Log(dryRun, inline, moved, wouldMove, bytes, changed, unreadable, failed);
                         return new PulsationBackfillResult(inline, moved, wouldMove, bytes, changed, unreadable, failed);
                 }
+                break;
             }
         }
         Log(dryRun, inline, moved, wouldMove, bytes, changed, unreadable, failed);
         return new PulsationBackfillResult(inline, moved, wouldMove, bytes, changed, unreadable, failed);
+    }
+
+    /// <summary>The scan, allowed <see cref="ScanTimeout"/> rather than the default command timeout
+    /// (relational only — the in-memory provider has none).</summary>
+    private async Task<T> WithScanTimeoutAsync<T>(Func<Task<T>> scan)
+    {
+        if (!_db.Database.IsRelational()) return await scan();
+        var previous = _db.Database.GetCommandTimeout();
+        _db.Database.SetCommandTimeout(ScanTimeout);
+        try
+        {
+            return await scan();
+        }
+        finally
+        {
+            _db.Database.SetCommandTimeout(previous);
+        }
     }
 
     private void Log(bool dryRun, int inline, int moved, int wouldMove, long bytes, int changed, int unreadable, int failed)
@@ -211,10 +233,12 @@ public sealed class PulsationBackfill
 }
 
 /// <summary>
-/// Runs the backfill once, a minute after startup, in the mode <c>PdfStore:PulsationBackfill</c>
-/// says: <c>DryRun</c> unless set (it only reads, and logs what it would move), <c>Run</c> to move,
-/// <c>Off</c> to skip — always Off under test. It is a background pass, never in a request's way,
-/// and nothing it meets can take the app down: a failure is logged and the next start tries again.
+/// Runs the backfill once, a minute after startup, when <c>PdfStore:PulsationBackfill</c> asks:
+/// <c>DryRun</c> only reads, and logs what it would move; <c>Run</c> moves it. Off unless set —
+/// finding candidates means reading every test's payload, minutes of work on a database holding the
+/// migrated history, so it isn't repeated at every start: set it, let one start do the pass, unset
+/// it. A background pass, never in a request's way, and nothing it meets can take the app down: a
+/// failure is logged and the next start (while still set) tries again.
 /// </summary>
 public sealed class PulsationBackfillService : BackgroundService
 {
@@ -224,22 +248,22 @@ public sealed class PulsationBackfillService : BackgroundService
     private readonly PulsationBackfillMode _mode;
     private readonly ILogger<PulsationBackfillService> _log;
 
-    public PulsationBackfillService(IServiceScopeFactory scopes, IConfiguration config, IHostEnvironment env, ILogger<PulsationBackfillService> log)
+    public PulsationBackfillService(IServiceScopeFactory scopes, IConfiguration config, ILogger<PulsationBackfillService> log)
     {
         _scopes = scopes;
         _log = log;
-        var mode = ModeFor(config, env);
+        var mode = ModeFor(config);
         if (mode is null)
             _log.LogError("PdfStore:PulsationBackfill '{Configured}' is not one of Off, DryRun, Run — the backfill won't run", config["PdfStore:PulsationBackfill"]);
         _mode = mode ?? PulsationBackfillMode.Off;
     }
 
-    /// <summary>The configured mode; null when the setting isn't one (a typo mustn't stop the app).</summary>
-    public static PulsationBackfillMode? ModeFor(IConfiguration config, IHostEnvironment env)
+    /// <summary>The configured mode — Off when unset; null when the setting isn't a mode (a typo
+    /// mustn't stop the app).</summary>
+    public static PulsationBackfillMode? ModeFor(IConfiguration config)
     {
         var configured = config["PdfStore:PulsationBackfill"];
-        if (string.IsNullOrWhiteSpace(configured))
-            return env.IsEnvironment("Testing") ? PulsationBackfillMode.Off : PulsationBackfillMode.DryRun;
+        if (string.IsNullOrWhiteSpace(configured)) return PulsationBackfillMode.Off;
         return Enum.TryParse<PulsationBackfillMode>(configured.Trim(), ignoreCase: true, out var mode) && Enum.IsDefined(mode)
             ? mode
             : null;

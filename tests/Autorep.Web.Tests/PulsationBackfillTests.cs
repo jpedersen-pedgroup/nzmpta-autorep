@@ -9,8 +9,6 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
 
 namespace Autorep.Web.Tests;
 
@@ -162,29 +160,23 @@ public class PulsationBackfillTests : IClassFixture<AuthedWebAppFactory>
         (await ReloadAsync(test.Id)).PayloadJson.Should().Be(test.PayloadJson);
     }
 
-    private sealed class Env(string name) : IHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = name;
-        public string ApplicationName { get; set; } = "Autorep.Web";
-        public string ContentRootPath { get; set; } = Path.GetTempPath();
-        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
-    }
-
     private static IConfiguration Config(string? mode) =>
         new ConfigurationBuilder().AddInMemoryCollection(
             mode is null ? [] : [new KeyValuePair<string, string?>("PdfStore:PulsationBackfill", mode)]).Build();
 
+    // Off unless asked: finding candidates reads every test's payload — on staging, with the
+    // migrated history, longer than SQL's default timeout — so it isn't something every start does.
     [Theory]
-    [InlineData("Testing", null, PulsationBackfillMode.Off)]
-    [InlineData("Staging", null, PulsationBackfillMode.DryRun)]
-    [InlineData("Production", null, PulsationBackfillMode.DryRun)]
-    [InlineData("Staging", "Run", PulsationBackfillMode.Run)]
-    [InlineData("Production", "run", PulsationBackfillMode.Run)]
-    [InlineData("Staging", "Off", PulsationBackfillMode.Off)]
-    public void Reads_only_unless_told_to_run(string environment, string? setting, PulsationBackfillMode expected) =>
-        PulsationBackfillService.ModeFor(Config(setting), new Env(environment)).Should().Be(expected);
+    [InlineData(null, PulsationBackfillMode.Off)]
+    [InlineData("", PulsationBackfillMode.Off)]
+    [InlineData("DryRun", PulsationBackfillMode.DryRun)]
+    [InlineData("Run", PulsationBackfillMode.Run)]
+    [InlineData("run", PulsationBackfillMode.Run)]
+    [InlineData("Off", PulsationBackfillMode.Off)]
+    public void Does_nothing_unless_asked(string? setting, PulsationBackfillMode expected) =>
+        PulsationBackfillService.ModeFor(Config(setting)).Should().Be(expected);
 
     [Fact]
     public void A_typo_in_the_setting_doesnt_stop_the_app() =>
-        PulsationBackfillService.ModeFor(Config("Yes please"), new Env("Production")).Should().BeNull();
+        PulsationBackfillService.ModeFor(Config("Yes please")).Should().BeNull();
 }

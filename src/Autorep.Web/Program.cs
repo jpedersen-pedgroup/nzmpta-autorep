@@ -235,8 +235,8 @@ builder.Services.AddSingleton<GuideCatalog>();
 // memory under test. See Services/Pdfs/PdfStoreRegistration.cs.
 builder.Services.AddPdfStore(builder.Configuration, builder.Environment);
 // The pulsation analyser PDFs, kept in that store rather than inside each test's PayloadJson, and
-// the once-per-start pass that moves any still inline (PdfStore:PulsationBackfill: DryRun unless
-// set to Run or Off; always Off under test).
+// the pass that moves any still inline when a start is asked to (PdfStore:PulsationBackfill: Off
+// unless set to DryRun or Run).
 builder.Services.AddScoped<PulsationAttachments>();
 builder.Services.AddScoped<PulsationBackfill>();
 builder.Services.AddHostedService<PulsationBackfillService>();
