@@ -245,6 +245,95 @@ public class UpcomingTestsTests : IClassFixture<AuthedWebAppFactory>
         UpcomingModel.Query(db, null, null).ToQueryString().Should().NotBeNullOrEmpty();
     }
 
+    // The admin home counts overdue farms with DueFarmIds(...).Distinct().CountAsync(). Counting
+    // through Query's Row records instead (select FarmId out of the record, Distinct, Count) runs on
+    // the in-memory provider but the SQL Server provider fails to compile it ("Operation is not
+    // valid due to the current state of the object" out of the shaper), a 500 on /Admin. A COUNT is
+    // a scalar, so ToQueryString can't compile it; instead the count runs for real against SQL
+    // Server options with an interceptor that throws a sentinel the moment EF goes to open the
+    // connection. Compiling the query and generating its SQL both happen before that, so reaching
+    // the sentinel proves the query translates. Nothing is connected to.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void The_overdue_farm_count_translates_to_sql_server(bool superAdmin)
+    {
+        using var db = SqlServerDbThatNeverConnects();
+        Guid? company = superAdmin ? null : Guid.NewGuid();
+
+        var count = () => UpcomingModel.DueFarmIds(db, company, Today.AddDays(-1)).Distinct().Count();
+        count.Should().Throw<QueryCompiledException>();
+
+        var sql = UpcomingModel.DueFarmIds(db, company, Today.AddDays(-1)).Distinct().ToQueryString();
+        sql.Should().Contain("DISTINCT").And.Contain("NOT EXISTS").And.Contain("[NextTestDate] <=");
+        if (superAdmin) sql.Should().NotContain("[TestingCompanyId] =");
+        else sql.Should().Contain("[TestingCompanyId] =");
+    }
+
+    // The admin home's badge is the page's overdue count on the same terms: latest test per farm,
+    // one per farm, the viewer's company for a Company Administrator and everything for a
+    // Super-Administrator.
+    [Fact]
+    public async Task The_admin_home_counts_the_same_overdue_farms_as_the_page()
+    {
+        var w = await World.CreateAsync();
+        var retested = w.Farm("Retested since");
+        w.Test(retested, w.CompanyA, 500, -100);
+        w.Test(retested, w.CompanyA, 20, 345);
+        w.Test(w.Farm("Overdue A"), w.CompanyA, 400, -5);
+        w.Test(w.Farm("Due soon A"), w.CompanyA, 340, 10);
+        w.Test(w.Farm("Overdue B"), w.CompanyB, 400, -5);
+        await w.Db.SaveChangesAsync();
+
+        var companyHome = AdminHomeAs(w.Db, "admin-a", Roles.CompanyAdministrator);
+        await companyHome.OnGetAsync();
+        companyHome.OverdueTestCount.Should().Be(1);
+
+        var superHome = AdminHomeAs(w.Db, "super", Roles.SuperAdministrator);
+        await superHome.OnGetAsync();
+        superHome.OverdueTestCount.Should().Be(2);
+
+        var noCompanyHome = AdminHomeAs(w.Db, "admin-none", Roles.CompanyAdministrator);
+        await noCompanyHome.OnGetAsync();
+        noCompanyHome.OverdueTestCount.Should().Be(0);
+    }
+
+    private static Autorep.Web.Pages.Admin.IndexModel AdminHomeAs(AutorepDbContext db, string userId, string role)
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, userId), new Claim(ClaimTypes.Role, role)], "Test"));
+        var users = new UserManager<Tester>(
+            new UserStore<Tester>(db), null!, null!, null!, null!, null!, null!, null!, null!);
+        return new Autorep.Web.Pages.Admin.IndexModel(db, users)
+        {
+            PageContext = new PageContext { HttpContext = new DefaultHttpContext { User = user } },
+        };
+    }
+
+    private static AutorepDbContext SqlServerDbThatNeverConnects() =>
+        new(new DbContextOptionsBuilder<AutorepDbContext>()
+            .UseSqlServer("Server=unused;Database=unused;Trusted_Connection=True")
+            .AddInterceptors(new NeverConnect())
+            .Options);
+
+    private sealed class QueryCompiledException : Exception;
+
+    private sealed class NeverConnect : Microsoft.EntityFrameworkCore.Diagnostics.DbConnectionInterceptor
+    {
+        public override Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult ConnectionOpening(
+            System.Data.Common.DbConnection connection,
+            Microsoft.EntityFrameworkCore.Diagnostics.ConnectionEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult result)
+            => throw new QueryCompiledException();
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult> ConnectionOpeningAsync(
+            System.Data.Common.DbConnection connection,
+            Microsoft.EntityFrameworkCore.Diagnostics.ConnectionEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult result,
+            CancellationToken cancellationToken = default)
+            => throw new QueryCompiledException();
+    }
+
     // ---- Sync --------------------------------------------------------------------------------
 
     [Fact]

@@ -19,6 +19,11 @@
         </div>
         <h1 class="auth-card__title auth-card__title--solo">Sign in to AutoRep</h1>
 
+        @if (Model.Reason == Autorep.Web.Services.MfaEnrolmentMiddleware.ExpiredReason)
+        {
+            <div class="alert alert--info">It's been 30 days since you last verified with your authenticator app. Sign in again to continue.</div>
+        }
+
         <form method="post">
             <div class="form-field">
                 <label asp-for="Input.Email">Email</label>

@@ -101,15 +101,7 @@ public class UpcomingModel : PageModel
     /// translates to SQL Server, which the in-memory provider used elsewhere can't prove.</summary>
     public static IQueryable<Row> Query(AutorepDbContext db, Guid? companyId, DateOnly? horizon)
     {
-        var tests = db.MachineTests.Where(t => t.MarkedCompleteAt != null);
-        if (companyId is { } company) tests = tests.InCompany(company);
-        tests = tests.CurrentVersionsOnly(db);
-
-        var latest = tests.Where(t => t.NextTestDate != null
-            && !tests.Any(o => o.FarmId == t.FarmId && o.MarkedCompleteAt > t.MarkedCompleteAt));
-        if (horizon is { } h) latest = latest.Where(t => t.NextTestDate <= h);
-
-        return latest.Select(t => new Row(
+        return LatestDue(db, companyId, horizon).Select(t => new Row(
             t.Id,
             t.FarmId,
             t.Farm != null ? t.Farm.Name : string.Empty,
@@ -121,5 +113,29 @@ public class UpcomingModel : PageModel
             t.Tester != null ? t.Tester.DisplayName : null,
             t.MarkedCompleteAt!.Value,
             t.NextTestDate!.Value));
+    }
+
+    /// <summary>The farms behind <see cref="Query"/>, on exactly the same terms, as a bare
+    /// <see cref="MachineTest.FarmId"/> projection. The admin home counts these. Counting through
+    /// <see cref="Query"/> instead (select FarmId out of the Row records, then Distinct/Count) is
+    /// not translatable by EF Core 9's SQL Server provider, so the member access has to come before
+    /// the record constructor. Two tests completed at the same instant can tie, so a caller that
+    /// wants one per farm applies Distinct.</summary>
+    public static IQueryable<Guid> DueFarmIds(AutorepDbContext db, Guid? companyId, DateOnly? horizon)
+        => LatestDue(db, companyId, horizon).Select(t => t.FarmId);
+
+    /// <summary>The scoping shared by <see cref="Query"/> and <see cref="DueFarmIds"/>: completed,
+    /// current-version, in the company (when one is given), each farm's latest, with a next test
+    /// date on or before the horizon (any date when null).</summary>
+    private static IQueryable<MachineTest> LatestDue(AutorepDbContext db, Guid? companyId, DateOnly? horizon)
+    {
+        var tests = db.MachineTests.Where(t => t.MarkedCompleteAt != null);
+        if (companyId is { } company) tests = tests.InCompany(company);
+        tests = tests.CurrentVersionsOnly(db);
+
+        var latest = tests.Where(t => t.NextTestDate != null
+            && !tests.Any(o => o.FarmId == t.FarmId && o.MarkedCompleteAt > t.MarkedCompleteAt));
+        if (horizon is { } h) latest = latest.Where(t => t.NextTestDate <= h);
+        return latest;
     }
 }
