@@ -70,7 +70,7 @@ A reusable **test-auth harness** (`TestAuthHandler` + `AuthedWebAppFactory`) now
 | T3 | Integration (.NET) | Sync API round-trips, Audit interceptor in-transaction, auth/refresh/licence pipeline | `WebApplicationFactory` + EF (test DB) | Yes |
 | T4 | Golden-file PDF | Each named report renders byte-equivalent to a checked-in expected PDF (normalised) | Vitest (Node) — **client-side pdfmake/pdf-lib** | Yes |
 | T5 | E2E / Playwright | Wizard happy paths + Admin portal CRUD + O2 edit→regenerate | Playwright | Yes (smoke) |
-| T6 | Offline / PWA | Service worker + IndexedDB lifecycle, offline create → reconnect → sync | Manual (UAT + pilot) | No |
+| T6 | Offline / PWA | Service worker + IndexedDB lifecycle, offline create → reconnect → sync | Playwright offline suite (`E2E/OfflineTesterE2ETests`, Chromium) + manual real-device UAT (§3a) | Partial |
 | T7 | Migration validation | Legacy → new mapping, quarantine, idempotent dry-run, sample-report parity | Golden-record + manual review | Partial |
 | T8 | Security review | TLS, private endpoint, secrets, authZ, headers, lockout, token lifecycle | Manual + checklist (M6) | No |
 | T9 | Performance | 20–30 concurrent sessions, sync under load | Load script (M6) | No |
@@ -111,6 +111,29 @@ A reusable **test-auth harness** (`TestAuthHandler` + `AuthedWebAppFactory`) now
 - [ ] T10: UAT scenarios passed; Maria Scott sign-off
 - 🔓 **Migration test cases — to be expanded after legacy SQL access** (see §5)
 
+### 3a. Real-device offline UAT (target iPads) — *gate before M2 is declared done*
+The Playwright suite runs Chromium on a server; the target devices are iPads running the app
+installed to the home screen, where WebKit's storage rules apply and nothing has been verified.
+Run each on a real device, on the build going to production. Record the iPadOS version.
+
+- [ ] **Install and first sync.** Sign in online, add to home screen, open from the icon, sync. My
+      tests shows the storage line; note whether it says the data is kept or may be cleared — that is
+      the answer to `navigator.storage.persist()` on this iPadOS, which nothing else has checked.
+- [ ] **Cold launch offline.** Airplane mode, close the app fully, open it from the icon: lands on
+      the tester home with the tester's name, and the header says Offline.
+- [ ] **Capture offline.** Start a test from New test (farm picked from the book), work through it,
+      mark it complete, print it to PDF. Header shows "Offline · 1 unsent".
+- [ ] **Reconnect.** Turn airplane mode off and bring the app to the front without pressing
+      anything: the test syncs on its own (once automatic sync ships) or on Sync now.
+- [ ] **The 7-day rule.** Capture a test offline, leave the device untouched in airplane mode for
+      more than seven days, then cold launch: the test must still be there. iOS clears script-written
+      storage of sites without recent interaction after seven days; installed web apps are meant to
+      be exempt. Untested on these devices — this case is the only evidence there will be.
+- [ ] **Storage full.** Fill the device until iPadOS warns, then edit a test: the red
+      "out of storage space" alert appears and the edit is not silently lost.
+- [ ] **Deploy while installed.** With the app installed, deploy a new build; next launch online
+      shows "AutoRep has been updated" (or reloads itself on a page it couldn't draw), and works.
+
 ## 4. 🔓 Wizard test cases (placeholder — fill after tester workshop)
 Once the wizard workflow (Requirements §7.2) is validated with 2–3 experienced testers, expand here:
 - [ ] Per-step field lists + validation rules → unit/E2E cases
@@ -138,4 +161,4 @@ Once the legacy Azure SQL schema + sample data are available, expand here:
 ## 7. Conventions
 - Golden files normalised (strip generation timestamps; embed fonts) before byte comparison.
 - Shared fixture-set is the contract between each .NET module and its TS mirror — both must pass identical cases.
-- "Out of automated scope" (manual UAT/pilot): PWA offline lifecycle, browser-compatibility matrix, visual regression of the PWA shell.
+- "Out of automated scope" (manual UAT/pilot): the PWA offline lifecycle on real iPads (§3a — the Chromium offline suite covers the logic, not WebKit's storage rules), browser-compatibility matrix, visual regression of the PWA shell.

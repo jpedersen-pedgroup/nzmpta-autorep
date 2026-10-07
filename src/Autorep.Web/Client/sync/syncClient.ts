@@ -16,6 +16,7 @@ import { warmReportGenerator } from "../report/generatorChunks";
 import { isBlankRegulatorRow, regulatorRows } from "../wizard/pumpRows";
 import { guidesForRoles, TESTER_ROLE, warmGuides } from "../guides/guides";
 import { reportSessionOk, reportSignedOut } from "../connectivity";
+import { keepHeldBytes, letGoOfHeldAttachments } from "./pulsationAttachment";
 
 interface TestSummaryDto {
   clientId: string;
@@ -31,10 +32,24 @@ interface PullResponse {
   /** Server-clock watermark: store it, send it back as ?since= next pull. */
   watermark: string;
   tests: TestSummaryDto[];
+  /** Cursor for the next page; absent/null on the last one. */
+  next?: string | null;
 }
 
 /** Reference-store key for the pull watermark (per-tester DB, so per-tester watermark). */
 const WATERMARK_KEY = "testPullWatermark";
+/** A pull interrupted part-way: where to resume, and the watermark its first page carried. */
+const PROGRESS_KEY = "testPullProgress";
+/** Tests per page. Payloads are big (the analyser PDFs stay on the server, but a full capture is
+ * still tens of KB), and each page is stored as it lands, so the newest tests appear first. */
+export const PULL_PAGE_SIZE = 25;
+
+interface PullProgress {
+  /** The `since` this pull started with — progress only resumes the same pull. */
+  since: string | null;
+  watermark: string;
+  cursor: string;
+}
 
 export interface SyncResult {
   pushed: number;
@@ -109,20 +124,63 @@ async function pushTest(t: LocalTest): Promise<void> {
   await putTest({ ...t, syncState: "uploaded", everUploaded: true });
 }
 
+/**
+ * Pulls the tester's tests in pages, newest first, storing each page as it lands. The first pull
+ * on a device is the tester's whole history; paging means it shows the newest tests while the tail
+ * is still arriving, and an interruption resumes from the last stored page instead of starting
+ * again. The watermark kept is the FIRST page's, so anything written while paging comes back on
+ * the next pull (see SyncController.ListTests). The analyser PDFs' bytes stay on the server.
+ */
 async function pullTests(): Promise<number> {
-  let since: string | null | undefined;
+  let since: string | null = null;
   try {
-    since = (await getReference(WATERMARK_KEY))?.version;
+    since = (await getReference(WATERMARK_KEY))?.version ?? null;
   } catch {
     // No watermark readable — fall through to a full pull.
   }
 
-  const url = since ? `/api/sync/tests?since=${encodeURIComponent(since)}` : "/api/sync/tests";
-  const res = await fetch(url, { headers: { Accept: "application/json" }, redirect: "manual" });
-  assertApiResponse(res);
-  if (!res.ok) throw new Error(`Pull failed (${res.status})`);
-  const { watermark, tests: remote } = (await res.json()) as PullResponse;
+  let progress: PullProgress | null = null;
+  try {
+    const saved = (await getReference(PROGRESS_KEY))?.rows as PullProgress | null | undefined;
+    if (saved && typeof saved.cursor === "string" && saved.since === since) progress = saved;
+  } catch {
+    // Unreadable — start from the top.
+  }
 
+  let cursor = progress?.cursor ?? null;
+  let watermark = progress?.watermark ?? null;
+  let restarted = false;
+  let added = 0;
+  for (;;) {
+    const params = new URLSearchParams({ limit: String(PULL_PAGE_SIZE), attachments: "omit" });
+    if (since) params.set("since", since);
+    if (cursor) params.set("cursor", cursor);
+    const res = await fetch(`/api/sync/tests?${params}`, { headers: { Accept: "application/json" }, redirect: "manual" });
+    assertApiResponse(res);
+    if (res.status === 400 && cursor && !restarted) {
+      // The server doesn't recognise the saved cursor — start this pull again from the top.
+      restarted = true;
+      cursor = null;
+      watermark = null;
+      continue;
+    }
+    if (!res.ok) throw new Error(`Pull failed (${res.status})`);
+    const page = (await res.json()) as PullResponse;
+    watermark ??= page.watermark;
+    added += await storePulled(Array.isArray(page.tests) ? page.tests : []);
+    if (!page.next) break;
+    cursor = page.next;
+    await putReference({ key: PROGRESS_KEY, rows: { since, watermark, cursor } satisfies PullProgress });
+  }
+
+  // Advance the watermark only after every page is stored: an interrupted pull re-fetches from
+  // its saved progress next time (safe — the loop upserts) instead of losing the tail.
+  await putReference({ key: WATERMARK_KEY, version: watermark });
+  await putReference({ key: PROGRESS_KEY, rows: null });
+  return added;
+}
+
+async function storePulled(remote: readonly TestSummaryDto[]): Promise<number> {
   let added = 0;
   for (const r of remote) {
     // A DIRTY local copy wins (it holds edits the server hasn't seen — they'll push next).
@@ -192,13 +250,10 @@ async function pullTests(): Promise<number> {
       everUploaded: true,
     };
 
-    await putTest(local);
+    // The server leaves analyser PDFs' bytes behind; keep this device's copy if it holds one.
+    await putTest(keepHeldBytes(existing, local));
     added++;
   }
-
-  // Advance the watermark only after every pulled test is stored: an interrupted pull re-fetches
-  // the same window next time (safe — the loop upserts) instead of losing it.
-  await putReference({ key: WATERMARK_KEY, version: watermark });
   return added;
 }
 
@@ -230,6 +285,9 @@ export async function syncAll(): Promise<SyncResult> {
   const pulled = await pullTests();
   // The server just accepted this session end to end.
   reportSessionOk();
+  // Now that the server is known to hold them, let go of analyser PDFs this device has kept
+  // long enough (sync/pulsationAttachment.ts). Best-effort and quick: no network involved.
+  await letGoOfHeldAttachments(await allTests()).catch(() => 0);
 
   // A sync just succeeded, so the connection is real and the tester is almost certainly not
   // stuck in a paddock. That is the moment to pull down the report generator's lazy chunks, so

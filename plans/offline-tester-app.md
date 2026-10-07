@@ -258,17 +258,47 @@ The headline. Cold launch, navigate, resume.
 
 ---
 
-### Phase 4 — Storage durability
+### Phase 4 — Storage durability ✅ BUILT Oct 2026 (real-device UAT still owed)
+
+> **STATUS (7 Oct 2026, branch `claude/offline-tester-storage`, stacked on Phase 3).** Covered by
+> `SyncPagingAndAttachmentTests`, `PulsationPayloadTests`, `syncClient.paging.test.ts`,
+> `pulsationAttachment.test.ts` and `durability.test.ts`; the offline E2E suite runs over the paged,
+> attachment-free pull unchanged. Departures:
+>
+> - **Paging is an offset cursor over (created desc, id desc), not a keyset.** EF can't compare
+>   GUIDs for a keyset, and migrated tests share timestamps. Rows are never deleted and never leave
+>   the `since` window, so a shifting offset can only re-deliver a row (the pull upserts), never skip
+>   one. **Revisit when O2 soft-delete lands** — a row leaving the window mid-pull could then be
+>   skipped. Without `?limit=` the endpoint answers exactly as before, so older bundles keep working.
+>   The device keeps the FIRST page's watermark and saves progress after each page, so an
+>   interrupted first sync resumes rather than restarting; a cursor the server rejects restarts once.
+> - **The attachment is dropped a week after it's safe, not "after a successful push".** Same-day
+>   printing at the farm gate is the common case and often happens out of signal; dropping on push
+>   would break it. A test that is complete, synced, and whose PDF has been held more than 7 days
+>   lets the bytes go (pointer kept: name/size/date, `onServer`). The first pull asks for
+>   `attachments=omit`, so a new device never downloads the PDF history. Printing fetches the bytes
+>   back (`GET /api/sync/tests/{clientId}/pulsation-pdf`) and holds them for another week; offline it
+>   prints without the attachment and says why. A pull never throws away bytes the device holds.
+> - **Re-sending a pointer can't lose the bytes:** the server restores them from the stored copy,
+>   the pointer's named test, or the superseded version (a new version made from an original whose
+>   bytes had gone). A new version's copied pointer names the original.
+> - **Storage-full:** `putTest`/`putReference` turn a `QuotaExceededError` into `StorageFullError`
+>   and a sticky red alert ("your latest change could NOT be saved"), instead of a rejected promise
+>   nobody caught. Not reproducible in fake-indexeddb, so the detection is unit-tested and the alert
+>   is in the real-device UAT.
+> - **Cache caps:** the logo and FA caches trim least-recently-stored entries past 60; runtime copies
+>   in the versioned cache are keyed by path, so `?v=` variants can't accumulate.
+
 
 Everything above *adds* to the same origin's storage. This phase makes that survivable on an iPad.
 
-- [ ] **Paginate the first test pull.** `SyncController.cs:71-96` has no `Take`/`Skip`; a device with no watermark gets the tester's entire history, every row carrying full `PayloadJson` including base64 pulsation PDFs, written row-by-row at `syncClient.ts:144`. On a new or reset device that is plausibly hundreds of MB in one response. Add a page size + continuation, and pull newest-first in pages so "see their tests" is useful before the tail finishes.
-- [ ] **Drop the local base64 attachment after a successful push.** The attachment round-trips through `payloadJson` (`syncClient.ts:55`) and is re-stored on every pull. Keep a server pointer, re-fetch on demand.
-- [ ] **`navigator.storage.persist()`** once, after the tester has real work on-device. There is zero storage-quota awareness anywhere in `src` today — no `estimate()`, no `persist()`, no `QuotaExceededError` handling, no cache cap. Grant behaviour on the target iPadOS version is **unverified**; test it on a real device before relying on it.
-- [ ] **Surface `navigator.storage.estimate()`** usage/quota next to the sync control on My tests, and wrap `putTest`/`putReference` so a `QuotaExceededError` produces a real message rather than a rejected promise nobody catches.
-- [ ] **Cap `LOGO_CACHE` and `FA_CACHE`** with a simple LRU on put (`sw.js:9-10`), and stop the unbounded accumulation of superseded `?v=` / hashed-chunk entries — `sw.js:62-71` only prunes caches by *name*, so within one `CACHE_VERSION` nothing is ever evicted.
+- [x] **Paginate the first test pull.** `SyncController.cs:71-96` has no `Take`/`Skip`; a device with no watermark gets the tester's entire history, every row carrying full `PayloadJson` including base64 pulsation PDFs, written row-by-row at `syncClient.ts:144`. On a new or reset device that is plausibly hundreds of MB in one response. Add a page size + continuation, and pull newest-first in pages so "see their tests" is useful before the tail finishes.
+- [x] **Drop the local base64 attachment after a successful push.** (After a week — see STATUS.) The attachment round-trips through `payloadJson` (`syncClient.ts:55`) and is re-stored on every pull. Keep a server pointer, re-fetch on demand.
+- [x] **`navigator.storage.persist()`** once, after the tester has real work on-device. (iPadOS answer still unverified — UAT §3a.) There is zero storage-quota awareness anywhere in `src` today — no `estimate()`, no `persist()`, no `QuotaExceededError` handling, no cache cap. Grant behaviour on the target iPadOS version is **unverified**; test it on a real device before relying on it.
+- [x] **Surface `navigator.storage.estimate()`** usage/quota next to the sync control on My tests, and wrap `putTest`/`putReference` so a `QuotaExceededError` produces a real message rather than a rejected promise nobody catches.
+- [x] **Cap `LOGO_CACHE` and `FA_CACHE`** with a simple LRU on put (`sw.js:9-10`), and stop the unbounded accumulation of superseded `?v=` / hashed-chunk entries — `sw.js:62-71` only prunes caches by *name*, so within one `CACHE_VERSION` nothing is ever evicted.
 - [x] **Decide the SW update path** (Decision (c)) — **decided 15 Sep 2026: prompt-to-reload.** `skipWaiting()`/`clients.claim()` stay; `wwwroot/js/pwa-register.js` listens for `controllerchange` (only on a page that already had a controller, so a first install is silent) and shows an "AutoRep has been updated — Reload to get the latest" banner. Found on the way: the install's `cache.add(asset)` went through the browser's HTTP cache, and the unhashed shell assets (`site.css`, `pwa-register.js`) are served without `Cache-Control`, so a new worker could seed its freshly named cache with days-old bytes — the stamp renamed the cache but not its contents. Precache now uses `cache: 'reload'`, and the unversioned `<script>` tags carry `asp-append-version`. Verified end-to-end on 15 Sep: old worker → new worker → banner → reload. Still open from the original note: a tester who loads during a deploy window and then drives out of coverage before the new install finishes.
-- [ ] Document a real-device UAT case: install to home screen, capture a test, airplane mode, wait >7 days, cold launch. iOS caps script-writable storage at 7 days for sites without "interaction"; installed PWAs are exempt, but this has **never been tested against the target iPads** and nothing in `plans/test-schedule.md` covers it.
+- [x] Document a real-device UAT case: install to home screen, capture a test, airplane mode, wait >7 days, cold launch. (`plans/test-schedule.md` §3a — still to be RUN.) iOS caps script-writable storage at 7 days for sites without "interaction"; installed PWAs are exempt, but this has **never been tested against the target iPads** and nothing in `plans/test-schedule.md` covers it.
 
 **Files:** `Api/SyncController.cs`, `Client/sync/syncClient.ts`, `Client/db/testStore.ts`, `Client/ui/TestListApp.tsx`, `wwwroot/sw.js`, `wwwroot/js/pwa-register.js`, `plans/test-schedule.md`.
 **Estimate: 3–5 days.**

@@ -13,9 +13,24 @@
 // ignoreSearch, so renaming this cache is the ONLY thing that retires a previous build's assets.
 // The stamper reads APP_SHELL out of this file, and every entry must be a real file under wwwroot
 // so it can be hashed; a served route would build green and then never cache-bust.
-const CACHE_VERSION = 'autorep-88f45a1f5ba9';
+const CACHE_VERSION = 'autorep-927140457ee5';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
+// Neither of those is ever renamed by a deploy, so nothing else would ever empty them: cap them.
+// Entries are kept in the order they were last stored, and both branches below re-store an entry
+// each time it is used (stale-while-revalidate), so trimming from the front drops whatever has gone
+// unused longest. Generous: there are about a dozen processors, and the Pro kit is a few files.
+const LOGO_CACHE_LIMIT = 60;
+const FA_CACHE_LIMIT = 60;
+
+async function trimCache(cache, limit) {
+  try {
+    const keys = await cache.keys();
+    for (let i = 0; i < keys.length - limit; i++) await cache.delete(keys[i]);
+  } catch {
+    // Left for the next store.
+  }
+}
 // Work-instruction PDFs (/guides/*, GuidesController). Its own cache, filled at runtime, so the
 // admin guides never land in every tester's precache and a deploy doesn't throw ~6 MB away. One
 // entry per guide, keyed on the path without ?v=: a new version overwrites the old copy in place.
@@ -289,7 +304,7 @@ self.addEventListener('fetch', (event) => {
         cache.match(event.request).then((cached) => {
           const network = fetch(event.request)
             .then((resp) => {
-              if (resp && resp.ok) cache.put(event.request, resp.clone());
+              if (resp && resp.ok) cache.put(event.request, resp.clone()).then(() => trimCache(cache, LOGO_CACHE_LIMIT));
               return resp;
             })
             .catch(() => cached);
@@ -308,7 +323,7 @@ self.addEventListener('fetch', (event) => {
         cache.match(event.request).then((cached) => {
           const network = fetch(event.request)
             .then((resp) => {
-              if (resp && resp.ok) cache.put(event.request, resp.clone());
+              if (resp && resp.ok) cache.put(event.request, resp.clone()).then(() => trimCache(cache, FA_CACHE_LIMIT));
               return resp;
             })
             .catch(() => cached);
@@ -372,7 +387,9 @@ self.addEventListener('fetch', (event) => {
             if (resp && resp.status === 404) void self.registration.update();
             if (resp && resp.ok && (resp.type === 'basic' || resp.type === 'default')) {
               const clone = resp.clone();
-              caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+              // Keyed by path: it is matched ignoring the query anyway, and keying on the full URL
+              // let every new ?v= of an asset pile up beside the last one.
+              caches.open(CACHE_VERSION).then((cache) => cache.put(new Request(url.origin + url.pathname), clone));
             }
             return resp;
           })
