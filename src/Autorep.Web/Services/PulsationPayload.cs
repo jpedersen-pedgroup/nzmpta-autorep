@@ -5,20 +5,28 @@ using System.Text.Json.Nodes;
 namespace Autorep.Web.Services;
 
 /// <summary>
-/// The pulsation analyser PDF a tester attaches to a test (O3) travels inside the test's
-/// <c>PayloadJson</c> as base64, under <c>pulsationPdf</c>. It is by far the biggest thing in a
-/// payload, so the device keeps it only while it is likely to print it: after a test is complete and
-/// safely on the server, the device drops its copy and keeps a pointer (<c>onServer: true</c>,
-/// optionally <c>serverTestId</c> — the test whose server copy holds the bytes), fetching the bytes
-/// back when a report needs them. These helpers are the server's half of that arrangement.
-///
-/// Every helper is defensive: a payload that isn't JSON, or has no attachment, comes back unchanged
-/// (or null) — the payload is the device's, and the server must never be the thing that breaks it.
+/// The pulsation analyser PDF a tester attaches to a test (O3) travels inside the test's payload as
+/// base64, under <c>pulsationPdf</c>. It is by far the biggest thing in a payload, so neither side
+/// keeps it there for long:
+/// <list type="bullet">
+/// <item>The device keeps the bytes only while it is likely to print them; after that it keeps a
+/// pointer (<c>onServer: true</c>, optionally <c>serverTestId</c> — the test whose server copy holds
+/// the bytes) and fetches them back when a report needs them.</item>
+/// <item>The server never keeps them in <c>PayloadJson</c> at all: on push they go to the PDF store
+/// (Services/PulsationAttachments.cs) and the stored payload holds the same pointer shape the device
+/// already understands, plus <c>sha256</c> — the hash that names the stored object. A pointer
+/// without a <c>sha256</c> names nothing the server holds.</item>
+/// </list>
+/// These helpers are the server's half of that arrangement. Every one is defensive: a payload that
+/// isn't JSON, or has no attachment, comes back unchanged (or null) — the payload is the device's,
+/// and the server must never be the thing that breaks it.
 /// </summary>
 public static class PulsationPayload
 {
     private const string Attachment = "pulsationPdf";
     private const string Bytes = "base64";
+    private const string Hash = "sha256";
+    private const string Holder = "serverTestId";
 
     // Rewriting a payload must not re-encode it: the default escaper turns every macron in a Māori
     // farm or place name into \u escapes. Same JSON to a parser, but not the text the device sent.
@@ -99,7 +107,8 @@ public static class PulsationPayload
     private static bool Same(JsonNode? a, JsonNode? b) =>
         a is not null && b is not null && JsonNode.DeepEquals(a, b);
 
-    /// <summary>The payload with the attachment's bytes put back (and the pointer cleared).</summary>
+    /// <summary>The payload with the attachment's bytes put back (and the pointer cleared) — what a
+    /// device that didn't ask for <c>attachments=omit</c> has always been sent.</summary>
     public static string WithBytes(string payloadJson, string base64)
     {
         var payload = Parse(payloadJson);
@@ -107,7 +116,53 @@ public static class PulsationPayload
         if (attachment is null) return payloadJson;
         attachment[Bytes] = base64;
         attachment.Remove("onServer");
-        attachment.Remove("serverTestId");
+        attachment.Remove(Holder);
+        attachment.Remove(Hash);
+        return payload!.ToJsonString(Write);
+    }
+
+    /// <summary>The hash naming the stored bytes, when the payload's attachment points at the PDF
+    /// store (see <see cref="AsStored"/>); null otherwise.</summary>
+    public static string? StoredSha256(string? payloadJson) =>
+        AttachmentOf(Parse(payloadJson))?[Hash] is JsonValue v && v.TryGetValue<string>(out var s)
+        && s.Length == 64 && s.All(char.IsAsciiHexDigitLower)
+            ? s
+            : null;
+
+    /// <summary>The test whose stored copy holds the bytes (<c>serverTestId</c>), when it isn't the
+    /// payload's own test.</summary>
+    public static Guid? HolderClientId(string? payloadJson) =>
+        AttachmentOf(Parse(payloadJson))?[Holder] is JsonValue v && v.TryGetValue<string>(out var s) && Guid.TryParse(s, out var g)
+            ? g
+            : null;
+
+    /// <summary>
+    /// The payload as the server keeps it once the attachment's bytes are in the PDF store: no
+    /// bytes, <c>onServer: true</c>, <c>sha256</c> naming the stored object, and <c>serverTestId</c>
+    /// only when another of the tester's tests holds it (<paramref name="holderClientId"/>).
+    /// Unchanged when there's no attachment.
+    /// </summary>
+    public static string? AsStored(string? payloadJson, string sha256, Guid? holderClientId)
+    {
+        var payload = Parse(payloadJson);
+        var attachment = AttachmentOf(payload);
+        if (attachment is null) return payloadJson;
+        attachment.Remove(Bytes);
+        attachment["onServer"] = true;
+        attachment[Hash] = sha256;
+        if (holderClientId is { } holder) attachment[Holder] = holder.ToString();
+        else attachment.Remove(Holder);
+        return payload!.ToJsonString(Write);
+    }
+
+    /// <summary>The payload with any <c>sha256</c> taken off its attachment: a pointer the server
+    /// couldn't match to a stored copy must not name one — whatever the device sent.</summary>
+    public static string? WithoutStoredHash(string? payloadJson)
+    {
+        var payload = Parse(payloadJson);
+        var attachment = AttachmentOf(payload);
+        if (attachment is null || !attachment.ContainsKey(Hash)) return payloadJson;
+        attachment.Remove(Hash);
         return payload!.ToJsonString(Write);
     }
 }

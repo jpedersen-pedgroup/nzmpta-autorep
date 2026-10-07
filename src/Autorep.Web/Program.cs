@@ -234,6 +234,12 @@ builder.Services.AddSingleton<GuideCatalog>();
 // Storage in Staging/Production (stops startup without an account name), a folder in Development,
 // memory under test. See Services/Pdfs/PdfStoreRegistration.cs.
 builder.Services.AddPdfStore(builder.Configuration, builder.Environment);
+// The pulsation analyser PDFs, kept in that store rather than inside each test's PayloadJson, and
+// the once-per-start pass that moves any still inline (PdfStore:PulsationBackfill: DryRun unless
+// set to Run or Off; always Off under test).
+builder.Services.AddScoped<PulsationAttachments>();
+builder.Services.AddScoped<PulsationBackfill>();
+builder.Services.AddHostedService<PulsationBackfillService>();
 
 // NZ Post keyless address autocomplete (admin Farm Details screens; online only).
 builder.Services.AddHttpClient<NzPostAddressClient>();

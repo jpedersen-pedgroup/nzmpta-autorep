@@ -9,8 +9,12 @@
 //  - The first pull asks the server to leave the bytes behind (attachments=omit), so a new device
 //    doesn't download every PDF the tester ever attached.
 //  - Printing fetches the bytes back (GET /api/sync/tests/{id}/pulsation-pdf) and holds them again.
-//  - Re-sending a test that carries a pointer is safe: the server puts its stored bytes back
-//    (SyncController.WithAttachmentBytesAsync), so the device can never be the reason they're lost.
+//  - Re-sending a test that carries a pointer is safe: the server matches it to the copy it holds
+//    (Services/PulsationAttachments.cs), so the device can never be the reason they're lost.
+//
+// The server keeps the bytes in its PDF store, not inside the test: what it stores, and what a pull
+// with attachments=omit sends, is this same pointer shape plus a `sha256` naming the stored copy —
+// a server-side field the device carries along and never needs to read.
 //
 // Seven days, not "straight after the push": the common case is sign off, sync, and print for the
 // farmer at the gate — possibly after the signal has gone again.
@@ -84,20 +88,28 @@ function bytesToBase64(bytes: Uint8Array): string {
  * The attachment's bytes for a report: held on the device, or fetched back from the server (and
  * held again — a report printed once is often printed again). Null when there is no attachment,
  * or the bytes are on the server and it can't be reached right now.
+ *
+ * `serverView`: the test is a read-only view of a test held on the server (an administrator's, or a
+ * colleague's), so `test.id` is the server's id for it, the bytes come through the view's own route
+ * (GET /api/tests/{id}/pulsation-pdf, the view's scoping — the tester route is own-tests only), and
+ * nothing is written to this device.
  */
-export async function attachmentBase64(test: LocalTest): Promise<string | null> {
+export async function attachmentBase64(test: LocalTest, opts: { serverView?: boolean } = {}): Promise<string | null> {
   const p = test.pulsationPdf;
   if (!p) return null;
   if (p.base64) return p.base64;
   if (!p.onServer) return null;
   try {
     const res = await fetchWithTimeout(
-      `/api/sync/tests/${encodeURIComponent(p.serverTestId ?? test.id)}/pulsation-pdf`,
+      opts.serverView
+        ? `/api/tests/${encodeURIComponent(test.id)}/pulsation-pdf`
+        : `/api/sync/tests/${encodeURIComponent(p.serverTestId ?? test.id)}/pulsation-pdf`,
       { redirect: "manual" },
       30_000,
     );
     if (!res.ok || res.type === "opaqueredirect") return null;
     const base64 = bytesToBase64(new Uint8Array(await res.arrayBuffer()));
+    if (opts.serverView) return base64;
     try {
       const fresh = await getTest(test.id);
       if (fresh?.pulsationPdf && sameAttachment(fresh.pulsationPdf, p) && !fresh.pulsationPdf.base64) {

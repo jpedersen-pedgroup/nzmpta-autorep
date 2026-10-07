@@ -221,7 +221,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       if (serverTestId) {
         try {
           setError(null);
-          const res = await fetch(`/api/tests/${serverTestId}`, { headers: { Accept: "application/json" } });
+          // The analyser PDF stays on the server until a report needs it (attachmentBase64).
+          const res = await fetch(`/api/tests/${serverTestId}?attachments=omit`, { headers: { Accept: "application/json" } });
           // 404 covers both "gone" and "not yours" — the API deliberately doesn't distinguish, so
           // neither does this message.
           if (res.status === 404) throw new Error("notfound");
@@ -550,7 +551,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     onResync: () => void runSync("Re-synced"),
     onDownloadReport: (only) => {
       setGenerating(true);
-      void downloadTestSummaryPdf(test, serverBranding, serverTester, only)
+      void downloadTestSummaryPdf(test, serverBranding, serverTester, only, Boolean(serverTestId))
         .catch((e) =>
           // A missing generator chunk is recoverable and the tester can act on it — don't bury it
           // under the generic message.

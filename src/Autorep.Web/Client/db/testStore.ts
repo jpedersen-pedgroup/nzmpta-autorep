@@ -38,6 +38,9 @@ export interface PulsationAttachment {
   /** The test whose server copy holds the bytes, when it isn't this one (a new version made from
    * a test whose copy had already gone). */
   serverTestId?: string;
+  /** Set by the server on a pointer it holds: the hash naming its stored copy. Carried along by the
+   * device, never read by it. */
+  sha256?: string;
   /** When this device last attached or fetched the bytes — the retention clock. */
   heldSince?: string;
 }
