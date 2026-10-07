@@ -21,4 +21,12 @@ public static class NzTime
 
     /// <summary>Today's date in New Zealand — NOT the server's (UTC) date, which lags NZ by up to 13 hours.</summary>
     public static DateOnly Today => DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToNz().DateTime);
+
+    /// <summary>The instant a New Zealand calendar day begins (midnight there), for filtering stored
+    /// instants by NZ date. NZ daylight saving changes at 2–3 am, so midnight always exists.</summary>
+    public static DateTimeOffset StartOf(DateOnly date)
+    {
+        var local = date.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(local, Zone.GetUtcOffset(local));
+    }
 }

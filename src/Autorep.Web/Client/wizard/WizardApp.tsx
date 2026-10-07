@@ -22,6 +22,7 @@ import { buildAdminPayload, draftFromPayload, withinScope, type EditScope } from
 import { isReplaced } from "../versioning/chain";
 import { deletedOnServer, type Deletion } from "../sync/removals";
 import { AdminEditBar, VersionNotices, type SaveProblem } from "./VersionBanners";
+import { AuditPanel } from "./AuditPanel";
 import { deriveReadings } from "../passfail/derived";
 import { useServerOnline } from "../connectivity";
 import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "../appEvents";
@@ -95,6 +96,8 @@ interface ServerTestDto {
   deletion?: { at?: string | null; by?: string | null; reason?: string | null } | null;
   canDelete?: boolean;
   canRestore?: boolean;
+  /** Sync conflicts in the test's history (administrators only). */
+  conflictCount?: number;
 }
 
 /** An administrator's edit in progress: the scope, the stored version it started from (shaped for
@@ -205,6 +208,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
   const [editReason, setEditReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveProblem, setSaveProblem] = useState<SaveProblem | null>(null);
+  /** The History & audit panel, open on the version on screen as stored (never an edit in progress). */
+  const [historyOf, setHistoryOf] = useState<LocalTest | null>(null);
   // Read-only server view: the letterhead comes from the server, for the company the test was
   // done for — never from this device's cache, which holds the VIEWER's company (or none, for an
   // admin).
@@ -754,6 +759,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
         deletion: serverDto.deletion,
         canDelete: serverDto.canDelete,
         canRestore: serverDto.canRestore,
+        conflictCount: serverDto.conflictCount,
       }}
       editing={editScope}
       reason={editReason}
@@ -768,6 +774,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
       onDownload={() => downloadReport()}
       onDelete={(reason) => changeDeletion("delete", reason)}
       onRestore={() => changeDeletion("restore")}
+      onHistory={() => setHistoryOf(localTestFromServer(serverDto))}
     />
   ) : null;
 
@@ -777,6 +784,11 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
         <div class="alert alert--warning">
           ⚠️ <strong>Short test</strong> — ISO ports unavailable, so only the essential tests are required.
         </div>
+      )}
+
+      {/* The admin portal's History & audit drawer, over the page while it's open. */}
+      {historyOf && serverDto && (
+        <AuditPanel testId={serverDto.id} test={historyOf} onClose={() => setHistoryOf(null)} />
       )}
 
       {/* Someone else's test is neutral news — nothing is wrong and nothing you expected to do is

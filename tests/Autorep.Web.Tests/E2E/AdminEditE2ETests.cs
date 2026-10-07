@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Autorep.Web.Data;
+using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -274,6 +275,108 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         var deleted = await WithDbAsync(db => db.MachineTests.SingleAsync(t => t.Id == testId));
         Assert.True(deleted.IsDeleted);
         Assert.Equal("Duplicate of another test", deleted.DeletedReason);
+    }
+
+    // PRD stories 68–69: the audit panel shows the test's versions — who made each and why — the sync
+    // conflict between them, and, for the version on screen, which visual checks were confirmed in bulk
+    // with "Check all as verified" and which were set one by one. Then the list's filter chips: each ×
+    // removes just its own filter.
+    [Fact]
+    public async Task The_audit_panel_shows_versions_conflicts_and_how_each_check_was_verified_and_chips_remove_one_filter()
+    {
+        string[] vacuumPumpChecks =
+        [
+            "vp.oilWater", "vp.reservoirHeight", "vp.supplyProtected", "vp.belt", "vp.endPlay", "vp.guards",
+            "vp.interceptor", "vp.exhaust", "vp.coupling",
+        ];
+        var (testId, clientId) = await _factory.SeedCompletedTestAsync("Matai Meadows", p =>
+        {
+            var faults = p["visualFaults"]!.AsObject();
+            foreach (var key in vacuumPumpChecks) faults[key] = new JsonObject { ["status"] = "ok" };
+            faults["ma.mounting"] = new JsonObject { ["status"] = "ok" };
+            faults["ma.movement"] = new JsonObject { ["status"] = "fault", ["severity"] = "Major", ["observation"] = "Excessive movement" };
+            p["attestations"]!.AsArray().Insert(0, new JsonObject
+            {
+                ["step"] = "VisualFaultsPreStart", ["section"] = "VacuumPump", ["attestedAt"] = p["markedCompleteAt"]!.GetValue<string>(),
+                ["text"] = "I have inspected all items on this page and confirm they have been seen, tested and are in order.",
+            });
+        });
+        // The tester has started a new version of their own (synced, unfinished) when NZMPTA saves its
+        // edit: the two collide, and the collision is on file from the save.
+        await WithDbAsync(async db =>
+        {
+            var v1 = await db.MachineTests.SingleAsync(t => t.Id == testId);
+            var draftId = Guid.NewGuid();
+            var draft = JsonNode.Parse(v1.PayloadJson!)!.AsObject();
+            draft["id"] = draftId.ToString();
+            draft["version"] = 2;
+            draft["supersedesId"] = clientId.ToString();
+            draft["markedCompleteAt"] = null;
+            draft["notes"] = "The tester's own correction";
+            db.MachineTests.Add(new MachineTest
+            {
+                ClientId = draftId, RootClientId = clientId, SupersedesClientId = clientId, Version = 2,
+                TesterId = v1.TesterId, TestingCompanyId = v1.TestingCompanyId, FarmId = v1.FarmId,
+                CreatedAt = DateTimeOffset.UtcNow.AddHours(-1), UpdatedAt = DateTimeOffset.UtcNow.AddHours(-1),
+                PayloadJson = draft.ToJsonString(),
+                Configuration = new MachineConfiguration { PlantType = PlantType.HerringboneLowline, ClusterCount = 20, PulsatorCount = 10 },
+            });
+            return await db.SaveChangesAsync();
+        });
+        var v2ClientId = await SaveAdminVersionAsync(testId, p => p["notes"] = "Corrected comment");
+        var v2Id = await WithDbAsync(db => db.MachineTests.Where(t => t.ClientId == v2ClientId).Select(t => t.Id).SingleAsync());
+        var (context, page) = await SuperAdminAsync();
+        await using var _ = context;
+
+        await page.GotoAsync($"/Admin/Tests/View/{v2Id}");
+        var history = page.GetByRole(AriaRole.Button, new() { Name = "History & audit" });
+        Assert.Contains("1 sync conflict", await history.InnerTextAsync());
+        await history.ClickAsync();
+        var panel = page.Locator("[data-audit-panel]");
+        var v1Entry = panel.Locator(".audit-version[data-version='1']");
+        var adminEntry = panel.Locator(".audit-version[data-kind='admin']");
+        var draftEntry = panel.Locator(".audit-version[data-kind='tester'][data-version='2']");
+        await adminEntry.GetByText("Corrected on the farmer's call").WaitForAsync();
+        Assert.Contains("Original", await v1Entry.InnerTextAsync());
+        Assert.Contains("Super Administrator", await adminEntry.InnerTextAsync());
+        Assert.Contains("Current", await adminEntry.InnerTextAsync());
+        Assert.Contains(AdminEditE2EWebAppFactory.AdminName, await adminEntry.InnerTextAsync());
+        Assert.Contains("not signed off yet", await draftEntry.InnerTextAsync());
+        await v1Entry.GetByRole(AriaRole.Link, new() { Name = "Open version 1" }).WaitForAsync();
+        var conflict = panel.Locator(".audit-conflict[data-conflict-status='pending']");
+        Assert.Contains("Not combined yet", await conflict.InnerTextAsync());
+        Assert.Contains($"version 2 ({AdminEditE2EWebAppFactory.AdminName})", await conflict.InnerTextAsync());
+        await ShotAsync(page, "o2-audit-panel-versions");
+
+        // The admin's version carries the tester's checks: the vacuum pump confirmed in bulk (bar its
+        // fault, set by hand), the main airline item by item.
+        var vacuumPump = panel.Locator(".audit-check[data-section='VacuumPump']");
+        var airline = panel.Locator(".audit-check[data-section='MainAirline']");
+        Assert.Equal("true", await vacuumPump.GetAttributeAsync("data-attested"));
+        Assert.Equal("false", await airline.GetAttributeAsync("data-attested"));
+        await vacuumPump.Locator("summary").ClickAsync();
+        Assert.Equal("bulk", await vacuumPump.Locator("[data-item='vp.oilWater']").GetAttributeAsync("data-verified"));
+        Assert.Equal("individual", await vacuumPump.Locator("[data-item='vp.wick']").GetAttributeAsync("data-verified"));
+        await airline.Locator("summary").ClickAsync();
+        Assert.Equal("individual", await airline.Locator("[data-item='ma.mounting']").GetAttributeAsync("data-verified"));
+        Assert.Equal("unchecked", await airline.Locator("[data-item='ma.seals']").GetAttributeAsync("data-verified"));
+        await panel.Locator("[data-operation='AdminVersionCreated']").WaitForAsync();
+        await ShotAsync(page, "o2-audit-panel");
+
+        await page.Keyboard.PressAsync("Escape");
+        await panel.WaitForAsync(new() { State = WaitForSelectorState.Detached });
+
+        // The list: three filters, three chips; removing "Complete" keeps the other two.
+        await page.GotoAsync("/Admin/Tests?q=Matai+Meadows&status=complete&hasConflicts=true");
+        var row = page.Locator("tr", new() { HasText = "Matai Meadows" });
+        await row.GetByText("Conflict").WaitForAsync();
+        Assert.Equal(3, await page.Locator(".filter-chip").CountAsync());
+        await ShotAsync(page, "o2-filter-chips");
+        await page.Locator(".filter-chip", new() { HasText = "Complete" }).ClickAsync();
+        await page.WaitForURLAsync(url => !url.Contains("status=", StringComparison.Ordinal));
+        Assert.Contains("q=Matai", page.Url);
+        Assert.Contains("hasConflicts=true", page.Url);
+        Assert.Equal(2, await page.Locator(".filter-chip").CountAsync());
     }
 
     /// <summary>An administrator's version of the test, made through the same service the portal uses.</summary>
