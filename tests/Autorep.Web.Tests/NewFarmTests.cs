@@ -43,8 +43,8 @@ public class NewFarmTests
         return new FarmsController(db, notifier) { ControllerContext = new ControllerContext { HttpContext = http } };
     }
 
-    private static FarmsController.NewFarmRequest Named(string name, Guid? regionId = null, Guid? milkId = null) =>
-        new(name, null, milkId, regionId, null, null, null, null, null, null, null, null);
+    private static FarmsController.NewFarmRequest Named(string name, Guid? regionId = null, Guid? milkId = null, Guid? id = null) =>
+        new(name, null, milkId, regionId, null, null, null, null, null, null, null, null, id);
 
     // Seeds a Company Administrator (with role rows, so the notifier can find them) in the
     // given company.
@@ -165,6 +165,44 @@ public class NewFarmTests
         result.Should().BeOfType<OkObjectResult>();
         (await db.Farms.SingleAsync(f => f.Name == "Admin farm")).PendingReviewSince.Should().BeNull();
         emails.All.Should().BeEmpty();
+    }
+
+    // Codex review of #75: the answer can be lost after the farm is saved (the review emails go out
+    // first), and the tester can't tell. A retry with the same id must return that farm — not add a
+    // second one, and not mail the administrators twice.
+    [Fact]
+    public async Task Adding_the_same_farm_again_returns_it_instead_of_a_duplicate()
+    {
+        using var db = NewDb();
+        var companyId = await SeedTesterCompanyAsync(db);
+        await SeedCompanyAdminAsync(db, companyId, "admin@testco.example");
+        var emails = new CapturingEmailSender();
+        var id = Guid.NewGuid();
+
+        var first = await Controller(db, emails).Create(Named("Retried farm", id: id), default);
+        var second = await Controller(db, emails).Create(Named("Retried farm", id: id), default);
+
+        (await db.Farms.CountAsync(f => f.Name == "Retried farm")).Should().Be(1);
+        var dto1 = first.Should().BeOfType<OkObjectResult>().Subject.Value.Should().BeOfType<FarmsController.FarmDto>().Subject;
+        var dto2 = second.Should().BeOfType<OkObjectResult>().Subject.Value.Should().BeOfType<FarmsController.FarmDto>().Subject;
+        dto1.Id.Should().Be(id);
+        dto2.Id.Should().Be(id);
+        emails.All.Should().ContainSingle("the administrators hear about a farm once");
+    }
+
+    [Fact]
+    public async Task An_id_that_belongs_to_someone_elses_farm_is_refused()
+    {
+        using var db = NewDb();
+        await SeedTesterCompanyAsync(db);
+        var theirs = new Farm { Name = "Not yours", CreatedByTesterId = "tester-2" };
+        db.Farms.Add(theirs);
+        await db.SaveChangesAsync();
+
+        var result = await Controller(db).Create(Named("My farm", id: theirs.Id), default);
+
+        result.Should().BeOfType<ConflictObjectResult>();
+        (await db.Farms.SingleAsync(f => f.Id == theirs.Id)).Name.Should().Be("Not yours");
     }
 
     // A lapsed licence can't start tests, so it has no business adding farms either.

@@ -125,10 +125,12 @@ public class FarmsController : ControllerBase
         return Ok(new NewFarmOptions(regions, companies));
     }
 
+    /// <param name="Id">The device's id for the farm it is adding — one per farm, reused on every
+    /// retry, so adding a farm is idempotent (see Create). Optional: without one the server mints it.</param>
     public record NewFarmRequest(
         string? Name, string? SupplyNumber, Guid? MilkSupplyCompanyId, Guid? RegionId,
         string? AddressLine1, string? AddressLine2, string? Town, string? PostCode, string? RapidNumber,
-        string? FarmerName, string? ContactPhone, string? ContactEmail);
+        string? FarmerName, string? ContactPhone, string? ContactEmail, Guid? Id = null);
 
     // A tester adds a farm from the New-test page. Was a Razor handler on that page, posting with an
     // antiforgery token borrowed from the layout's sign-out form; the page is now drawn by the
@@ -141,6 +143,23 @@ public class FarmsController : ControllerBase
     {
         // A lapsed licence can't start tests, so it has no reason to add farms.
         if (User.HasClaim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly)) return Forbid();
+
+        // Idempotent by the device's id for the new farm. If the connection drops after the farm is
+        // saved (the review emails are sent before the answer goes back), the tester can't tell
+        // whether it was added; a retry with the same id gets that farm back instead of a duplicate.
+        if (farm.Id is { } requestedId)
+        {
+            var already = await _db.Farms
+                .Include(x => x.Region)
+                .Include(x => x.MilkSupplyCompany)
+                .FirstOrDefaultAsync(x => x.Id == requestedId, ct);
+            if (already is not null)
+            {
+                return already.CreatedByTesterId == TesterId()
+                    ? Ok(ToDto(already))
+                    : Conflict(new { error = "That farm couldn't be added. Close the form and try again." });
+            }
+        }
 
         var name = farm.Name?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(name))
@@ -162,6 +181,7 @@ public class FarmsController : ControllerBase
 
         var entity = new Farm
         {
+            Id = farm.Id ?? Guid.NewGuid(),
             Name = name,
             // Tag the creating company so it appears in this company's farm book straight away,
             // even before the first test is synced against it.

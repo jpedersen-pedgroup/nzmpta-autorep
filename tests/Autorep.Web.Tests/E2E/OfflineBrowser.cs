@@ -49,14 +49,29 @@ internal static class OfflineBrowser
         return (context, page);
     }
 
-    public static async Task SignInAsync(IPage page)
+    public static async Task SignInAsync(IPage page, string email = OfflineE2EWebAppFactory.TesterEmail, string landsOn = "/App")
     {
         await page.GotoAsync("/Account/Login");
-        await page.FillAsync("#Input_Email", OfflineE2EWebAppFactory.TesterEmail);
+        await page.FillAsync("#Input_Email", email);
         await page.FillAsync("#Input_Password", OfflineE2EWebAppFactory.TesterPassword);
         await page.ClickAsync("button[type=submit]");
-        await page.WaitForURLAsync(url => url.Contains("/App", StringComparison.OrdinalIgnoreCase));
+        await page.WaitForURLAsync(url => url.Contains(landsOn, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>Whether a tester's cached farm book on this device names <paramref name="farm"/>.</summary>
+    public static Task<bool> FarmBookHasAsync(IPage page, string testerId, string farm) =>
+        page.EvaluateAsync<bool>(@"async ([testerId, farm]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(false);
+                req.onupgradeneeded = () => { req.transaction.abort(); };
+                req.onsuccess = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains('reference')) { db.close(); resolve(false); return; }
+                    const get = db.transaction('reference').objectStore('reference').get('farms');
+                    get.onsuccess = () => { db.close(); resolve((get.result?.rows ?? []).some((f) => f.name === farm)); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })", new[] { testerId, farm });
 
     /// <summary>
     /// Online, the device must hold three things before signal goes: a worker controlling the page,

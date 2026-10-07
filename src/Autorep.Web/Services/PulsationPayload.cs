@@ -80,6 +80,25 @@ public static class PulsationPayload
         return true;
     }
 
+    /// <summary>
+    /// True when both payloads describe the same attachment — same name, size and attach time (the
+    /// device's own identity for it: analyser software exports under a fixed file name, so the name
+    /// alone isn't enough). Restoring bytes across two DIFFERENT attachments would print one
+    /// analyser's results under another's name.
+    /// </summary>
+    public static bool SameAttachment(string? storedPayloadJson, string? incomingPayloadJson)
+    {
+        var stored = AttachmentOf(Parse(storedPayloadJson));
+        var incoming = AttachmentOf(Parse(incomingPayloadJson));
+        if (stored is null || incoming is null) return false;
+        return Same(stored["name"], incoming["name"])
+            && Same(stored["size"], incoming["size"])
+            && Same(stored["attachedAt"], incoming["attachedAt"]);
+    }
+
+    private static bool Same(JsonNode? a, JsonNode? b) =>
+        a is not null && b is not null && JsonNode.DeepEquals(a, b);
+
     /// <summary>The payload with the attachment's bytes put back (and the pointer cleared).</summary>
     public static string WithBytes(string payloadJson, string base64)
     {

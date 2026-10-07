@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { BACKOFF_MS, createAutoSync, type AutoSyncDeps } from "./autoSync";
-import { SessionExpiredError, type SyncResult } from "./syncClient";
+import { BACKOFF_MS, FOLLOW_UP_MS, createAutoSync, type AutoSyncDeps } from "./autoSync";
+import { SessionExpiredError, StoreOwnerChangedError, type SyncResult } from "./syncClient";
 
 const OK: SyncResult = { pushed: 1, failed: 0, pulled: 0 };
 
@@ -54,11 +54,14 @@ describe("automatic sync", () => {
 
   it("backs off after each failure, and a success resets it", async () => {
     let fail = true;
+    let sent = false;
     const { deps, auto, pending, fire } = harness({
       sync: vi.fn(async () => {
         if (fail) throw new TypeError("Failed to fetch");
+        sent = true;
         return OK;
       }),
+      unsynced: vi.fn(async () => (sent ? 0 : 1)),
     });
 
     await auto.trigger("online");
@@ -116,6 +119,36 @@ describe("automatic sync", () => {
     await running;
     await new Promise((r) => setTimeout(r, 0));
     expect(sync).toHaveBeenCalledTimes(2);
+  });
+
+  // Codex review of #77: an edit made while a sync was on the wire stays local-only, and the sync
+  // still reports success — so check again afterwards rather than wait for the next event.
+  it("sends edits made during a successful sync shortly afterwards", async () => {
+    const unsynced = vi
+      .fn<() => Promise<number>>()
+      .mockResolvedValueOnce(1) // before the sync: something to send
+      .mockResolvedValueOnce(1) // after it: an edit landed meanwhile
+      .mockResolvedValueOnce(1) // the follow-up: still there, send it
+      .mockResolvedValue(0); // and now nothing
+    const { deps, auto, pending, fire } = harness({ unsynced });
+
+    await auto.trigger("online");
+    expect(pending().map((t) => t.ms)).toEqual([FOLLOW_UP_MS]);
+    expect(auto.failures()).toBe(0);
+
+    await fire();
+    expect(deps.sync).toHaveBeenCalledTimes(2);
+    expect(pending()).toHaveLength(0);
+  });
+
+  it("stops when the signed-in tester has changed under the page — it is about to reload", async () => {
+    const { deps, auto, pending } = harness({ sync: vi.fn(async () => Promise.reject(new StoreOwnerChangedError())) });
+
+    await auto.trigger("online");
+    await auto.trigger("visible");
+
+    expect(deps.sync).toHaveBeenCalledTimes(1);
+    expect(pending()).toHaveLength(0);
   });
 
   it("an event beats a pending retry: try now, not when the timer says", async () => {

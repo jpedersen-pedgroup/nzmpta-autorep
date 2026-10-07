@@ -8,7 +8,7 @@
 //    rejected promise swallow the edit.
 // How iPadOS answers persist() for an installed web app is unverified on the target devices — see
 // the real-device UAT case in plans/test-schedule.md.
-import { STORAGE_FULL_EVENT } from "../db/testStore";
+import { STORAGE_FULL_EVENT, TESTS_CHANGED_EVENT } from "../db/testStore";
 
 export interface StorageReport {
   /** Bytes this origin uses, when the browser says. */
@@ -58,6 +58,13 @@ export async function requestPersistentStorage(): Promise<boolean | null> {
   } catch {
     return null;
   }
+}
+
+/** Asks for persistent storage the first time this page writes a test. On a fresh device the
+ * startup check finds nothing to protect, and the first capture — the most exposed one — is
+ * written later, by the wizard; this catches that moment rather than waiting for the next page. */
+export function protectStorageOnFirstWrite(target: EventTarget | null = typeof window === "undefined" ? null : window): void {
+  target?.addEventListener(TESTS_CHANGED_EVENT, () => void requestPersistentStorage(), { once: true });
 }
 
 /** "14.2 MB" — binary units, one decimal under 100. */

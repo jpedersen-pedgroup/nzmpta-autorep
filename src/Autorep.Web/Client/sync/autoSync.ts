@@ -13,9 +13,12 @@
 // runs while the app is open — which is when testers have it in their hands anyway.
 import { countUnsynced } from "../db/testStore";
 import { currentConnection, onConnectionChange } from "../connectivity";
-import { SessionExpiredError, syncAll, type SyncResult } from "./syncClient";
+import { SessionExpiredError, StoreOwnerChangedError, syncAll, type SyncResult } from "./syncClient";
 
 export const BACKOFF_MS = [30_000, 60_000, 120_000, 300_000, 600_000, 900_000];
+/** After a sync that went fine but left edits behind (made while it ran), how long to let the
+ * tester pause before sending those too. Not a failure, so not part of the backoff. */
+export const FOLLOW_UP_MS = 15_000;
 
 export interface AutoSyncDeps {
   sync: () => Promise<SyncResult>;
@@ -40,7 +43,7 @@ export function createAutoSync(deps: AutoSyncDeps): AutoSync {
   let busy = false;
   let again = false;
   let failures = 0;
-  let pausedForSignIn = false;
+  let paused = false;
   let retry: unknown = null;
 
   const scheduleRetry = () => {
@@ -52,13 +55,21 @@ export function createAutoSync(deps: AutoSyncDeps): AutoSync {
     }, delay);
   };
 
+  const scheduleFollowUp = () => {
+    if (retry !== null) return;
+    retry = deps.setTimer(() => {
+      retry = null;
+      void trigger("follow-up");
+    }, FOLLOW_UP_MS);
+  };
+
   const trigger = async (_reason: string): Promise<void> => {
     if (busy) {
       // Something happened mid-run (a test just saved, the network flickered): one more pass after.
       again = true;
       return;
     }
-    if (pausedForSignIn || !deps.canTry()) return;
+    if (paused || !deps.canTry()) return;
     if (retry !== null) {
       // An event beat the timer to it — this is a better moment than the timer's.
       deps.clearTimer(retry);
@@ -71,10 +82,18 @@ export function createAutoSync(deps: AutoSyncDeps): AutoSync {
         return;
       }
       const result = await deps.sync();
-      if (result.failed > 0) scheduleRetry();
-      else failures = 0;
+      if (result.failed > 0) {
+        scheduleRetry();
+      } else {
+        failures = 0;
+        // An edit made while that sync was on the wire stayed local-only (it wasn't what went up);
+        // send it shortly rather than leaving it until the next reconnect or focus.
+        if ((await deps.unsynced()) > 0) scheduleFollowUp();
+      }
     } catch (e) {
-      if (e instanceof SessionExpiredError) pausedForSignIn = true;
+      // Nothing will succeed until the tester signs in again — or, for a changed owner, until the
+      // page has reloaded as the tester now signed in. Neither is fixed by retrying on a timer.
+      if (e instanceof SessionExpiredError || e instanceof StoreOwnerChangedError) paused = true;
       else scheduleRetry();
     } finally {
       busy = false;
@@ -88,7 +107,7 @@ export function createAutoSync(deps: AutoSyncDeps): AutoSync {
   return {
     trigger,
     sessionRestored: () => {
-      pausedForSignIn = false;
+      paused = false;
       return trigger("session restored");
     },
     failures: () => failures,
