@@ -294,7 +294,7 @@ The headline. Cold launch, navigate, resume.
 >   device keeps working; the read-only view asks for the pointer and fetches the bytes through
 >   `GET /api/tests/{id}/pulsation-pdf` (the view's scoping — the tester route is own-tests only).
 >   With the store down a push keeps the bytes inline, as before, and a background pass
->   (`PulsationBackfill`, `PdfStore:PulsationBackfill` = DryRun by default, Run to move) moves
+>   (`PulsationBackfill`, `PdfStore:PulsationBackfill` = Off unless set; DryRun to count, Run to move) moves
 >   inline bytes — older rows included — into the store.
 > - **Storage-full:** `putTest`/`putReference` turn a `QuotaExceededError` into `StorageFullError`
 >   and a sticky red alert ("your latest change could NOT be saved"), instead of a rejected promise
