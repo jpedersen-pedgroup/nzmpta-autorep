@@ -42,6 +42,15 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
     public const string KowhaiFarm = "Kowhai Flats Dairy";
     public const string RimuFarm = "Rimu Ridge Holdings";
 
+    /// <summary>A second tester, at another company with its own farm — for a device changing hands.</summary>
+    public const string OtherTesterEmail = "e2e-other-tester@local";
+    public const string OtherCompanyName = "Totara Testing Co";
+    public const string MataiFarm = "Matai Meadows";
+    public string OtherTesterId { get; private set; } = "";
+
+    /// <summary>A tester whose licence lapsed yesterday: sign-in gives a sync-only session.</summary>
+    public const string LapsedTesterEmail = "e2e-lapsed-tester@local";
+
     /// <summary>
     /// "Signal lost", as the browser experiences it: while set, every request is dropped at the
     /// connection, so a fetch fails with a network error — from the page AND from the service
@@ -64,6 +73,14 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
     /// now". Tests sync by themselves when online, so this is how a case keeps work unsent on purpose.
     /// </summary>
     public bool RefuseSyncPushes { get; set; }
+
+    /// <summary>
+    /// While set, tester pages (GET /App…) take this long to answer — longer than the service
+    /// worker's 8 s navigation timeout, so the cached shell answers instead while the API still
+    /// works: exactly a slow signal, where the device draws the page and the session check
+    /// succeeds behind it.
+    /// </summary>
+    public int? SlowTesterPagesMs { get; set; }
 
     /// <summary>The Kestrel host's services — the one the browser talks to, and the only one seeded.</summary>
     public IServiceProvider AppServices => _kestrelHost?.Services
@@ -91,6 +108,12 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
                 {
                     context.Abort();
                     return;
+                }
+                if (factory.SlowTesterPagesMs is { } delay
+                    && HttpMethods.IsGet(context.Request.Method)
+                    && context.Request.Path.StartsWithSegments("/App"))
+                {
+                    await Task.Delay(delay);
                 }
                 if (factory.RefuseSyncPushes
                     && HttpMethods.IsPost(context.Request.Method)
@@ -165,6 +188,31 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
         await users.AddToRoleAsync(tester, Roles.Tester);
         TesterId = tester.Id;
 
+        // The second tester, in a company of their own.
+        var otherCompany = new TestingCompany { Name = OtherCompanyName };
+        db.TestingCompanies.Add(otherCompany);
+        await db.SaveChangesAsync();
+        var other = new Tester
+        {
+            UserName = OtherTesterEmail, Email = OtherTesterEmail, EmailConfirmed = true,
+            DisplayName = "Otto Othertester", TestingCompanyId = otherCompany.Id,
+            LicenceExpiryDate = licence, TermsAcceptedVersion = Seed.DefaultTermsVersion,
+            TermsAcceptedAt = DateTimeOffset.UtcNow, TermsAcceptedLicenceExpiry = licence,
+        };
+        await CreateTesterAsync(users, other);
+        OtherTesterId = other.Id;
+        db.Farms.Add(new Farm { Name = MataiFarm, CreatedByTestingCompanyId = otherCompany.Id });
+
+        // The lapsed tester (same company as the first): licence ran out yesterday.
+        var lapsedOn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+        await CreateTesterAsync(users, new Tester
+        {
+            UserName = LapsedTesterEmail, Email = LapsedTesterEmail, EmailConfirmed = true,
+            DisplayName = "Lara Lapsed", TestingCompanyId = company.Id,
+            LicenceExpiryDate = lapsedOn, TermsAcceptedVersion = Seed.DefaultTermsVersion,
+            TermsAcceptedAt = DateTimeOffset.UtcNow, TermsAcceptedLicenceExpiry = lapsedOn,
+        });
+
         // In the company's book (created by it), so /api/farms returns them to this tester.
         var kowhai = new Farm { Name = KowhaiFarm, CreatedByTestingCompanyId = company.Id, SupplyNumber = "40123" };
         var rimu = new Farm { Name = RimuFarm, CreatedByTestingCompanyId = company.Id, SupplyNumber = "40456" };
@@ -189,6 +237,14 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
             MarkedCompleteAt = completedAt,
         });
         await db.SaveChangesAsync();
+    }
+
+    private static async Task CreateTesterAsync(UserManager<Tester> users, Tester tester)
+    {
+        var created = await users.CreateAsync(tester, TesterPassword);
+        if (!created.Succeeded)
+            throw new InvalidOperationException(string.Join("; ", created.Errors.Select(e => e.Description)));
+        await users.AddToRoleAsync(tester, Roles.Tester);
     }
 
     protected override void Dispose(bool disposing)

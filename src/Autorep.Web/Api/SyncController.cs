@@ -338,8 +338,10 @@ public class SyncController : ControllerBase
     /// The incoming payload, with the analyser PDF's bytes restored when the device sent a pointer
     /// instead: from the test the pointer names, else this test's own stored copy, else the version
     /// it supersedes (a new version carries the original's attachment). Only ever the caller's own
-    /// tests. If no stored copy holds the bytes the pointer is kept as sent — the device only drops
-    /// its copy once the server has confirmed the bytes, so that would mean they were never here.
+    /// tests, and only from a stored copy of the SAME attachment (name, size, attach time): a device
+    /// holding a stale pointer — another device has since attached a different PDF to the test —
+    /// must never get the newer PDF's bytes under the old one's name. With no matching copy the
+    /// pointer is kept as sent, and the report prints without the PDF rather than with the wrong one.
     /// </summary>
     private async Task<string?> WithAttachmentBytesAsync(
         string? incoming, string testerId, Guid clientId, Guid? supersedesClientId, CancellationToken ct)
@@ -353,7 +355,8 @@ public class SyncController : ControllerBase
                 .Where(t => t.TesterId == testerId && t.ClientId == id)
                 .Select(t => t.PayloadJson)
                 .FirstOrDefaultAsync(ct);
-            if (PulsationPayload.Base64(stored) is { } bytes) return PulsationPayload.WithBytes(incoming!, bytes);
+            if (PulsationPayload.Base64(stored) is { } bytes && PulsationPayload.SameAttachment(stored, incoming))
+                return PulsationPayload.WithBytes(incoming!, bytes);
         }
         return incoming;
     }

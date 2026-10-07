@@ -324,6 +324,9 @@ const FIELDS = [
 ] as const;
 
 function AddFarmModal({ onClose, onCreated }: { onClose: () => void; onCreated: (farm: CachedFarm) => void }) {
+  // One id for the farm this form adds, sent with every attempt: if an answer is lost, trying
+  // again returns the farm already saved rather than adding it twice (FarmsController.Create).
+  const [farmId] = useState(() => crypto.randomUUID());
   const [state, setState] = useState<OptionsResult | { kind: "checking" }>({ kind: "checking" });
   const [attempt, setAttempt] = useState(0);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -362,6 +365,7 @@ function AddFarmModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           redirect: "manual",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({
+            id: farmId,
             name: value("name"),
             supplyNumber: value("supplyNumber"),
             milkSupplyCompanyId: value("milkSupplyCompanyId"),
@@ -392,7 +396,14 @@ function AddFarmModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       await addFarmToCache(farm).catch(() => undefined);
       onCreated(farm);
     } catch {
-      setError("Couldn't reach the server — adding a farm needs signal. Nothing was saved.");
+      // The request may have reached the server and been saved before the answer was lost, so
+      // don't claim nothing was saved. Trying again is safe either way: same farm id.
+      setError(
+        navigator.onLine === false
+          ? "You're offline — adding a farm needs signal. Try again when you're back in range."
+          : "The connection dropped before the server answered, so the farm may or may not have been added. " +
+              "Try again — it won't be added twice.",
+      );
     } finally {
       setSaving(false);
     }

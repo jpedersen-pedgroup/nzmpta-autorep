@@ -323,8 +323,19 @@ export async function purgeStaleLocalData(): Promise<PurgeResult> {
 }
 
 let dbPromise: Promise<IDBPDatabase<AutorepDB>> | null = null;
+/** Whose store this page opened: undefined until it is first opened, null for the legacy unnamed one. */
+let dbOwner: string | null | undefined;
+
+/** The tester this page's store belongs to — fixed when the page first opens it. In the offline
+ * shell that is whoever the device's identity record named at boot, which can differ from who the
+ * server's cookie says is signed in once the session check comes back (see main.ts). Undefined
+ * when the store hasn't been opened yet. */
+export function storeOwner(): string | null | undefined {
+  return dbOwner;
+}
 
 function db(): Promise<IDBPDatabase<AutorepDB>> {
+  if (!dbPromise) dbOwner = currentTesterId();
   dbPromise ??= openDB<AutorepDB>(dbName(), DB_VERSION, {
     upgrade(database) {
       if (!database.objectStoreNames.contains("tests")) {

@@ -31,6 +31,7 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         _factory.NetworkDown = false;
         _factory.ServiceWorkerSuffix = null;
         _factory.RefuseSyncPushes = false;
+        _factory.SlowTesterPagesMs = null;
         if (_browser is not null) await _browser.DisposeAsync();
         _playwright?.Dispose();
     }
@@ -497,6 +498,84 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         {
             _factory.ServiceWorkerSuffix = null;
         }
+    }
+
+    // A lapsed licence lands on /Account/FinishSync, which isn't a tester page. The device must still
+    // learn the session is sync-only, or an offline launch would reopen the full tester app from an
+    // identity record written while the licence was current.
+    [Fact]
+    public async Task A_lapsed_licence_stays_sync_only_offline()
+    {
+        _factory.NetworkDown = false;
+        var (context, page) = await NewTesterPageAsync(_browser, _factory.BaseUrl);
+        await using var _ = context;
+        await SignInAsync(page, OfflineE2EWebAppFactory.LapsedTesterEmail, landsOn: "/Account/FinishSync");
+        await WaitUntilReadyForOfflineAsync(page);
+        Assert.True(await PollAsync(page, @"async () => new Promise((resolve) => {
+                const req = indexedDB.open('autorep-identity');
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    const get = db.transaction('identity').objectStore('identity').get('current');
+                    get.onsuccess = () => { db.close(); resolve(get.result?.syncOnly === true); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })"), "the device never learned the session is sync-only");
+
+        await GoOfflineAsync(context);
+        foreach (var path in new[] { "/", "/App/Tests/New" })
+        {
+            await page.GotoAsync(path);
+            Assert.True(await IsShellAsync(page));
+            await page.GetByText("Your licence has expired").WaitForAsync();
+            Assert.Equal(0, await page.Locator("#home-root, #new-test-root, #test-list-root, #wizard-root").CountAsync());
+        }
+    }
+
+    // The shell draws whoever the device's identity record names, and the cookie may belong to
+    // someone else by then — tester A's sign-in lapsed without a sign-out, and tester B signs in on
+    // a slow signal. Nothing of B's may be written into A's store, and none of A's unsent work may be
+    // sent as B's: a test is signed off by a certified tester, and the server files it under whoever
+    // is signed in.
+    [Fact]
+    public async Task A_device_changing_hands_never_mixes_two_testers_data()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        _factory.RefuseSyncPushes = true; // keep A's test unsent while A is signed in
+        await page.GotoAsync($"/App/Tests/Wizard?farmId={_factory.RimuFarmId}&farmName={Uri.EscapeDataString(OfflineE2EWebAppFactory.RimuFarm)}");
+        await page.WaitForURLAsync(url => url.Contains("?id=", StringComparison.Ordinal));
+        var aTestId = new Uri(page.Url).Query.Split("id=")[1];
+        _factory.RefuseSyncPushes = false; // from here on, a push WOULD land
+
+        await context.ClearCookiesAsync(); // A's session is gone; the device still names A
+        _factory.SlowTesterPagesMs = 10_000; // longer than the worker's 8 s: the shell answers
+        await SignInAsync(page, OfflineE2EWebAppFactory.OtherTesterEmail);
+
+        // The shell opens as A, the session check says B, and the page starts again as B.
+        Assert.True(await PollAsync(page,
+            $"async () => document.getElementById('shell-user-name')?.textContent === '{OfflineE2EWebAppFactory.OtherTesterEmail}'",
+            timeoutMs: 60_000), "the shell never came back as the tester actually signed in");
+        Assert.True(await PollAsync(page, @"async ([testerId, farm]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains('reference')) { db.close(); resolve(false); return; }
+                    const get = db.transaction('reference').objectStore('reference').get('farms');
+                    get.onsuccess = () => { db.close(); resolve((get.result?.rows ?? []).some((f) => f.name === farm)); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })", new[] { _factory.OtherTesterId, OfflineE2EWebAppFactory.MataiFarm }, 30_000),
+            "B's farm book never reached B's own store");
+
+        Assert.False(await FarmBookHasAsync(page, _factory.TesterId, OfflineE2EWebAppFactory.MataiFarm),
+            "B's farm book was written into A's store");
+        Assert.NotNull(await LocalTestJsonAsync(page, _factory.TesterId, aTestId));
+        using var scope = _factory.AppServices.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        Assert.False(await db.MachineTests.AnyAsync(t => t.ClientId == Guid.Parse(aTestId)),
+            "A's unsent test was sent while B was signed in");
     }
 
     [Fact]

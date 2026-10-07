@@ -6,7 +6,7 @@
 // real time slightly (see SyncController), so recently-written tests are re-delivered on the
 // next pull; that's by design and harmless — the loop below skips tests already on-device.
 // Auth is the tester's cookie (same-origin fetch sends it automatically).
-import { allTests, getTest, putTest, getReference, putReference, type LocalTest } from "../db/testStore";
+import { allTests, currentTesterId, getTest, putTest, getReference, putReference, storeOwner, type LocalTest } from "../db/testStore";
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
@@ -56,6 +56,17 @@ export interface SyncResult {
   /** Tests whose push failed. The rest of the sync still ran — a stuck test must never wedge it. */
   failed: number;
   pulled: number;
+}
+
+/** Thrown when this page's store belongs to a different tester than the one now signed in: the
+ * offline shell opened it for whoever the device's record named, and the session check has since
+ * said someone else is signed in (the page is about to reload as them). Pushing now would file the
+ * first tester's work under the second tester's name — a certified test signed by the wrong person. */
+export class StoreOwnerChangedError extends Error {
+  constructor() {
+    super("Signed-in tester changed");
+    this.name = "StoreOwnerChangedError";
+  }
 }
 
 /** Thrown when the server answered, but as "you are not signed in" rather than as the API.
@@ -317,6 +328,8 @@ export function syncAll(): Promise<SyncResult> {
 }
 
 async function runSync(): Promise<SyncResult> {
+  const owner = storeOwner();
+  if (owner !== undefined && owner !== currentTesterId()) throw new StoreOwnerChangedError();
   await flushCalibration();
   await initCompanyBranding();
   await initTesterDetails();

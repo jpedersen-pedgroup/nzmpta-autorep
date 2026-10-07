@@ -194,6 +194,24 @@ public class SyncPagingAndAttachmentTests : IClassFixture<AuthedWebAppFactory>
         PulsationPayload.Base64(await StoredPayloadAsync("tester-attach-3", unnamed)).Should().Be(PdfBase64);
     }
 
+    // Codex review of #76: two devices, one test. Device X let its copy of PDF A go; device Y has
+    // since attached PDF B and synced. X's stale pointer must not get B's bytes under A's name — the
+    // report would print one analyser's results labelled as another's.
+    [Fact]
+    public async Task A_stale_pointer_never_gets_another_attachments_bytes()
+    {
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-attach-6");
+        var id = Guid.NewGuid();
+        var otherBytes = Convert.ToBase64String("%PDF-1.4 a different export"u8.ToArray());
+        await PushAsync(client, id, PayloadWith(new { name = "pulse.pdf", base64 = otherBytes, size = 27, attachedAt = "2026-10-05T00:00:00Z" }));
+
+        await PushAsync(client, id, PayloadWith(new { name = "pulse.pdf", size = 24, attachedAt = "2026-10-01T00:00:00Z", onServer = true }));
+
+        var stored = await StoredPayloadAsync("tester-attach-6", id);
+        PulsationPayload.Base64(stored).Should().BeNull("B's bytes must not be filed under A's name");
+        PulsationPayload.IsServerPointer(stored, out _).Should().BeTrue();
+    }
+
     [Fact]
     public async Task The_pdf_comes_back_on_demand_but_only_to_the_tester_whose_test_it_is()
     {

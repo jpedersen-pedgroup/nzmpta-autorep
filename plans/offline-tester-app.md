@@ -332,6 +332,37 @@ device-only until someone remembered to press one. Branch `claude/offline-tester
 
 ---
 
+### Codex review follow-ups (7 Oct 2026)
+
+Codex reviewed #73, #75, #76 and #77; they merged before its comments were addressed. Six held up
+and are fixed on `claude/offline-codex-followups`; one didn't.
+
+- **Lapsed licence offline (#73, P1).** `/Account/FinishSync` now refreshes the identity record, and
+  the shell treats a pure tester whose cached licence date has passed as sync-only whatever the record
+  says (`homeFor`, same rule as `LicenceScope.IsSyncOnly`) — a licence can lapse while offline.
+- **Two testers' data mixing (#73, P1).** In the shell, account-scoped refreshes (farm book, profile,
+  calibration, branding) wait for the session check, and the page reloads as the tester actually
+  signed in before any of their data is fetched. **Found while fixing it, and worse:** a sync started
+  in that window would have pushed the previous tester's unsent tests under the new tester's sign-in,
+  filing them as the new tester's work. `syncAll` now refuses when the page's store belongs to
+  someone other than the signed-in tester (`StoreOwnerChangedError`). E2E
+  `A_device_changing_hands_never_mixes_two_testers_data` fails without the fix.
+- **Wrong analyser PDF on restore (#76, P1).** The server restores a pointer's bytes only from a
+  stored copy of the same attachment (name, size, attach time); otherwise the pointer stays, and the
+  report prints without the PDF rather than with someone else's.
+- **Duplicate farms on retry (#75, P2).** The add-farm form sends one id per farm; a retry returns the
+  farm already saved (no second row, no second email), and the timeout message no longer claims
+  nothing was saved.
+- **First capture unprotected (#76, P2).** The persistent-storage request also fires on the page's
+  first test write, not only at startup.
+- **Edits stranded after an auto-sync (#77, P2).** After a successful sync, if anything is still
+  unsent (an edit made while it ran), a follow-up runs 15 s later.
+- **Not changed (#73):** "honour sync-only for dual-role testers". The server never marks an
+  administrator who also tests as sync-only (`LicenceScope.IsSyncOnly`), so the client already
+  matches it.
+
+---
+
 ### Phase 5 — Offline farm creation — ~~CONDITIONAL~~ **CUT (22 Jul 2026)**
 
 **Decided: farm creation stays online-only.** Josh confirmed with a tester that farms are not set

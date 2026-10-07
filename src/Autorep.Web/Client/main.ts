@@ -26,7 +26,7 @@ import { mountHome } from "./shell/HomePage";
 import { mountNewTest } from "./ui/NewTestApp";
 import { mountAppStatus } from "./shell/AppStatus";
 import { allTests, purgeStaleLocalData } from "./db/testStore";
-import { requestPersistentStorage, watchForFullStorage } from "./storage/durability";
+import { protectStorageOnFirstWrite, requestPersistentStorage, watchForFullStorage } from "./storage/durability";
 import { cachedIdentity, loadIdentity } from "./db/identity";
 import { purgeOtherTesterLayouts } from "./wizard/layoutPreference";
 import { enableSessionChecks } from "./connectivity";
@@ -114,17 +114,22 @@ async function boot(): Promise<void> {
   await Promise.allSettled([applyCachedStandards(), applyCachedEquipment(), applyCachedFaultCatalog(), applyCachedPrivacy()]);
   mountApps();
 
+  // Whether this page may fetch the tester's own data (farm book, profile, calibration, branding)
+  // and write it into the store it opened.
+  let accountData = testerPage;
+
   if (testerPage) {
     // Once there is real work on this device, ask the browser to keep it (best-effort; see
-    // storage/durability.ts). Not before: an empty install has nothing to protect yet.
+    // storage/durability.ts): now if there already is, else the moment the first test is written.
     void allTests()
       .then((tests) => (tests.length > 0 ? requestPersistentStorage() : null))
       .catch(() => null);
+    protectStorageOnFirstWrite();
 
     // Tests captured offline go up by themselves once the connection is back (sync/autoSync.ts).
     const autoSync = startAutoSync();
 
-    void enableSessionChecks().then(async (connection) => {
+    const session = enableSessionChecks().then(async (connection) => {
       // The shell drew this page for whoever the device's record named. If the server now says
       // someone else is signed in (they signed in while the record still named the previous
       // tester), start again as them — but only once the new record is really stored, or a device
@@ -133,16 +138,33 @@ async function boot(): Promise<void> {
         const stored = await loadIdentity();
         if (stored && stored.testerId !== bootIdentity?.testerId) {
           location.reload();
-          return;
+          return "reloading" as const;
         }
       }
       // The session is good: send anything still waiting on this device.
       if (connection === "online") void autoSync.trigger("page load");
+      return connection;
     });
+
+    // In the shell this page's store was opened for whoever the device's record named, and the
+    // server's cookie may belong to someone else. Account data fetched under one tester's cookie
+    // must never be written into another tester's store, so in the shell nothing account-scoped
+    // is refreshed until the session check has confirmed who this is (or the page has reloaded as
+    // the tester who is). A server-rendered page names its tester itself, so it needn't wait.
+    if (shell) {
+      const confirmed = await session;
+      if (confirmed === "reloading") return;
+      accountData = confirmed === "online";
+    }
+  } else if (!shell && document.getElementById("sync-only-root")) {
+    // A lapsed licence lands on /Account/FinishSync, not a tester page. Refresh the identity record
+    // here too, so the device knows this session is sync-only and an offline launch can't reopen the
+    // full tester app on the strength of a record written while the licence was current.
+    void enableSessionChecks();
   }
 
   const refreshes: Array<() => Promise<boolean | void>> = [refreshStandards, refreshEquipment, refreshFaultCatalog, refreshPrivacy];
-  if (testerPage) refreshes.push(initFarms, initCalibration, initCompanyBranding, initTesterDetails);
+  if (accountData) refreshes.push(initFarms, initCalibration, initCompanyBranding, initTesterDetails);
   const results = await Promise.allSettled(refreshes.map((refresh) => refresh()));
   const changed = results.some((r) => r.status === "fulfilled" && r.value !== false);
   dispatchEvent(new CustomEvent<ReferenceRefreshedDetail>(REFERENCE_REFRESHED_EVENT, { detail: { changed } }));
