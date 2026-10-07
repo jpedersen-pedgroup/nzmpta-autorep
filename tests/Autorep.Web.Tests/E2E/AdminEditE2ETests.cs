@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Autorep.Web.Data;
 using Autorep.Web.Services;
+using Autorep.Web.Services.Pdfs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
@@ -153,12 +154,19 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         await page.GetByRole(AriaRole.Button, new() { Name = "Save as version 2" }).ClickAsync();
         await page.WaitForURLAsync(url => url.Contains("saved=2", StringComparison.Ordinal));
 
+        // The PDF went to the PDF store under the new version; its payload keeps the pointer.
         var version = await WithDbAsync(db => db.MachineTests.SingleAsync(t => t.SupersedesClientId == clientId));
-        Assert.Equal(Convert.ToBase64String(pdf), PulsationPayload.Base64(version.PayloadJson));
+        Assert.Null(PulsationPayload.Base64(version.PayloadJson));
+        Assert.Equal(PdfHash.Sha256Hex(pdf), PulsationPayload.StoredSha256(version.PayloadJson));
         var changes = JsonNode.Parse(version.PayloadJson!)!["amendments"]!.AsArray().Single()!["changes"]!.AsArray();
         Assert.Contains(changes, c => c!["label"]!.GetValue<string>() == "Pulsation analyser attachment");
         await Step(page, "Review & Sign-Off").ClickAsync();
         await page.Locator(".attach-chip", new() { HasText = "analyser-export.pdf" }).WaitForAsync();
+        // And the viewer's route serves it back from the store (fetched as the page does, signed in).
+        var served = await page.EvaluateAsync<int[]>(
+            "async (url) => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer()))",
+            $"/api/tests/{version.Id}/pulsation-pdf");
+        Assert.Equal(pdf, served.Select(b => (byte)b).ToArray());
     }
 
     [Fact]

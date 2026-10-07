@@ -72,6 +72,9 @@ obj/
 appsettings.Development.local.json
 .env.local
 
+# The Development PDF store (Services/Pdfs/LocalFolderPdfStore.cs)
+src/Autorep.Web/App_Data/
+
 # Node / client build
 node_modules/
 src/Autorep.Web/wwwroot/js/dist/
