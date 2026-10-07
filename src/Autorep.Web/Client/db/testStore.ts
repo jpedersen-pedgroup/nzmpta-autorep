@@ -357,6 +357,16 @@ export async function putReference(entry: ReferenceEntry): Promise<void> {
   await guardedWrite(async () => (await db()).put("reference", entry));
 }
 
+export async function deleteReference(key: string): Promise<void> {
+  await (await db()).delete("reference", key);
+}
+
+/** Every reference entry whose key starts with `prefix` — for bookkeeping kept one entry per item
+ * (the Final Report upload queue), so no two writers ever rewrite a shared list. */
+export async function referencesWithPrefix(prefix: string): Promise<ReferenceEntry[]> {
+  return (await db()).getAll("reference", IDBKeyRange.bound(prefix, `${prefix}￿`));
+}
+
 export async function getTest(id: string): Promise<LocalTest | undefined> {
   return (await db()).get("tests", id);
 }

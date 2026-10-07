@@ -51,6 +51,10 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
     /// <summary>A tester whose licence lapsed yesterday: sign-in gives a sync-only session.</summary>
     public const string LapsedTesterEmail = "e2e-lapsed-tester@local";
 
+    /// <summary>A Company Administrator at the first tester's company — the admin side of a test
+    /// (no two-factor: that is required of Super-Administrators only).</summary>
+    public const string CompanyAdminEmail = "e2e-company-admin@local";
+
     /// <summary>
     /// "Signal lost", as the browser experiences it: while set, every request is dropped at the
     /// connection, so a fetch fails with a network error — from the page AND from the service
@@ -213,6 +217,14 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
             TermsAcceptedAt = DateTimeOffset.UtcNow, TermsAcceptedLicenceExpiry = lapsedOn,
         });
 
+        await CreateTesterAsync(users, new Tester
+        {
+            UserName = CompanyAdminEmail, Email = CompanyAdminEmail, EmailConfirmed = true,
+            DisplayName = "Cora Companyadmin", TestingCompanyId = company.Id,
+            LicenceExpiryDate = licence, TermsAcceptedVersion = Seed.DefaultTermsVersion,
+            TermsAcceptedAt = DateTimeOffset.UtcNow, TermsAcceptedLicenceExpiry = licence,
+        }, Roles.CompanyAdministrator);
+
         // In the company's book (created by it), so /api/farms returns them to this tester.
         var kowhai = new Farm { Name = KowhaiFarm, CreatedByTestingCompanyId = company.Id, SupplyNumber = "40123" };
         var rimu = new Farm { Name = RimuFarm, CreatedByTestingCompanyId = company.Id, SupplyNumber = "40456" };
@@ -239,12 +251,12 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
         await db.SaveChangesAsync();
     }
 
-    private static async Task CreateTesterAsync(UserManager<Tester> users, Tester tester)
+    private static async Task CreateTesterAsync(UserManager<Tester> users, Tester tester, string role = Roles.Tester)
     {
         var created = await users.CreateAsync(tester, TesterPassword);
         if (!created.Succeeded)
             throw new InvalidOperationException(string.Join("; ", created.Errors.Select(e => e.Description)));
-        await users.AddToRoleAsync(tester, Roles.Tester);
+        await users.AddToRoleAsync(tester, role);
     }
 
     protected override void Dispose(bool disposing)

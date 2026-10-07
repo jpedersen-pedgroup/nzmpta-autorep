@@ -6,8 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- The TypeScript client (Client/**) is built by npm/esbuild, and node_modules is a
          dependency cache — keep both out of the .NET build/publish globs. The compiled
-         bundle lands in wwwroot/js/dist and is served as a normal static asset. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;Client\**</DefaultItemExcludes>
+         bundle lands in wwwroot/js/dist and is served as a normal static asset. App_Data is the
+         Development PDF store (Services/Pdfs/LocalFolderPdfStore.cs): its .meta.json files would
+         otherwise be picked up as content and copied into bin/ and any publish. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;Client\**;App_Data\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

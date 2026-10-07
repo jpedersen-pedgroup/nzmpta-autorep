@@ -14,6 +14,7 @@
 import { countUnsynced } from "../db/testStore";
 import { currentConnection, onConnectionChange } from "../connectivity";
 import { SessionExpiredError, StoreOwnerChangedError, syncAll, type SyncResult } from "./syncClient";
+import { flushFinalReports } from "./finalReportUpload";
 
 export const BACKOFF_MS = [30_000, 60_000, 120_000, 300_000, 600_000, 900_000];
 /** After a sync that went fine but left edits behind (made while it ran), how long to let the
@@ -28,6 +29,9 @@ export interface AutoSyncDeps {
   canTry: () => boolean;
   setTimer: (fn: () => void, ms: number) => unknown;
   clearTimer: (handle: unknown) => void;
+  /** Sends any Final Report queued at sign-off that is due (sync/finalReportUpload.ts) — for when
+   * there are no tests to send, so no sync runs to send it. Keeps its own retry clock. */
+  flushReports?: () => Promise<unknown>;
 }
 
 export interface AutoSync {
@@ -79,6 +83,9 @@ export function createAutoSync(deps: AutoSyncDeps): AutoSync {
     try {
       if ((await deps.unsynced()) === 0) {
         failures = 0;
+        // The tests are all up; a report signed off with them may still be waiting to follow. Not
+        // awaited: a big report on a weak signal mustn't hold up the next test's sync.
+        void deps.flushReports?.();
         return;
       }
       const result = await deps.sync();
@@ -125,6 +132,7 @@ export function startAutoSync(): AutoSync {
     canTry: () => navigator.onLine !== false && currentConnection() !== "offline",
     setTimer: (fn, ms) => setTimeout(fn, ms),
     clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+    flushReports: () => flushFinalReports(),
   });
   addEventListener("online", () => void auto.trigger("online"));
   document.addEventListener("visibilitychange", () => {
