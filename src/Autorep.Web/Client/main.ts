@@ -77,9 +77,11 @@ async function warnAboutRetainedWork(): Promise<void> {
   // attributed to whoever is signed in, so it can never be flushed from this account.
   const known = purge.retained.filter((r) => r.unsyncedCount !== null);
   const total = known.reduce((sum, r) => sum + (r.unsyncedCount ?? 0), 0);
+  const reports = purge.retained.reduce((sum, r) => sum + (r.pendingReports ?? 0), 0);
   const unreadable = purge.retained.length - known.length;
   const parts: string[] = [];
   if (total > 0) parts.push(`${total} unsynced test${total === 1 ? "" : "s"}`);
+  if (reports > 0) parts.push(`${reports} signed-off report${reports === 1 ? "" : "s"} waiting to be sent`);
   if (unreadable > 0) parts.push(`data that couldn't be read`);
   const { showToast } = await import("./ui/toast");
   showToast(

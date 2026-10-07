@@ -4,6 +4,7 @@ using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
+using Autorep.Web.Services.Pdfs;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -228,6 +229,11 @@ builder.Services.AddHealthChecks();
 
 // The work-instruction PDFs behind Help & guides (Guides/guides.json + GuidesController).
 builder.Services.AddSingleton<GuideCatalog>();
+
+// Where the server keeps PDFs — the Final Report as signed off, the pulsation analyser PDFs: Blob
+// Storage in Staging/Production (stops startup without an account name), a folder in Development,
+// memory under test. See Services/Pdfs/PdfStoreRegistration.cs.
+builder.Services.AddPdfStore(builder.Configuration, builder.Environment);
 
 // NZ Post keyless address autocomplete (admin Farm Details screens; online only).
 builder.Services.AddHttpClient<NzPostAddressClient>();

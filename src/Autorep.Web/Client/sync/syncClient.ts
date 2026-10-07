@@ -17,6 +17,7 @@ import { isBlankRegulatorRow, regulatorRows } from "../wizard/pumpRows";
 import { guidesForRoles, TESTER_ROLE, warmGuides } from "../guides/guides";
 import { reportSessionOk, reportSignedOut } from "../connectivity";
 import { keepHeldBytes, letGoOfHeldAttachments } from "./pulsationAttachment";
+import { flushFinalReports } from "./finalReportUpload";
 
 interface TestSummaryDto {
   clientId: string;
@@ -356,6 +357,11 @@ async function runSync(): Promise<SyncResult> {
   // Now that the server is known to hold them, let go of analyser PDFs this device has kept
   // long enough (sync/pulsationAttachment.ts). Best-effort and quick: no network involved.
   await letGoOfHeldAttachments(await allTests()).catch(() => 0);
+
+  // The tests are up, so any Final Report queued at sign-off can follow them
+  // (sync/finalReportUpload.ts). Not awaited: generating and sending a report with a 15 MB analyser
+  // PDF takes a while, and nobody signing off or pressing Sync now should wait on it.
+  void flushFinalReports();
 
   // A sync just succeeded, so the connection is real and the tester is almost certainly not
   // stuck in a paddock. That is the moment to pull down the report generator's lazy chunks, so

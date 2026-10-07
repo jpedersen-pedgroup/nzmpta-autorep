@@ -4,6 +4,7 @@ using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
+using Autorep.Web.Services.Pdfs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +24,15 @@ namespace Autorep.Web.Api;
 public class TestsController : ControllerBase
 {
     private readonly AutorepDbContext _db;
-    public TestsController(AutorepDbContext db) => _db = db;
+    private readonly IPdfStore _store;
+    private readonly ILogger<TestsController> _log;
+
+    public TestsController(AutorepDbContext db, IPdfStore store, ILogger<TestsController> log)
+    {
+        _db = db;
+        _store = store;
+        _log = log;
+    }
 
     /// <summary>Largest page the company list will return, whatever the caller asks for —
     /// otherwise the list is a bulk-export endpoint.</summary>
@@ -40,7 +49,13 @@ public class TestsController : ControllerBase
         // owner's current company), so a report printed from this view carries that company's
         // letterhead. The logo is a data URL; both are null when the test has no company.
         string? TestingCompanyName = null,
-        string? TestingCompanyLogo = null);
+        string? TestingCompanyLogo = null,
+        // The Final Report as the tester signed it off, when the device has sent it (see
+        // FinalReportsController): the view offers it beside the regenerated download. Null for a
+        // test signed off before reports were stored, or whose device hasn't synced since.
+        StoredFinalReportDto? FinalReport = null);
+
+    public record StoredFinalReportDto(DateTimeOffset StoredAt, long SizeBytes);
 
     /// <summary>A row of the Company tests list. Header fields only — no PayloadJson (it carries
     /// the whole capture including a base64 pulsation PDF, so a page of them would be hundreds of
@@ -76,6 +91,11 @@ public class TestsController : ControllerBase
                 .FirstOrDefaultAsync(ct)
             : null;
 
+        var finalReport = await _db.FinalReportBlobs
+            .Where(r => r.MachineTestId == test.Id)
+            .Select(r => new StoredFinalReportDto(r.StoredAt, r.SizeBytes))
+            .FirstOrDefaultAsync(ct);
+
         Response.Headers.CacheControl = "no-store";
         return Ok(new TestViewDto(
             test.Id,
@@ -87,7 +107,62 @@ public class TestsController : ControllerBase
             test.Tester?.DisplayName,
             test.TesterId == me,
             company?.Name,
-            LogoImage.DataUrl(company?.LogoData, company?.LogoContentType)));
+            LogoImage.DataUrl(company?.LogoData, company?.LogoContentType),
+            finalReport));
+    }
+
+    // The Final Report as the tester signed it off — what the farmer was given — for anyone who can
+    // view the test (same scoping as Get: Super-Administrator any, Company Administrator their
+    // company's, a tester their own and their company's completed tests). 404 when there is no
+    // stored copy; the view still regenerates one on the device.
+    [HttpGet("{id:guid}/final-report")]
+    public async Task<IActionResult> GetFinalReport(Guid id, CancellationToken ct)
+    {
+        var scoped = await ScopedAsync(ct);
+        var test = await scoped
+            .Where(t => t.Id == id)
+            .Select(t => new { t.Id, FarmName = t.Farm != null ? t.Farm.Name : null, t.MarkedCompleteAt })
+            .FirstOrDefaultAsync(ct);
+        if (test is null) return NotFound();
+
+        var record = await _db.FinalReportBlobs.FirstOrDefaultAsync(r => r.MachineTestId == id, ct);
+        if (record is null) return NotFound();
+
+        StoredPdf? pdf;
+        try
+        {
+            pdf = await _store.GetAsync(PdfContainer.FinalReports, record.BlobKey, ct);
+        }
+        catch (PdfStoreException e)
+        {
+            _log.LogError(e, "Stored Final Report for test {TestId} could not be read", id);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "The report store is unavailable right now." });
+        }
+        if (pdf is null)
+        {
+            _log.LogError("Final Report record for test {TestId} names {BlobKey}, which the store doesn't have", id, record.BlobKey);
+            return NotFound();
+        }
+        if (pdf.Info.Sha256 != record.Sha256)
+        {
+            // A newer upload reached the store but not the record (the request died in between):
+            // the store's copy is the latest the device sent, so it is still the one to hand out.
+            _log.LogWarning("Stored Final Report for test {TestId} is {StoreSha256}, its record says {RecordSha256}",
+                id, pdf.Info.Sha256, record.Sha256);
+        }
+
+        Response.Headers.CacheControl = "no-store";
+        return File(pdf.Bytes, "application/pdf", FinalReportFileName(test.FarmName, test.MarkedCompleteAt));
+    }
+
+    /// <summary>"Test Summary - {farm} - {NZ date signed off} - as signed off.pdf": the name the
+    /// device gives its own download (reportFileName in Client/report/testSummaryPdf.ts, same
+    /// characters kept), marked as the stored copy.</summary>
+    public static string FinalReportFileName(string? farmName, DateTimeOffset? signedOff)
+    {
+        var farm = new string((farmName ?? "farm").Where(c => char.IsAsciiLetterOrDigit(c) || c is ' ' or '-' or '_').ToArray());
+        var date = signedOff is { } at ? at.ToNz().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) : "undated";
+        return $"Test Summary - {farm} - {date} - as signed off.pdf";
     }
 
     // The Company tests list: completed tests done for the caller's Testing Company, current

@@ -92,6 +92,23 @@ describe("purgeStaleLocalData", () => {
     expect(await remainingTests("autorep_tester-a")).toBe(1);
   });
 
+  // Its test is on the server, but the report as signed off exists only in this database's upload
+  // queue (sync/finalReportUpload.ts) — deleting it would lose that copy for good.
+  it("keeps a previous tester's database while a signed-off report is still waiting to be sent", async () => {
+    await seedTesterDb("tester-r", "uploaded");
+    const db = await openDB("autorep_tester-r");
+    await db.put("reference", { key: "finalReport:t1", rows: { testId: "t1", queuedAt: "2026-10-07T00:00:00Z", attempts: 0 } });
+    await db.put("reference", { key: "farms", rows: [] }); // not part of the queue
+    db.close();
+    localStorage.setItem(LAST_TESTER_KEY, "tester-r");
+    setCurrentTester("tester-s");
+
+    const result = await purgeStaleLocalData();
+
+    expect(result.retained).toEqual([{ testerId: "tester-r", unsyncedCount: 0, pendingReports: 1 }]);
+    expect(await remainingTests("autorep_tester-r")).toBe(1);
+  });
+
   it("deletes a previous tester's database once everything has synced", async () => {
     await seedTesterDb("tester-c", "uploaded");
     localStorage.setItem(LAST_TESTER_KEY, "tester-c");

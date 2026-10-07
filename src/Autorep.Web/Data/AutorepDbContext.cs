@@ -38,6 +38,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<EquipmentItem> EquipmentItems => Set<EquipmentItem>();
     public DbSet<FaultObservation> FaultObservations => Set<FaultObservation>();
     public DbSet<PrivacyContent> PrivacyContent => Set<PrivacyContent>();
+    public DbSet<FinalReportBlob> FinalReportBlobs => Set<FinalReportBlob>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -92,6 +93,20 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             cfg.Property(c => c.VacuumPumps).HasConversion(PumpJson<VacuumPumpDetail>(), PumpComparer<VacuumPumpDetail>()).IsRequired();
             cfg.Property(c => c.ReleaserPumps).HasConversion(PumpJson<ReleaserPumpDetail>(), PumpComparer<ReleaserPumpDetail>()).IsRequired();
             cfg.Property(c => c.Regulators).HasConversion(PumpJson<RegulatorDetail>(), PumpComparer<RegulatorDetail>()).IsRequired();
+        });
+
+        // The record of a test's stored Final Report; the PDF is in the PDF store. Restrict: tests are
+        // never hard-deleted, and if one ever were, its report record shouldn't silently go with it.
+        builder.Entity<FinalReportBlob>(r =>
+        {
+            r.HasKey(x => x.MachineTestId);
+            r.HasOne(x => x.MachineTest)
+                .WithOne()
+                .HasForeignKey<FinalReportBlob>(x => x.MachineTestId)
+                .OnDelete(DeleteBehavior.Restrict);
+            r.Property(x => x.BlobKey).HasMaxLength(400).IsRequired();
+            r.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+            r.Property(x => x.StoredBy).HasMaxLength(450).IsRequired();
         });
 
         builder.Entity<AuditEntry>()
