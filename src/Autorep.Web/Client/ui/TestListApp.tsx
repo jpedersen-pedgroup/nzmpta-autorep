@@ -5,7 +5,8 @@
 // anything that exists on the server can't be removed from here.
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { allTests, deleteTest, putTest, type LocalTest } from "../db/testStore";
+import { allTests, deleteTest, putTest, TESTS_CHANGED_EVENT, type LocalTest } from "../db/testStore";
+import { describeStorage, storageReport } from "../storage/durability";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { GuideLink } from "./GuideLink";
@@ -65,11 +66,27 @@ function TestListApp() {
   const [syncing, setSyncing] = useState(false);
   const [deleting, setDeleting] = useState<LocalTest | null>(null);
 
+  const [storageLine, setStorageLine] = useState<string | null>(null);
+
   const reload = async () =>
     setTests((await allTests()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  const refreshStorage = () => void storageReport().then((r) => setStorageLine(describeStorage(r)));
 
   useEffect(() => {
     void reload();
+    refreshStorage();
+    // A first sync stores the tester's history page by page, newest first: re-read as each page
+    // lands so the list fills in while the tail is still coming (debounced — a page is many writes).
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onChanged = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void reload(), 250);
+    };
+    addEventListener(TESTS_CHANGED_EVENT, onChanged);
+    return () => {
+      clearTimeout(timer);
+      removeEventListener(TESTS_CHANGED_EVENT, onChanged);
+    };
   }, []);
 
   const doSync = async () => {
@@ -98,6 +115,7 @@ function TestListApp() {
       );
     } finally {
       setSyncing(false);
+      refreshStorage();
     }
   };
 
@@ -127,6 +145,12 @@ function TestListApp() {
     const copy: LocalTest = {
       ...orig,
       id: crypto.randomUUID(),
+      // An attachment this device has let go of lives in the ORIGINAL's server copy — say so, or
+      // the new version's pointer would name a test the server has never seen.
+      pulsationPdf:
+        orig.pulsationPdf && !orig.pulsationPdf.base64
+          ? { ...orig.pulsationPdf, serverTestId: orig.pulsationPdf.serverTestId ?? orig.id }
+          : orig.pulsationPdf,
       version: (orig.version ?? 1) + 1,
       supersedesId: orig.id,
       attestations: [],
@@ -157,6 +181,11 @@ function TestListApp() {
           {syncing ? "Syncing…" : "Sync now"}
         </button>
       </div>
+      {storageLine && (
+        <p class="td-muted" style="margin:0 0 var(--space-3);font-size:0.8125rem;text-align:right" data-storage-line>
+          {storageLine}
+        </p>
+      )}
 
       {tests.length === 0 ? (
         <div class="empty">

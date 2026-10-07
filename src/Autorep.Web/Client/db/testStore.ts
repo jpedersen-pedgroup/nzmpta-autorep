@@ -25,13 +25,21 @@ export interface FarmSnapshot {
 }
 
 /** The pulsation analyser's exported PDF, attached on Review & Sign-Off and appended to the
- * Test Summary report. Stored base64 so it round-trips through the JSON sync payload. */
+ * Test Summary report. Stored base64 so it round-trips through the JSON sync payload. The device
+ * lets the bytes go once the server holds them (see sync/pulsationAttachment.ts). */
 export interface PulsationAttachment {
   name: string;
-  /** Raw PDF bytes, base64-encoded. */
-  base64: string;
+  /** Raw PDF bytes, base64-encoded. Absent once the device has let its copy go (onServer). */
+  base64?: string;
   size: number;
   attachedAt: string;
+  /** The bytes are held by the server, not this device; fetched back when a report needs them. */
+  onServer?: boolean;
+  /** The test whose server copy holds the bytes, when it isn't this one (a new version made from
+   * a test whose copy had already gone). */
+  serverTestId?: string;
+  /** When this device last attached or fetched the bytes — the retention clock. */
+  heldSince?: string;
 }
 
 /** One row in a per-unit measurement table (a pulsator or a cluster). Values keyed by column. */
@@ -335,7 +343,7 @@ export async function getReference(key: string): Promise<ReferenceEntry | undefi
 }
 
 export async function putReference(entry: ReferenceEntry): Promise<void> {
-  await (await db()).put("reference", entry);
+  await guardedWrite(async () => (await db()).put("reference", entry));
 }
 
 export async function getTest(id: string): Promise<LocalTest | undefined> {
@@ -353,8 +361,44 @@ function announceTestsChanged(): void {
 
 export const TESTS_CHANGED_EVENT = "autorep:tests-changed";
 
+/** Dispatched on window when a write is refused because the device is out of storage. */
+export const STORAGE_FULL_EVENT = "autorep:storage-full";
+
+/** Thrown in place of the browser's QuotaExceededError: the write did NOT happen. */
+export class StorageFullError extends Error {
+  constructor() {
+    super("This device is out of storage space, so the change could not be saved.");
+    this.name = "StorageFullError";
+  }
+}
+
+export function isQuotaError(e: unknown): boolean {
+  const err = e as { name?: string; code?: number; inner?: unknown } | null;
+  return (
+    err?.name === "QuotaExceededError" ||
+    err?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    err?.code === 22 ||
+    (err?.inner !== undefined && isQuotaError(err.inner))
+  );
+}
+
+/** A write that may meet a full device: say so loudly (STORAGE_FULL_EVENT) rather than let a
+ * rejected promise nobody catches swallow a tester's edit. */
+async function guardedWrite(write: () => Promise<unknown>): Promise<void> {
+  try {
+    await write();
+  } catch (e) {
+    if (!isQuotaError(e)) throw e;
+    const target = globalThis as { dispatchEvent?: (e: Event) => boolean };
+    if (typeof target.dispatchEvent === "function" && typeof Event === "function") {
+      target.dispatchEvent(new Event(STORAGE_FULL_EVENT));
+    }
+    throw new StorageFullError();
+  }
+}
+
 export async function putTest(test: LocalTest): Promise<void> {
-  await (await db()).put("tests", test);
+  await guardedWrite(async () => (await db()).put("tests", test));
   announceTestsChanged();
 }
 

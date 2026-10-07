@@ -165,7 +165,12 @@ export function ReviewSignOffStep({
           <div class="attach-chip">
             <span class="attach-chip__icon">📄</span>
             <span class="attach-chip__name">{test.pulsationPdf.name}</span>
-            <span class="attach-chip__size">{fmtSize(test.pulsationPdf.size)} · appended to the report</span>
+            <span class="attach-chip__size">
+              {fmtSize(test.pulsationPdf.size)} ·{" "}
+              {test.pulsationPdf.base64 || isServerView
+                ? "appended to the report"
+                : "kept on the server to save space here — fetched when you print (needs signal)"}
+            </span>
             {!isServerView && (
               <button class="attach-chip__remove" title="Remove attachment" onClick={onRemovePdf}>×</button>
             )}

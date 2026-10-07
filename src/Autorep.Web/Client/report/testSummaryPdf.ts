@@ -32,6 +32,7 @@ import { formatDisplayDate, type CalibrationDates } from "../calibration/status"
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { getCachedCompanyBranding, type CompanyBranding } from "../sync/companyBrandingSync";
 import { getCachedTesterDetails } from "../sync/testerDetailsSync";
+import { attachmentBase64 } from "../sync/pulsationAttachment";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
 import { isBlankPumpRow, isBlankRegulatorRow, regulatorRows, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
@@ -1178,15 +1179,32 @@ export async function downloadTestSummaryPdf(
   // stamp existed) is the signed-in tester's own.
   const tester = test.testedBy
     ?? (testerFallback !== undefined ? testerFallback : await getCachedTesterDetails().catch(() => null));
+
+  // The analyser PDF's bytes may live on the server only (the device lets them go a week after a
+  // test is synced — sync/pulsationAttachment.ts): fetch them back first, and if that can't be done
+  // right now, print without the attachment rather than claim one that isn't appended.
+  const wantsAttachment = !!test.pulsationPdf && (!only || only.includes("analyser"));
+  const attachment = wantsAttachment ? await attachmentBase64(test) : null;
+  const printed = wantsAttachment && !attachment ? { ...test, pulsationPdf: null } : test;
+  if (wantsAttachment && !attachment) {
+    const { showToast } = await import("../ui/toast");
+    showToast(
+      "The pulsation analyser PDF is kept on the server, and this device can't reach it right now — " +
+        "the report was made without it. Connect and download again to include it.",
+      "error",
+      9000,
+    );
+  }
+
   const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
-    buildTestSummaryDoc(test, calibration, letterhead, tester, only),
+    buildTestSummaryDoc(printed, calibration, letterhead, tester, only),
   );
 
-  if (test.pulsationPdf && (!only || only.includes("analyser"))) {
+  if (attachment) {
     try {
       const { PDFDocument } = await loadPdfLib();
       const summaryDoc = await PDFDocument.load(await pdfBuffer(created));
-      const attachDoc = await PDFDocument.load(base64ToBytes(test.pulsationPdf.base64));
+      const attachDoc = await PDFDocument.load(base64ToBytes(attachment));
       const pages = await summaryDoc.copyPages(attachDoc, attachDoc.getPageIndices());
       for (const page of pages) summaryDoc.addPage(page);
       downloadBlob(await summaryDoc.save(), name);

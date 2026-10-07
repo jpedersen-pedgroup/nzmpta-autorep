@@ -25,7 +25,8 @@ import { mountCompanyTestList } from "./ui/CompanyTestListApp";
 import { mountHome } from "./shell/HomePage";
 import { mountNewTest } from "./ui/NewTestApp";
 import { mountAppStatus } from "./shell/AppStatus";
-import { purgeStaleLocalData } from "./db/testStore";
+import { allTests, purgeStaleLocalData } from "./db/testStore";
+import { requestPersistentStorage, watchForFullStorage } from "./storage/durability";
 import { cachedIdentity, loadIdentity } from "./db/identity";
 import { purgeOtherTesterLayouts } from "./wizard/layoutPreference";
 import { enableSessionChecks } from "./connectivity";
@@ -89,6 +90,8 @@ async function warnAboutRetainedWork(): Promise<void> {
 }
 
 async function boot(): Promise<void> {
+  // Before anything can write: a refused write must be shouted about, never swallowed.
+  watchForFullStorage();
   const shell = isShellDocument();
   const bootIdentity = await loadIdentity();
   if (shell) {
@@ -111,6 +114,12 @@ async function boot(): Promise<void> {
   mountApps();
 
   if (testerPage) {
+    // Once there is real work on this device, ask the browser to keep it (best-effort; see
+    // storage/durability.ts). Not before: an empty install has nothing to protect yet.
+    void allTests()
+      .then((tests) => (tests.length > 0 ? requestPersistentStorage() : null))
+      .catch(() => null);
+
     void enableSessionChecks().then(async () => {
       // The shell drew this page for whoever the device's record named. If the server now says
       // someone else is signed in (they signed in while the record still named the previous

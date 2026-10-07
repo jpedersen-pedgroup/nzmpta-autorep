@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
@@ -68,8 +69,13 @@ public class SyncController : ControllerBase
         DateTimeOffset? MarkedCompleteAt, ConfigDto? Config, string? PayloadJson);
 
     /// <summary>Pull envelope. Watermark is stored by the Device and sent back as `since` on its
-    /// next pull — server clock on both sides, so device clock skew is irrelevant.</summary>
-    public record PullResponse(DateTimeOffset Watermark, IReadOnlyList<TestSummaryDto> Tests);
+    /// next pull — server clock on both sides, so device clock skew is irrelevant. <c>Next</c> is the
+    /// cursor for the following page when the device asked for pages (<c>limit</c>); null on the
+    /// last page, and always null for a device that didn't.</summary>
+    public record PullResponse(DateTimeOffset Watermark, IReadOnlyList<TestSummaryDto> Tests, string? Next = null);
+
+    /// <summary>The most a device can ask for in one page.</summary>
+    internal const int MaxPageSize = 200;
 
     // The watermark is deliberately LAGGED behind now. UpdatedAt is stamped app-side shortly
     // BEFORE the row's transaction commits, so a pull racing a concurrent push could capture
@@ -84,32 +90,94 @@ public class SyncController : ControllerBase
 
     // Pull: the Tester's tests (header + config), newest first. With ?since= (the Watermark of
     // the previous pull) only tests written since then are returned — a delta, not the full set.
+    //
+    // A device's FIRST pull is the tester's whole history, every row carrying its full payload, so
+    // a current device asks for it in pages (?limit=, then ?cursor= from each answer's Next) and
+    // stores each page as it lands: the newest tests are on screen while the tail is still coming,
+    // and an interrupted pull resumes rather than starting over. It keeps the FIRST page's
+    // watermark, so anything written while it paged comes back on the next pull. The cursor is an
+    // offset over a total order (created, then id): rows are never deleted and a row never leaves
+    // the since-window once in it, so the only thing that can shift under a cursor is a row arriving
+    // at the top — which re-delivers a row (harmless: the pull upserts), never skips one. Without
+    // ?limit= the answer is the whole set, exactly as a device that predates paging expects.
+    //
+    // ?attachments=omit leaves the pulsation analyser PDFs' bytes on the server (marking each
+    // attachment as held there): the device fetches one back from tests/{clientId}/pulsation-pdf
+    // when it prints, rather than storing every PDF the tester ever attached.
     [HttpGet("tests")]
-    public async Task<IActionResult> ListTests([FromQuery] DateTimeOffset? since, CancellationToken ct)
+    public async Task<IActionResult> ListTests(
+        [FromQuery] DateTimeOffset? since, [FromQuery] int? limit, [FromQuery] string? cursor,
+        [FromQuery] string? attachments, CancellationToken ct)
     {
         var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         var watermark = DateTimeOffset.UtcNow - WatermarkLag;
+
+        var offset = 0;
+        if (cursor is not null
+            && (!int.TryParse(cursor, NumberStyles.None, CultureInfo.InvariantCulture, out offset) || offset < 0))
+            return BadRequest(new { error = "Unrecognised cursor — start the pull again." });
 
         var query = _db.MachineTests
             .Include(t => t.Farm)
             .Include(t => t.Configuration)
             .Where(t => t.TesterId == testerId && t.ClientId != null);
         if (since is not null) query = query.Where(t => t.UpdatedAt > since);
+        query = query.OrderByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id).Skip(offset);
 
-        var tests = await query
-            .OrderByDescending(t => t.CreatedAt)
-            .ToListAsync(ct);
+        string? next = null;
+        List<MachineTest> tests;
+        if (limit is { } requested)
+        {
+            var size = Math.Clamp(requested, 1, MaxPageSize);
+            tests = await query.Take(size + 1).ToListAsync(ct);
+            if (tests.Count > size)
+            {
+                tests.RemoveAt(size);
+                next = (offset + size).ToString(CultureInfo.InvariantCulture);
+            }
+        }
+        else
+        {
+            tests = await query.ToListAsync(ct);
+        }
 
+        var omitAttachments = string.Equals(attachments, "omit", StringComparison.OrdinalIgnoreCase);
         var dtos = tests.Select(t => new TestSummaryDto(
             t.ClientId!.Value,
             t.Farm?.Name ?? string.Empty,
             t.CreatedAt,
             t.MarkedCompleteAt,
             t.Configuration is null ? null : ToDto(t.Configuration),
-            t.PayloadJson));
+            omitAttachments ? PulsationPayload.WithoutBytes(t.PayloadJson) : t.PayloadJson));
 
-        return Ok(new PullResponse(watermark, dtos.ToList()));
+        return Ok(new PullResponse(watermark, dtos.ToList(), next));
+    }
+
+    // The pulsation analyser PDF attached to one of the tester's own tests, by the device's id for
+    // it — for a device that has dropped its copy (or never pulled the bytes) and is printing.
+    [HttpGet("tests/{clientId:guid}/pulsation-pdf")]
+    public async Task<IActionResult> GetPulsationPdf(Guid clientId, CancellationToken ct)
+    {
+        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var payload = await _db.MachineTests
+            .Where(t => t.TesterId == testerId && t.ClientId == clientId)
+            .Select(t => t.PayloadJson)
+            .FirstOrDefaultAsync(ct);
+        var base64 = PulsationPayload.Base64(payload);
+        if (base64 is null) return NotFound();
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(base64);
+        }
+        catch (FormatException)
+        {
+            return NotFound();
+        }
+        Response.Headers.CacheControl = "no-store";
+        return File(bytes, "application/pdf", PulsationPayload.FileName(payload) ?? "pulsation-analyser.pdf");
     }
 
     // Push: upsert by ClientId (idempotent), linking the Farm by id / farm identity within the
@@ -130,11 +198,15 @@ public class SyncController : ControllerBase
             .Include(t => t.Configuration)
             .FirstOrDefaultAsync(t => t.ClientId == req.ClientId && t.TesterId == testerId, ct);
 
+        // A device that dropped its copy of the analyser PDF re-sends the test with a pointer in its
+        // place; put the bytes back from the copy already stored, so a re-push can never lose them.
+        var payloadJson = await WithAttachmentBytesAsync(req.PayloadJson, testerId, req.ClientId, req.SupersedesClientId, ct);
+
         if (existing is not null)
         {
             existing.Notes = req.Notes;
             existing.MarkedCompleteAt = req.MarkedCompleteAt;
-            existing.PayloadJson = req.PayloadJson;
+            existing.PayloadJson = payloadJson;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
             existing.Version = req.Version ?? existing.Version;
             existing.SupersedesClientId = req.SupersedesClientId ?? existing.SupersedesClientId;
@@ -163,7 +235,7 @@ public class SyncController : ControllerBase
             Notes = req.Notes,
             MarkedCompleteAt = req.MarkedCompleteAt,
             CreatedAt = req.CreatedAt ?? DateTimeOffset.UtcNow,
-            PayloadJson = req.PayloadJson,
+            PayloadJson = payloadJson,
             Version = req.Version ?? 1,
             SupersedesClientId = req.SupersedesClientId,
             NextTestDate = req.NextTestDate,
@@ -261,6 +333,30 @@ public class SyncController : ControllerBase
     }
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    /// <summary>
+    /// The incoming payload, with the analyser PDF's bytes restored when the device sent a pointer
+    /// instead: from the test the pointer names, else this test's own stored copy, else the version
+    /// it supersedes (a new version carries the original's attachment). Only ever the caller's own
+    /// tests. If no stored copy holds the bytes the pointer is kept as sent — the device only drops
+    /// its copy once the server has confirmed the bytes, so that would mean they were never here.
+    /// </summary>
+    private async Task<string?> WithAttachmentBytesAsync(
+        string? incoming, string testerId, Guid clientId, Guid? supersedesClientId, CancellationToken ct)
+    {
+        if (!PulsationPayload.IsServerPointer(incoming, out var source)) return incoming;
+        var candidates = new List<Guid> { source ?? clientId, clientId };
+        if (supersedesClientId is { } previous) candidates.Add(previous);
+        foreach (var id in candidates.Distinct())
+        {
+            var stored = await _db.MachineTests
+                .Where(t => t.TesterId == testerId && t.ClientId == id)
+                .Select(t => t.PayloadJson)
+                .FirstOrDefaultAsync(ct);
+            if (PulsationPayload.Base64(stored) is { } bytes) return PulsationPayload.WithBytes(incoming!, bytes);
+        }
+        return incoming;
+    }
 
     /// <summary>The tester's Testing Company. There is no company claim on either auth scheme, so
     /// this is always a lookup — deliberately, since a claim would stay stale for the lifetime of
