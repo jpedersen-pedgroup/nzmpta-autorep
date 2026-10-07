@@ -157,6 +157,90 @@ public class FinalReportE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAsyn
         Assert.Empty(await CacheProblemsAsync(admin, [OfflineE2EWebAppFactory.TesterName, OfflineE2EWebAppFactory.RimuFarm]));
     }
 
+    /// <summary>A two-page PDF as an analyser exports one, with a marker in each page's content
+    /// stream: pdf-lib copies streams verbatim, so the marker in a report's bytes proves its pages
+    /// were appended.</summary>
+    private static byte[] AnalyserPdf(string marker)
+    {
+        var content = $"% {marker}\n0 0 m 100 100 l S\n";
+        var objects = new[]
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R >>",
+            $"<< /Length {content.Length} >>\nstream\n{content}endstream",
+        };
+        var pdf = new System.Text.StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+        for (var i = 0; i < objects.Length; i++)
+        {
+            offsets.Add(pdf.Length);
+            pdf.Append($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+        var xref = pdf.Length;
+        pdf.Append($"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+        foreach (var o in offsets) pdf.Append($"{o:D10} 00000 n \n");
+        pdf.Append($"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+        return System.Text.Encoding.ASCII.GetBytes(pdf.ToString());
+    }
+
+    private static bool Contains(byte[] haystack, string needle) =>
+        haystack.AsSpan().IndexOf(System.Text.Encoding.ASCII.GetBytes(needle)) >= 0;
+
+    [Fact]
+    public async Task The_analyser_pdf_goes_to_the_store_and_both_reports_still_carry_its_pages()
+    {
+        var (context, page) = await TesterOnlineAndReadyAsync();
+        await using var _ = context;
+        var testId = await StartTestAsync(page);
+        var marker = $"ANALYSER-{Guid.NewGuid():N}";
+        var analyser = AnalyserPdf(marker);
+
+        await page.Locator(".wizard__step", new() { HasText = "Review & Sign-Off" }).ClickAsync();
+        await page.Locator(".dropzone input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = "pulse.pdf", MimeType = "application/pdf", Buffer = analyser,
+        });
+        await page.Locator(".attach-chip", new() { HasText = "pulse.pdf" }).WaitForAsync();
+        await SignOffAsync(page);
+
+        // The report as signed off, with the analyser's pages on the end.
+        var stored = await StoredReportAsync(testId);
+        Assert.True(stored is not null, "the report as signed off never reached the server");
+        Assert.True(Contains(StoredBytes(stored!.Value.Record), marker), "the stored report is missing the analyser's pages");
+
+        // The analyser PDF itself: in the store, and only a pointer in the database.
+        using (var scope = _factory.AppServices.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            var row = await db.MachineTests.AsNoTracking().SingleAsync(t => t.Id == stored.Value.TestId);
+            Assert.DoesNotContain(Convert.ToBase64String(analyser), row.PayloadJson);
+            Assert.Equal(PdfHash.Sha256Hex(analyser), Autorep.Web.Services.PulsationPayload.StoredSha256(row.PayloadJson));
+            var held = await _factory.AppServices.GetRequiredService<InMemoryPdfStore>()
+                .GetAsync(PdfContainer.PulsationData, PdfKeys.Pulsation(_factory.TesterId, Guid.Parse(testId), PdfHash.Sha256Hex(analyser)));
+            Assert.Equal(analyser, held!.Bytes);
+        }
+
+        // An administrator's regenerated report fetches the analyser PDF through the view's route.
+        var (adminContext, admin) = await NewTesterPageAsync(_browser, _factory.BaseUrl);
+        await using var __ = adminContext;
+        await SignInAsync(admin, OfflineE2EWebAppFactory.CompanyAdminEmail, landsOn: "/Admin");
+        var pdfRoute = new List<string>();
+        admin.Request += (_, request) => { if (request.Url.Contains("/pulsation-pdf", StringComparison.Ordinal)) pdfRoute.Add(new Uri(request.Url).AbsolutePath); };
+        await admin.GotoAsync($"/Admin/Tests/View/{stored.Value.TestId}");
+        await admin.Locator(".wizard__step", new() { HasText = "Review & Sign-Off" }).ClickAsync();
+
+        var regenerated = await admin.RunAndWaitForDownloadAsync(
+            () => admin.GetByRole(AriaRole.Button, new() { Name = "Download report (PDF)" }).ClickAsync(),
+            new() { Timeout = 60_000 });
+
+        Assert.True(Contains(await File.ReadAllBytesAsync(await regenerated.PathAsync()), marker),
+            "the administrator's regenerated report is missing the analyser's pages");
+        Assert.Equal([$"/api/tests/{stored.Value.TestId}/pulsation-pdf"], pdfRoute);
+        Assert.Empty(await CacheProblemsAsync(admin, [OfflineE2EWebAppFactory.TesterName, OfflineE2EWebAppFactory.RimuFarm, marker]));
+    }
+
     /// <summary>The report the device captured at sign-off for a test, base64 (null when none).</summary>
     private static Task<string?> CapturedOnDeviceAsync(IPage page, string testerId, string testId) =>
         page.EvaluateAsync<string?>(@"async ([testerId, testId]) => new Promise((resolve) => {

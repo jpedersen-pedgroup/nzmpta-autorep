@@ -4,6 +4,7 @@ using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
+using Autorep.Web.Services.Pdfs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,11 +23,15 @@ public class SyncController : ControllerBase
 {
     private readonly AutorepDbContext _db;
     private readonly FarmReviewNotifier _reviewNotifier;
+    private readonly PulsationAttachments _attachments;
+    private readonly ILogger<SyncController> _log;
 
-    public SyncController(AutorepDbContext db, FarmReviewNotifier reviewNotifier)
+    public SyncController(AutorepDbContext db, FarmReviewNotifier reviewNotifier, PulsationAttachments attachments, ILogger<SyncController> log)
     {
         _db = db;
         _reviewNotifier = reviewNotifier;
+        _attachments = attachments;
+        _log = log;
     }
 
     public record ConfigDto(
@@ -103,7 +108,9 @@ public class SyncController : ControllerBase
     //
     // ?attachments=omit leaves the pulsation analyser PDFs' bytes on the server (marking each
     // attachment as held there): the device fetches one back from tests/{clientId}/pulsation-pdf
-    // when it prints, rather than storing every PDF the tester ever attached.
+    // when it prints, rather than storing every PDF the tester ever attached. Without it, each PDF
+    // is read back from the PDF store and put inline, as every pull did before the store — so an
+    // older device keeps working.
     [HttpGet("tests")]
     public async Task<IActionResult> ListTests(
         [FromQuery] DateTimeOffset? since, [FromQuery] int? limit, [FromQuery] string? cursor,
@@ -143,15 +150,21 @@ public class SyncController : ControllerBase
         }
 
         var omitAttachments = string.Equals(attachments, "omit", StringComparison.OrdinalIgnoreCase);
-        var dtos = tests.Select(t => new TestSummaryDto(
-            t.ClientId!.Value,
-            t.Farm?.Name ?? string.Empty,
-            t.CreatedAt,
-            t.MarkedCompleteAt,
-            t.Configuration is null ? null : ToDto(t.Configuration),
-            omitAttachments ? PulsationPayload.WithoutBytes(t.PayloadJson) : t.PayloadJson));
+        var dtos = new List<TestSummaryDto>(tests.Count);
+        foreach (var t in tests)
+        {
+            dtos.Add(new TestSummaryDto(
+                t.ClientId!.Value,
+                t.Farm?.Name ?? string.Empty,
+                t.CreatedAt,
+                t.MarkedCompleteAt,
+                t.Configuration is null ? null : ToDto(t.Configuration),
+                omitAttachments
+                    ? PulsationPayload.WithoutBytes(t.PayloadJson)
+                    : await _attachments.RehydrateAsync(t.PayloadJson, t.TesterId, t.ClientId!.Value, ct)));
+        }
 
-        return Ok(new PullResponse(watermark, dtos.ToList(), next));
+        return Ok(new PullResponse(watermark, dtos, next));
     }
 
     // The pulsation analyser PDF attached to one of the tester's own tests, by the device's id for
@@ -159,23 +172,24 @@ public class SyncController : ControllerBase
     [HttpGet("tests/{clientId:guid}/pulsation-pdf")]
     public async Task<IActionResult> GetPulsationPdf(Guid clientId, CancellationToken ct)
     {
-        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new InvalidOperationException("No NameIdentifier claim on principal.");
         var payload = await _db.MachineTests
             .Where(t => t.TesterId == testerId && t.ClientId == clientId)
             .Select(t => t.PayloadJson)
             .FirstOrDefaultAsync(ct);
-        var base64 = PulsationPayload.Base64(payload);
-        if (base64 is null) return NotFound();
 
-        byte[] bytes;
+        byte[]? bytes;
         try
         {
-            bytes = Convert.FromBase64String(base64);
+            bytes = await _attachments.BytesAsync(testerId, clientId, payload, ct);
         }
-        catch (FormatException)
+        catch (PdfStoreException e)
         {
-            return NotFound();
+            _log.LogError(e, "Pulsation PDF for client {ClientId} could not be read from the PDF store", clientId);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "The PDF store is unavailable right now." });
         }
+        if (bytes is null) return NotFound();
         Response.Headers.CacheControl = "no-store";
         return File(bytes, "application/pdf", PulsationPayload.FileName(payload) ?? "pulsation-analyser.pdf");
     }
@@ -198,9 +212,10 @@ public class SyncController : ControllerBase
             .Include(t => t.Configuration)
             .FirstOrDefaultAsync(t => t.ClientId == req.ClientId && t.TesterId == testerId, ct);
 
-        // A device that dropped its copy of the analyser PDF re-sends the test with a pointer in its
-        // place; put the bytes back from the copy already stored, so a re-push can never lose them.
-        var payloadJson = await WithAttachmentBytesAsync(req.PayloadJson, testerId, req.ClientId, req.SupersedesClientId, ct);
+        // The analyser PDF goes to the PDF store and the payload keeps a pointer to it. A device that
+        // dropped its copy re-sends the test with a pointer in its place: that is matched to the copy
+        // already stored, so a re-push can never lose it (PulsationAttachments.StoreIncomingAsync).
+        var payloadJson = await _attachments.StoreIncomingAsync(req.PayloadJson, testerId, req.ClientId, req.SupersedesClientId, ct);
 
         if (existing is not null)
         {
@@ -263,14 +278,15 @@ public class SyncController : ControllerBase
         if (test is null) return NotFound();
 
         // Project to the DTO rather than returning the raw entity (avoids leaking the Farm
-        // navigation and any future entity members through the sync surface).
+        // navigation and any future entity members through the sync surface). The analyser PDF goes
+        // inline, as it always has here.
         return Ok(new TestSummaryDto(
             test.ClientId ?? Guid.Empty,
             test.Farm?.Name ?? string.Empty,
             test.CreatedAt,
             test.MarkedCompleteAt,
             test.Configuration is null ? null : ToDto(test.Configuration),
-            test.PayloadJson));
+            await _attachments.RehydrateAsync(test.PayloadJson, test.TesterId, PulsationAttachments.ClientIdOf(test), ct)));
     }
 
     // Links the synced test to a Farm, always within the tester's company scope so a sync push
@@ -333,33 +349,6 @@ public class SyncController : ControllerBase
     }
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
-
-    /// <summary>
-    /// The incoming payload, with the analyser PDF's bytes restored when the device sent a pointer
-    /// instead: from the test the pointer names, else this test's own stored copy, else the version
-    /// it supersedes (a new version carries the original's attachment). Only ever the caller's own
-    /// tests, and only from a stored copy of the SAME attachment (name, size, attach time): a device
-    /// holding a stale pointer — another device has since attached a different PDF to the test —
-    /// must never get the newer PDF's bytes under the old one's name. With no matching copy the
-    /// pointer is kept as sent, and the report prints without the PDF rather than with the wrong one.
-    /// </summary>
-    private async Task<string?> WithAttachmentBytesAsync(
-        string? incoming, string testerId, Guid clientId, Guid? supersedesClientId, CancellationToken ct)
-    {
-        if (!PulsationPayload.IsServerPointer(incoming, out var source)) return incoming;
-        var candidates = new List<Guid> { source ?? clientId, clientId };
-        if (supersedesClientId is { } previous) candidates.Add(previous);
-        foreach (var id in candidates.Distinct())
-        {
-            var stored = await _db.MachineTests
-                .Where(t => t.TesterId == testerId && t.ClientId == id)
-                .Select(t => t.PayloadJson)
-                .FirstOrDefaultAsync(ct);
-            if (PulsationPayload.Base64(stored) is { } bytes && PulsationPayload.SameAttachment(stored, incoming))
-                return PulsationPayload.WithBytes(incoming!, bytes);
-        }
-        return incoming;
-    }
 
     /// <summary>The tester's Testing Company. There is no company claim on either auth scheme, so
     /// this is always a lookup — deliberately, since a claim would stay stale for the lifetime of

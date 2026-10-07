@@ -1178,6 +1178,9 @@ export interface ReportOptions {
   only?: readonly ReportPart[];
   /** Pin the report to this moment instead of now (see buildTestSummaryDoc). */
   generatedAt?: string;
+  /** A read-only view of a test held on the server: the analyser PDF comes through the view's
+   * route and nothing is kept on this device (sync/pulsationAttachment.ts attachmentBase64). */
+  serverView?: boolean;
 }
 
 interface Generated {
@@ -1245,7 +1248,7 @@ async function generate(test: LocalTest, opts: ReportOptions): Promise<Generated
   // test is synced — sync/pulsationAttachment.ts): fetch them back first, and if that can't be done
   // right now, make the report without the attachment rather than claim one that isn't appended.
   const wantsAttachment = !!test.pulsationPdf && (!opts.only || opts.only.includes("analyser"));
-  const attachment = wantsAttachment ? await attachmentBase64(test) : null;
+  const attachment = wantsAttachment ? await attachmentBase64(test, { serverView: opts.serverView }) : null;
   const printed = wantsAttachment && !attachment ? { ...test, pulsationPdf: null } : test;
 
   const created = await layOut(test, printed, opts);
@@ -1301,14 +1304,15 @@ export async function completeFinalReport(test: LocalTest, captured: Uint8Array)
 }
 
 /** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
- * page-for-page. See ReportOptions for `branding`, `testerFallback` and `only`. */
+ * page-for-page. See ReportOptions for `branding`, `testerFallback`, `only` and `serverView`. */
 export async function downloadTestSummaryPdf(
   test: LocalTest,
   branding?: ReportBranding,
   testerFallback?: TesterDetails | null,
   only?: readonly ReportPart[],
+  serverView?: boolean,
 ): Promise<void> {
-  const g = await generate(test, { branding, testerFallback, only });
+  const g = await generate(test, { branding, testerFallback, only, serverView });
   if (g.analyser === "unreachable") {
     const { showToast } = await import("../ui/toast");
     showToast(

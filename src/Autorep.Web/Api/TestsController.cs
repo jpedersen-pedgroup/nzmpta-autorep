@@ -25,12 +25,14 @@ public class TestsController : ControllerBase
 {
     private readonly AutorepDbContext _db;
     private readonly IPdfStore _store;
+    private readonly PulsationAttachments _attachments;
     private readonly ILogger<TestsController> _log;
 
-    public TestsController(AutorepDbContext db, IPdfStore store, ILogger<TestsController> log)
+    public TestsController(AutorepDbContext db, IPdfStore store, PulsationAttachments attachments, ILogger<TestsController> log)
     {
         _db = db;
         _store = store;
+        _attachments = attachments;
         _log = log;
     }
 
@@ -67,8 +69,11 @@ public class TestsController : ControllerBase
     public record CompanyTestsResponse(
         string? CompanyName, int Total, IReadOnlyList<CompanyTestDto> Items);
 
+    // ?attachments=omit sends the pulsation analyser PDF as a pointer: the read-only view fetches the
+    // bytes from {id}/pulsation-pdf only when a report needs them. Without it they come inline, as
+    // they always have, so an older bundle still prints them.
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> Get(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Get(Guid id, [FromQuery] string? attachments, CancellationToken ct)
     {
         var me = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var scoped = await ScopedAsync(ct);
@@ -96,6 +101,10 @@ public class TestsController : ControllerBase
             .Select(r => new StoredFinalReportDto(r.StoredAt, r.SizeBytes))
             .FirstOrDefaultAsync(ct);
 
+        var payload = string.Equals(attachments, "omit", StringComparison.OrdinalIgnoreCase)
+            ? PulsationPayload.WithoutBytes(test.PayloadJson)
+            : await _attachments.RehydrateAsync(test.PayloadJson, test.TesterId, PulsationAttachments.ClientIdOf(test), ct);
+
         Response.Headers.CacheControl = "no-store";
         return Ok(new TestViewDto(
             test.Id,
@@ -103,7 +112,7 @@ public class TestsController : ControllerBase
             test.CreatedAt,
             test.MarkedCompleteAt,
             test.Configuration is null ? null : SyncController.ToDto(test.Configuration),
-            test.PayloadJson,
+            payload,
             test.Tester?.DisplayName,
             test.TesterId == me,
             company?.Name,
@@ -153,6 +162,34 @@ public class TestsController : ControllerBase
 
         Response.Headers.CacheControl = "no-store";
         return File(pdf.Bytes, "application/pdf", FinalReportFileName(test.FarmName, test.MarkedCompleteAt));
+    }
+
+    // The pulsation analyser PDF attached to a test, for the read-only view's report — same scoping
+    // as Get. (The tester's own route, /api/sync/tests/{clientId}/pulsation-pdf, is for their own
+    // tests only and keyed by the device's id; a view of someone else's test needs this one.)
+    [HttpGet("{id:guid}/pulsation-pdf")]
+    public async Task<IActionResult> GetPulsationPdf(Guid id, CancellationToken ct)
+    {
+        var scoped = await ScopedAsync(ct);
+        var test = await scoped
+            .Where(t => t.Id == id)
+            .Select(t => new { t.Id, t.TesterId, t.ClientId, t.PayloadJson })
+            .FirstOrDefaultAsync(ct);
+        if (test is null) return NotFound();
+
+        byte[]? bytes;
+        try
+        {
+            bytes = await _attachments.BytesAsync(test.TesterId, test.ClientId ?? test.Id, test.PayloadJson, ct);
+        }
+        catch (PdfStoreException e)
+        {
+            _log.LogError(e, "Pulsation PDF for test {TestId} could not be read from the PDF store", id);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "The PDF store is unavailable right now." });
+        }
+        if (bytes is null) return NotFound();
+        Response.Headers.CacheControl = "no-store";
+        return File(bytes, "application/pdf", PulsationPayload.FileName(test.PayloadJson) ?? "pulsation-analyser.pdf");
     }
 
     /// <summary>"Test Summary - {farm} - {NZ date signed off} - as signed off.pdf": the name the

@@ -153,4 +153,27 @@ describe("attachmentBase64 — what a report gets", () => {
 
     expect(await attachmentBase64(test("a", { pulsationPdf: withoutBytes(pdf()) }))).toBeNull();
   });
+
+  // An administrator's (or a colleague's) read-only view: the test is someone else's and lives on the
+  // server, its id is the server's, and the tester route — own tests only — would refuse it.
+  it("in a server view, fetches through the view's own route and keeps nothing on this device", async () => {
+    // The server's pointer, as GET /api/tests/{id}?attachments=omit sends it.
+    const viewed = test("server-id-1", { pulsationPdf: { ...withoutBytes(pdf()), serverTestId: "someone-elses-client-id", sha256: "a".repeat(64) } });
+    const urls: string[] = [];
+    globalThis.fetch = vi.fn(async (url: unknown) => {
+      urls.push(String(url));
+      return new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    expect(await attachmentBase64(viewed, { serverView: true })).toBe("JVBERg==");
+
+    expect(urls).toEqual(["/api/tests/server-id-1/pulsation-pdf"]);
+    expect(await getTest("server-id-1")).toBeUndefined();
+  });
+
+  it("in a server view, is null when the server won't hand it over", async () => {
+    globalThis.fetch = vi.fn(async () => new Response(null, { status: 404 })) as unknown as typeof fetch;
+
+    expect(await attachmentBase64(test("server-id-2", { pulsationPdf: withoutBytes(pdf()) }), { serverView: true })).toBeNull();
+  });
 });
