@@ -148,11 +148,15 @@ public sealed class MigrationRunner
         {
             var cid = Row.Int(r, "ID")!.Value;
             var id = DeterministicGuid.Create(Ns, $"company:{cid}");
-            ids.Company[cid] = id;
-            if (existingIds.Contains(id)) { skipped++; continue; }
+            // Mapped only once the company is known to exist in the target (already there, or
+            // inserted below). A company excluded here must not be mapped: testers and tests would
+            // then be stamped with an id no TestingCompany row has, and fall out of every real
+            // company scope instead of taking their fallback.
+            if (existingIds.Contains(id)) { ids.Company[cid] = id; skipped++; continue; }
 
             var name = Row.Str(r, "CompanyName", 450);
             if (name is null) { q.Add("Companies", cid.ToString(), "TestingCompany", "company_name_missing"); continue; }
+            ids.Company[cid] = id;
             if (!usedNames.Add(name))
             {
                 name = $"{name} (CompanyID {cid})";
