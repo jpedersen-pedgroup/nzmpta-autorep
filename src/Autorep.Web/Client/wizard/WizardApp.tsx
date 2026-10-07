@@ -21,10 +21,11 @@ import { buildAmendmentRecord } from "../versioning/amendments";
 import { deriveReadings } from "../passfail/derived";
 import { useServerOnline } from "../connectivity";
 import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "../appEvents";
-import { downloadTestSummaryPdf, type ReportBranding } from "../report/testSummaryPdf";
+import { downloadTestSummaryPdf, reportFileName, savePdf, type ReportBranding } from "../report/testSummaryPdf";
 import { ReportGeneratorUnavailableError } from "../report/generatorChunks";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
+import { queueFinalReport } from "../sync/finalReportUpload";
 import { getCachedCalibration } from "../sync/calibrationSync";
 import { getCachedCompanyBranding } from "../sync/companyBrandingSync";
 import { getCachedTesterDetails } from "../sync/testerDetailsSync";
@@ -37,7 +38,7 @@ import { GuideLink } from "../ui/GuideLink";
 import { showToast } from "../ui/toast";
 import { applyCheckAll, type ChecklistSection } from "./visualChecklist";
 import { computeCompleted, currentStepFor, visibleSteps } from "./wizardProgress";
-import type { StepContext } from "./WizardSteps";
+import type { StepContext, StoredReport } from "./WizardSteps";
 import { getLayout, setLayout } from "./layoutPreference";
 import { RailShell } from "./shells/RailShell";
 import { ScrollShell } from "./shells/ScrollShell";
@@ -75,6 +76,8 @@ interface ServerTestDto {
   /** The company the test was done for (server-stamped), for the report letterhead. */
   testingCompanyName?: string | null;
   testingCompanyLogo?: string | null;
+  /** The Final Report as the tester signed it off, when their device has sent it. */
+  finalReport?: StoredReport | null;
 }
 
 /** Build a read-only LocalTest from a server fetch. Migrated legacy payloads are adapted to
@@ -170,6 +173,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   // …and the tester named on it: the server's name for a test signed off before tester details
   // were stamped (null when unknown), never this device's own profile.
   const [serverTester, setServerTester] = useState<TesterDetails | null | undefined>(undefined);
+  // …and the report as the tester signed it off, when the server holds one.
+  const [storedReport, setStoredReport] = useState<StoredReport | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -216,7 +221,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       if (serverTestId) {
         try {
           setError(null);
-          const res = await fetch(`/api/tests/${serverTestId}`, { headers: { Accept: "application/json" } });
+          // The analyser PDF stays on the server until a report needs it (attachmentBase64).
+          const res = await fetch(`/api/tests/${serverTestId}?attachments=omit`, { headers: { Accept: "application/json" } });
           // 404 covers both "gone" and "not yours" — the API deliberately doesn't distinguish, so
           // neither does this message.
           if (res.status === 404) throw new Error("notfound");
@@ -226,6 +232,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
             setTest(localTestFromServer(dto));
             setServerBranding({ companyName: dto.testingCompanyName ?? null, companyLogo: dto.testingCompanyLogo ?? null });
             setServerTester(dto.testerName ? { name: dto.testerName } : null);
+            setStoredReport(dto.finalReport ?? null);
             // Only a colleague's name is worth surfacing — naming yourself on your own test is
             // noise, and would word the read-only banner as if someone else owned it.
             setColleagueName(dto.isMine ? null : dto.testerName);
@@ -489,7 +496,30 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
         { step: "ReviewSignOff", attestedAt: now, text: SIGN_OFF_ATTEST },
       ],
     });
+    // The report as signed off follows the test to the server — with this sync, or the first one
+    // after the signal returns (sync/finalReportUpload.ts). Queued, and its capture started, before
+    // the sync begins: the sync refreshes the letterhead, and the copy must be the one from now.
+    // A device too full to note it still signs off.
+    const signedOff = await getTest(test.id).catch(() => undefined);
+    if (signedOff?.markedCompleteAt) await queueFinalReport(signedOff).catch(() => undefined);
     await runSync("Test marked complete");
+  };
+
+  // Read-only server view: the report the tester's device stored at sign-off, as it was — beside
+  // Download report, which makes a new one from the recorded data.
+  const downloadStoredReport = async () => {
+    if (!serverTestId) return;
+    try {
+      const res = await fetch(`/api/tests/${encodeURIComponent(serverTestId)}/final-report`, { redirect: "manual" });
+      if (res.status === 404) {
+        showToast("The server has no copy of this report as it was signed off.", "error");
+        return;
+      }
+      if (!res.ok || res.type === "opaqueredirect") throw new Error(String(res.status));
+      savePdf(new Uint8Array(await res.arrayBuffer()), reportFileName(test).replace(/\.pdf$/i, " - as signed off.pdf"));
+    } catch {
+      showToast("Could not download the report as signed off — check your connection and try again.", "error");
+    }
   };
 
   // The resolver's plan minus the result-driven steps (Individual Cluster Tests only after a
@@ -523,7 +553,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     onResync: () => void runSync("Re-synced"),
     onDownloadReport: (only) => {
       setGenerating(true);
-      void downloadTestSummaryPdf(test, serverBranding, serverTester, only)
+      void downloadTestSummaryPdf(test, serverBranding, serverTester, only, Boolean(serverTestId))
         .catch((e) =>
           // A missing generator chunk is recoverable and the tester can act on it — don't bury it
           // under the generic message.
@@ -536,6 +566,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
         )
         .finally(() => setGenerating(false));
     },
+    storedReport: serverTestId ? storedReport : null,
+    onDownloadStoredReport: downloadStoredReport,
     onAttachPdf: (file) => void attachPulsationPdf(file),
     onRemovePdf: () => void persistEdit({ pulsationPdf: null, syncState: "local-only" }),
     // An amendment keeps the original test's date; the sign-off step shows it read-only.

@@ -182,7 +182,7 @@ The Managed Certificate auto-renews. Repeat the flow for staging if you give it 
 |---|---|---|---|
 | App Service Plan | ~$13 (B1) | ~$130 (P0v3) | Always-on; can scale up/out later. App Service Managed Cert is free. Staging B1 has no autoscale or deployment slots — fine for non-prod. |
 | Azure SQL | ~$15 (Serverless 0.5–1 vCore, auto-pause) | ~$200 (Serverless 1–4 vCore, no pause) | Prod cost dominated by always-on min capacity. |
-| Storage | ~$2 | ~$5 | Pay-per-use; Final Report PDFs only. |
+| Storage | ~$2 | ~$5 | Pay-per-use; the Final Reports as signed off (`final-reports`) and the pulsation analyser PDFs (`pulsation-data`, up to 15 MB each). |
 | Key Vault | ~$1 | ~$1 | Pay-per-transaction. |
 | Log Analytics + App Insights | ~$10 | ~$30 | Volume-driven; tune retention if cost grows. |
 | Private Endpoints (3 ea.) | ~$22 | ~$22 | $7.30/PE-month. |
