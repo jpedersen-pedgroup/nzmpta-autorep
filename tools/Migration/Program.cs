@@ -47,7 +47,18 @@ switch (command)
             }
         }
 
-        int? limit = int.TryParse(options.GetValueOrDefault("limit"), out var lim) ? lim : null;
+        // A typo in --limit must stop the run, not silently become "no limit" (a full load from a
+        // smoke-run command) or blow up after companies and testers are already written.
+        int? limit = null;
+        if (options.TryGetValue("limit", out var limitText))
+        {
+            if (!int.TryParse(limitText, out var lim) || lim < 0)
+            {
+                Console.Error.WriteLine($"--limit must be a non-negative whole number (got '{limitText}').");
+                return 2;
+            }
+            limit = lim;
+        }
         if (isCutover && options.ContainsKey("limit"))
         {
             // A partial production load would pass, and the next (full) run would then be refused

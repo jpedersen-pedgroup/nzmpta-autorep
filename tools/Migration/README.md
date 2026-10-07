@@ -34,7 +34,7 @@ All three are implemented (`Program.cs`). `dry-run` and `cutover` run the same p
 | `--target-conn "<target conn>"` | `dry-run`, `cutover` | Target database. Falls back to `$AUTOREP_TARGET_CONN`. Required — exit code 2 if neither is set. |
 | `--confirm "<token>"` | `cutover` | Must start with `GO-LIVE`. Exit code 3 if the guard refuses. |
 | `--out <dir>` | `dry-run`, `cutover` | Where the CSVs go. Default: `migration-output/` beside the built binary. |
-| `--limit <n>` | `dry-run` only | Process only the first *n* logical tests, for quick smoke runs. Companies and testers still migrate in full; **farms migrate only where one of the selected tests references them** (farm discovery runs over the truncated list), so a partial farm count in `reconciliation.csv` is expected on a limited run. Refused with `cutover` (exit code 2): a partial production load would then be locked in by the empty-target guard. |
+| `--limit <n>` | `dry-run` only | Process only the first *n* logical tests, for quick smoke runs. Must be a non-negative whole number (anything else exits 2 before any write). Companies and testers still migrate in full; **farms migrate only where one of the selected tests references them** (farm discovery runs over the truncated list), so a smaller farm count in `reconciliation.csv` is expected on a limited run. Refused with `cutover` (exit code 2): a partial production load would then be locked in by the empty-target guard. |
 
 Options take `--key value` or `--key=value`.
 
@@ -60,8 +60,14 @@ dotnet run --project tools/Migration -- cutover --target-conn "Server=...prod...
   defaulted configurations are only found while a row is being migrated), so a re-run's CSV is
   shorter, not identical — another reason the validation runs go into a fresh database.
 - `reconciliation.csv` — per-entity counts: `Entity,SourceRows,Migrated,SkippedExisting`, also
-  printed to the console. Quarantine totals are not in it; count them from `data-quality.csv`
-  (one row per quarantined legacy row).
+  printed to the console. Every row is in its own entity's units (the Farms row counts distinct
+  farms — keyed farms plus one placeholder per farm-less test — not the tests that reference
+  them), so `SourceRows = Migrated + SkippedExisting` on a clean run. Quarantine totals are not in it. Nor is `data-quality.csv` a quarantine
+  count: it also holds informational findings about rows that *were* migrated (an inactive tester,
+  a suffixed company name, a defaulted configuration), and one legacy row can produce several
+  lines. To count excluded rows, filter it to the `Reason` codes that mean "not migrated"
+  (`test_owner_unresolved` is informational - the test is kept under the synthetic tester) and
+  count distinct `LegacyTable,LegacyKey` pairs.
 
 ### Migrated accounts
 
