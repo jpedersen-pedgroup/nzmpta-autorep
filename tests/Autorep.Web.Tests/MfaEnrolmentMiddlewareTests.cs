@@ -70,6 +70,22 @@ public class MfaEnrolmentMiddlewareTests : IClassFixture<AuthedWebAppFactory>
     }
 
     [Fact]
+    public async Task A_required_role_ticket_with_no_stamp_at_all_is_signed_out_too()
+    {
+        // Every cookie issued before this feature shipped looks like this; with the application
+        // cookie sliding, "no stamp means fresh" would have let it live forever.
+        var legacy = _factory.CreateClientAs(Roles.SuperAdministrator, noMfaStamp: true);
+        var page = await legacy.GetAsync("/Admin");
+        page.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        page.Headers.Location!.ToString().Should().Contain("reason=mfa-expired");
+
+        // ...but not an unenrolled one: enrolment comes first, so a fresh password-only sign-in is
+        // sent to set-up, never bounced to login.
+        var unenrolled = _factory.CreateClientAs(Roles.SuperAdministrator, claims: MustEnrol, noMfaStamp: true);
+        (await unenrolled.GetAsync("/Admin")).Headers.Location!.ToString().Should().Be("/Account/SetupAuthenticator");
+    }
+
+    [Fact]
     public async Task A_recent_code_or_a_role_without_the_requirement_is_left_alone()
     {
         var fresh = _factory.CreateClientAs(Roles.SuperAdministrator, mfaAt: DateTimeOffset.UtcNow.AddDays(-29));
@@ -77,6 +93,8 @@ public class MfaEnrolmentMiddlewareTests : IClassFixture<AuthedWebAppFactory>
 
         var companyAdmin = _factory.CreateClientAs(Roles.CompanyAdministrator, mfaAt: DateTimeOffset.UtcNow.AddDays(-400));
         (await companyAdmin.GetAsync("/Admin")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var unstampedCompanyAdmin = _factory.CreateClientAs(Roles.CompanyAdministrator, noMfaStamp: true);
+        (await unstampedCompanyAdmin.GetAsync("/Admin")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

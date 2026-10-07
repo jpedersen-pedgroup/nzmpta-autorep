@@ -43,12 +43,17 @@ public class TesterSignInManager : SignInManager<Tester>
             {
                 // A trusted device signs in on the password alone; its second factor was proved
                 // when the (non-sliding) trust cookie was issued.
+                // Its expiry is fixed at issue + lifetime (no sliding) and survives the stamp
+                // validator's renewals, which reset IssuedUtc; so the issue time is derived from it.
+                // Identity's StoreRememberClient puts the user id in the Name claim (the same
+                // comparison IsTwoFactorClientRememberedAsync makes), not NameIdentifier.
                 var remembered = await Context.AuthenticateAsync(IdentityConstants.TwoFactorRememberMeScheme);
                 if (remembered.Succeeded
-                    && remembered.Principal?.FindFirstValue(ClaimTypes.NameIdentifier) == user.Id
-                    && remembered.Properties?.IssuedUtc is { } issued)
+                    && remembered.Principal?.FindFirstValue(ClaimTypes.Name) == user.Id)
                 {
-                    rememberedAt = issued;
+                    rememberedAt = remembered.Properties?.ExpiresUtc is { } expires
+                        ? expires - MfaPolicy.TrustedDeviceLifetime
+                        : remembered.Properties?.IssuedUtc;
                 }
             }
 
@@ -60,6 +65,18 @@ public class TesterSignInManager : SignInManager<Tester>
         }
 
         await base.SignInWithClaimsAsync(user, props, claims);
+    }
+
+    /// <summary>Re-issues the current session as one that has just proved its second factor - for
+    /// the set-up page, where the code the user has just verified is as good as a challenge.
+    /// Like <see cref="SignInManager{TUser}.RefreshSignInAsync"/> it keeps the ticket's properties
+    /// (persistence and all), but writes a fresh stamp and marks the principal <c>amr=mfa</c>.</summary>
+    public async Task RefreshSignInAfterSecondFactorAsync(Tester user)
+    {
+        var auth = await Context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        var props = auth.Properties ?? new AuthenticationProperties();
+        props.Items[MfaPolicy.SessionStampKey] = DateTimeOffset.UtcNow.ToString("o");
+        await base.SignInWithClaimsAsync(user, props, [new Claim("amr", "mfa")]);
     }
 
     /// <summary>When this session last proved its second factor: now, if the sign-in itself carried

@@ -23,14 +23,14 @@ namespace Autorep.Web.Pages.Account;
 public class SetupAuthenticatorModel : PageModel
 {
     private readonly UserManager<Tester> _users;
-    private readonly SignInManager<Tester> _signIn;
+    private readonly TesterSignInManager _signIn;
     private readonly UrlEncoder _urlEncoder;
     private readonly LoginAudit _audit;
     private const string AuthenticatorUriFormat = "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6";
 
     public SetupAuthenticatorModel(
         UserManager<Tester> users,
-        SignInManager<Tester> signIn,
+        TesterSignInManager signIn,
         UrlEncoder urlEncoder,
         LoginAudit audit)
     {
@@ -113,8 +113,10 @@ public class SetupAuthenticatorModel : PageModel
         RecoveryCodes = codes?.ToArray() ?? [];
 
         // The session's principal carried the "must enrol" claim; re-issue it now that this is
-        // done, or the middleware keeps sending the account straight back here.
-        await _signIn.RefreshSignInAsync(user);
+        // done, or the middleware keeps sending the account straight back here - and stamp it as
+        // having just proved its second factor, which the code above is. A plain RefreshSignIn would
+        // leave a password-only ticket with no stamp, which the middleware treats as stale.
+        await _signIn.RefreshSignInAfterSecondFactorAsync(user);
         await _audit.WriteAsync(HttpContext, user.Email!, user.Id, "2fa-enrolled");
 
         return RedirectToPage("/Account/RecoveryCodes");

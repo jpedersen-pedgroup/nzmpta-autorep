@@ -25,8 +25,16 @@ public class MfaEnrolmentMiddleware(RequestDelegate next)
     {
         if (ctx.User.Identity?.IsAuthenticated == true)
         {
-            if (MfaPolicy.MustEnrol(ctx.User) && !MfaPolicy.IsAllowedWhileUnenrolled(ctx.Request.Path))
+            if (MfaPolicy.MustEnrol(ctx.User))
             {
+                // Unenrolled: no second factor has been proved yet, so there is no stamp to age.
+                // Hold the account to the pages that get it enrolled; nothing else applies.
+                if (MfaPolicy.IsAllowedWhileUnenrolled(ctx.Request.Path))
+                {
+                    await next(ctx);
+                    return;
+                }
+
                 if (ctx.Request.Path.StartsWithSegments("/api"))
                 {
                     ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -58,10 +66,13 @@ public class MfaEnrolmentMiddleware(RequestDelegate next)
     }
 
     /// <summary>Reads the default scheme's ticket, which the authentication middleware has already
-    /// produced for this request, and checks the stamp <c>TesterSignInManager</c> put in it.</summary>
+    /// produced for this request, and checks the stamp <c>TesterSignInManager</c> put in it. No
+    /// stamp counts as stale: a required-role ticket issued before stamps existed must not be able
+    /// to slide on forever. (An unenrolled account never reaches here - the enrolment check above
+    /// handles it first - so this cannot loop a fresh password-only sign-in back to login.)</summary>
     private static bool SessionIsPastItsProof(HttpContext ctx)
     {
         var items = ctx.Features.Get<IAuthenticateResultFeature>()?.AuthenticateResult?.Properties?.Items;
-        return items is not null && MfaPolicy.SessionExpired(items, DateTimeOffset.UtcNow);
+        return MfaPolicy.SessionExpired(items, DateTimeOffset.UtcNow);
     }
 }

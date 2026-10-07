@@ -32,9 +32,12 @@ public class MfaSessionStampTests
     }
 
     [Fact]
-    public void No_stamp_means_no_deadline_but_garbage_means_stale()
+    public void No_stamp_and_garbage_both_mean_stale()
     {
-        MfaPolicy.SessionExpired(new Dictionary<string, string?>(), Now).Should().BeFalse();
+        // A required-role ticket from before stamps existed, or with nothing readable in it, gets
+        // one more sign-in rather than an indefinite sliding session.
+        MfaPolicy.SessionExpired(null, Now).Should().BeTrue();
+        MfaPolicy.SessionExpired(new Dictionary<string, string?>(), Now).Should().BeTrue();
         MfaPolicy.SessionExpired(new Dictionary<string, string?> { [MfaPolicy.SessionStampKey] = "yesterday-ish" }, Now).Should().BeTrue();
     }
 }

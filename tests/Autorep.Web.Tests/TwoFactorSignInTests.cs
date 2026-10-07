@@ -96,13 +96,15 @@ public class TwoFactorSignInTests : IClassFixture<CookieAuthWebAppFactory>
         (expires - DateTimeOffset.UtcNow).Should().BeCloseTo(MfaPolicy.TrustedDeviceLifetime, TimeSpan.FromHours(1));
         trust.Should().ContainEquivalentOf("httponly").And.ContainEquivalentOf("secure");
 
-        (await browser.GetAsync("/Admin")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var adminAfterCode = await browser.GetAsync("/Admin");
+        adminAfterCode.StatusCode.Should().Be(HttpStatusCode.OK, $"a session that just gave the code is stamped; got redirect to {adminAfterCode.Location()}");
 
         // Same device, next sign-in: no code asked within the 30 days.
         (await browser.LogoutAsync()).StatusCode.Should().Be(HttpStatusCode.Redirect);
         var again = await browser.LoginAsync(email, Password);
         again.Location().Should().Be("/");
-        (await browser.GetAsync("/Admin")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var adminRemembered = await browser.GetAsync("/Admin");
+        adminRemembered.StatusCode.Should().Be(HttpStatusCode.OK, $"a remembered device's session is stamped from the trust cookie; got redirect to {adminRemembered.Location()}");
     }
 
     [Fact]

@@ -38,12 +38,13 @@ public static class MfaPolicy
 
     public static bool MustEnrol(ClaimsPrincipal user) => user.HasClaim(ClaimType, EnrolmentRequired);
 
-    /// <summary>True when the session's recorded proof is older than the lifetime. A session with
-    /// no stamp (a password-only sign-in, or one issued before stamps existed) has no deadline
-    /// here: it is bounded by the application cookie and challenged at its next sign-in.</summary>
-    public static bool SessionExpired(IDictionary<string, string?> items, DateTimeOffset now)
+    /// <summary>True when the session's recorded proof is older than the lifetime - or absent. For
+    /// the roles this applies to, every sign-in path that reaches past enrolment stamps the ticket
+    /// (code, trusted device, enrolment itself), so a required-role session without a stamp is one
+    /// issued before stamps existed; it gets one sign-in, not an indefinite sliding one.</summary>
+    public static bool SessionExpired(IDictionary<string, string?>? items, DateTimeOffset now)
     {
-        if (!items.TryGetValue(SessionStampKey, out var raw) || string.IsNullOrEmpty(raw)) return false;
+        if (items is null || !items.TryGetValue(SessionStampKey, out var raw) || string.IsNullOrEmpty(raw)) return true;
         if (!DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var at))
             return true; // unreadable is treated as stale, never as fresh
         return now - at > TrustedDeviceLifetime;

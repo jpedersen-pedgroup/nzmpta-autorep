@@ -20,6 +20,8 @@ public class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> option
     /// <summary>Round-trip timestamp for the session's last second-factor proof, stored in the
     /// ticket's properties under <c>MfaPolicy.SessionStampKey</c> as TesterSignInManager does.</summary>
     public const string MfaAtHeader = "X-Test-MfaAt";
+    /// <summary>Value of <see cref="MfaAtHeader"/> meaning "no stamp in the ticket at all".</summary>
+    public const string NoMfaStamp = "none";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -48,9 +50,15 @@ public class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> option
         }
 
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
+        // Second-factor stamp: a Super-Administrator ticket without one is treated as stale and
+        // signed out, so the default is "proved just now" - the state of any real admin session
+        // that reached a page. "none" sends no stamp (a ticket from before stamps existed).
         var properties = new AuthenticationProperties();
-        if (Request.Headers.TryGetValue(MfaAtHeader, out var mfaAt) && !string.IsNullOrEmpty(mfaAt))
-            properties.Items[Autorep.Web.Domain.MfaPolicy.SessionStampKey] = mfaAt.ToString();
+        var mfaAt = Request.Headers.TryGetValue(MfaAtHeader, out var h) && !string.IsNullOrEmpty(h)
+            ? h.ToString()
+            : DateTimeOffset.UtcNow.ToString("o");
+        if (mfaAt != NoMfaStamp)
+            properties.Items[Autorep.Web.Domain.MfaPolicy.SessionStampKey] = mfaAt;
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, properties, SchemeName)));
     }
 }
