@@ -12,8 +12,9 @@ namespace Autorep.Web.Api;
 
 // Read-only access to Machine Tests. Super-Administrator sees any test; a Company-Administrator
 // sees tests done for their company in any state; a Tester sees their own tests plus COMPLETED
-// tests done for the same Testing Company (the "Company tests" screen) — read-only, since every
-// write goes through SyncController and is scoped to the caller's own rows.
+// tests done for the same Testing Company (the "Company tests" screen) — read-only, since a
+// tester's writes go through SyncController (scoped to the caller's own rows) and an
+// administrator's through AdminTestsController (new versions only).
 //
 // Scope is applied to the QUERY, not checked after loading, so an out-of-scope id simply doesn't
 // match and reads as NotFound — the test's existence is never disclosed.
@@ -23,7 +24,13 @@ namespace Autorep.Web.Api;
 public class TestsController : ControllerBase
 {
     private readonly AutorepDbContext _db;
-    public TestsController(AutorepDbContext db) => _db = db;
+    private readonly AdminVersioning _versioning;
+
+    public TestsController(AutorepDbContext db, AdminVersioning versioning)
+    {
+        _db = db;
+        _versioning = versioning;
+    }
 
     /// <summary>Largest page the company list will return, whatever the caller asks for —
     /// otherwise the list is a bulk-export endpoint.</summary>
@@ -40,7 +47,20 @@ public class TestsController : ControllerBase
         // owner's current company), so a report printed from this view carries that company's
         // letterhead. The logo is a data URL; both are null when the test has no company.
         string? TestingCompanyName = null,
-        string? TestingCompanyLogo = null);
+        string? TestingCompanyLogo = null,
+        int Version = 1,
+        // Administrators only (null for a tester): what this viewer may change if they edit it as a
+        // new version ("full" or "summary"; null when they can't), why they can't, the test's current
+        // version when this one has been replaced, and the tester's unfinished new version of it.
+        string? EditScope = null,
+        string? EditBlocked = null,
+        Guid? LatestId = null,
+        int? LatestVersion = null,
+        TestsController.DraftDto? Draft = null);
+
+    /// <summary>The tester's unfinished new version of a test: an administrator's edit is combined
+    /// with it when the tester signs it off.</summary>
+    public record DraftDto(int Version, DateTimeOffset StartedAt);
 
     /// <summary>A row of the Company tests list. Header fields only — no PayloadJson (it carries
     /// the whole capture including a base64 pulsation PDF, so a page of them would be hundreds of
@@ -76,6 +96,23 @@ public class TestsController : ControllerBase
                 .FirstOrDefaultAsync(ct)
             : null;
 
+        // An administrator's view says whether — and how far — they can edit this as a new version.
+        // The same scoping as the read: a Company Administrator only ever reaches their own company's.
+        string? editScope = null, editBlocked = null;
+        MachineTest? latest = null;
+        DraftDto? draft = null;
+        var superAdmin = User.IsInRole(Roles.SuperAdministrator);
+        if (superAdmin || User.IsInRole(Roles.CompanyAdministrator))
+        {
+            var state = await _versioning.StateAsync(test, ct);
+            editBlocked = state.Blocked;
+            editScope = state.Blocked is null
+                ? superAdmin ? AdminVersioning.EditScope.Full : AdminVersioning.EditScope.Summary
+                : null;
+            if (state.Head is { } head && head.Id != test.Id) latest = head;
+            if (state.Draft is { } d) draft = new DraftDto(d.Version, d.CreatedAt);
+        }
+
         Response.Headers.CacheControl = "no-store";
         return Ok(new TestViewDto(
             test.Id,
@@ -87,7 +124,13 @@ public class TestsController : ControllerBase
             test.Tester?.DisplayName,
             test.TesterId == me,
             company?.Name,
-            LogoImage.DataUrl(company?.LogoData, company?.LogoContentType)));
+            LogoImage.DataUrl(company?.LogoData, company?.LogoContentType),
+            test.Version,
+            editScope,
+            editBlocked,
+            latest?.Id,
+            latest?.Version,
+            draft));
     }
 
     // The Company tests list: completed tests done for the caller's Testing Company, current

@@ -48,7 +48,8 @@ public class AuditInterceptor : SaveChangesInterceptor
         var actor = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system";
         var entries = context.ChangeTracker.Entries()
             .Where(e => e.Entity is not AuditEntry
-                        && (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted))
+                        && (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
+                        && !OnlySuccessorStampChanged(e))
             .ToList();
 
         foreach (var entry in entries)
@@ -56,6 +57,13 @@ public class AuditInterceptor : SaveChangesInterceptor
             context.Add(BuildAuditEntry(entry, actor));
         }
     }
+
+    // Renewing a version's SuccessorStamp is concurrency bookkeeping for the version that replaces
+    // it — which is audited in its own right — not a change to this one.
+    private static bool OnlySuccessorStampChanged(EntityEntry e) =>
+        e.State == EntityState.Modified
+        && e.Entity is MachineTest
+        && e.Properties.Where(p => p.IsModified).All(p => p.Metadata.Name == nameof(MachineTest.SuccessorStamp));
 
     private static AuditEntry BuildAuditEntry(EntityEntry entry, string actor)
     {

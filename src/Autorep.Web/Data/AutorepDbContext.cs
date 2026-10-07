@@ -32,6 +32,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<MilkSupplyCompany> MilkSupplyCompanies => Set<MilkSupplyCompany>();
     public DbSet<MachineTest> MachineTests => Set<MachineTest>();
     public DbSet<MachineConfiguration> MachineConfigurations => Set<MachineConfiguration>();
+    public DbSet<SyncConflict> SyncConflicts => Set<SyncConflict>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<TestStandard> TestStandards => Set<TestStandard>();
@@ -70,6 +71,29 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
         // TestScope.CurrentVersionsOnly.
         builder.Entity<MachineTest>()
             .HasIndex(t => new { t.TesterId, t.SupersedesClientId });
+
+        // …or been combined into a merge (the other half of the same subquery).
+        builder.Entity<MachineTest>()
+            .HasIndex(t => new { t.TesterId, t.MergedFromClientId });
+
+        // "Every version of this test" (TestLineage).
+        builder.Entity<MachineTest>()
+            .HasIndex(t => new { t.TesterId, t.RootClientId });
+
+        builder.Entity<MachineTest>()
+            .Property(t => t.AuthorId).HasMaxLength(450);
+
+        builder.Entity<MachineTest>()
+            .Property(t => t.SuccessorStamp).IsConcurrencyToken();
+
+        builder.Entity<SyncConflict>(c =>
+        {
+            c.Property(x => x.TesterId).HasMaxLength(450).IsRequired();
+            c.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            c.Property(x => x.DetectedOn).HasMaxLength(20).IsRequired();
+            c.HasIndex(x => new { x.TesterId, x.RootClientId });
+            c.HasIndex(x => new { x.TesterId, x.IncomingClientId });
+        });
 
         builder.Entity<MachineConfiguration>(cfg =>
         {

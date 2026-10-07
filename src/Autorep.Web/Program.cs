@@ -130,6 +130,11 @@ else
 // Emails Company Administrators when a tester sets up a farm in the field (review flow).
 builder.Services.AddScoped<FarmReviewNotifier>();
 
+// Versions of a test: an administrator's edit saved as a new version, and the reconciliation of two
+// versions that both replaced the same one (a tester's offline edit and an administrator's).
+builder.Services.AddScoped<Reconciliation>();
+builder.Services.AddScoped<AdminVersioning>();
+
 // Sign-in: the audit row for every attempt, and the gates (forced reset, lapsed licence, stale
 // terms) that run once an account is actually in - after the password, or after the 2FA code.
 builder.Services.AddScoped<LoginAudit>();

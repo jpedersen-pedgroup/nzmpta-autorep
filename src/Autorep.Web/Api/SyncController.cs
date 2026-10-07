@@ -12,9 +12,9 @@ namespace Autorep.Web.Api;
 
 // Tester sync surface. Tests are created/edited on-device (IndexedDB) and pushed here,
 // upserting by ClientId so retries are safe; the list endpoint lets a Device pull the
-// Tester's tests back (new device, or to refresh). Carries the Machine Configuration now;
-// the richer capture payload (visual faults, readings) + the Sync Reconciliation Engine
-// follow in later phases.
+// Tester's tests back (new device, or to refresh) — including versions an administrator made
+// of them, which carry the tester's id. A version that collides with another version of the
+// same test is reconciled through tests/merge (see Services/Reconciliation).
 [ApiController]
 [Route("api/sync")]
 [Authorize(Roles = Roles.Tester)]
@@ -22,11 +22,13 @@ public class SyncController : ControllerBase
 {
     private readonly AutorepDbContext _db;
     private readonly FarmReviewNotifier _reviewNotifier;
+    private readonly Reconciliation _reconciliation;
 
-    public SyncController(AutorepDbContext db, FarmReviewNotifier reviewNotifier)
+    public SyncController(AutorepDbContext db, FarmReviewNotifier reviewNotifier, Reconciliation reconciliation)
     {
         _db = db;
         _reviewNotifier = reviewNotifier;
+        _reconciliation = reconciliation;
     }
 
     public record ConfigDto(
@@ -62,7 +64,9 @@ public class SyncController : ControllerBase
         int? Version = null, Guid? SupersedesClientId = null,
         // Mirrored out of PayloadJson for the Upcoming tests page. Null from a device that predates
         // it leaves a stored date alone.
-        DateOnly? NextTestDate = null);
+        DateOnly? NextTestDate = null,
+        // The second parent of an automatic merge (see MergeTests), when a device re-sends one.
+        Guid? MergedFromClientId = null);
 
     public record TestSummaryDto(
         Guid ClientId, string FarmName, DateTimeOffset CreatedAt,
@@ -180,8 +184,25 @@ public class SyncController : ControllerBase
         return File(bytes, "application/pdf", PulsationPayload.FileName(payload) ?? "pulsation-analyser.pdf");
     }
 
+    /// <summary>
+    /// The answer to a push that arrived second: something else — an administrator's edit, or this
+    /// tester's other device — had already replaced the version this one was made from. Nothing has
+    /// been stored. The device combines its version with <c>Head</c> (both made from <c>Base</c>) and
+    /// sends the pair to <c>tests/merge</c>. Payloads come without the analyser PDF's bytes.
+    /// </summary>
+    public record CollisionResponse(string Conflict, Guid BaseClientId, TestSummaryDto Base, TestSummaryDto Head, int HeadVersion);
+
+    /// <summary>A tester's version that collided, and the device's combine of it with the head.</summary>
+    public record MergeRequest(UploadTestRequest Incoming, UploadTestRequest Merged, Guid HeadClientId);
+
     // Push: upsert by ClientId (idempotent), linking the Farm by id / farm identity within the
     // tester's company scope (see ResolveFarmAsync), creating a company-tagged farm if needed.
+    //
+    // A version (one that replaces an earlier version) is first checked for a collision: if
+    // something else has already replaced its parent — an administrator edited the test while this
+    // device was offline — a SIGNED-OFF version is answered 409 with what the device needs to
+    // combine the two (see Reconciliation). An in-progress one is stored as usual: it's still a
+    // draft, and is combined when it's signed off. Either way the collision is recorded.
     [HttpPost("tests")]
     public async Task<IActionResult> UploadTest([FromBody] UploadTestRequest req, CancellationToken ct)
     {
@@ -191,6 +212,161 @@ public class SyncController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.FarmName))
             return BadRequest(new { error = "FarmName is required" });
 
+        if (req.SupersedesClientId is { } parent
+            && await _reconciliation.CollisionAsync(testerId, req.ClientId, parent, ct) is { } collision)
+        {
+            await _reconciliation.NotePendingAsync(collision.Base, collision.Head, req.ClientId, SyncConflictSource.Push, ct);
+            if (req.MarkedCompleteAt is not null)
+            {
+                await _db.SaveChangesAsync(ct);
+                return Conflict(await CollisionBodyAsync(collision, ct));
+            }
+        }
+
+        Stored stored;
+        try
+        {
+            stored = await StoreAsync(req, testerId, ct);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another writer replaced this test's parent (or this version) in the same moment. Nothing
+            // was stored; the device retries on its next sync and gets a straight answer then.
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { error = "This test changed on the server at the same moment — it will be sent again." });
+        }
+
+        if (stored.NewFarm is { PendingReviewSince: not null } farm)
+            await _reviewNotifier.NotifyPendingFarmAsync(farm,
+                $"{Request.Scheme}://{Request.Host}/Admin/Farms/Edit/{farm.Id}", ct);
+
+        return stored.Created
+            ? CreatedAtAction(nameof(GetTest), new { id = stored.Test.Id }, new { id = stored.Test.Id, status = "created" })
+            : Ok(new { id = stored.Test.Id, status = "updated" });
+    }
+
+    /// <summary>
+    /// The tester's device combined its signed-off version (<c>Incoming</c>) with the test's current
+    /// version (<c>HeadClientId</c>) after a 409 from the push. Stores both: the incoming version as
+    /// its own version (both states are kept) and the combined one, which replaces the head and names
+    /// the incoming version as merged in. If the test has moved on again since the 409, the answer is
+    /// another 409 with the new head and the device combines again. Sending the same merge twice is
+    /// harmless: the second is answered "already-merged" and changes nothing.
+    /// </summary>
+    [HttpPost("tests/merge")]
+    public async Task<IActionResult> MergeTests([FromBody] MergeRequest req, CancellationToken ct)
+    {
+        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new InvalidOperationException("No NameIdentifier claim on principal.");
+        var incoming = req.Incoming;
+        var merged = req.Merged;
+
+        if (incoming.SupersedesClientId is not { } baseClientId
+            || merged.SupersedesClientId != req.HeadClientId
+            || merged.MergedFromClientId != incoming.ClientId
+            || merged.ClientId == incoming.ClientId
+            || incoming.MarkedCompleteAt is null || merged.MarkedCompleteAt is null
+            || string.IsNullOrWhiteSpace(incoming.FarmName) || string.IsNullOrWhiteSpace(merged.FarmName))
+            return BadRequest(new { error = "That isn't a merge of two signed-off versions of one test." });
+
+        var done = await _db.MachineTests
+            .Where(t => t.TesterId == testerId && t.MergedFromClientId == incoming.ClientId)
+            .Select(t => t.ClientId)
+            .FirstOrDefaultAsync(ct);
+        if (done is not null) return Ok(new { status = "already-merged", mergedClientId = done });
+
+        var baseVersion = await _db.MachineTests
+            .FirstOrDefaultAsync(t => t.TesterId == testerId && t.ClientId == baseClientId, ct);
+        if (baseVersion is null) return NotFound(new { error = "The version these were made from isn't on the server." });
+
+        var versions = await TestLineage.VersionsAsync(_db, baseVersion, ct);
+        var head = TestLineage.Head(versions, excludingClientId: incoming.ClientId);
+        if (head is null) return BadRequest(new { error = "This test has no signed-off version to combine with." });
+        if (head.ClientId != req.HeadClientId)
+            return Conflict(await CollisionBodyAsync(new Reconciliation.Collision(baseVersion, head), ct));
+        if (merged.Version is not { } mergedVersion || mergedVersion <= Math.Max(head.Version, incoming.Version ?? 1))
+            return BadRequest(new { error = "A combined version must be numbered after both versions it combines." });
+        if (await _db.MachineTests.AnyAsync(t => t.TesterId == testerId && t.ClientId == merged.ClientId, ct))
+            return BadRequest(new { error = "The combined version's id is already in use." });
+
+        try
+        {
+            // The incoming version, as its own version — then the combine, which may take its PDF.
+            var storedIncoming = await StoreAsync(incoming, testerId, ct);
+            var mergedPayload = await PulsationPayload.WithStoredBytesAsync(
+                merged.PayloadJson, [incoming.ClientId, head.ClientId!.Value],
+                id => id == incoming.ClientId
+                    ? Task.FromResult(storedIncoming.Test.PayloadJson)
+                    : _db.MachineTests.Where(t => t.TesterId == testerId && t.ClientId == id)
+                        .Select(t => t.PayloadJson).FirstOrDefaultAsync(ct));
+
+            var combined = new MachineTest
+            {
+                ClientId = merged.ClientId,
+                TesterId = testerId,
+                TestingCompanyId = head.TestingCompanyId,
+                FarmId = head.FarmId,
+                RootClientId = TestLineage.KeyOf(head),
+                Notes = merged.Notes,
+                MarkedCompleteAt = merged.MarkedCompleteAt,
+                CreatedAt = merged.CreatedAt ?? DateTimeOffset.UtcNow,
+                PayloadJson = mergedPayload,
+                Version = mergedVersion,
+                SupersedesClientId = head.ClientId,
+                MergedFromClientId = incoming.ClientId,
+                NextTestDate = merged.NextTestDate ?? head.NextTestDate,
+            };
+            // The head's configuration columns carry over, then the combine's own configuration.
+            if (await _db.MachineConfigurations.FirstOrDefaultAsync(c => c.MachineTestId == head.Id, ct) is { } headConfig)
+                ApplyConfig(combined, ToDto(headConfig));
+            ApplyConfig(combined, merged.Config);
+            _db.MachineTests.Add(combined);
+            head.SuccessorStamp = Guid.NewGuid();
+
+            await _reconciliation.NoteMergedAsync(baseVersion, head, storedIncoming.Test, combined,
+                storedIncoming.Test.PayloadJson, ct);
+            await _db.SaveChangesAsync(ct);
+            return Ok(new { status = "merged", id = combined.Id, mergedClientId = combined.ClientId });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The head was replaced while this was being stored: combine with the new one.
+            _db.ChangeTracker.Clear();
+            var again = await _db.MachineTests.FirstAsync(t => t.Id == baseVersion.Id, ct);
+            var newHead = TestLineage.Head(await TestLineage.VersionsAsync(_db, again, ct), excludingClientId: incoming.ClientId);
+            return newHead is null
+                ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "Try again in a moment." })
+                : Conflict(await CollisionBodyAsync(new Reconciliation.Collision(again, newHead), ct));
+        }
+    }
+
+    private async Task<CollisionResponse> CollisionBodyAsync(Reconciliation.Collision collision, CancellationToken ct)
+    {
+        async Task<TestSummaryDto> SummaryOf(Guid id)
+        {
+            var t = await _db.MachineTests.AsNoTracking()
+                .Include(x => x.Farm).Include(x => x.Configuration)
+                .FirstAsync(x => x.Id == id, ct);
+            return new TestSummaryDto(t.ClientId!.Value, t.Farm?.Name ?? string.Empty, t.CreatedAt, t.MarkedCompleteAt,
+                t.Configuration is null ? null : ToDto(t.Configuration), PulsationPayload.WithoutBytes(t.PayloadJson));
+        }
+        return new CollisionResponse("superseded", collision.Base.ClientId!.Value,
+            await SummaryOf(collision.Base.Id), await SummaryOf(collision.Head.Id), collision.Head.Version);
+    }
+
+    /// <summary>What a push stored: the row, whether it was new, and a farm it had to create.</summary>
+    private sealed record Stored(MachineTest Test, bool Created, Farm? NewFarm);
+
+    /// <summary>
+    /// Upserts a pushed test (not yet saved). A new VERSION of a test already on the server stays
+    /// with that test: the same farm and the same company as its parent, whatever company the tester
+    /// is with now — an amendment is more work on the original test, not a new test for the tester's
+    /// current employer. A version signed off here renews its parent's <see cref="MachineTest.SuccessorStamp"/>,
+    /// so a rival writer that checked the same parent fails rather than forking the test.
+    /// </summary>
+    private async Task<Stored> StoreAsync(UploadTestRequest req, string testerId, CancellationToken ct)
+    {
         // Scope the upsert to the caller's own tests: a ClientId belonging to another tester must
         // never match here (otherwise tester A could overwrite tester B's test — IDOR). Combined
         // with the unique (TesterId, ClientId) index, a foreign ClientId falls through to create.
@@ -202,6 +378,12 @@ public class SyncController : ControllerBase
         // place; put the bytes back from the copy already stored, so a re-push can never lose them.
         var payloadJson = await WithAttachmentBytesAsync(req.PayloadJson, testerId, req.ClientId, req.SupersedesClientId, ct);
 
+        var parent = req.SupersedesClientId is { } parentId
+            ? await _db.MachineTests.FirstOrDefaultAsync(t => t.TesterId == testerId && t.ClientId == parentId, ct)
+            : null;
+        if (parent is not null && req.MarkedCompleteAt is not null && existing?.MarkedCompleteAt is null)
+            parent.SuccessorStamp = Guid.NewGuid();
+
         if (existing is not null)
         {
             existing.Notes = req.Notes;
@@ -210,46 +392,56 @@ public class SyncController : ControllerBase
             existing.UpdatedAt = DateTimeOffset.UtcNow;
             existing.Version = req.Version ?? existing.Version;
             existing.SupersedesClientId = req.SupersedesClientId ?? existing.SupersedesClientId;
+            existing.MergedFromClientId = req.MergedFromClientId ?? existing.MergedFromClientId;
             existing.NextTestDate = req.NextTestDate ?? existing.NextTestDate;
             // TestingCompanyId is deliberately NOT re-stamped: it records the company the work was
             // done for. Re-deriving it here would drag a tester's old tests into their new company
             // the first time they re-synced after a transfer.
             ApplyConfig(existing, req.Config);
-            await _db.SaveChangesAsync(ct);
-            return Ok(new { id = existing.Id, status = "updated" });
+            return new Stored(existing, false, null);
         }
 
-        var companyId = await CompanyOfAsync(testerId, ct);
-        var farm = await ResolveFarmAsync(req, testerId, companyId, ct);
-        // Whether ResolveFarmAsync minted a new farm row (vs linking an existing one) — checked
-        // before SaveChanges flips the state, so the review notification fires exactly once.
-        var farmCreated = _db.Entry(farm).State == EntityState.Added;
+        Farm? newFarm = null;
+        Guid farmId;
+        Guid? companyId;
+        if (parent is not null)
+        {
+            farmId = parent.FarmId;
+            companyId = parent.TestingCompanyId;
+        }
+        else
+        {
+            companyId = await CompanyOfAsync(testerId, ct);
+            var farm = await ResolveFarmAsync(req, testerId, companyId, ct);
+            // Whether ResolveFarmAsync minted a new farm row (vs linking an existing one) — checked
+            // before SaveChanges flips the state, so the review notification fires exactly once.
+            if (_db.Entry(farm).State == EntityState.Added) newFarm = farm;
+            farmId = farm.Id;
+        }
+
+        var root = await TestLineage.RootForNewVersionAsync(_db, testerId, req.ClientId, req.SupersedesClientId, ct);
+        await TestLineage.AdoptDescendantsAsync(_db, testerId, req.ClientId, root, ct);
 
         var test = new MachineTest
         {
             ClientId = req.ClientId,
             TesterId = testerId,
             TestingCompanyId = companyId,
-            FarmId = farm.Id,
-            Farm = farm,
+            FarmId = farmId,
+            Farm = newFarm,
+            RootClientId = root,
             Notes = req.Notes,
             MarkedCompleteAt = req.MarkedCompleteAt,
             CreatedAt = req.CreatedAt ?? DateTimeOffset.UtcNow,
             PayloadJson = payloadJson,
             Version = req.Version ?? 1,
             SupersedesClientId = req.SupersedesClientId,
+            MergedFromClientId = req.MergedFromClientId,
             NextTestDate = req.NextTestDate,
         };
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
-        await _db.SaveChangesAsync(ct);
-
-        if (farmCreated && farm.PendingReviewSince is not null)
-            await _reviewNotifier.NotifyPendingFarmAsync(farm,
-                $"{Request.Scheme}://{Request.Host}/Admin/Farms/Edit/{farm.Id}", ct);
-
-        return CreatedAtAction(nameof(GetTest), new { id = test.Id },
-            new { id = test.Id, status = "created" });
+        return new Stored(test, true, newFarm);
     }
 
     [HttpGet("tests/{id:guid}")]
@@ -343,22 +535,15 @@ public class SyncController : ControllerBase
     /// must never get the newer PDF's bytes under the old one's name. With no matching copy the
     /// pointer is kept as sent, and the report prints without the PDF rather than with the wrong one.
     /// </summary>
-    private async Task<string?> WithAttachmentBytesAsync(
+    private Task<string?> WithAttachmentBytesAsync(
         string? incoming, string testerId, Guid clientId, Guid? supersedesClientId, CancellationToken ct)
     {
-        if (!PulsationPayload.IsServerPointer(incoming, out var source)) return incoming;
-        var candidates = new List<Guid> { source ?? clientId, clientId };
+        var candidates = new List<Guid> { clientId };
         if (supersedesClientId is { } previous) candidates.Add(previous);
-        foreach (var id in candidates.Distinct())
-        {
-            var stored = await _db.MachineTests
-                .Where(t => t.TesterId == testerId && t.ClientId == id)
-                .Select(t => t.PayloadJson)
-                .FirstOrDefaultAsync(ct);
-            if (PulsationPayload.Base64(stored) is { } bytes && PulsationPayload.SameAttachment(stored, incoming))
-                return PulsationPayload.WithBytes(incoming!, bytes);
-        }
-        return incoming;
+        return PulsationPayload.WithStoredBytesAsync(incoming, candidates, id => _db.MachineTests
+            .Where(t => t.TesterId == testerId && t.ClientId == id)
+            .Select(t => t.PayloadJson)
+            .FirstOrDefaultAsync(ct));
     }
 
     /// <summary>The tester's Testing Company. There is no company claim on either auth scheme, so
@@ -389,7 +574,7 @@ public class SyncController : ControllerBase
     private static RegulatorDetail CleanRegulator(RegulatorDetail r) =>
         new(TrimField(r.Type), r.Quantity is > 0 ? Math.Min(r.Quantity.Value, 99) : null);
 
-    private static void ApplyConfig(MachineTest test, ConfigDto? dto)
+    internal static void ApplyConfig(MachineTest test, ConfigDto? dto)
     {
         if (dto is null) return;
 

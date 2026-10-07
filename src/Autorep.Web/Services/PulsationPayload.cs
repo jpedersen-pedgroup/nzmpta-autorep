@@ -99,6 +99,31 @@ public static class PulsationPayload
     private static bool Same(JsonNode? a, JsonNode? b) =>
         a is not null && b is not null && JsonNode.DeepEquals(a, b);
 
+    /// <summary>
+    /// The incoming payload, with the analyser PDF's bytes restored when it carries a pointer instead:
+    /// from the test the pointer names, else from each of <paramref name="candidates"/> in turn, and
+    /// only from a stored copy of the SAME attachment (name, size, attach time). A stale pointer —
+    /// another device has since attached a different PDF — must never get the newer PDF's bytes under
+    /// the old one's name, so with no matching copy the pointer is kept as sent and the report prints
+    /// without the PDF rather than with the wrong one. <paramref name="storedPayloadOf"/> looks a
+    /// test's stored payload up by ClientId, within whatever scope the caller allows.
+    /// </summary>
+    public static async Task<string?> WithStoredBytesAsync(
+        string? incoming, IEnumerable<Guid> candidates, Func<Guid, Task<string?>> storedPayloadOf)
+    {
+        if (!IsServerPointer(incoming, out var source)) return incoming;
+        var order = new List<Guid>();
+        if (source is { } named) order.Add(named);
+        order.AddRange(candidates);
+        foreach (var id in order.Distinct())
+        {
+            var stored = await storedPayloadOf(id);
+            if (Base64(stored) is { } bytes && SameAttachment(stored, incoming))
+                return WithBytes(incoming!, bytes);
+        }
+        return incoming;
+    }
+
     /// <summary>The payload with the attachment's bytes put back (and the pointer cleared).</summary>
     public static string WithBytes(string payloadJson, string base64)
     {
