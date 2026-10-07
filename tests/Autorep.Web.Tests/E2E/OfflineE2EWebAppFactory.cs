@@ -237,7 +237,12 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
             MarkedCompleteAt = completedAt,
         });
         await db.SaveChangesAsync();
+
+        await SeedMoreAsync(sp);
     }
+
+    /// <summary>A derived factory's own seed, run once after everything above, in the same scope.</summary>
+    protected virtual Task SeedMoreAsync(IServiceProvider services) => Task.CompletedTask;
 
     private static async Task CreateTesterAsync(UserManager<Tester> users, Tester tester)
     {

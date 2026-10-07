@@ -165,6 +165,10 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
         var at = Iso(now);
         var clientId = Guid.NewGuid();
         var version = basis.Version + 1;
+        // The test was completed when the tester signed it off, and an administrator's correction
+        // doesn't change that: the report's "Tested" date and the list's completion order stay put.
+        // When the edit was made is the amendment record's amendedAt.
+        var completedAt = basis.MarkedCompleteAt!.Value;
 
         // The server's own bookkeeping, whatever the browser sent.
         edited["id"] = clientId.ToString();
@@ -172,7 +176,7 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
         edited["supersedesId"] = basis.ClientId!.Value.ToString();
         edited["createdAt"] = at;
         edited["updatedAt"] = at;
-        edited["markedCompleteAt"] = at;
+        edited["markedCompleteAt"] = Iso(completedAt);
         edited["syncState"] = "uploaded";
         edited["everUploaded"] = true;
         edited["currentStep"] = "ReviewSignOff";
@@ -210,7 +214,7 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
             SupersedesClientId = basis.ClientId,
             CreatedAt = now,
             UpdatedAt = now,
-            MarkedCompleteAt = now,
+            MarkedCompleteAt = completedAt,
             Notes = edited["notes"] is JsonValue notes && notes.TryGetValue<string>(out var text) ? text : null,
             NextTestDate = edited["nextTestDate"] is JsonValue next && next.TryGetValue<string>(out var day)
                 && DateOnly.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var due)

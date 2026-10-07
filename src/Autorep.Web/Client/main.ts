@@ -53,6 +53,8 @@ function mountApps(): void {
       // test from the server instead of IndexedDB.
       serverTestId: wizardRoot.getAttribute("data-server-test") ?? undefined,
       backHref: wizardRoot.getAttribute("data-back") ?? undefined,
+      // The admin portal's viewer, where an administrator can edit a test as its next version.
+      admin: wizardRoot.hasAttribute("data-admin"),
     });
   }
 

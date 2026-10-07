@@ -171,6 +171,52 @@ describe("buildTestSummaryDoc", () => {
     expect(json).toContain("50 kPa");
   });
 
+  // O2 / PRD 50 and 67: an administrator's version names them, their role and the reason they gave;
+  // a merged version says what it combined and lists the fields both versions changed.
+  it("names an administrator's role and reason, and lists what a merge combined", () => {
+    const t = sampleTest();
+    t.version = 3;
+    t.amendments = [
+      {
+        version: 2,
+        amendedAt: "2026-10-06T00:00:00.000Z",
+        amendedBy: "sam@nzmpta",
+        amendedByName: "Sam Superadmin",
+        amendedByRole: "Super Administrator",
+        reason: "Wording corrected for the farmer",
+        baseVersion: 1,
+        changes: [{ section: "Other", label: "General comments", from: "a", to: "b" }],
+      },
+      {
+        version: 3,
+        amendedAt: "2026-10-07T00:00:00.000Z",
+        amendedBy: "tester@local",
+        amendedByRole: "Automatic merge",
+        baseVersion: 2,
+        changes: [],
+        merge: {
+          headVersion: 2,
+          headBy: "Sam Superadmin",
+          fromVersion: 2,
+          fromId: "tester-v2",
+          fromBy: "tester@local",
+          overlaps: [
+            { section: "Other", label: "General comments", previous: "a", head: "b", incoming: "c", kept: "incoming" },
+          ],
+        },
+      },
+    ];
+
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+
+    expect(json).toContain("by Sam Superadmin (Super Administrator)");
+    expect(json).toContain("Reason: Wording corrected for the farmer");
+    expect(json).toContain("Combined automatically: version 2 (Sam Superadmin) and version 2 (tester@local)");
+    expect(json).toContain("Field (changed in both)");
+    expect(json).toContain("c (kept)");
+    expect(json).not.toContain("(Automatic merge)");
+  });
+
   it("notes a re-completion with no data changes, and omits the section entirely for v1 tests", () => {
     const t = sampleTest();
     t.version = 2;

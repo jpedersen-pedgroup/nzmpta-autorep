@@ -76,7 +76,8 @@ public class AdminTestEditTests : IClassFixture<AuthedWebAppFactory>
         row.ClientId.Should().Be(saved.ClientId).And.NotBe(test.ClientId!.Value);
         row.SupersedesClientId.Should().Be(test.ClientId);
         row.RootClientId.Should().Be(test.ClientId);
-        row.MarkedCompleteAt.Should().NotBeNull();
+        row.MarkedCompleteAt.Should().Be(test.MarkedCompleteAt,
+            "the test was completed when the tester signed it off; the edit's own time is in its record");
 
         var stored = JsonNode.Parse(row.PayloadJson!)!;
         stored["id"]!.GetValue<string>().Should().Be(saved.ClientId.ToString());
@@ -90,6 +91,7 @@ public class AdminTestEditTests : IClassFixture<AuthedWebAppFactory>
         record["amendedByName"]!.GetValue<string>().Should().Be("Sam Superadmin");
         record["amendedByRole"]!.GetValue<string>().Should().Be("Super Administrator");
         record["reason"]!.GetValue<string>().Should().Be("Corrected on the farmer's call");
+        record["amendedAt"]!.GetValue<string>().Should().NotBe(stored["markedCompleteAt"]!.GetValue<string>());
         // The tester's attestations stand: the edit didn't redo the inspection.
         stored["attestations"]!.AsArray().Should().HaveCount(2);
 
@@ -154,6 +156,79 @@ public class AdminTestEditTests : IClassFixture<AuthedWebAppFactory>
         var body = await res.Content.ReadFromJsonAsync<JsonObject>();
         body!["fields"]!.AsArray().Select(f => f!.GetValue<string>()).Should().BeEquivalentTo(["farmName", "testedBy"]);
         (await WithDbAsync(db => db.MachineTests.CountAsync(t => t.SupersedesClientId == test.ClientId))).Should().Be(0);
+    }
+
+    // ---- The analyser PDF (O3, as part of an admin version) --------------------------------
+
+    private static readonly string PdfA = Convert.ToBase64String("%PDF-1.4 analyser export A"u8.ToArray());
+    private static readonly string PdfB = Convert.ToBase64String("%PDF-1.4 corrected analyser export B"u8.ToArray());
+
+    private static JsonObject Attachment(string name, string? base64, string attachedAt, bool pointer = false)
+    {
+        var pdf = new JsonObject { ["name"] = name, ["size"] = 26, ["attachedAt"] = attachedAt };
+        if (base64 is not null) pdf["base64"] = base64;
+        if (pointer) pdf["onServer"] = true;
+        return pdf;
+    }
+
+    private async Task<(MachineTest Test, JsonObject Payload)> ArrangeWithPdfAsync(string tag)
+    {
+        var (companyId, farmId) = await SeedCompanyAsync(Services, tag);
+        await SeedUserAsync(Services, $"{tag}-tester", companyId);
+        await SeedUserAsync(Services, $"{tag}-coadmin", companyId);
+        var clientId = Guid.NewGuid();
+        var payload = Original(clientId);
+        payload["pulsationPdf"] = Attachment("pulse.pdf", PdfA, "2026-09-01T00:00:00.000Z");
+        return (await SeedTestAsync(Services, $"{tag}-tester", farmId, companyId, payload, clientId: clientId), payload);
+    }
+
+    private async Task<string> StoredPayloadAsync(HttpResponseMessage res)
+    {
+        res.StatusCode.Should().Be(HttpStatusCode.Created, await res.Content.ReadAsStringAsync());
+        var saved = (await res.Content.ReadFromJsonAsync<Saved>())!;
+        return await WithDbAsync(db => db.MachineTests.Where(t => t.Id == saved.Id).Select(t => t.PayloadJson!).SingleAsync());
+    }
+
+    [Fact]
+    public async Task A_super_admin_can_replace_the_analyser_pdf_as_part_of_a_new_version()
+    {
+        var (test, payload) = await ArrangeWithPdfAsync("pdf-replace");
+        var admin = await SuperAdminAsync("pdf-replace-admin");
+
+        var stored = await StoredPayloadAsync(await SaveAsync(admin, test.Id,
+            Edited(payload, p => p["pulsationPdf"] = Attachment("pulse-corrected.pdf", PdfB, "2026-10-07T00:00:00.000Z"))));
+
+        Autorep.Web.Services.PulsationPayload.Base64(stored).Should().Be(PdfB);
+        Autorep.Web.Services.PulsationPayload.FileName(stored).Should().Be("pulse-corrected.pdf");
+        var audit = await WithDbAsync(db => db.AuditEntries.SingleAsync(e => e.Operation == "AdminVersionCreated" && e.Actor == "pdf-replace-admin"));
+        audit.AfterJson.Should().Contain("pulsationPdf").And.NotContain(PdfB, "no bytes in the audit store");
+    }
+
+    [Fact]
+    public async Task An_attachment_the_browser_held_only_as_a_pointer_keeps_its_bytes_in_the_new_version()
+    {
+        var (test, payload) = await ArrangeWithPdfAsync("pdf-pointer");
+        var admin = await SuperAdminAsync("pdf-pointer-admin");
+
+        var stored = await StoredPayloadAsync(await SaveAsync(admin, test.Id, Edited(payload, p =>
+        {
+            p["pulsationPdf"] = Attachment("pulse.pdf", null, "2026-09-01T00:00:00.000Z", pointer: true);
+            p["notes"] = "Only the comment changed";
+        })));
+
+        Autorep.Web.Services.PulsationPayload.Base64(stored).Should().Be(PdfA);
+    }
+
+    [Fact]
+    public async Task A_company_admin_cannot_touch_the_attachment()
+    {
+        var (test, payload) = await ArrangeWithPdfAsync("pdf-coadmin");
+        var admin = _factory.CreateClientAs(Roles.CompanyAdministrator, "pdf-coadmin-coadmin");
+
+        var res = await SaveAsync(admin, test.Id, Edited(payload, p => p.Remove("pulsationPdf")));
+
+        res.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await res.Content.ReadFromJsonAsync<JsonObject>())!["fields"]!.AsArray().Single()!.GetValue<string>().Should().Be("pulsationPdf");
     }
 
     // ---- Company Administrator: summary and recommendations, own company only --------------

@@ -1939,3 +1939,22 @@ main {
    module-sized, so size it here. */
 .qr-code { display: inline-block; padding: var(--space-2); background: #fff; border-radius: var(--radius); border: 1px solid var(--border); }
 .qr-code svg { display: block; width: 200px; height: 200px; }
+
+/* ----- Versions of a test --------------------------------------------------------
+   The admin portal's edit-as-a-new-version bar, and the notices about who made a version
+   (Client/wizard/VersionBanners.tsx). The bar sits in the wizard's banners slot, above every step
+   in every layout, so the save is never more than a scroll away. */
+.admin-edit { display: flex; flex-direction: column; gap: var(--space-2); color: var(--text); }
+.admin-edit__head { color: var(--brand); }
+.admin-edit__label { font-weight: 600; font-size: 0.875rem; }
+.admin-edit__hint { font-weight: 400; color: var(--text-muted); }
+.admin-edit__reason {
+  width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius);
+  padding: 0.5rem 0.65rem; font: inherit; resize: vertical; background: var(--surface); color: var(--text);
+}
+.admin-edit__reason:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,56,147,0.1); }
+.admin-edit__problem { margin: 0; color: #b91c1c; font-size: 0.875rem; }
+.admin-edit .form-actions { margin-top: 0; padding-top: 0; border-top: 0; }
+.admin-edit__offer .btn, .admin-edit__saved .btn { margin-left: var(--space-2); }
+.admin-edit__draft { margin: var(--space-2) 0 0; color: #92400e; }
+.version-note strong { font-weight: 600; }

@@ -35,6 +35,13 @@ interface Props {
    * that only make sense for a test on this device: syncing (it would run the VIEWER's own
    * push/pull from inside someone else's record) and attaching/removing the analyser PDF. */
   isServerView?: boolean;
+  /** An administrator is editing this test as its next version: there's no sign-off or download
+   * here — the edit bar at the top saves it, and the report comes from the saved version. */
+  adminEditing?: boolean;
+  /** A Super-Administrator's edit may attach, replace or remove the analyser PDF (O3)… */
+  canEditAttachment?: boolean;
+  /** …and correct the next test date, which a tester's own amendment can't move. */
+  canEditNextTestDate?: boolean;
   /** Who performed the test, when that isn't the viewer. Shown on a server view in place of the
    * local sync state, which means nothing for a record held on the server. */
   colleagueName?: string | null;
@@ -56,6 +63,9 @@ export function ReviewSignOffStep({
   syncing,
   generating,
   isServerView,
+  adminEditing,
+  canEditAttachment,
+  canEditNextTestDate,
   colleagueName,
   onMarkComplete,
   onResync,
@@ -84,6 +94,8 @@ export function ReviewSignOffStep({
   const isAmendment = Boolean(test.supersedesId);
   const nextTestDate = isComplete || isAmendment ? test.nextTestDate : proposedNextTestDate(test, nowIso);
   const nextTestInPast = !isComplete && nextTestDate != null && nextTestDate <= nzDate(nowIso);
+  // A server view shows the attachment read-only, except in a Super-Administrator's edit.
+  const attachmentEditable = !isServerView || Boolean(canEditAttachment);
 
   const pickFile = (files: FileList | null | undefined) => {
     const file = files?.[0];
@@ -121,7 +133,12 @@ export function ReviewSignOffStep({
 
       <div class="form-field signoff-next">
         <label class="signoff__label" for="next-test-date">Next test due</label>
-        {isComplete || isServerView ? (
+        {canEditNextTestDate ? (
+          <>
+            <DatePicker id="next-test-date" value={test.nextTestDate ?? null} onChange={onNextTestDateChange} />
+            <div class="form-field__hint">Correcting it here changes when the farm shows as due.</div>
+          </>
+        ) : isComplete || isServerView ? (
           <div>{nextTestDate ? formatDisplayDate(nextTestDate) : "—"}</div>
         ) : isAmendment ? (
           <>
@@ -171,11 +188,11 @@ export function ReviewSignOffStep({
                 ? "appended to the report"
                 : "kept on the server to save space here — fetched when you print (needs signal)"}
             </span>
-            {!isServerView && (
+            {attachmentEditable && (
               <button class="attach-chip__remove" title="Remove attachment" onClick={onRemovePdf}>×</button>
             )}
           </div>
-        ) : isServerView ? (
+        ) : !attachmentEditable ? (
           <p class="td-muted" style="margin:0">None attached.</p>
         ) : (
           <div
@@ -209,7 +226,12 @@ export function ReviewSignOffStep({
       </div>
 
       <div class="signoff-footer">
-        {isComplete ? (
+        {adminEditing ? (
+          <p class="td-muted" style="margin:0">
+            Save this edit with the bar at the top of the page. The report is downloaded from the saved
+            version, so it carries the change in its amendment history.
+          </p>
+        ) : isComplete ? (
           <div class="signoff-complete">
             <p>
               ✓ Completed {fmtDate(test.markedCompleteAt)}

@@ -14,8 +14,9 @@ interface Props {
   sections: ChecklistSection[];
   entries: Record<string, VisualFaultEntry>;
   onSetEntry: (key: string, entry: VisualFaultEntry | null) => void;
-  /** Apply "check all as verified" to a single section (by key). */
-  onCheckAll: (sectionKey: string) => void;
+  /** Apply "check all as verified" to a single section (by key). Absent where nobody may attest:
+   * a read-only test, or an administrator's edit (the attestation is the tester's). */
+  onCheckAll?: (sectionKey: string) => void;
   /** Section keys already attested. */
   attestedSections: string[];
   /** Data-capture field values (sizes/diameters), keyed by item key. */
@@ -162,9 +163,15 @@ export function VisualFaultsStep({
           />
         ))}
         <div style="display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-4)">
-          <button class="btn btn--secondary btn--sm" onClick={() => setConfirming(sec.key)}>
-            ✓ Check all as verified{attestedSections.includes(sec.key) ? " · attested" : ""}
-          </button>
+          {onCheckAll ? (
+            <button class="btn btn--secondary btn--sm" onClick={() => setConfirming(sec.key)}>
+              ✓ Check all as verified{attestedSections.includes(sec.key) ? " · attested" : ""}
+            </button>
+          ) : (
+            attestedSections.includes(sec.key) && (
+              <span class="badge">✓ Checked all as verified</span>
+            )
+          )}
           {checklistComplete([sec], entries) && (
             <span style="color:var(--success);font-size:0.85rem">Section complete</span>
           )}
@@ -209,7 +216,7 @@ export function VisualFaultsStep({
               <button
                 class="btn"
                 onClick={() => {
-                  onCheckAll(confirming);
+                  onCheckAll?.(confirming);
                   setConfirming(null);
                 }}
               >

@@ -1033,10 +1033,39 @@ function buildAmendmentBlock(test: LocalTest): Content[] {
     const supersedes = `supersedes version ${a.baseVersion}${
       a.baseCompletedAt ? ` (completed ${fmtDate(a.baseCompletedAt)})` : ""
     }`;
+    // An administrator's version names them and their role; a merge says what it combined below.
+    const by = a.amendedByName ?? a.amendedBy;
+    const role = a.amendedByRole && !a.merge ? ` (${a.amendedByRole})` : "";
     out.push({
-      text: `Version ${a.version} — completed ${fmtDate(a.amendedAt)}${a.amendedBy ? ` by ${a.amendedBy}` : ""} · ${supersedes}`,
+      text: `Version ${a.version} — completed ${fmtDate(a.amendedAt)}${by ? ` by ${by}${role}` : ""} · ${supersedes}`,
       fontSize: 9.5, bold: true, color: INK, margin: [0, 8, 0, 3], headlineLevel: 2,
     });
+    if (a.reason) out.push({ text: `Reason: ${a.reason}`, fontSize: 9, color: INK, margin: [0, 0, 0, 3] });
+    if (a.merge) {
+      const m = a.merge;
+      out.push({
+        text:
+          `Combined automatically: version ${m.headVersion}${m.headBy ? ` (${m.headBy})` : ""} and version ` +
+          `${m.fromVersion}${m.fromBy ? ` (${m.fromBy})` : ""} were both made from the same earlier version. ` +
+          "What only one of them changed was combined; where both changed the same field, the version that " +
+          "reached the server last was kept. Both versions remain on record.",
+        fontSize: 9, color: MUTED, margin: [0, 0, 0, 3],
+      });
+      if (m.overlaps.length > 0) {
+        out.push(
+          grid(["auto", "*", "*", "*", "*"], [
+            [th("Section"), th("Field (changed in both)"), th("Before"), th(`Version ${m.headVersion}`), th(`Version ${m.fromVersion}`)],
+            ...m.overlaps.map((o) => [
+              { text: o.section, fontSize: 9, color: MUTED } as TableCell,
+              { text: o.label, fontSize: 9 } as TableCell,
+              { text: o.previous, fontSize: 9, color: MUTED } as TableCell,
+              { text: o.head, fontSize: 9, bold: o.kept === "head", color: o.kept === "head" ? INK : MUTED } as TableCell,
+              { text: `${o.incoming}${o.kept === "incoming" ? " (kept)" : ""}`, fontSize: 9, bold: o.kept === "incoming", color: o.kept === "incoming" ? INK : MUTED } as TableCell,
+            ]),
+          ]),
+        );
+      }
+    }
 
     if (a.baseUnavailable) {
       out.push({

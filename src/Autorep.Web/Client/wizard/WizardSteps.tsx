@@ -32,6 +32,10 @@ export interface StepContext {
   completed: Set<WizardStep>;
   /** Set when viewing a test from the server (admin, or a company colleague's) — read-only. */
   serverTestId?: string;
+  /** Set while an administrator edits the test as its next version: "full" (every field) or
+   * "summary" (the Fault Summary's recommendations and comments only — every other step stays
+   * read-only). Never set on a tester's device. */
+  editScope?: "full" | "summary" | null;
   colleagueName: string | null;
   syncing: boolean;
   generating: boolean;
@@ -55,9 +59,20 @@ export interface StepContext {
 }
 
 export function renderStep(ctx: StepContext, step: WizardStep): VNode {
-  const { test, readonly } = ctx;
+  const { test } = ctx;
+  // A Company Administrator's edit reaches the Fault Summary only.
+  const readonly = ctx.readonly || (ctx.editScope === "summary" && step !== "FaultSummary");
   const attestedSectionsFor = (s: WizardStep) =>
     test.attestations.filter((a) => a.step === s && a.section).map((a) => a.section!);
+  // "Check all as verified" is the tester's attestation that they inspected the items. Nobody else
+  // makes it: not on a read-only test, and not in an administrator's edit.
+  const checkAll = (s: WizardStep, sections: ChecklistSection[]) =>
+    readonly || ctx.editScope
+      ? undefined
+      : (secKey: string) => {
+          const sec = sections.find((x) => x.key === secKey);
+          if (sec) ctx.checkAllSection(s, sec);
+        };
 
   switch (step) {
     case "Setup":
@@ -74,10 +89,7 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
           sections={sections}
           entries={test.visualFaults}
           onSetEntry={(k, e) => ctx.setVisualFault(k, e)}
-          onCheckAll={(secKey) => {
-            const sec = sections.find((s) => s.key === secKey);
-            if (sec) ctx.checkAllSection("VisualFaultsPreStart", sec);
-          }}
+          onCheckAll={checkAll("VisualFaultsPreStart", sections)}
           attestedSections={attestedSectionsFor("VisualFaultsPreStart")}
           dataValues={test.dataFields ?? {}}
           onSetData={(k, v) => ctx.setDataField(k, v)}
@@ -95,10 +107,7 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
           sections={sections}
           entries={test.visualFaults}
           onSetEntry={(k, e) => ctx.setVisualFault(k, e)}
-          onCheckAll={(secKey) => {
-            const sec = sections.find((s) => s.key === secKey);
-            if (sec) ctx.checkAllSection("VisualFaultsRunning", sec);
-          }}
+          onCheckAll={checkAll("VisualFaultsRunning", sections)}
           attestedSections={attestedSectionsFor("VisualFaultsRunning")}
           dataValues={test.dataFields ?? {}}
           onSetData={(k, v) => ctx.setDataField(k, v)}
@@ -192,6 +201,9 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
           syncing={ctx.syncing}
           generating={ctx.generating}
           isServerView={Boolean(ctx.serverTestId)}
+          adminEditing={Boolean(ctx.editScope)}
+          canEditAttachment={ctx.editScope === "full"}
+          canEditNextTestDate={ctx.editScope === "full"}
           colleagueName={ctx.colleagueName}
           onMarkComplete={() => ctx.onMarkComplete()}
           onResync={() => ctx.onResync()}
@@ -205,7 +217,10 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
 }
 
 function SetupStep({ ctx }: { ctx: StepContext }) {
-  const { test, readonly } = ctx;
+  const { test } = ctx;
+  // The live calibration panel edits the SIGNED-IN user's profile, so a test held on the server (an
+  // admin's view or edit, a colleague's test) always shows the dates recorded with it instead.
+  const readonly = ctx.readonly || Boolean(ctx.serverTestId);
   return (
     <>
       <div class="card">

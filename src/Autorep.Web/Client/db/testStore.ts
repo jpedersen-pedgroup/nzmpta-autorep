@@ -61,6 +61,35 @@ export interface FieldChange {
   to: string;
 }
 
+/** A field both versions of an automatic merge changed, differently: the value before, each
+ * version's value, and which one the merged version kept. */
+export interface MergeOverlap {
+  section: string;
+  label: string;
+  /** The value in the version both were made from. */
+  previous: string;
+  /** The value in the version that reached the server first. */
+  head: string;
+  /** The value in the version that reached the server second. */
+  incoming: string;
+  /** Which value the merged version carries — the later arrival's, by the reconciliation rule. */
+  kept: "head" | "incoming";
+}
+
+/** What an automatic merge combined (see versioning/merge.ts). The record it sits on is the merged
+ * version's own; `changes` there lists what the merge changed relative to the head. */
+export interface MergeInfo {
+  /** The version that reached the server first, which the merged version supersedes. */
+  headVersion: number;
+  headBy?: string;
+  /** The version combined into it (it reached the server second). */
+  fromVersion: number;
+  fromId: string;
+  fromBy?: string;
+  fromCompletedAt?: string | null;
+  overlaps: MergeOverlap[];
+}
+
 /** The audit record written when a superseding version is marked complete: what changed vs the
  * version it replaced, when, and by whom. The chain is cumulative — each version carries every
  * prior record — so a single synced test reprints its full amendment history on any device.
@@ -72,12 +101,21 @@ export interface AmendmentRecord {
   amendedAt: string;
   /** The signed-in account that signed off the amendment (login name/email). */
   amendedBy?: string;
+  /** Their display name, when the server stamped it (an administrator's edit). */
+  amendedByName?: string;
+  /** Set when someone other than the tester made the version: "Super Administrator",
+   * "Company Administrator", or "Automatic merge". */
+  amendedByRole?: string;
+  /** Why the version was made — required of an administrator. */
+  reason?: string;
   /** The version this one superseded. */
   baseVersion: number;
   baseCompletedAt?: string | null;
   changes: FieldChange[];
   /** True when the superseded version wasn't on-device at sign-off, so no diff could be taken. */
   baseUnavailable?: boolean;
+  /** Present on a version an automatic merge produced. */
+  merge?: MergeInfo;
 }
 
 /** A Machine Test as held on-device (mirrors the server MachineTest + MachineConfiguration). */
@@ -160,6 +198,9 @@ export interface LocalTest {
   /** Client id of the prior version this one supersedes — forms the history chain. Round-trips
    * through PayloadJson, so the server keeps every version as its own linked record. */
   supersedesId?: string;
+  /** On a version an automatic merge produced: the other version it combined (one that replaced the
+   * same earlier version — an offline edit). That version is superseded too. */
+  mergedFromId?: string;
   /** Cumulative amendment history (one record per superseding version, appended at sign-off).
    * Rendered as the final "Amendment history" page of the Test Summary report. */
   amendments?: AmendmentRecord[];
