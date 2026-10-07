@@ -243,6 +243,8 @@ builder.Services.AddPdfStore(builder.Configuration, builder.Environment);
 // the pass that moves any still inline when a start is asked to (PdfStore:PulsationBackfill: Off
 // unless set to DryRun or Run).
 builder.Services.AddScoped<PulsationAttachments>();
+// Each version's Final Report, as its tester's device or the admin viewer sent it.
+builder.Services.AddScoped<FinalReportStore>();
 builder.Services.AddScoped<PulsationBackfill>();
 builder.Services.AddHostedService<PulsationBackfillService>();
 

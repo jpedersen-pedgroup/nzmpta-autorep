@@ -19,7 +19,8 @@ import { allTests, currentTesterName, getTest, putTest, type LocalTest, type Tes
 import { fetchFarm } from "../farms";
 import { buildAmendmentRecord, computeChanges, computeChangesWithPaths } from "../versioning/amendments";
 import { buildAdminPayload, draftFromPayload, withinScope, type EditScope } from "../versioning/adminEdit";
-import { isReplaced } from "../versioning/chain";
+import { isReplaced, savedByAdministrator } from "../versioning/chain";
+import { storeAdminVersionReport, type SavedReportState } from "../versioning/adminReport";
 import { AdminEditBar, VersionNotices, type SaveProblem } from "./VersionBanners";
 import { deriveReadings } from "../passfail/derived";
 import { useServerOnline } from "../connectivity";
@@ -216,6 +217,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
   const [serverTester, setServerTester] = useState<TesterDetails | null | undefined>(undefined);
   // …and the report as the tester signed it off, when the server holds one.
   const [storedReport, setStoredReport] = useState<StoredReport | null>(null);
+  // …and, just after an administrator's save, keeping the new version's own report there.
+  const [savedReport, setSavedReport] = useState<SavedReportState | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -339,6 +342,20 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
     addEventListener("beforeunload", warn);
     return () => removeEventListener("beforeunload", warn);
   }, [adminEdit, test]);
+
+  // Just after an administrator's save, the viewer opens the new version: its report is made and kept
+  // on the server (versioning/adminReport.ts) — once, and not when the server already holds one.
+  const keepSavedReport = async (version: LocalTest) => {
+    setSavedReport({ kind: "storing" });
+    const outcome = await storeAdminVersionReport(version, serverBranding, serverTester);
+    setSavedReport(outcome);
+    if (outcome.kind === "stored") setStoredReport({ storedAt: new Date().toISOString(), sizeBytes: outcome.sizeBytes });
+  };
+  useEffect(() => {
+    if (!admin || !serverDto || !test || adminEdit || savedReport || serverDto.finalReport) return;
+    if (!new URLSearchParams(location.search).get("saved")) return;
+    void keepSavedReport(test);
+  }, [serverDto, test]);
 
   if (error) {
     const back = backHref ?? "/App/Tests/Index";
@@ -684,19 +701,21 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
   };
 
   // Read-only server view: the report the tester's device stored at sign-off, as it was — beside
-  // Download report, which makes a new one from the recorded data.
+  // Download report, which makes a new one from the recorded data. For a version an administrator
+  // saved, the copy made at the save.
   const downloadStoredReport = async () => {
     if (!serverTestId) return;
+    const as = savedByAdministrator(test) ? "as saved" : "as signed off";
     try {
       const res = await fetch(`/api/tests/${encodeURIComponent(serverTestId)}/final-report`, { redirect: "manual" });
       if (res.status === 404) {
-        showToast("The server has no copy of this report as it was signed off.", "error");
+        showToast(`The server has no copy of this report ${as === "as saved" ? "as it was saved" : "as it was signed off"}.`, "error");
         return;
       }
       if (!res.ok || res.type === "opaqueredirect") throw new Error(String(res.status));
-      savePdf(new Uint8Array(await res.arrayBuffer()), reportFileName(test).replace(/\.pdf$/i, " - as signed off.pdf"));
+      savePdf(new Uint8Array(await res.arrayBuffer()), reportFileName(test).replace(/\.pdf$/i, ` - ${as}.pdf`));
     } catch {
-      showToast("Could not download the report as signed off — check your connection and try again.", "error");
+      showToast(`Could not download the report ${as} — check your connection and try again.`, "error");
     }
   };
 
@@ -762,6 +781,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
       saving={saving}
       problem={saveProblem}
       savedVersion={savedVersion}
+      savedReport={savedReport}
+      onRetrySavedReport={() => void keepSavedReport(test)}
       generating={generating}
       onStart={startEditing}
       onSave={() => void saveEditing()}

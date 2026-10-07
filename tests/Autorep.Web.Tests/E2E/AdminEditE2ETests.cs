@@ -116,7 +116,17 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         Assert.True(PageCount(amended) > PageCount(original),
             $"the regenerated report should carry the amendment history page ({PageCount(original)} → {PageCount(amended)} pages)");
 
+        // The new version's own report is kept on the server too — made in the browser right after the
+        // save, as a tester's device keeps the one it signs off — and the viewer offers it "as saved".
+        await saved.Locator("[data-saved-report='stored']").WaitForAsync(new() { Timeout = 60_000 });
         var version = await WithDbAsync(db => db.MachineTests.SingleAsync(t => t.SupersedesClientId == clientId));
+        var kept = await WithDbAsync(db => db.FinalReportBlobs.SingleAsync(r => r.MachineTestId == version.Id));
+        Assert.Equal(_factory.AdminId, kept.StoredBy);
+        await Step(page, "Review & Sign-Off").ClickAsync();
+        await page.Locator("[data-stored-report]", new() { HasText = "As saved" }).WaitForAsync();
+        var asSaved = await DownloadAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Download the report as saved" }));
+        Assert.Equal(kept.SizeBytes, asSaved.Length);
+
         Assert.Equal(2, version.Version);
         Assert.Equal(_factory.TesterId, version.TesterId);
         Assert.Equal(_factory.AdminId, version.AuthorId);

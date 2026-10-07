@@ -6,6 +6,7 @@ import type { ComponentChildren } from "preact";
 import type { LocalTest } from "../db/testStore";
 import { authorOf, madeByOther, rivalsOf } from "../versioning/chain";
 import type { EditScope } from "../versioning/adminEdit";
+import type { SavedReportState } from "../versioning/adminReport";
 
 function when(iso?: string | null): string {
   if (!iso) return "—";
@@ -95,6 +96,9 @@ interface AdminEditBarProps {
   problem: SaveProblem | null;
   /** Set right after a save brought the editor here: the version number saved. */
   savedVersion: string | null;
+  /** Keeping that version's report on the server (versioning/adminReport.ts). */
+  savedReport?: SavedReportState | null;
+  onRetrySavedReport?(): void;
   generating: boolean;
   onStart(): void;
   onSave(): void;
@@ -134,6 +138,29 @@ function problemText(problem: SaveProblem): ComponentChildren {
     case "message":
       return problem.text;
   }
+}
+
+/** How keeping the saved version's report on the server went (it is still downloadable either way). */
+function SavedReportLine({ state, onRetry }: { state: SavedReportState; onRetry?: () => void }) {
+  const retry = onRetry && (
+    <button class="btn btn--sm btn--secondary" onClick={onRetry}>
+      Try again
+    </button>
+  );
+  return (
+    <p class="admin-edit__report" data-saved-report={state.kind}>
+      {state.kind === "storing" && "Keeping a copy of this version's report on the server…"}
+      {state.kind === "stored" && (
+        <>A copy of this version's report is kept on the server — “Download the report as saved” on the sign-off step gives it.</>
+      )}
+      {state.kind === "failed" && (
+        <>
+          This version's report wasn't kept on the server: {state.message} {retry}
+        </>
+      )}
+      {state.kind === "signed-out" && <>You've been signed out, so the report wasn't kept on the server. Sign in again, then {retry}</>}
+    </p>
+  );
 }
 
 /** The admin portal's edit controls for the version on screen. */
@@ -188,6 +215,9 @@ export function AdminEditBar(props: AdminEditBarProps) {
           <button class="btn btn--sm" disabled={props.generating} onClick={props.onDownload}>
             {props.generating ? "Generating…" : "Download report (PDF)"}
           </button>
+          {props.savedReport && (
+            <SavedReportLine state={props.savedReport} onRetry={props.onRetrySavedReport} />
+          )}
         </div>
       )}
       {view.editScope ? (
