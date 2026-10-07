@@ -34,7 +34,7 @@ All three are implemented (`Program.cs`). `dry-run` and `cutover` run the same p
 | `--target-conn "<target conn>"` | `dry-run`, `cutover` | Target database. Falls back to `$AUTOREP_TARGET_CONN`. Required — exit code 2 if neither is set. |
 | `--confirm "<token>"` | `cutover` | Must start with `GO-LIVE`. Exit code 3 if the guard refuses. |
 | `--out <dir>` | `dry-run`, `cutover` | Where the CSVs go. Default: `migration-output/` beside the built binary. |
-| `--limit <n>` | `dry-run` only | Process only the first *n* logical tests (companies, testers and farms still migrate in full), for quick smoke runs. Refused with `cutover` (exit code 2): a partial production load would then be locked in by the empty-target guard. |
+| `--limit <n>` | `dry-run` only | Process only the first *n* logical tests, for quick smoke runs. Companies and testers still migrate in full; **farms migrate only where one of the selected tests references them** (farm discovery runs over the truncated list), so a partial farm count in `reconciliation.csv` is expected on a limited run. Refused with `cutover` (exit code 2): a partial production load would then be locked in by the empty-target guard. |
 
 Options take `--key value` or `--key=value`.
 
@@ -55,9 +55,13 @@ dotnet run --project tools/Migration -- cutover --target-conn "Server=...prod...
 - `data-quality.csv` — row-level quarantine: `LegacyTable,LegacyKey,TargetEntity,Reason,Severity`.
   **PII-redacted by design** (`Pipeline/Quarantine.cs`): only the legacy key and a reason code, never
   names, emails, addresses or phone numbers, so it is safe to share with NZMPTA. Sorted, so an
-  unchanged source produces an identical file on re-run.
-- `reconciliation.csv` — per-entity counts (source rows, migrated, skipped as already present,
-  quarantined), also printed to the console.
+  unchanged source produces an identical file on re-run **into a cleared target**. On a populated
+  target the skip checks run before most findings are recorded (invalid logos, inactive testers,
+  defaulted configurations are only found while a row is being migrated), so a re-run's CSV is
+  shorter, not identical — another reason the validation runs go into a fresh database.
+- `reconciliation.csv` — per-entity counts: `Entity,SourceRows,Migrated,SkippedExisting`, also
+  printed to the console. Quarantine totals are not in it; count them from `data-quality.csv`
+  (one row per quarantined legacy row).
 
 ### Migrated accounts
 

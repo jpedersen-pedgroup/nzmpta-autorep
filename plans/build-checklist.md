@@ -145,7 +145,7 @@ In priority order. Each line expands in the sections below.
 - [ ] ⬜ Filter chips (Tester, Company, Farm, date range, status)
 - [ ] ⬜ **Edit any field → new linked version** — reuse the tester-side amendment model (`Client/versioning/amendments.ts`); needs an admin write path (today `/api/tests/{id}` is GET-only)
 - [ ] ⬜ Audit panel — version timeline + per-field diffs + attestation events (data exists in the payload)
-- [ ] ⬜ Report download / regenerate from the admin viewer (same generator; no server store needed)
+- [x] ✅ Report download from the admin viewer — the server-view branch of `ReviewSignOffStep` offers "Download report (PDF)" and `WizardApp` runs the shared generator over the server-fetched test and branding; the admin edit path just has to leave that in place
 - [ ] ⬜ Soft-delete with mandatory reason (no `IsDeleted`/`DeletedAt` on `MachineTest` today)
 - [ ] ⬜ **Sync reconciliation** — once admins can edit, a tester's queued offline edit and an admin edit of the same test can collide. Contracted answer (PRD §Decisions): field-level merge where the edited field sets don't overlap, last-writer-wins per field where they do, both states kept as versions, and a `SyncConflict` record surfaced in the admin list ("has conflicts" filter). Build alongside the edit path, not after it.
 - [ ] ⬜ O2 Playwright path (admin edits synced test → new version → report regenerates)
