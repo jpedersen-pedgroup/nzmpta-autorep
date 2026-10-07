@@ -3,6 +3,7 @@ using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -51,6 +52,13 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
     /// </summary>
     public bool NetworkDown { get; set; }
 
+    /// <summary>
+    /// "A new build has been deployed", as a device notices it: while set, /sw.js is served with this
+    /// appended, so the browser sees a byte-different worker and installs it — same cache name, same
+    /// files, exactly what a deploy that changes only the worker looks like.
+    /// </summary>
+    public string? ServiceWorkerSuffix { get; set; }
+
     /// <summary>The Kestrel host's services — the one the browser talks to, and the only one seeded.</summary>
     public IServiceProvider AppServices => _kestrelHost?.Services
         ?? throw new InvalidOperationException("Host not started — touch Services first.");
@@ -66,7 +74,7 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
         });
     }
 
-    /// <summary>Puts the NetworkDown check in front of the whole pipeline.</summary>
+    /// <summary>Puts the NetworkDown and ServiceWorkerSuffix switches in front of the whole pipeline.</summary>
     private sealed class NetworkSwitch(OfflineE2EWebAppFactory factory) : IStartupFilter
     {
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
@@ -76,6 +84,14 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
                 if (factory.NetworkDown)
                 {
                     context.Abort();
+                    return;
+                }
+                if (factory.ServiceWorkerSuffix is { } suffix && context.Request.Path == "/sw.js")
+                {
+                    var env = context.RequestServices.GetRequiredService<IWebHostEnvironment>();
+                    var worker = await File.ReadAllTextAsync(Path.Combine(env.WebRootPath, "sw.js"));
+                    context.Response.ContentType = "text/javascript; charset=utf-8";
+                    await context.Response.WriteAsync(worker + suffix);
                     return;
                 }
                 await nextMiddleware();
