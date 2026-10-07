@@ -160,36 +160,51 @@ public sealed class PulsationBackfill
         }
 
         var pointer = PulsationPayload.AsStored(row.PayloadJson, sha, holderClientId: null)!;
-        if (!await ReplacePayloadIfUnchangedAsync(row.Id, row.UpdatedAt, pointer, ct))
-            return (Outcome.ChangedMeanwhile, 0); // the stored object is harmless: content-addressed
-
-        _db.AuditEntries.Add(new AuditEntry
+        AuditEntry Audit() => new()
         {
             Actor = "system",
             EntityType = nameof(MachineTest),
             EntityKey = row.Id.ToString(),
             Operation = "PulsationPdfMovedToStore",
             AfterJson = JsonSerializer.Serialize(new { blobKey = key, sha256 = sha, sizeBytes = bytes.Length }),
-        });
-        await _db.SaveChangesAsync(ct);
-        return (Outcome.Moved, bytes.Length);
+        };
+        return await ReplacePayloadIfUnchangedAsync(row.Id, row.UpdatedAt, pointer, Audit, ct)
+            ? (Outcome.Moved, bytes.Length)
+            : (Outcome.ChangedMeanwhile, 0); // the stored object is harmless: content-addressed
     }
 
-    /// <summary>Writes the payload only if the row's UpdatedAt is still what was read — every push
-    /// stamps it — so a push landing mid-pass is never overwritten with an older payload. A single
-    /// conditional UPDATE on SQL Server; the in-memory provider the tests use has no
-    /// ExecuteUpdate, and nothing writes concurrently there.</summary>
-    private async Task<bool> ReplacePayloadIfUnchangedAsync(Guid id, DateTimeOffset seenUpdatedAt, string payload, CancellationToken ct)
+    /// <summary>
+    /// Writes the payload, and its audit entry, only if the row's UpdatedAt is still what was read —
+    /// every push stamps it — so a push landing mid-pass is never overwritten with an older payload.
+    /// Both in one transaction: a payload rewritten without its audit entry would never be found
+    /// again to put that right (it no longer holds inline bytes). On SQL Server that's a conditional
+    /// UPDATE and the audit insert inside the retrying execution strategy (each attempt starts from a
+    /// clean change tracker and a fresh audit entry); the in-memory provider the tests use has
+    /// neither ExecuteUpdate nor transactions, so there it's one SaveChanges.
+    /// </summary>
+    private async Task<bool> ReplacePayloadIfUnchangedAsync(
+        Guid id, DateTimeOffset seenUpdatedAt, string payload, Func<AuditEntry> audit, CancellationToken ct)
     {
         if (_db.Database.IsRelational())
         {
-            return await _db.MachineTests
-                .Where(t => t.Id == id && t.UpdatedAt == seenUpdatedAt)
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.PayloadJson, payload), ct) == 1;
+            return await _db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                _db.ChangeTracker.Clear();
+                await using var tx = await _db.Database.BeginTransactionAsync(ct);
+                var updated = await _db.MachineTests
+                    .Where(t => t.Id == id && t.UpdatedAt == seenUpdatedAt)
+                    .ExecuteUpdateAsync(s => s.SetProperty(t => t.PayloadJson, payload), ct);
+                if (updated != 1) return false; // disposing the transaction rolls it back
+                _db.AuditEntries.Add(audit());
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return true;
+            });
         }
         var row = await _db.MachineTests.FirstOrDefaultAsync(t => t.Id == id, ct);
         if (row is null || row.UpdatedAt != seenUpdatedAt) return false;
         row.PayloadJson = payload;
+        _db.AuditEntries.Add(audit());
         await _db.SaveChangesAsync(ct);
         return true;
     }
