@@ -4,6 +4,7 @@
 // or sync. The logo can be up to 1 MB, so the cached ETag rides along as If-None-Match and an
 // unchanged logo costs a bodyless 304 rather than a re-download.
 import { getReference, putReference } from "../db/testStore";
+import { fetchWithTimeout } from "../connectivity";
 
 export interface CompanyBranding {
   id: string;
@@ -41,7 +42,7 @@ export async function initCompanyBranding(): Promise<void> {
     const cached = await readCache();
     const headers: Record<string, string> = { Accept: "application/json" };
     if (cached?.etag) headers["If-None-Match"] = cached.etag;
-    const res = await fetch("/api/profile/company", { headers });
+    const res = await fetchWithTimeout("/api/profile/company", { headers });
     if (res.status === 304) return;
     // No company any more: stop printing the old one's letterhead.
     if (res.status === 204) {

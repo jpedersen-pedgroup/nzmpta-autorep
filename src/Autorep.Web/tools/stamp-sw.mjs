@@ -90,11 +90,42 @@ const guideFiles = JSON.parse(readFileSync(resolve(projectRoot, "Guides/guides.j
 if (!guideFiles.length) fail("Guides/guides.json lists no guides — refusing to continue.");
 const guidesLine = `const GUIDE_FILES = [${guideFiles.map((f) => `'${f}'`).join(", ")}];`;
 
+// --- the bundle files the worker precaches ------------------------------------------------------
+// The entry plus everything it loads without being asked: its static imports, transitively, and
+// any small lazy chunk (a toast helper, say). sw.js precaches these on install so a worker that has
+// just taken over can launch the app with no signal. The report generator's chunks are lazy AND
+// large; they are left to Client/report/generatorChunks.ts, which warms them after a sync.
+const LAZY_CHUNK_PRECACHE_LIMIT = 64 * 1024;
+const bundlePattern = /const BUNDLE_FILES = \[[^\]]*\];/;
+if (!bundlePattern.test(sw)) fail("no BUNDLE_FILES line found in sw.js — refusing to continue.");
+const entryOutput = Object.entries(meta.outputs).find(([, out]) => out.entryPoint === "Client/main.ts")?.[0];
+if (!entryOutput) fail("the metafile has no output for Client/main.ts — refusing to continue.");
+const toUrl = (output) => "/" + output.replace(/^wwwroot\//, "");
+const bundleFiles = new Set();
+const visit = (output) => {
+  if (bundleFiles.has(output)) return;
+  const out = meta.outputs[output];
+  if (!out) fail(`the metafile references ${output} but has no output for it.`);
+  bundleFiles.add(output);
+  for (const imp of out.imports ?? []) {
+    if (imp.external) continue;
+    if (imp.kind === "import-statement") visit(imp.path);
+    else if (imp.kind === "dynamic-import" && meta.outputs[imp.path]?.bytes <= LAZY_CHUNK_PRECACHE_LIMIT) visit(imp.path);
+  }
+};
+visit(entryOutput);
+const bundleUrls = [...bundleFiles].map(toUrl).sort();
+if (!bundleUrls.every((u) => u.startsWith("/js/dist/"))) fail(`unexpected bundle output paths: ${bundleUrls.join(", ")}`);
+const bundleLine = `const BUNDLE_FILES = [${bundleUrls.map((u) => `'${u}'`).join(", ")}];`;
+
 // Sorted within each section so filesystem ordering can't change the result.
 const fingerprint = ["bundle", ...bundleParts.sort(), "shell", ...shellParts.sort(), "guides", ...guideFiles].join("\n");
 const stamp = createHash("sha256").update(fingerprint).digest("hex").slice(0, 12);
 
-const stamped = sw.replace(pattern, `$1${stamp}$2`).replace(guidesPattern, guidesLine);
+const stamped = sw
+  .replace(pattern, `$1${stamp}$2`)
+  .replace(guidesPattern, guidesLine)
+  .replace(bundlePattern, bundleLine);
 if (stamped === sw) {
   console.log(`[stamp-sw] CACHE_VERSION already autorep-${stamp}`);
 } else {

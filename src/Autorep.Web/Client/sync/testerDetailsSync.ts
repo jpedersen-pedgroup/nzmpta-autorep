@@ -3,6 +3,7 @@
 // number to call, when it's generated offline on-farm. Read-only on the device: an admin maintains
 // them. Refreshed on app load and each sync; offline, the last-known details stay in effect.
 import { getReference, putReference, type TesterDetails } from "../db/testStore";
+import { fetchWithTimeout } from "../connectivity";
 
 export type { TesterDetails };
 
@@ -18,7 +19,7 @@ function normalize(dto: unknown): TesterDetails | null {
 
 export async function initTesterDetails(): Promise<void> {
   try {
-    const res = await fetch("/api/profile/tester", { headers: { Accept: "application/json" } });
+    const res = await fetchWithTimeout("/api/profile/tester", { headers: { Accept: "application/json" } });
     if (!res.ok) return;
     const details = normalize(await res.json());
     if (details) await putReference({ key: REF_KEY, rows: details });

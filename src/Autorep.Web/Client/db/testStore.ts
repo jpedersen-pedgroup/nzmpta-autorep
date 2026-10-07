@@ -3,6 +3,7 @@
 // Final Report blobs. Wraps `idb` for a small typed surface.
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { ChecklistAttestation, MachineConfiguration, VisualFaultEntry } from "../wizard/types";
+import { cachedIdentity } from "./identity";
 
 export type SyncState = "local-only" | "uploading" | "uploaded" | "merge-conflict";
 
@@ -173,11 +174,23 @@ const DB_VERSION = 2; // v2: + reference store (synced standards / catalogs)
 const LAST_TESTER_KEY = "autorep:lastTesterId";
 const KNOWN_TESTERS_KEY = "autorep:knownTesterIds";
 
-/** The signed-in tester's id, injected by _Layout. null means identity isn't established yet —
- * never that nobody is signed in — so callers must treat it as "don't know", not "no one". */
+/** The signed-in tester's id: injected by _Layout on a server-rendered page, else — in the offline
+ * shell, which carries no identity — the device's identity record (db/identity.ts), which must be
+ * loaded before the store is first touched. The server's answer always wins when there is one.
+ * null means identity isn't established yet — never that nobody is signed in — so callers must
+ * treat it as "don't know", not "no one". */
 export function currentTesterId(): string | null {
   const id = (globalThis as { __autorepTesterId?: unknown }).__autorepTesterId;
-  return typeof id === "string" && id.length > 0 ? id : null;
+  if (typeof id === "string" && id.length > 0) return id;
+  return cachedIdentity()?.testerId ?? null;
+}
+
+/** The signed-in account's login name, as amendment records name it — same sources and order as
+ * currentTesterId. */
+export function currentTesterName(): string | undefined {
+  const name = (globalThis as { __autorepTesterName?: unknown }).__autorepTesterName;
+  if (typeof name === "string" && name.length > 0) return name;
+  return cachedIdentity()?.userName ?? undefined;
 }
 
 // Per-tester database name so a shared device never exposes one tester's cached tests / farm PII to
@@ -329,8 +342,20 @@ export async function getTest(id: string): Promise<LocalTest | undefined> {
   return (await db()).get("tests", id);
 }
 
+/** Tells the page a test was written or removed, so the pending-work count in the header (and
+ * anything else watching) can re-read. A no-op outside a browser. */
+function announceTestsChanged(): void {
+  const target = globalThis as { dispatchEvent?: (e: Event) => boolean };
+  if (typeof target.dispatchEvent === "function" && typeof Event === "function") {
+    target.dispatchEvent(new Event(TESTS_CHANGED_EVENT));
+  }
+}
+
+export const TESTS_CHANGED_EVENT = "autorep:tests-changed";
+
 export async function putTest(test: LocalTest): Promise<void> {
   await (await db()).put("tests", test);
+  announceTestsChanged();
 }
 
 export async function allTests(): Promise<LocalTest[]> {
@@ -339,4 +364,10 @@ export async function allTests(): Promise<LocalTest[]> {
 
 export async function deleteTest(id: string): Promise<void> {
   await (await db()).delete("tests", id);
+  announceTestsChanged();
+}
+
+/** How many tests on this device the server hasn't got yet. */
+export async function countUnsynced(): Promise<number> {
+  return (await allTests()).filter((t) => t.syncState === "local-only").length;
 }

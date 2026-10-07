@@ -15,11 +15,12 @@ import {
   type VisualFaultEntry,
   type WizardStep,
 } from "./types";
-import { allTests, getTest, putTest, type LocalTest, type TesterDetails } from "../db/testStore";
+import { allTests, currentTesterName, getTest, putTest, type LocalTest, type TesterDetails } from "../db/testStore";
 import { fetchFarm } from "../farms";
 import { buildAmendmentRecord } from "../versioning/amendments";
 import { deriveReadings } from "../passfail/derived";
 import { useServerOnline } from "../connectivity";
+import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "../appEvents";
 import { downloadTestSummaryPdf, type ReportBranding } from "../report/testSummaryPdf";
 import { ReportGeneratorUnavailableError } from "../report/generatorChunks";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
@@ -184,6 +185,18 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   // *inside* that column, and the sticky bars two of them add have to clear the sticky app
   // header, which is what this measures.
   useAppHeaderOffset();
+
+  // The wizard mounts on the standards and catalogs this device last synced, without waiting for
+  // the network (main.ts). When the background refresh brings newer ones, re-render so every
+  // pass/fail on screen is judged against what is now in effect.
+  const [, setReferenceTick] = useState(0);
+  useEffect(() => {
+    const onRefreshed = (e: Event) => {
+      if ((e as CustomEvent<ReferenceRefreshedDetail>).detail?.changed) setReferenceTick((n) => n + 1);
+    };
+    addEventListener(REFERENCE_REFRESHED_EVENT, onRefreshed);
+    return () => removeEventListener(REFERENCE_REFRESHED_EVENT, onRefreshed);
+  }, []);
 
   useEffect(() => {
     if (serverTestId) return;
@@ -456,10 +469,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
 
     let amendments = test.amendments;
     if (test.supersedesId) {
-      const amendedBy = (globalThis as { __autorepTesterName?: unknown }).__autorepTesterName;
-      const record = buildAmendmentRecord(
-        base, { ...test, nextTestDate }, now, typeof amendedBy === "string" ? amendedBy : undefined,
-      );
+      // From the page when the server rendered it, else the identity record (the offline shell).
+      const record = buildAmendmentRecord(base, { ...test, nextTestDate }, now, currentTesterName());
       amendments = [...(test.amendments ?? []).filter((a) => a.version !== record.version), record];
     }
 

@@ -13,7 +13,9 @@ public class LogoutModel : PageModel
 
     public LogoutModel(SignInManager<Tester> signIn) => _signIn = signIn;
 
-    public IActionResult OnGet() => RedirectToPage("/Index");
+    // A confirmation page rather than a redirect home: the offline shell links here because it
+    // has no antiforgery token to post with (see Logout.cshtml).
+    public void OnGet() { }
 
     public async Task<IActionResult> OnPostAsync()
     {

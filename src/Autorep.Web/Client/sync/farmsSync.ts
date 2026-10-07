@@ -4,6 +4,7 @@
 // device last loaded the app. Full replace on every successful fetch: farms deactivated or
 // re-scoped since the last visit drop out of the cache rather than lingering.
 import { getReference, putReference } from "../db/testStore";
+import { fetchWithTimeout } from "../connectivity";
 
 /** A farm as cached on-device (mirrors the server FarmDto). */
 export interface CachedFarm {
@@ -27,7 +28,7 @@ const REF_KEY = "farms";
 
 export async function initFarms(): Promise<void> {
   try {
-    const res = await fetch("/api/farms", { headers: { Accept: "application/json" } });
+    const res = await fetchWithTimeout("/api/farms", { headers: { Accept: "application/json" } });
     if (!res.ok) return; // offline / unauthenticated — the cached farm book stays in effect
     const farms = (await res.json()) as CachedFarm[];
     if (!Array.isArray(farms)) return;

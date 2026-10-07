@@ -46,6 +46,12 @@
                 <img class="app-header__brand-logo" src="~/img/logo-mpnz-white.svg" alt="" width="88" height="30" />
                 <span>AutoRep App</span>
             </a>
+            @if (isTester)
+            {
+                @* Connection + unsynced-work indicator, drawn by the bundle (Client/shell/AppStatus.tsx)
+                   on the pages that load it. wwwroot/app-shell.html mirrors this header — change both. *@
+                <span id="app-status-root" class="app-header__status"></span>
+            }
             <button type="button" class="app-header__burger" id="nav-burger" aria-label="Toggle menu" aria-expanded="false">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                     <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />

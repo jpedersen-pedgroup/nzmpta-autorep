@@ -3,19 +3,9 @@
     ViewData["Title"] = "My tests";
 }
 
-<div class="page-header">
-    <div class="page-header__heading">
-        <h1>My tests</h1>
-        <p>Machine tests you've created, saved on this device.</p>
-    </div>
-    <div class="page-header__actions">
-        <a class="btn btn--secondary" asp-page="/App/Tests/Company">Company tests</a>
-        <a class="btn" asp-page="/App/Tests/New">+ New test</a>
-    </div>
-</div>
-
-@* The tester's tests live in IndexedDB (offline-first) and are listed client-side by the
-   Preact bundle; synced/downloaded tests merge into the same list. *@
+@* The tester's tests live in IndexedDB (offline-first) and are listed client-side by the Preact
+   bundle, page header included (Client/ui/TestListApp.tsx): the offline shell (wwwroot/app-shell.html)
+   serves this page from the device, and both must draw the same thing. *@
 <div id="test-list-root"></div>
 
 @section Scripts {

@@ -1,2 +1,20 @@
 @page
 @model Autorep.Web.Pages.Account.LogoutModel
+@{
+    ViewData["Title"] = "Sign out";
+}
+
+@* Reached by GET from the offline shell's Sign out link: the shell is a static, cached document,
+   so it has no antiforgery token and can't post the sign-out form itself. Every server-rendered
+   page still posts straight from the header. *@
+<div class="card" style="max-width:520px">
+    <h1 style="margin-top:0">Sign out?</h1>
+    <p>
+        Tests you haven't synced stay saved on this device, and send the next time you sign in and
+        sync. Another tester signing in here can't see or send them.
+    </p>
+    <form method="post" class="form-actions">
+        <button type="submit" class="btn">Sign out</button>
+        <a class="btn btn--secondary" href="/">Cancel</a>
+    </form>
+</div>
