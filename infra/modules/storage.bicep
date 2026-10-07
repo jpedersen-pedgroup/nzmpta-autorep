@@ -1,7 +1,7 @@
 // Storage Account (StorageV2, Standard_LRS) with public access disabled and a Private Endpoint for blob.
 // Shared-key access disabled — only Managed Identity / Azure AD auth.
 // Two containers seeded: final-reports (Final Report PDFs) and pulsation-data (uploaded Pulsation PDFs),
-// both immutable (version-level WORM) for pdfRetentionDays — seven years — per blob version.
+// both immutable (version-level WORM) for pdfRetentionDays — ten years — per blob version.
 
 @description('Azure region')
 param location string
@@ -21,14 +21,15 @@ param privateDnsZoneId string
 @description('Log Analytics workspace ID for diagnostic settings')
 param logAnalyticsWorkspaceId string
 
-// Seven years (7 × 365 + 2 leap days): the PRD's audit window. Every version of a Final Report or a
-// pulsation analyser PDF is immutable (WORM) for this long after it is written: it can't be deleted,
-// and an overwrite keeps the old version. The policy is UNLOCKED — an Owner can still shorten or
-// remove it — until NZMPTA confirms the period; locking it is a separate, irreversible step.
+// Ten years (Josh, 8 Oct 2026 — beyond the PRD's seven-year audit window): 10 × 365 + 3, the most
+// leap days any ten years can hold. Every version of a Final Report or a pulsation analyser PDF is
+// immutable (WORM) for this long after it is written: it can't be deleted, and an overwrite keeps
+// the old version. The policy is UNLOCKED — an Owner can still shorten or remove it — until NZMPTA
+// confirms the period; locking it is a separate, irreversible step.
 @description('Days each version of a PDF in final-reports and pulsation-data stays immutable (WORM).')
 @minValue(1)
 @maxValue(146000)
-param pdfRetentionDays int = 2557
+param pdfRetentionDays int = 3653
 
 // Storage account names: 3–24 chars, lowercase alphanumeric only, globally unique.
 var storageAccountName = take('st${replace(resourceBase, '-', '')}', 24)

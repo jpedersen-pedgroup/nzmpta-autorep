@@ -212,9 +212,9 @@ In priority order. Each line expands in the sections below.
 
 ## Decisions and open items (for NZMPTA / Josh)
 - **Server-side Final Report store** — *decided 7 Oct 2026 (Josh): build it* (built, see O3). Three questions it leaves for Josh / NZMPTA:
-  - **Which report is "the" Final Report** when the tester printed only some sections? Built as: always the full report at sign-off, whatever was printed (recommended).
-  - **Retention.** The PRD wants a 7-year audit trail; blob soft delete and versioning keep 35 days. Options: version-level immutability (WORM) on the two containers, a lifecycle policy, or both — needs a decision before an infra change.
-  - **Company Administrators** download the stored report too (built that way, with the view's company scoping — recommended). Testers can too, for colleagues' completed tests they can already view.
+  - **Which report is "the" Final Report** when the tester printed only some sections? Built as: always the full report at sign-off. *8 Oct 2026 (Josh): also keep what gets printed afterwards — e.g. a section reprinted after a recommendation is fixed — hash-compared so unchanged copies aren't stored twice. Design being settled.*
+  - **Retention** — *decided 8 Oct 2026 (Josh): ten years.* Version-level immutability (WORM) on both PDF containers with an unlocked ten-year (3653-day) default policy, PR #82; staging's two existing containers must be migrated before it merges (commands in the PR). Lifecycle tiering not wanted at today's volumes. (Blob soft delete and versioning stay at 35 days for everything else.)
+  - **Company Administrators** download the stored report too — *confirmed 8 Oct 2026 (Josh)*, with the view's company scoping. Testers can too, for colleagues' completed tests they can already view.
 - **Vendor Specification Effective Date / snapshot-at-test-start** — not built as specified; confirm the standards model is sufficient.
 - **Equipment types** — 8 built vs 11 in the contract line; name the missing three or close.
 - **2FA mechanism** (TOTP only vs email fallback) — never confirmed; TOTP enforcement for Super-Administrators shipped in PR #71 regardless. Confirm whether an email-code fallback is still wanted.
