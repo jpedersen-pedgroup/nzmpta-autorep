@@ -253,12 +253,23 @@ public class SyncController : ControllerBase
         try
         {
             stored = await StoreAsync(req, testerId, ct);
+            // Deleted between that check and the parent being read for this write: it still joins the
+            // deleted test. (A deletion committing after the read makes this save fail instead: the
+            // parent's stamp has moved.)
+            deleted ??= stored.Parent is { IsDeleted: true } deletedParent ? deletedParent : null;
             if (deleted is not null)
             {
-                stored.Test.IsDeleted = true;
-                stored.Test.DeletedAt = deleted.DeletedAt;
-                stored.Test.DeletedById = deleted.DeletedById;
-                stored.Test.DeletedReason = deleted.DeletedReason;
+                // Versions that arrived before this one (a device sends in whatever order its store
+                // lists them) and have just taken its root join the deletion with it.
+                var now = DateTimeOffset.UtcNow;
+                foreach (var row in stored.Adopted.Prepend(stored.Test).Where(r => !r.IsDeleted))
+                {
+                    row.IsDeleted = true;
+                    row.DeletedAt = deleted.DeletedAt;
+                    row.DeletedById = deleted.DeletedById;
+                    row.DeletedReason = deleted.DeletedReason;
+                    row.UpdatedAt = now;
+                }
             }
             await _db.SaveChangesAsync(ct);
         }
@@ -485,22 +496,35 @@ public class SyncController : ControllerBase
     }
 
     /// <summary>The deleted version a push belongs with, when its test has been soft-deleted: the row
-    /// itself, or the version it was made from.</summary>
-    private Task<MachineTest?> DeletedLineageAsync(string testerId, Guid clientId, Guid? parentClientId, CancellationToken ct) =>
-        _db.MachineTests.AsNoTracking()
+    /// itself, the version it was made from, or any other version of the test it joins (by the root it
+    /// takes, which is its parent's when the parent is here) — so a deletion further up the chain is
+    /// found too, not only one in the parent. A version that arrives before its own parent can't be
+    /// placed yet; it joins the deletion when the parent arrives (see UploadTest).</summary>
+    private async Task<MachineTest?> DeletedLineageAsync(string testerId, Guid clientId, Guid? parentClientId, CancellationToken ct)
+    {
+        var root = await TestLineage.RootForNewVersionAsync(_db, testerId, clientId, parentClientId, ct);
+        return await _db.MachineTests.AsNoTracking()
             .Where(t => t.TesterId == testerId && t.IsDeleted
-                && (t.ClientId == clientId || (parentClientId != null && t.ClientId == parentClientId)))
+                && (t.ClientId == clientId
+                    || (parentClientId != null && t.ClientId == parentClientId)
+                    || t.ClientId == root
+                    || t.RootClientId == root))
+            .OrderBy(t => t.DeletedAt)
             .FirstOrDefaultAsync(ct);
+    }
 
-    /// <summary>What a push stored: the row, whether it was new, and a farm it had to create.</summary>
-    private sealed record Stored(MachineTest Test, bool Created, Farm? NewFarm);
+    /// <summary>What a push stored: the row, whether it was new, a farm it had to create, the version it
+    /// was made from (as read for this write), and versions that had arrived before it and now take
+    /// its root.</summary>
+    private sealed record Stored(MachineTest Test, bool Created, Farm? NewFarm, MachineTest? Parent, IReadOnlyList<MachineTest> Adopted);
 
     /// <summary>
     /// Upserts a pushed test (not yet saved). A new VERSION of a test already on the server stays
     /// with that test: the same farm and the same company as its parent, whatever company the tester
     /// is with now — an amendment is more work on the original test, not a new test for the tester's
-    /// current employer. A version signed off here renews its parent's <see cref="MachineTest.SuccessorStamp"/>,
-    /// so a rival writer that checked the same parent fails rather than forking the test.
+    /// current employer. A version signed off here, or a new one started, renews its parent's
+    /// <see cref="MachineTest.SuccessorStamp"/>, so a rival writer that read the same parent fails
+    /// rather than forking the test — or, for a deletion, rather than missing the new version.
     /// </summary>
     private async Task<Stored> StoreAsync(UploadTestRequest req, string testerId, CancellationToken ct)
     {
@@ -518,7 +542,7 @@ public class SyncController : ControllerBase
         var parent = req.SupersedesClientId is { } parentId
             ? await _db.MachineTests.FirstOrDefaultAsync(t => t.TesterId == testerId && t.ClientId == parentId, ct)
             : null;
-        if (parent is not null && req.MarkedCompleteAt is not null && existing?.MarkedCompleteAt is null)
+        if (parent is not null && (existing is null || (req.MarkedCompleteAt is not null && existing.MarkedCompleteAt is null)))
             parent.SuccessorStamp = Guid.NewGuid();
 
         if (existing is not null)
@@ -535,7 +559,7 @@ public class SyncController : ControllerBase
             // done for. Re-deriving it here would drag a tester's old tests into their new company
             // the first time they re-synced after a transfer.
             ApplyConfig(existing, req.Config);
-            return new Stored(existing, false, null);
+            return new Stored(existing, false, null, parent, []);
         }
 
         Farm? newFarm = null;
@@ -557,7 +581,7 @@ public class SyncController : ControllerBase
         }
 
         var root = await TestLineage.RootForNewVersionAsync(_db, testerId, req.ClientId, req.SupersedesClientId, ct);
-        await TestLineage.AdoptDescendantsAsync(_db, testerId, req.ClientId, root, ct);
+        var adopted = await TestLineage.AdoptDescendantsAsync(_db, testerId, req.ClientId, root, ct);
 
         var test = new MachineTest
         {
@@ -578,7 +602,7 @@ public class SyncController : ControllerBase
         };
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
-        return new Stored(test, true, newFarm);
+        return new Stored(test, true, newFarm, parent, adopted);
     }
 
     [HttpGet("tests/{id:guid}")]

@@ -63,6 +63,10 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
 
         /// <summary>Soft-deleted: restore it first.</summary>
         public const string Deleted = "deleted";
+
+        /// <summary>Written to by someone else at the moment of the save — typically the tester's device
+        /// starting a new version of it — without a newer version replacing it: save again.</summary>
+        public const string Busy = "busy";
     }
 
     /// <summary>Whether an edit in <paramref name="scope"/> may change <paramref name="unit"/>
@@ -265,11 +269,13 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
         }
         catch (DbUpdateConcurrencyException)
         {
-            // Someone else's version of this test landed between the check and the save.
+            // Something was written to this test between the check and the save: a newer version (open
+            // that one), a deletion, or the tester's device starting a new version of it (save again).
             db.ChangeTracker.Clear();
             var fresh = await db.MachineTests.FirstAsync(t => t.Id == basis.Id, ct);
+            if (fresh.IsDeleted) return new Refused(Blocked.Deleted);
             var latest = TestLineage.Head(await TestLineage.VersionsAsync(db, fresh, ct));
-            return latest is not null && latest.Id != fresh.Id ? new Stale(latest) : new Refused(Blocked.Superseded);
+            return latest is not null && latest.Id != fresh.Id ? new Stale(latest) : new Refused(Blocked.Busy);
         }
         return new Saved(row);
     }

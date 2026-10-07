@@ -12,6 +12,12 @@ namespace Autorep.Web.Services;
 /// list, the Upcoming page and the tester's device, while the rows stay on record with who deleted
 /// them, when and why. Each version's UpdatedAt moves, so a device's next delta pull receives it as a
 /// tombstone. Restoring brings every version back the same way.
+///
+/// A deletion and a sync can land at the same moment. Both sides write the versions' concurrency
+/// stamp (<see cref="MachineTest.SuccessorStamp"/>) — a push renews its parent's when it starts or
+/// signs off a version, and a deletion renews every version's — so whichever saves second fails and
+/// retries, rather than a new version slipping past the deletion: the administrator's retry includes
+/// it, and the device's retry is stored as deleted.
 /// </summary>
 public sealed class TestDeletion(AutorepDbContext db)
 {
@@ -45,6 +51,7 @@ public sealed class TestDeletion(AutorepDbContext db)
             version.DeletedById = actorId;
             version.DeletedReason = why;
             version.UpdatedAt = now;
+            version.SuccessorStamp = Guid.NewGuid();
         }
         Audit(actorId, test, "SoftDeleted", new { reason = why, versions = Summaries(versions) });
         return await SaveAsync(versions, ct);
@@ -66,6 +73,7 @@ public sealed class TestDeletion(AutorepDbContext db)
             version.DeletedById = null;
             version.DeletedReason = null;
             version.UpdatedAt = now;
+            version.SuccessorStamp = Guid.NewGuid();
         }
         Audit(actorId, test, "Restored", new { previous, versions = Summaries(versions) });
         return await SaveAsync(versions, ct);

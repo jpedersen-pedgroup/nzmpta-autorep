@@ -129,6 +129,8 @@ const BLOCKED_TEXT: Record<string, string> = {
   "in-progress": "It hasn't been signed off yet, so it's still the tester's draft. It can be edited once it's complete.",
   migrated: "It was migrated from AutoRep Plus and reprints from the results recorded at the time, so it can't be edited here.",
   "no-record": "It was synced before full test records were kept, so there's nothing here to edit.",
+  deleted: "It has been deleted, so it can't be edited. Reload the page to see who deleted it and why.",
+  busy: "The test changed on the server at the same moment (the tester's device may have just synced it). Save again — your changes are still here.",
 };
 
 function problemText(problem: SaveProblem): ComponentChildren {

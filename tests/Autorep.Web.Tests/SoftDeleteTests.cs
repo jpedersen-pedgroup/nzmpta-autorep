@@ -4,8 +4,10 @@ using System.Text.Json.Nodes;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using static Autorep.Web.Tests.TestPayloads;
 
@@ -300,5 +302,168 @@ public class SoftDeleteTests : IClassFixture<AuthedWebAppFactory>
         pulled.Where(t => t!["clientId"]!.GetValue<Guid>() == a.V2.ClientId).Should().ContainSingle()
             .Which!["deleted"]!.GetValue<bool>().Should().BeFalse();
         (await a.Admin.PostAsync($"/api/admin/tests/{a.V2.Id}/restore", null)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    // ---- Out of order, and at the same moment -----------------------------------------------
+
+    /// <summary>A tester's unfinished version as their device pushes it.</summary>
+    private static object Draft(Guid clientId, int version, Guid parent)
+    {
+        var payload = Original(clientId);
+        payload["version"] = version;
+        payload["supersedesId"] = parent.ToString();
+        payload["markedCompleteAt"] = null;
+        return new { clientId, farmName = "Kowhai Flats", payloadJson = payload.ToJsonString(), version, supersedesClientId = parent };
+    }
+
+    // A device pushes in whatever order its store lists tests, so a version can reach the server before
+    // the one it was made from. If the test was deleted meanwhile, the early arrival can't be placed
+    // yet; it joins the deletion when its parent arrives.
+    [Fact]
+    public async Task A_version_that_arrives_before_its_parent_joins_the_deletion_when_the_parent_arrives()
+    {
+        var a = await ArrangeAsync("sd-order");
+        var tester = _factory.CreateClientAs(Roles.Tester, a.TesterId);
+        (await DeleteAsync(a.Admin, a.V1.Id)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var v3 = Guid.NewGuid();
+        var v4 = Guid.NewGuid();
+
+        (await tester.PostAsJsonAsync("/api/sync/tests", Draft(v4, 4, v3))).StatusCode.Should().Be(HttpStatusCode.Created);
+        var res = await tester.PostAsJsonAsync("/api/sync/tests", Draft(v3, 3, a.V2.ClientId!.Value));
+
+        (await res.Content.ReadFromJsonAsync<JsonObject>())!["status"]!.GetValue<string>().Should().Be("deleted");
+        var rows = await WithDbAsync(db => db.MachineTests.Where(t => t.ClientId == v3 || t.ClientId == v4).ToListAsync());
+        rows.Should().HaveCount(2).And.OnlyContain(t => t.IsDeleted
+            && t.DeletedReason == "Entered against the wrong farm" && t.RootClientId == a.V1.ClientId);
+        var pulled = JsonNode.Parse(await tester.GetStringAsync("/api/sync/tests"))!["tests"]!.AsArray();
+        pulled.Single(t => t!["clientId"]!.GetValue<Guid>() == v4)!["deleted"]!.GetValue<bool>().Should().BeTrue();
+    }
+
+    // Found anywhere up the chain, not only in the version a push was made from: a version left live
+    // in a deleted test (as an early arrival was, before the case above was handled) can't carry the
+    // test back to the device.
+    [Fact]
+    public async Task A_deletion_further_up_the_chain_is_found()
+    {
+        var a = await ArrangeAsync("sd-chain");
+        var tester = _factory.CreateClientAs(Roles.Tester, a.TesterId);
+        (await DeleteAsync(a.Admin, a.V1.Id)).StatusCode.Should().Be(HttpStatusCode.OK);
+        await WithDbAsync(async db =>
+        {
+            var v2 = await db.MachineTests.SingleAsync(t => t.Id == a.V2.Id);
+            v2.IsDeleted = false;
+            v2.DeletedAt = null;
+            v2.DeletedById = null;
+            v2.DeletedReason = null;
+            return await db.SaveChangesAsync();
+        });
+        var v3 = Guid.NewGuid();
+
+        var res = await tester.PostAsJsonAsync("/api/sync/tests", Draft(v3, 3, a.V2.ClientId!.Value));
+
+        (await res.Content.ReadFromJsonAsync<JsonObject>())!["status"]!.GetValue<string>().Should().Be("deleted");
+        (await WithDbAsync(db => db.MachineTests.SingleAsync(t => t.ClientId == v3))).IsDeleted.Should().BeTrue();
+    }
+
+    // A deletion and the tester's device starting a new version at the same moment. Both write the
+    // stamp of the version the new one is made from, so whichever saves second fails rather than the
+    // new version slipping past the deletion. (On SQL Server the failed save is one transaction and
+    // changes nothing; the in-memory provider here can't show that part.)
+    [Fact]
+    public async Task A_deletion_that_read_the_test_before_a_new_version_arrived_fails_and_its_retry_includes_it()
+    {
+        var a = await ArrangeAsync("sd-race-delete");
+        var tester = _factory.CreateClientAs(Roles.Tester, a.TesterId);
+        var v3 = Guid.NewGuid();
+        using var scope = Services.CreateScope();
+        // The deletion has read the test's versions; as it saves, the tester's device starts version 3.
+        await using var db = RacingContext(scope, new RivalSavesFirst(async () =>
+            (await tester.PostAsJsonAsync("/api/sync/tests", Draft(v3, 3, a.V2.ClientId!.Value)))
+                .StatusCode.Should().Be(HttpStatusCode.Created), thenFail: false));
+
+        var result = await new TestDeletion(db).DeleteAsync(a.V2.Id, "Entered against the wrong farm", "sd-race-delete-admin", default);
+
+        result.Should().BeOfType<TestDeletion.Conflict>().Which.Error.Should().Be("busy",
+            "reporting success would leave version 3 live in a deleted test");
+        (await DeleteAsync(a.Admin, a.V2.Id)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await WithDbAsync(d => d.MachineTests.SingleAsync(t => t.ClientId == v3))).IsDeleted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_sync_that_read_the_test_before_the_deletion_cant_store_a_new_version_past_it()
+    {
+        var a = await ArrangeAsync("sd-race-push");
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        // The push has read version 2, which its new version is made from...
+        var parentAsRead = await db.MachineTests.SingleAsync(t => t.Id == a.V2.Id);
+        // ...when the deletion lands.
+        (await DeleteAsync(a.Admin, a.V2.Id)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Storing a new version renews its parent's stamp (SyncController.StoreAsync).
+        parentAsRead.SuccessorStamp = Guid.NewGuid();
+
+        await db.Invoking(d => d.SaveChangesAsync()).Should().ThrowAsync<DbUpdateConcurrencyException>(
+            "the deletion moved every version's stamp, so the device's push fails and is sent again — and stored deleted");
+    }
+
+    /// <summary>Stages a race: the rival write lands as this context's first save begins — after it has
+    /// read what it read. <paramref name="thenFail"/> then fails the save as a lost race does on SQL
+    /// Server, for a save that adds rows: the in-memory provider would write those before the stale
+    /// update failed, which SQL Server's transaction never would.</summary>
+    private sealed class RivalSavesFirst(Func<Task> rival, bool thenFail) : SaveChangesInterceptor
+    {
+        private bool _raced;
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (_raced) return result;
+            _raced = true;
+            await rival();
+            if (thenFail) throw new DbUpdateConcurrencyException("Another writer saved this version first.");
+            return result;
+        }
+    }
+
+    private static AutorepDbContext RacingContext(IServiceScope scope, RivalSavesFirst race) =>
+        new(new DbContextOptionsBuilder<AutorepDbContext>(
+                scope.ServiceProvider.GetRequiredService<DbContextOptions<AutorepDbContext>>())
+            .AddInterceptors(race)
+            .Options);
+
+    private async Task<AdminVersioning.Result> SaveRacingAsync(Arranged a, Func<Task> rival)
+    {
+        using var scope = Services.CreateScope();
+        await using var db = RacingContext(scope, new RivalSavesFirst(rival, thenFail: true));
+        var payload = JsonNode.Parse(a.V2.PayloadJson!)!.AsObject();
+        return await new AdminVersioning(db, new Reconciliation(db)).SaveAsync(db.MachineTests, a.V2.Id,
+            Edited(payload, p => p["notes"] = "Corrected", version: 3).ToJsonString(), "Corrected on the farmer's call",
+            new AdminVersioning.Editor($"{a.TesterId}-admin", "admin@local", "Sam Superadmin", true), default);
+    }
+
+    [Fact]
+    public async Task An_admin_edit_that_loses_a_race_to_the_testers_new_version_is_answered_busy_not_superseded()
+    {
+        var a = await ArrangeAsync("sd-race-edit");
+        var tester = _factory.CreateClientAs(Roles.Tester, a.TesterId);
+
+        var result = await SaveRacingAsync(a, async () =>
+            (await tester.PostAsJsonAsync("/api/sync/tests", Draft(Guid.NewGuid(), 3, a.V2.ClientId!.Value)))
+                .StatusCode.Should().Be(HttpStatusCode.Created));
+
+        // Nothing newer replaced version 2, so "open the latest version" would be wrong: save again.
+        result.Should().BeOfType<AdminVersioning.Refused>().Which.Reason.Should().Be(AdminVersioning.Blocked.Busy);
+    }
+
+    [Fact]
+    public async Task An_admin_edit_that_loses_a_race_to_a_deletion_says_so()
+    {
+        var a = await ArrangeAsync("sd-race-edit-delete");
+
+        var result = await SaveRacingAsync(a, async () =>
+            (await DeleteAsync(a.Admin, a.V2.Id)).StatusCode.Should().Be(HttpStatusCode.OK));
+
+        result.Should().BeOfType<AdminVersioning.Refused>().Which.Reason.Should().Be(AdminVersioning.Blocked.Deleted);
     }
 }
