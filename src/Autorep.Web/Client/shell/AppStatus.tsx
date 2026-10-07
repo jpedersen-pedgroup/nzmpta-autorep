@@ -6,6 +6,7 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { useConnection, type Connection } from "../connectivity";
 import { countUnsynced, TESTS_CHANGED_EVENT } from "../db/testStore";
+import { SYNC_STATE_EVENT } from "../sync/syncClient";
 
 export function mountAppStatus(root: HTMLElement): void {
   render(<AppStatus />, root);
@@ -18,9 +19,16 @@ export interface StatusText {
   detail: string;
 }
 
-/** What the indicator says. `pending` is the count of tests the server hasn't got (null = unknown). */
-export function statusText(connection: Connection, pending: number | null): StatusText {
+/** What the indicator says. `pending` is the count of tests the server hasn't got (null = unknown);
+ * `syncing` is true while a sync is under way (started by hand or by itself). */
+export function statusText(connection: Connection, pending: number | null, syncing = false): StatusText {
   const n = pending ?? 0;
+  if (connection === "online" && syncing && n > 0) {
+    return {
+      label: `Online · sending ${n}…`,
+      detail: `Connected. Sending ${n} test${n === 1 ? "" : "s"} from this device now.`,
+    };
+  }
   const tests = `${n} test${n === 1 ? "" : "s"}`;
   if (connection === "signed-out") {
     return {
@@ -74,10 +82,22 @@ export function usePendingCount(): number | null {
   return count;
 }
 
+/** True while a sync is under way. */
+function useSyncing(): boolean {
+  const [syncing, setSyncing] = useState(false);
+  useEffect(() => {
+    const onState = (e: Event) => setSyncing(!!(e as CustomEvent<{ running: boolean }>).detail?.running);
+    addEventListener(SYNC_STATE_EVENT, onState);
+    return () => removeEventListener(SYNC_STATE_EVENT, onState);
+  }, []);
+  return syncing;
+}
+
 function AppStatus() {
   const connection = useConnection();
   const pending = usePendingCount();
-  const { label, detail } = statusText(connection, pending);
+  const syncing = useSyncing();
+  const { label, detail } = statusText(connection, pending, syncing);
   // Signed out: the one state with an action the tester must take. Otherwise My tests, where the
   // work is listed and Sync now lives.
   const href =

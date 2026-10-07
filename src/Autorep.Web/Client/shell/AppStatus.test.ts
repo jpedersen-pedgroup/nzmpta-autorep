@@ -7,6 +7,12 @@ describe("statusText — the header indicator", () => {
     expect(statusText("online", null).label).toBe("Online");
   });
 
+  it("says when it's sending them by itself", () => {
+    expect(statusText("online", 2, true).label).toBe("Online · sending 2…");
+    expect(statusText("online", 0, true).label).toBe("Online");
+    expect(statusText("offline", 2, true).label).toBe("Offline · 2 unsent");
+  });
+
   it("counts what is still to send while online", () => {
     expect(statusText("online", 2).label).toBe("Online · 2 to send");
     expect(statusText("online", 1).detail).toBe("Connected. 1 test on this device hasn't been sent yet.");

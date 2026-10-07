@@ -1,4 +1,7 @@
 using System.Text.Json;
+using Autorep.Web.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Autorep.Web.Tests.E2E.OfflineBrowser;
 
@@ -27,6 +30,7 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
     {
         _factory.NetworkDown = false;
         _factory.ServiceWorkerSuffix = null;
+        _factory.RefuseSyncPushes = false;
         if (_browser is not null) await _browser.DisposeAsync();
         _playwright?.Dispose();
     }
@@ -52,6 +56,7 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
     private async Task<(IBrowserContext Context, IPage Page)> OnlineAndReadyAsync()
     {
         _factory.NetworkDown = false;
+        _factory.RefuseSyncPushes = false;
         var (context, page) = await NewTesterPageAsync(_browser, _factory.BaseUrl);
         await SignInAsync(page);
         await WaitUntilReadyForOfflineAsync(page);
@@ -246,6 +251,44 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal));
     }
 
+    // PRD story 34: a test captured with no signal goes up by itself once the signal is back —
+    // nobody has to remember Sync now. The tester does nothing between "offline" and "on the server".
+    [Fact]
+    public async Task A_test_captured_offline_goes_up_by_itself_when_the_connection_returns()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        await WaitForFarmBookAsync(page, OfflineE2EWebAppFactory.RimuFarm);
+
+        await GoOfflineAsync(context);
+        await page.GotoAsync($"/App/Tests/Wizard?farmId={_factory.RimuFarmId}&farmName={Uri.EscapeDataString(OfflineE2EWebAppFactory.RimuFarm)}");
+        await page.WaitForURLAsync(url => url.Contains("?id=", StringComparison.Ordinal));
+        var testId = new Uri(page.Url).Query.Split("id=")[1];
+        await Step(page, "Machine Configuration & Ancillary").ClickAsync();
+        await page.FillAsync("input[placeholder='e.g. 30 a-side']", "18 a-side");
+        await page.Locator(".app-status[data-connection=offline]", new() { HasText = "1 unsent" }).WaitForAsync();
+
+        await GoOnlineAsync(context);
+
+        Assert.True(await PollAsync(page, @"async ([testerId, testId]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    const get = db.transaction('tests').objectStore('tests').get(testId);
+                    get.onsuccess = () => { db.close(); resolve(get.result?.syncState === 'uploaded'); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })", new[] { _factory.TesterId, testId }), "the test never synced by itself after reconnecting");
+
+        using var scope = _factory.AppServices.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var stored = await db.MachineTests.SingleAsync(t => t.ClientId == Guid.Parse(testId));
+        Assert.Equal(_factory.TesterId, stored.TesterId);
+        Assert.Contains("18 a-side", stored.PayloadJson);
+        await page.Locator(".app-status[data-connection=online]", new() { HasText = "Online" }).WaitForAsync();
+    }
+
     [Fact]
     public async Task A_report_prints_offline_after_one_online_sync()
     {
@@ -387,6 +430,8 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
     {
         var (context, page) = await OnlineAndReadyAsync();
         await using var _ = context;
+        // Online, a test now sends itself; the server refusing it is what leaves work unsent here.
+        _factory.RefuseSyncPushes = true;
         await page.GotoAsync($"/App/Tests/Wizard?farmId={_factory.RimuFarmId}&farmName={Uri.EscapeDataString(OfflineE2EWebAppFactory.RimuFarm)}");
         await page.WaitForURLAsync(url => url.Contains("?id=", StringComparison.Ordinal));
         var testId = new Uri(page.Url).Query.Split("id=")[1];

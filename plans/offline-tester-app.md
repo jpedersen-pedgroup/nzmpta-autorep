@@ -306,6 +306,32 @@ Everything above *adds* to the same origin's storage. This phase makes that surv
 
 ---
 
+### Automatic sync on reconnect (PRD story 34) ✅ BUILT Oct 2026
+
+Not a phase in the original plan; Codex flagged it as a contracted gap. Before this, `syncAll()` ran
+only from the sign-off attempt and the Sync now buttons, so a test completed offline stayed
+device-only until someone remembered to press one. Branch `claude/offline-tester-auto-sync`.
+
+- **`Client/sync/autoSync.ts`.** On tester pages, a sync starts by itself when there are
+  `local-only` tests and: the page loads with a good session, the browser's `online` event fires, the
+  tab comes back into view, or the session check turns "online" again (after signing back in).
+  A failed attempt backs off: 30 s, 1, 2, 5, 10, then every 15 minutes. A success resets it. A lapsed
+  session waits for sign-in rather than retrying on a timer. No Background Sync: iPad Safari lacks it.
+- **One sync at a time** (`syncAll`). A call made mid-sync gets one more run afterwards, shared by
+  every caller meanwhile, so a test marked complete during a background sync is still sent.
+- **Found and fixed on the way:** a push marked its *snapshot* as uploaded after the network round
+  trip, so an edit made while the request was on the wire was overwritten in IndexedDB — and the
+  edited copy marked as sent. With syncs now starting on their own mid-edit, that went from a corner
+  case to a likely one. `markSent` re-reads the test and only marks what was actually sent; an edit
+  made meanwhile stays `local-only` for the next push.
+- The header shows "Online · sending N…" while a sync runs.
+- Tests: `autoSync.test.ts` (triggers, backoff, sign-in pause, no overlap), `syncClient.race.test.ts`
+  (edit during push; one at a time), E2E
+  `A_test_captured_offline_goes_up_by_itself_when_the_connection_returns`. The sign-out E2E now
+  keeps its test unsent with a server-side "refuse pushes" switch, since online work sends itself.
+
+---
+
 ### Phase 5 — Offline farm creation — ~~CONDITIONAL~~ **CUT (22 Jul 2026)**
 
 **Decided: farm creation stays online-only.** Josh confirmed with a tester that farms are not set
@@ -439,7 +465,7 @@ Current coverage of anything in this document: **zero**. `tests/Autorep.Web.Test
 - [x] `context.setOffline(true)` is the primary lever — **but not enough on its own**: in Chromium it doesn't reach the service worker's fetches, so the suite also drops connections server-side (`OfflineE2EWebAppFactory.NetworkDown`; Phase 2 STATUS). Sequence per case: load online as a seeded tester → wait for the SW to control the page (`navigator.serviceWorker.ready` + a `controllerchange` await) → `setOffline(true)` → act.
 - [x] Cold launch offline: `setOffline(true)`, `page.goto('/')`, assert the shell renders and the nav is present.
 - [x] Navigate offline: home → My tests → open a saved test in the wizard → assert steps render and a value persists across a reload.
-- [ ] Capture offline: complete a test end to end, assert it lands in IndexedDB with `syncState:"local-only"`, then `setOffline(false)` and assert it pushes.
+- [x] Capture offline (a test started offline and edited, not completed end to end — the wizard happy path is T5's job): complete a test end to end, assert it lands in IndexedDB with `syncState:"local-only"`, then `setOffline(false)` and assert it pushes.
 - [x] Print offline: after one online sync (which warms the chunks), go offline and assert the PDF blob is produced.
 - [x] **PII assertion:** enumerate `caches.keys()` → every entry's body, assert none contains the tester's display name/email or any seeded farm name. This is the test the whole shell strategy rests on.
 - [x] Deploy-churn recovery (simulated by caching an entry whose chunk the server doesn't have; the renderer's memory cache has to be switched off or Chromium never asks the worker — a real cold launch has nothing in it): change the bundle hash and delete the old chunk, then assert the app recovers rather than 504-looping.

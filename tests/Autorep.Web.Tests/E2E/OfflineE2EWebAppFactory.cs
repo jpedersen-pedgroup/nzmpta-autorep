@@ -59,6 +59,12 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
     /// </summary>
     public string? ServiceWorkerSuffix { get; set; }
 
+    /// <summary>
+    /// While set, the server answers every sync push with a 503 — "the server won't take it right
+    /// now". Tests sync by themselves when online, so this is how a case keeps work unsent on purpose.
+    /// </summary>
+    public bool RefuseSyncPushes { get; set; }
+
     /// <summary>The Kestrel host's services — the one the browser talks to, and the only one seeded.</summary>
     public IServiceProvider AppServices => _kestrelHost?.Services
         ?? throw new InvalidOperationException("Host not started — touch Services first.");
@@ -84,6 +90,13 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
                 if (factory.NetworkDown)
                 {
                     context.Abort();
+                    return;
+                }
+                if (factory.RefuseSyncPushes
+                    && HttpMethods.IsPost(context.Request.Method)
+                    && context.Request.Path.StartsWithSegments("/api/sync/tests"))
+                {
+                    context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                     return;
                 }
                 if (factory.ServiceWorkerSuffix is { } suffix && context.Request.Path == "/sw.js")
