@@ -44,10 +44,11 @@
 - [ ] ⚠️ Decide scope of "security review": internal checklist only, or external penetration test (contract M6 says "security review")
 
 ## 5. Data protection & backups
-- [ ] ✅ Azure SQL PITR / automated backups retained **35 days**; ✅ Storage soft-delete + versioning (35 days)
+- [ ] ✅ Azure SQL PITR / automated backups retained **35 days**; ✅ Storage soft-delete + versioning (35 days); ✅ the two PDF containers (`final-reports`, `pulsation-data`) are WORM for **ten years** — version-level immutability, 3653-day default policy, unlocked (PR #82, Josh's decision 8 Oct 2026)
+- [ ] ⬜ **Lock the PDF retention policy, or keep it unlocked?** Unlocked, an Owner can still shorten or remove it (e.g. for a privacy request); locked, it can only ever be extended, and the storage account can't be deleted until the last PDF version's ten years are up
 - [ ] ⬜ **Perform a test restore** of the SQL DB (prove backups are recoverable, not just configured)
 - [ ] Encryption at rest confirmed (SQL TDE on; Storage SSE on)
-- [ ] Soft-delete behaviour for Final Report / Pulsation blobs verified
+- [ ] WORM on the Final Report / Pulsation containers verified on prod: a delete of a stored PDF is refused, an overwrite keeps the old version
 - [ ] ⬜ **7-year audit retention** (proposal §11) — `AuditEntry` rows are written, but confirm the long-term retention/archival strategy (DB growth vs archive to storage)
 
 ## 6. Monitoring, alerting & audit

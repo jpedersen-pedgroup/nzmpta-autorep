@@ -7,10 +7,12 @@ namespace Autorep.Web.Services.Pdfs;
 /// <summary>
 /// The store in Staging and Production: the storage account <c>infra/modules/storage.bicep</c>
 /// provisions — private endpoint only, shared-key access off, so the app reaches it over its VNet
-/// integration with its managed identity (Storage Blob Data Contributor, app-service.bicep). Soft
-/// delete and versioning there keep 35 days of anything overwritten or deleted.
+/// integration with its managed identity (Storage Blob Data Contributor, app-service.bicep). Both
+/// containers are WORM: every version is kept ten years (an unlocked 3653-day policy), so an
+/// overwrite keeps the old version and a delete is refused.
 ///
-/// The SHA-256 of each blob's bytes is kept in its metadata: a put of the same bytes is skipped,
+/// The SHA-256 of each blob's bytes is kept in its metadata, written by the same Put Blob as the
+/// bytes (WORM refuses Set Blob Metadata on a stored version): a put of the same bytes is skipped,
 /// and a read that doesn't match it is refused.
 /// </summary>
 public sealed class BlobPdfStore : IPdfStore
