@@ -13,7 +13,7 @@
 | Milestone | Scope item | Payment milestone | Status | Est. % |
 |---|---|---|---|---|
 | **M1** | Foundation, data model & shared platform | Phase 1 | ✅ Done (prod never deployed — see M6) | ~95% |
-| **M2** | Tester PWA core (offline + sync) | Phase 2 | 🟡 Offline shell, offline start-a-test and storage durability built (Oct 2026); **auto-sync on reconnect and the real-device iPad UAT left** | ~85% |
+| **M2** | Tester PWA core (offline + sync) | Phase 2 | 🟡 Offline shell, offline start-a-test, storage durability and auto-sync built (Oct 2026); **the real-device iPad UAT left** | ~90% |
 | **M3** | Wizard test capture (steps 1–11) | Phase 2 | ✅ Done, with Sep-2026 tester-feedback leftovers | ~95% |
 | **M4** | Existing reports — PDF generation (7) | Phase 3 | 🟡 Report built and split into selectable sections; Test Report Results not separately selectable; golden-file tests missing | ~90% |
 | **M5** | Admin portal — users, companies & reference data | Phase 3 | 🟡 Company-admin test edits (PRD 49–50) and manual upload missing; 2FA enforced since PR #71 | ~85% |
@@ -30,7 +30,7 @@ In priority order. Each line expands in the sections below.
 
 1. **Production has never been deployed.** `app-prod.yml` and `infra-prod.yml` have zero runs. The workflow fixes landed 30 Sep (PR #69); the first infra + app deploy to `newzealandnorth` is the next step and unblocks everything in M6.
 2. **O2 admin edit** — edit a synced test into a new version, soft-delete with a mandatory reason, list filter chips, audit panel. The admin viewer today is read-only (`Pages/Admin/Tests/View.cshtml` → wizard bundle in read-only mode).
-3. **Offline tester shell (M2)** — `plans/offline-tester-app.md` Phases 2–4 are built: PR #73 (navigation and cold launch offline), PR #75 (start a test offline) and the storage-durability PR from `claude/offline-tester-storage`. Left: **automatic sync on reconnect** (PRD story 34, next PR) and the **real-device iPad UAT** in `plans/test-schedule.md` §3a, which is the only evidence there will be for WebKit's storage rules.
+3. **Offline tester shell (M2)** — `plans/offline-tester-app.md` Phases 2–4 are built: PR #73 (navigation and cold launch offline), PR #75 (start a test offline) and the storage-durability PR from `claude/offline-tester-storage`. Automatic sync on reconnect (PRD story 34) is built too (`claude/offline-tester-auto-sync`). Left: the **real-device iPad UAT** in `plans/test-schedule.md` §3a, which is the only evidence there will be for WebKit's storage rules.
 4. **M6 hardening** — `plans/m6-infra-review.md` is untouched: security review, load test, alert rules, custom domain + certificate, test restore, WAF decision, remove the personal SQL admin, `CostCentre` tag, security headers/CSP (only HSTS is set today, `Program.cs:235`).
 5. **O1 cutover** — NZMPTA review of the data-quality CSV, report-parity review of sample migrated tests, a real region check before cutover, cutover runbook, parallel run, legacy decommission. (`tools/Migration/README.md` now documents the tool as built.)
 6. **Contracted items never started:** Company Administrator edits of the final summary / recommendations on their company's tests as a new version (PRD stories 49–50, rebuild plan Phase 9 — distinct from the Super-Administrator O2 surface), server-side Final Report store (`/api/sync/final-report`), Test Standard Manual upload, Vendor Specification Effective Date (❓ — see M5).
@@ -84,7 +84,7 @@ In priority order. Each line expands in the sections below.
 - [x] ✅ Playwright offline suite (`E2E/OfflineTesterE2ETests`) — cold launch, navigate, capture, start a test, print offline, the PII-in-cache assertion, deploy-churn and deploy-skew recovery, sign-out. Chromium only: real-device WebKit behaviour is the UAT above
 - ~~Offline farm creation~~ — **cut 22 Jul 2026**; online-only by design
 - ~~Reference-data delta endpoint `GET /api/sync/reference-data?asOf=`~~ — superseded by per-catalogue versioned syncs; no further work
-- [ ] 🟡 **Automatic sync on reconnect** — `syncAll()` runs only from the sign-off attempt and the "Sync now" buttons; the online/visibility listeners in `Client/connectivity.ts` just re-probe `/health`. A test completed offline stays device-only until the tester presses Sync (PRD story 34 wants it uploaded automatically). Trigger a sync on the online event and on tab focus when there are `local-only` tests; retry with backoff.
+- [x] ✅ **Automatic sync on reconnect** (PRD story 34; `Client/sync/autoSync.ts`) — when there are `local-only` tests, a sync starts by itself on page load, the online event, tab focus, and signing back in; backs off 30 s → 15 min on failure; waits for sign-in on a lapsed session. Syncs never overlap, and a push no longer overwrites an edit made while it was on the wire (found on the way). E2E: a test captured offline reaches the server after reconnecting with nothing pressed
 - [ ] ⬜ **Sync reconciliation (contracted, PRD §Decisions)** — field-level merge + a `SyncConflict` record visible in the admin portal. Today `POST /api/sync/tests` is last-writer-wins by ClientId. Becomes a real risk the moment O2 admin editing lands (tester offline edit vs admin edit of the same test), so build it with O2 — see the O2 section.
 
 ### M3 — Wizard test capture (steps 1–11)
