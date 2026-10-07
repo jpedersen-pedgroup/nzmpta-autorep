@@ -48,6 +48,13 @@ export function madeByOther(test: LocalTest): AmendmentRecord | undefined {
   return own?.amendedByRole ? own : undefined;
 }
 
+/** A version an administrator saved in the admin portal (not a tester's, nor an automatic merge): its
+ * stored report is the one made at the save — "as saved" — not one a device sent at sign-off. */
+export function savedByAdministrator(test: LocalTest): boolean {
+  const own = madeByOther(test);
+  return Boolean(own && !own.merge);
+}
+
 /** How an amendment record names its author: their name (or login), and role when it isn't the tester. */
 export function authorOf(record: AmendmentRecord): string {
   const who = record.amendedByName ?? record.amendedBy ?? "someone";

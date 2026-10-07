@@ -5,6 +5,8 @@ using System.Text.Json.Nodes;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
+using Autorep.Web.Services.Pdfs;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -198,6 +200,45 @@ public class SyncReconciliationTests : IClassFixture<AuthedWebAppFactory>
         // Every list now shows the combined version alone.
         var list = JsonNode.Parse(await a.Tester.GetStringAsync("/api/tests"))!;
         list["items"]!.AsArray().Select(i => i!["id"]!.GetValue<Guid>()).Should().BeEquivalentTo([merged.Id]);
+    }
+
+    // The tester's version brought a new analyser PDF. The combine takes it (only the tester changed
+    // it) as a pointer — the device had let go of the bytes — and must point at the copy the incoming
+    // version is storing in the same save, which the database doesn't have yet.
+    [Fact]
+    public async Task A_combined_version_points_at_the_pdf_the_incoming_version_brought()
+    {
+        var a = await ArrangeAsync("rc-pdf");
+        var mine = Guid.NewGuid();
+        var combined = Guid.NewGuid();
+        var bytes = "%PDF-1.4 the tester's new analyser export"u8.ToArray();
+        var sha = PdfHash.Sha256Hex(bytes);
+        JsonObject Pdf(bool inline) => inline
+            ? new JsonObject { ["name"] = "pulse-new.pdf", ["size"] = bytes.Length, ["attachedAt"] = "2026-10-06T00:00:00.000Z", ["base64"] = Convert.ToBase64String(bytes) }
+            : new JsonObject { ["name"] = "pulse-new.pdf", ["size"] = bytes.Length, ["attachedAt"] = "2026-10-06T00:00:00.000Z", ["onServer"] = true };
+        var incoming = TesterVersion(a, mine, signedOff: true, p => p["pulsationPdf"] = Pdf(inline: true));
+        (await a.Tester.PostAsJsonAsync("/api/sync/tests", incoming)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var res = await a.Tester.PostAsJsonAsync("/api/sync/tests/merge", new
+        {
+            incoming,
+            merged = Combined(a, combined, mine, a.AdminClientId, tamper: p => p["pulsationPdf"] = Pdf(inline: false)),
+            headClientId = a.AdminClientId,
+        });
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK, await res.Content.ReadAsStringAsync());
+        var rows = await WithDbAsync(db => db.MachineTests.Where(t => t.ClientId == mine || t.ClientId == combined).ToListAsync());
+        var mineRow = rows.Single(t => t.ClientId == mine);
+        var combinedRow = rows.Single(t => t.ClientId == combined);
+        PulsationPayload.Base64(mineRow.PayloadJson).Should().BeNull("the incoming version's PDF went to the store");
+        PulsationPayload.StoredSha256(mineRow.PayloadJson).Should().Be(sha);
+        PulsationPayload.StoredSha256(combinedRow.PayloadJson).Should().Be(sha);
+        PulsationPayload.HolderClientId(combinedRow.PayloadJson).Should().Be(mine, "the bytes stay under the version that brought them");
+        var stored = Services.GetRequiredService<InMemoryPdfStore>().Keys(PdfContainer.PulsationData);
+        stored.Count(k => k.Contains(sha)).Should().Be(1, "one copy, not one per version");
+        var pdf = await a.Tester.GetAsync($"/api/tests/{combinedRow.Id}/pulsation-pdf");
+        pdf.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await pdf.Content.ReadAsByteArrayAsync()).Should().Equal(bytes);
     }
 
     [Fact]

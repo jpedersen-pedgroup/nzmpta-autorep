@@ -1956,6 +1956,7 @@ main {
 .admin-edit__problem { margin: 0; color: #b91c1c; font-size: 0.875rem; }
 .admin-edit .form-actions { margin-top: 0; padding-top: 0; border-top: 0; }
 .admin-edit__offer .btn, .admin-edit__saved .btn { margin-left: var(--space-2); }
+.admin-edit__report { margin: var(--space-2) 0 0; font-size: 0.875rem; }
 .admin-edit__draft { margin: var(--space-2) 0 0; color: #92400e; }
 .version-note strong { font-weight: 600; }
 .admin-edit__danger { display: flex; justify-content: flex-end; margin: calc(-1 * var(--space-2)) 0 var(--space-4); }

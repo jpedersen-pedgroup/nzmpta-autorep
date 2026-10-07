@@ -285,6 +285,20 @@ The headline. Cold launch, navigate, resume.
 > - **Re-sending a pointer can't lose the bytes:** the server restores them from the stored copy,
 >   the pointer's named test, or the superseded version (a new version made from an original whose
 >   bytes had gone). A new version's copied pointer names the original.
+> - **Since Oct 2026 the server keeps the bytes in its PDF store, not in `PayloadJson`** (branch
+>   `claude/pulsation-pdfs-to-store`; `Services/PulsationAttachments.cs`). The device's side is
+>   unchanged: the stored payload is the same pointer (`onServer`, `serverTestId` when another of
+>   the tester's tests holds the copy) plus `sha256`, a server-side field naming the stored object
+>   (`{testerId}/{holder clientId}/pulsation/{sha256}.pdf` in the `pulsation-data` container) that
+>   the device carries along and never reads. "Restores" above now means: a re-sent pointer is
+>   matched to the stored copy of the same attachment (name, size, attach time — PR #78's check,
+>   kept) and given its hash and holder, never copied; an unmatched pointer keeps no hash. A pull
+>   without `attachments=omit` still gets the bytes inline, read back from the store, so an older
+>   device keeps working; the read-only view asks for the pointer and fetches the bytes through
+>   `GET /api/tests/{id}/pulsation-pdf` (the view's scoping — the tester route is own-tests only).
+>   With the store down a push keeps the bytes inline, as before, and a background pass
+>   (`PulsationBackfill`, `PdfStore:PulsationBackfill` = Off unless set; DryRun to count, Run to move) moves
+>   inline bytes — older rows included — into the store.
 > - **Storage-full:** `putTest`/`putReference` turn a `QuotaExceededError` into `StorageFullError`
 >   and a sticky red alert ("your latest change could NOT be saved"), instead of a rejected promise
 >   nobody caught. Not reproducible in fake-indexeddb, so the detection is unit-tested and the alert

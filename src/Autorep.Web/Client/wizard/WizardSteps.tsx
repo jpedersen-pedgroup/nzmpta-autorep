@@ -23,6 +23,12 @@ import { runningSectionKeys } from "./wizardProgress";
 import { formatDisplayDate, type CalibrationDates } from "../calibration/status";
 import type { ReportPart } from "../report/testSummaryPdf";
 
+/** A Final Report the server holds as the tester signed it off (TestsController.StoredFinalReportDto). */
+export interface StoredReport {
+  storedAt: string;
+  sizeBytes: number;
+}
+
 /** Everything a step body needs from the wizard. Built once by WizardApp and handed to whichever
  * shell is active. */
 export interface StepContext {
@@ -52,6 +58,9 @@ export interface StepContext {
   onResync(): void;
   /** The full report, or `only` those sections of it. */
   onDownloadReport(only?: ReportPart[]): void;
+  /** Server view only: the report as the tester signed it off, when the server holds it. */
+  storedReport: StoredReport | null;
+  onDownloadStoredReport(): Promise<void>;
   onAttachPdf(file: File): void;
   onRemovePdf(): void;
   /** The tester's choice of next test date on the sign-off step; null returns to the default. */
@@ -208,6 +217,8 @@ export function renderStep(ctx: StepContext, step: WizardStep): VNode {
           onMarkComplete={() => ctx.onMarkComplete()}
           onResync={() => ctx.onResync()}
           onDownloadReport={(only) => ctx.onDownloadReport(only)}
+          storedReport={ctx.storedReport}
+          onDownloadStoredReport={() => ctx.onDownloadStoredReport()}
           onAttachPdf={(file) => ctx.onAttachPdf(file)}
           onRemovePdf={() => ctx.onRemovePdf()}
           onNextTestDateChange={(date) => ctx.onNextTestDateChange(date)}

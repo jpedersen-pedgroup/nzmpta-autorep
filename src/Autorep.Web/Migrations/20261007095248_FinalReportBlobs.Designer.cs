@@ -4,6 +4,7 @@ using Autorep.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Autorep.Web.Migrations
 {
     [DbContext(typeof(AutorepDbContext))]
-    partial class AutorepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007095248_FinalReportBlobs")]
+    partial class FinalReportBlobs
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -397,38 +400,17 @@ namespace Autorep.Web.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("AuthorId")
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<Guid?>("ClientId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("DeletedById")
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("DeletedReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.Property<Guid>("FarmId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
                     b.Property<DateTimeOffset?>("MarkedCompleteAt")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("MergedFromClientId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateOnly?>("NextTestDate")
                         .HasColumnType("date");
@@ -438,13 +420,6 @@ namespace Autorep.Web.Migrations
 
                     b.Property<string>("PayloadJson")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("RootClientId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("SuccessorStamp")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("SupersedesClientId")
                         .HasColumnType("uniqueidentifier");
@@ -471,10 +446,6 @@ namespace Autorep.Web.Migrations
                         .HasFilter("[ClientId] IS NOT NULL");
 
                     b.HasIndex("TesterId", "CreatedAt");
-
-                    b.HasIndex("TesterId", "MergedFromClientId");
-
-                    b.HasIndex("TesterId", "RootClientId");
 
                     b.HasIndex("TesterId", "SupersedesClientId");
 
@@ -659,60 +630,6 @@ namespace Autorep.Web.Migrations
                         .IsUnique();
 
                     b.ToTable("Regions");
-                });
-
-            modelBuilder.Entity("Autorep.Web.Domain.Entities.SyncConflict", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("BaseClientId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("DetectedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("DetectedOn")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<Guid>("HeadClientId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("IncomingClientId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("MergedClientId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("OverlappingFieldsJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("ResolvedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("RootClientId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("TesterId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TesterId", "IncomingClientId");
-
-                    b.HasIndex("TesterId", "RootClientId");
-
-                    b.ToTable("SyncConflicts");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.TestStandard", b =>

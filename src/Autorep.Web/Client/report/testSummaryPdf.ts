@@ -892,13 +892,16 @@ function opensDocument(node: Content): Content {
  * hasn't been stamped yet (a report previewed before sign-off); a completed test always
  * reprints its own stamped snapshot. `branding` is the testing company shown beside the MPNZ
  * mark; without it the letterhead carries MPNZ alone. `only` prints just those parts (the
- * sign-off step's section picker); without it, the full report. */
+ * sign-off step's section picker); without it, the full report. `generatedAt` pins the report to
+ * that moment — the footer's "generated", the copyright year and the PDF's own dates — instead of
+ * now, so the same test always lays out to the same bytes (the stored Final Report). */
 export function buildTestSummaryDoc(
   test: LocalTest,
   calibrationFallback?: CalibrationDates,
   branding?: ReportBranding,
   testerFallback?: TesterDetails | null,
   only?: readonly ReportPart[],
+  generatedAt?: string,
 ): TDocumentDefinitions {
   const parts = reportParts(test, calibrationFallback, branding, testerFallback);
   const printed = partsToPrint(parts, only);
@@ -915,12 +918,17 @@ export function buildTestSummaryDoc(
   const farm = test.farm;
   const farmName = farm?.name ?? test.farmName ?? "—";
   const companyRaster = rasterLogo(branding?.companyLogo);
-  const generated = new Date().toLocaleString("en-NZ", { timeZone: NZ_TIME_ZONE });
+  const pinned = generatedAt ? new Date(generatedAt) : null;
+  const at = pinned && !Number.isNaN(pinned.getTime()) ? pinned : null;
+  const generated = (at ?? new Date()).toLocaleString("en-NZ", { timeZone: NZ_TIME_ZONE });
+  const copyright = copyrightNotice(Number(nzDate((at ?? new Date()).toISOString()).slice(0, 4)));
 
   return {
     pageSize: "A4",
     pageMargins: [MARGIN_X, MARGIN_TOP, MARGIN_X, MARGIN_BOTTOM],
-    info: { title: `Test Summary — ${farmName}` },
+    // Pinned, the PDF's own dates are that moment too: they (and the file id PDFKit derives from
+    // them) would otherwise make every generation's bytes different.
+    info: { title: `Test Summary — ${farmName}`, ...(at ? { creationDate: at, modDate: at } : {}) },
     defaultStyle: { color: INK },
     ...(companyRaster ? { images: { [COMPANY_LOGO_IMAGE]: companyRaster } } : {}),
     // Page one carries the letterhead swirl and a flourish in the bottom corner, when it's the
@@ -972,7 +980,6 @@ export function buildTestSummaryDoc(
     // lockup's tapered rule, matching the running header.
     footer: (page, pages) => {
       const privacyFooter = getPrivacyContent().reportFooterText;
-      const copyright = copyrightNotice(Number(nzDate(new Date().toISOString()).slice(0, 4)));
       const privacy: Content[] = privacyFooter ? [{ text: privacyFooter, fontSize: 6, color: MUTED, margin: [0, 1, 0, 0] } as Content] : [];
       if (page === 1 && withSummary) {
         return {
@@ -1181,23 +1188,45 @@ export function brandingForTest(test: LocalTest, current: CompanyBranding | null
   return current ? { companyName: current.name, companyLogo: current.logo } : undefined;
 }
 
-/** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
- * page-for-page. pdfmake, the fonts and pdf-lib all load as lazy chunks on first use.
- * `branding` and `testerFallback` are given by the read-only server view (the company the test
- * was done for, and the tester's name when the test carries no stamped details); on the tester's
- * own device both are resolved from what this device has cached. `only` prints just those parts
- * of the report — the analyser's pages among them only when "analyser" is chosen. */
-export async function downloadTestSummaryPdf(
-  test: LocalTest,
-  branding?: ReportBranding,
-  testerFallback?: TesterDetails | null,
-  only?: readonly ReportPart[],
-): Promise<void> {
-  const { pdfMake, vfs } = await loadPdfMake();
-  // pdfmake 0.3.x: register the Roboto virtual file system.
-  (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
+/** How the attached pulsation analyser PDF fared in a generated report:
+ *  - `none`: no attachment, or the analyser wasn't among the parts chosen;
+ *  - `appended`: its pages are on the end;
+ *  - `unreachable`: its bytes are on the server only, and the server couldn't be reached;
+ *  - `unreadable`: pdf-lib couldn't read it (damaged or encrypted) — it never will;
+ *  - `merger-unavailable`: pdf-lib itself couldn't be loaded (its lazy chunk isn't on the device).
+ * Whenever it isn't `appended`, the report holds every other part and no analyser pages. */
+export type AnalyserOutcome = "none" | "appended" | "unreachable" | "unreadable" | "merger-unavailable";
 
-  const name = reportFileName(test, only);
+export interface ReportOptions {
+  /** The company on the letterhead — the read-only server view gives the one the test was done
+   * for; on the tester's own device it comes from what the device has cached. */
+  branding?: ReportBranding;
+  /** Who did the test, when the test carries no stamped details (the server view's answer). */
+  testerFallback?: TesterDetails | null;
+  /** Just these parts — the analyser's pages among them only when "analyser" is chosen. */
+  only?: readonly ReportPart[];
+  /** Pin the report to this moment instead of now (see buildTestSummaryDoc). */
+  generatedAt?: string;
+  /** A read-only view of a test held on the server: the analyser PDF comes through the view's
+   * route and nothing is kept on this device (sync/pulsationAttachment.ts attachmentBase64). */
+  serverView?: boolean;
+}
+
+interface Generated {
+  fileName: string;
+  created: CreatedPdf;
+  /** The report with the analyser's pages appended, when they were. */
+  merged: Uint8Array | null;
+  analyser: AnalyserOutcome;
+}
+
+/** Lays the report out for `printed`, from what this device holds right now: the cached
+ * letterhead and tester details are read first — before pdfmake's chunks load, which can take a
+ * while — then the cached standards and privacy footer as the document is built. pdfmake and the
+ * fonts load as lazy chunks on first use: ReportGeneratorUnavailableError when they aren't on the
+ * device and can't be fetched. */
+async function layOut(test: LocalTest, printed: LocalTest, opts: ReportOptions): Promise<CreatedPdf> {
+  const { branding, testerFallback, only, generatedAt } = opts;
   // A report previewed before sign-off has no stamped calibration yet — fall back to the
   // tester's current profile so the preview matches what sign-off will record.
   const calibration = test.markedCompleteAt ? undefined : await getCachedCalibration().catch(() => undefined);
@@ -1209,13 +1238,111 @@ export async function downloadTestSummaryPdf(
   const tester = test.testedBy
     ?? (testerFallback !== undefined ? testerFallback : await getCachedTesterDetails().catch(() => null));
 
+  const { pdfMake, vfs } = await loadPdfMake();
+  // pdfmake 0.3.x: register the Roboto virtual file system.
+  (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
+  return (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
+    buildTestSummaryDoc(printed, calibration, letterhead, tester, only, generatedAt),
+  );
+}
+
+/** The report's pages with the analyser PDF's appended. Pinned, pdf-lib mustn't stamp its own
+ * producer and modification time over the report's — the bytes must come out the same each time. */
+async function appendAnalyser(
+  report: Uint8Array,
+  attachment: string,
+  pinned: boolean,
+): Promise<{ merged: Uint8Array; analyser: "appended" } | { merged: null; analyser: "unreadable" | "merger-unavailable" }> {
+  let PDFDocument: typeof import("pdf-lib").PDFDocument;
+  try {
+    ({ PDFDocument } = await loadPdfLib());
+  } catch {
+    return { merged: null, analyser: "merger-unavailable" };
+  }
+  try {
+    const doc = await PDFDocument.load(report, { updateMetadata: !pinned });
+    const attachDoc = await PDFDocument.load(base64ToBytes(attachment));
+    for (const page of await doc.copyPages(attachDoc, attachDoc.getPageIndices())) doc.addPage(page);
+    return { merged: await doc.save(), analyser: "appended" };
+  } catch {
+    // Unreadable/encrypted attachment — the summary alone rather than nothing.
+    return { merged: null, analyser: "unreadable" };
+  }
+}
+
+/** Lays the report out and appends the analyser PDF's pages when wanted and possible. */
+async function generate(test: LocalTest, opts: ReportOptions): Promise<Generated> {
+  const fileName = reportFileName(test, opts.only);
   // The analyser PDF's bytes may live on the server only (the device lets them go a week after a
   // test is synced — sync/pulsationAttachment.ts): fetch them back first, and if that can't be done
-  // right now, print without the attachment rather than claim one that isn't appended.
-  const wantsAttachment = !!test.pulsationPdf && (!only || only.includes("analyser"));
-  const attachment = wantsAttachment ? await attachmentBase64(test) : null;
+  // right now, make the report without the attachment rather than claim one that isn't appended.
+  const wantsAttachment = !!test.pulsationPdf && (!opts.only || opts.only.includes("analyser"));
+  const attachment = wantsAttachment ? await attachmentBase64(test, { serverView: opts.serverView }) : null;
   const printed = wantsAttachment && !attachment ? { ...test, pulsationPdf: null } : test;
-  if (wantsAttachment && !attachment) {
+
+  const created = await layOut(test, printed, opts);
+  if (!wantsAttachment) return { fileName, created, merged: null, analyser: "none" };
+  if (!attachment) return { fileName, created, merged: null, analyser: "unreachable" };
+  return { fileName, created, ...(await appendAnalyser(await pdfBuffer(created), attachment, !!opts.generatedAt)) };
+}
+
+export interface ReportPdf {
+  bytes: Uint8Array;
+  fileName: string;
+  analyser: AnalyserOutcome;
+}
+
+/** The report as bytes — what downloadTestSummaryPdf saves, for anything that needs to keep or
+ * send it rather than hand it to the browser. */
+export async function reportPdfBytes(test: LocalTest, opts: ReportOptions = {}): Promise<ReportPdf> {
+  const g = await generate(test, opts);
+  return { bytes: g.merged ?? (await pdfBuffer(g.created)), fileName: g.fileName, analyser: g.analyser };
+}
+
+/** The Final Report as signed off: every part, the analyser's pages on the end, pinned to the
+ * moment of sign-off — so generating it again for the same test, from the same inputs, gives the
+ * same bytes. Made from what the device holds when it's called: sync/finalReportUpload.ts sends this
+ * only when nothing was captured at sign-off (captureFinalReport). */
+export function finalReportPdf(test: LocalTest): Promise<ReportPdf> {
+  return reportPdfBytes(test, { generatedAt: test.markedCompleteAt ?? undefined });
+}
+
+/**
+ * The Final Report's own pages as they are at sign-off — every part, pinned to the sign-off time,
+ * laid out from the standards, letterhead and privacy footer the device holds NOW — everything but
+ * the analyser PDF's pages, which completeFinalReport appends when it's sent. Captured at sign-off,
+ * so a standards update or a new company logo arriving before the upload can't change the stored
+ * copy (it would have recomputed pass/fail). Small, because the analyser PDF — up to 15 MB, and
+ * already kept on the device or the server — isn't in it. Needs no connection: never fetches the
+ * analyser PDF, whose note in the report comes from the attachment's name and date alone.
+ */
+export async function captureFinalReport(test: LocalTest): Promise<Uint8Array> {
+  return pdfBuffer(await layOut(test, test, { generatedAt: test.markedCompleteAt ?? undefined }));
+}
+
+/** The Final Report from its captured pages: the analyser PDF's pages appended exactly as
+ * finalReportPdf appends them, so from the same inputs the two give the same bytes. `unreachable`
+ * (nothing appended) when the analyser's bytes are on the server and it can't be reached. */
+export async function completeFinalReport(test: LocalTest, captured: Uint8Array): Promise<ReportPdf> {
+  const fileName = reportFileName(test);
+  if (!test.pulsationPdf) return { bytes: captured, fileName, analyser: "none" };
+  const attachment = await attachmentBase64(test);
+  if (!attachment) return { bytes: captured, fileName, analyser: "unreachable" };
+  const merge = await appendAnalyser(captured, attachment, true);
+  return { bytes: merge.merged ?? captured, fileName, analyser: merge.analyser };
+}
+
+/** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended
+ * page-for-page. See ReportOptions for `branding`, `testerFallback`, `only` and `serverView`. */
+export async function downloadTestSummaryPdf(
+  test: LocalTest,
+  branding?: ReportBranding,
+  testerFallback?: TesterDetails | null,
+  only?: readonly ReportPart[],
+  serverView?: boolean,
+): Promise<void> {
+  const g = await generate(test, { branding, testerFallback, only, serverView });
+  if (g.analyser === "unreachable") {
     const { showToast } = await import("../ui/toast");
     showToast(
       "The pulsation analyser PDF is kept on the server, and this device can't reach it right now — " +
@@ -1223,26 +1350,19 @@ export async function downloadTestSummaryPdf(
       "error",
       9000,
     );
+  } else if (g.analyser === "unreadable" || g.analyser === "merger-unavailable") {
+    const { showToast } = await import("../ui/toast");
+    showToast("The attached PDF could not be appended — downloaded the summary without it.", "error");
   }
-
-  const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
-    buildTestSummaryDoc(printed, calibration, letterhead, tester, only),
-  );
-
-  if (attachment) {
-    try {
-      const { PDFDocument } = await loadPdfLib();
-      const summaryDoc = await PDFDocument.load(await pdfBuffer(created));
-      const attachDoc = await PDFDocument.load(base64ToBytes(attachment));
-      const pages = await summaryDoc.copyPages(attachDoc, attachDoc.getPageIndices());
-      for (const page of pages) summaryDoc.addPage(page);
-      downloadBlob(await summaryDoc.save(), name);
-      return;
-    } catch {
-      // Unreadable/encrypted attachment — deliver the summary alone rather than nothing.
-      const { showToast } = await import("../ui/toast");
-      showToast("The attached PDF could not be appended — downloaded the summary without it.", "error");
-    }
+  if (g.merged) {
+    downloadBlob(g.merged, g.fileName);
+    return;
   }
-  created.download(name);
+  g.created.download(g.fileName);
+}
+
+/** Saves bytes this device was handed (the stored report as signed off) the way a generated
+ * report is saved. */
+export function savePdf(bytes: Uint8Array, fileName: string): void {
+  downloadBlob(bytes, fileName);
 }

@@ -13,6 +13,8 @@ import { formatDisplayDate } from "../calibration/status";
 import { nzDate, proposedNextTestDate } from "./nextTestDate";
 import { reportPartOptions, type ReportPart } from "../report/testSummaryPdf";
 import { ReportSectionPicker } from "./ReportSectionPicker";
+import type { StoredReport } from "./WizardSteps";
+import { savedByAdministrator } from "../versioning/chain";
 
 function fmtSize(bytes: number): string {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -49,6 +51,9 @@ interface Props {
   onResync: () => void;
   /** Download the report — the full report, or `only` those sections of it. */
   onDownloadReport: (only?: ReportPart[]) => void;
+  /** Server view: the report as the tester signed it off, when the server holds one. */
+  storedReport?: StoredReport | null;
+  onDownloadStoredReport?: () => Promise<void>;
   /** Attach the pulsation analyser's PDF (validated PDF-only by the caller too). */
   onAttachPdf: (file: File) => void;
   onRemovePdf: () => void;
@@ -70,17 +75,22 @@ export function ReviewSignOffStep({
   onMarkComplete,
   onResync,
   onDownloadReport,
+  storedReport,
+  onDownloadStoredReport,
   onAttachPdf,
   onRemovePdf,
   onNextTestDateChange,
 }: Props) {
   const [attested, setAttested] = useState(false);
+  const [fetchingStored, setFetchingStored] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   // The sections of the download in progress (none: the full report), for the busy message.
   const [printing, setPrinting] = useState<ReportPart[] | undefined>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const summary = aggregate(buildFaultInputs(test));
   const isComplete = Boolean(test.markedCompleteAt);
+  // An administrator's version keeps the report made when it was saved, not one signed off on a device.
+  const asSaved = Boolean(isServerView) && savedByAdministrator(test);
   const partOptions = useMemo(() => (isComplete ? reportPartOptions(test) : []), [test, isComplete]);
   const download = (only?: ReportPart[]) => {
     setPrinting(only);
@@ -246,12 +256,37 @@ export function ReviewSignOffStep({
                 {generating ? "Generating…" : "Download report (PDF)"}
               </button>
               <ReportSectionPicker options={partOptions} disabled={generating} onDownload={download} />
+              {isServerView && storedReport && onDownloadStoredReport && (
+                <button
+                  class="btn btn--secondary"
+                  disabled={fetchingStored}
+                  onClick={() => {
+                    setFetchingStored(true);
+                    void onDownloadStoredReport().finally(() => setFetchingStored(false));
+                  }}
+                >
+                  {fetchingStored ? "Downloading…" : asSaved ? "Download the report as saved" : "Download the report as signed off"}
+                </button>
+              )}
               {!isServerView && (
                 <button class="btn btn--secondary" disabled={syncing} onClick={onResync}>
                   {syncing ? "Syncing…" : "Sync again"}
                 </button>
               )}
             </div>
+            {isServerView && test.recordedRecommendations === undefined && (
+              // Download report makes a new copy from the recorded data; this says what the other
+              // button is, or why it isn't there. Not on a migrated test: those never had one.
+              <p class="form-field__hint" style="margin:var(--space-2) 0 0" data-stored-report>
+                {asSaved
+                  ? storedReport
+                    ? `"As saved" is the copy made in the admin portal when this version was saved (${fmtSize(storedReport.sizeBytes)}, received ${fmtDate(storedReport.storedAt)}).`
+                    : "No copy of this version's report is held — it's kept when the version is saved in the admin portal."
+                  : storedReport
+                    ? `"As signed off" is the copy the tester's device made at sign-off (${fmtSize(storedReport.sizeBytes)}, received ${fmtDate(storedReport.storedAt)}).`
+                    : "No copy of the report as signed off is held for this test — it was signed off before reports were kept, or the tester's device hasn't sent it yet."}
+              </p>
+            )}
           </div>
         ) : (
           <div class="signoff-actions">
