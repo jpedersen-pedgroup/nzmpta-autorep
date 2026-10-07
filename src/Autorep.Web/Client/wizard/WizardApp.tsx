@@ -497,9 +497,11 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       ],
     });
     // The report as signed off follows the test to the server — with this sync, or the first one
-    // after the signal returns (sync/finalReportUpload.ts). Queued before the sync starts, so it's
-    // there for the sync to pick up. A device too full to note it still signs off.
-    await queueFinalReport(test.id).catch(() => undefined);
+    // after the signal returns (sync/finalReportUpload.ts). Queued, and its capture started, before
+    // the sync begins: the sync refreshes the letterhead, and the copy must be the one from now.
+    // A device too full to note it still signs off.
+    const signedOff = await getTest(test.id).catch(() => undefined);
+    if (signedOff?.markedCompleteAt) await queueFinalReport(signedOff).catch(() => undefined);
     await runSync("Test marked complete");
   };
 

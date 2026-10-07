@@ -1191,16 +1191,13 @@ interface Generated {
   analyser: AnalyserOutcome;
 }
 
-/** Lays the report out; appends the analyser PDF's pages when wanted and possible. pdfmake, the
- * fonts and pdf-lib all load as lazy chunks on first use — ReportGeneratorUnavailableError when
- * pdfmake's aren't on the device and can't be fetched. */
-async function generate(test: LocalTest, opts: ReportOptions): Promise<Generated> {
-  const { branding, testerFallback, only, generatedAt, serverView } = opts;
-  const { pdfMake, vfs } = await loadPdfMake();
-  // pdfmake 0.3.x: register the Roboto virtual file system.
-  (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
-
-  const fileName = reportFileName(test, only);
+/** Lays the report out for `printed`, from what this device holds right now: the cached
+ * letterhead and tester details are read first — before pdfmake's chunks load, which can take a
+ * while — then the cached standards and privacy footer as the document is built. pdfmake and the
+ * fonts load as lazy chunks on first use: ReportGeneratorUnavailableError when they aren't on the
+ * device and can't be fetched. */
+async function layOut(test: LocalTest, printed: LocalTest, opts: ReportOptions): Promise<CreatedPdf> {
+  const { branding, testerFallback, only, generatedAt } = opts;
   // A report previewed before sign-off has no stamped calibration yet — fall back to the
   // tester's current profile so the preview matches what sign-off will record.
   const calibration = test.markedCompleteAt ? undefined : await getCachedCalibration().catch(() => undefined);
@@ -1212,36 +1209,52 @@ async function generate(test: LocalTest, opts: ReportOptions): Promise<Generated
   const tester = test.testedBy
     ?? (testerFallback !== undefined ? testerFallback : await getCachedTesterDetails().catch(() => null));
 
-  // The analyser PDF's bytes may live on the server only (the device lets them go a week after a
-  // test is synced — sync/pulsationAttachment.ts): fetch them back first, and if that can't be done
-  // right now, make the report without the attachment rather than claim one that isn't appended.
-  const wantsAttachment = !!test.pulsationPdf && (!only || only.includes("analyser"));
-  const attachment = wantsAttachment ? await attachmentBase64(test, { serverView }) : null;
-  const printed = wantsAttachment && !attachment ? { ...test, pulsationPdf: null } : test;
-
-  const created = (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
+  const { pdfMake, vfs } = await loadPdfMake();
+  // pdfmake 0.3.x: register the Roboto virtual file system.
+  (pdfMake as { addVirtualFileSystem(v: unknown): void }).addVirtualFileSystem(vfs);
+  return (pdfMake as { createPdf(doc: TDocumentDefinitions): CreatedPdf }).createPdf(
     buildTestSummaryDoc(printed, calibration, letterhead, tester, only, generatedAt),
   );
-  if (!wantsAttachment) return { fileName, created, merged: null, analyser: "none" };
-  if (!attachment) return { fileName, created, merged: null, analyser: "unreachable" };
+}
 
+/** The report's pages with the analyser PDF's appended. Pinned, pdf-lib mustn't stamp its own
+ * producer and modification time over the report's — the bytes must come out the same each time. */
+async function appendAnalyser(
+  report: Uint8Array,
+  attachment: string,
+  pinned: boolean,
+): Promise<{ merged: Uint8Array; analyser: "appended" } | { merged: null; analyser: "unreadable" | "merger-unavailable" }> {
   let PDFDocument: typeof import("pdf-lib").PDFDocument;
   try {
     ({ PDFDocument } = await loadPdfLib());
   } catch {
-    return { fileName, created, merged: null, analyser: "merger-unavailable" };
+    return { merged: null, analyser: "merger-unavailable" };
   }
   try {
-    // Pinned, pdf-lib mustn't stamp its own producer and modification time over the report's.
-    const summaryDoc = await PDFDocument.load(await pdfBuffer(created), { updateMetadata: !generatedAt });
+    const doc = await PDFDocument.load(report, { updateMetadata: !pinned });
     const attachDoc = await PDFDocument.load(base64ToBytes(attachment));
-    const pages = await summaryDoc.copyPages(attachDoc, attachDoc.getPageIndices());
-    for (const page of pages) summaryDoc.addPage(page);
-    return { fileName, created, merged: await summaryDoc.save(), analyser: "appended" };
+    for (const page of await doc.copyPages(attachDoc, attachDoc.getPageIndices())) doc.addPage(page);
+    return { merged: await doc.save(), analyser: "appended" };
   } catch {
     // Unreadable/encrypted attachment — the summary alone rather than nothing.
-    return { fileName, created, merged: null, analyser: "unreadable" };
+    return { merged: null, analyser: "unreadable" };
   }
+}
+
+/** Lays the report out and appends the analyser PDF's pages when wanted and possible. */
+async function generate(test: LocalTest, opts: ReportOptions): Promise<Generated> {
+  const fileName = reportFileName(test, opts.only);
+  // The analyser PDF's bytes may live on the server only (the device lets them go a week after a
+  // test is synced — sync/pulsationAttachment.ts): fetch them back first, and if that can't be done
+  // right now, make the report without the attachment rather than claim one that isn't appended.
+  const wantsAttachment = !!test.pulsationPdf && (!opts.only || opts.only.includes("analyser"));
+  const attachment = wantsAttachment ? await attachmentBase64(test, { serverView: opts.serverView }) : null;
+  const printed = wantsAttachment && !attachment ? { ...test, pulsationPdf: null } : test;
+
+  const created = await layOut(test, printed, opts);
+  if (!wantsAttachment) return { fileName, created, merged: null, analyser: "none" };
+  if (!attachment) return { fileName, created, merged: null, analyser: "unreachable" };
+  return { fileName, created, ...(await appendAnalyser(await pdfBuffer(created), attachment, !!opts.generatedAt)) };
 }
 
 export interface ReportPdf {
@@ -1258,10 +1271,36 @@ export async function reportPdfBytes(test: LocalTest, opts: ReportOptions = {}):
 }
 
 /** The Final Report as signed off: every part, the analyser's pages on the end, pinned to the
- * moment of sign-off — so generating it again for the same test, on the same device, gives the
- * same bytes. What sync/finalReportUpload.ts sends to the server. */
+ * moment of sign-off — so generating it again for the same test, from the same inputs, gives the
+ * same bytes. Made from what the device holds when it's called: sync/finalReportUpload.ts sends this
+ * only when nothing was captured at sign-off (captureFinalReport). */
 export function finalReportPdf(test: LocalTest): Promise<ReportPdf> {
   return reportPdfBytes(test, { generatedAt: test.markedCompleteAt ?? undefined });
+}
+
+/**
+ * The Final Report's own pages as they are at sign-off — every part, pinned to the sign-off time,
+ * laid out from the standards, letterhead and privacy footer the device holds NOW — everything but
+ * the analyser PDF's pages, which completeFinalReport appends when it's sent. Captured at sign-off,
+ * so a standards update or a new company logo arriving before the upload can't change the stored
+ * copy (it would have recomputed pass/fail). Small, because the analyser PDF — up to 15 MB, and
+ * already kept on the device or the server — isn't in it. Needs no connection: never fetches the
+ * analyser PDF, whose note in the report comes from the attachment's name and date alone.
+ */
+export async function captureFinalReport(test: LocalTest): Promise<Uint8Array> {
+  return pdfBuffer(await layOut(test, test, { generatedAt: test.markedCompleteAt ?? undefined }));
+}
+
+/** The Final Report from its captured pages: the analyser PDF's pages appended exactly as
+ * finalReportPdf appends them, so from the same inputs the two give the same bytes. `unreachable`
+ * (nothing appended) when the analyser's bytes are on the server and it can't be reached. */
+export async function completeFinalReport(test: LocalTest, captured: Uint8Array): Promise<ReportPdf> {
+  const fileName = reportFileName(test);
+  if (!test.pulsationPdf) return { bytes: captured, fileName, analyser: "none" };
+  const attachment = await attachmentBase64(test);
+  if (!attachment) return { bytes: captured, fileName, analyser: "unreachable" };
+  const merge = await appendAnalyser(captured, attachment, true);
+  return { bytes: merge.merged ?? captured, fileName, analyser: merge.analyser };
 }
 
 /** Generates and downloads the PDF; the attached pulsation analyser report (if any) is appended

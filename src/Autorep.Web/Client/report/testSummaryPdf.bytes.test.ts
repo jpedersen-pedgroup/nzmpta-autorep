@@ -4,8 +4,9 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { finalReportPdf, reportPdfBytes } from "./testSummaryPdf";
+import { captureFinalReport, completeFinalReport, finalReportPdf, reportPdfBytes } from "./testSummaryPdf";
 import { defaultMachineConfiguration } from "../wizard/types";
+import { applyPrivacyContent, getPrivacyContent } from "../config/privacyContent";
 import type { LocalTest } from "../db/testStore";
 
 const SIGNED_OFF = "2026-10-07T01:15:00.000Z";
@@ -55,9 +56,11 @@ async function at<T>(iso: string, fn: () => Promise<T>): Promise<T> {
 }
 
 const realFetch = globalThis.fetch;
+const originalFooter = getPrivacyContent().reportFooterText;
 afterEach(() => {
   globalThis.fetch = realFetch;
   vi.useRealTimers();
+  applyPrivacyContent({ reportFooterText: originalFooter });
 });
 
 describe("the report as bytes", () => {
@@ -115,6 +118,49 @@ describe("the report as bytes", () => {
 
     expect(pdf.analyser).toBe("unreadable");
     expect(await pageCount(pdf.bytes)).toBe(await pageCount(alone.bytes));
+  }, 30_000);
+
+  it("captured at sign-off and completed later, is byte for byte the full report as signed off", async () => {
+    const test = signedOffTest({ pulsationPdf: { name: "pulse.pdf", base64: await analyserPdf(2), size: 1000, attachedAt: SIGNED_OFF } });
+
+    const captured = await captureFinalReport(test);
+    const completed = await completeFinalReport(test, captured);
+    const whole = await finalReportPdf(test);
+
+    expect(completed.analyser).toBe("appended");
+    expect(completed.fileName).toBe(whole.fileName);
+    expect(same(completed.bytes, whole.bytes)).toBe(true);
+    // Without an attachment, the captured pages are the report.
+    const plain = signedOffTest();
+    expect(same((await completeFinalReport(plain, await captureFinalReport(plain))).bytes, (await finalReportPdf(plain)).bytes)).toBe(true);
+  }, 30_000);
+
+  it("captured at sign-off, doesn't change when what the device holds changes before it's sent", async () => {
+    // What the report reads at the moment of sign-off, then a refresh before the upload: here the
+    // privacy footer; a standards update would recompute pass/fail the same way.
+    applyPrivacyContent({ reportFooterText: "Privacy notice as it was at sign-off." });
+    const test = signedOffTest();
+    const asSignedOff = await finalReportPdf(test);
+    const captured = await captureFinalReport(test);
+
+    applyPrivacyContent({ reportFooterText: "A privacy notice changed afterwards." });
+    const completed = await completeFinalReport(test, captured);
+    const regenerated = await finalReportPdf(test);
+
+    expect(same(completed.bytes, asSignedOff.bytes)).toBe(true);
+    expect(same(regenerated.bytes, asSignedOff.bytes)).toBe(false);
+  }, 30_000);
+
+  it("captured with no connection — it never fetches the analyser PDF — and says so if it still can't when it's sent", async () => {
+    const fetchSpy = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    const test = signedOffTest({ pulsationPdf: { name: "pulse.pdf", size: 1000, attachedAt: SIGNED_OFF, onServer: true } });
+
+    const captured = await captureFinalReport(test);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect((await completeFinalReport(test, captured)).analyser).toBe("unreachable");
   }, 30_000);
 
   it("leaves the analyser out when only other sections are asked for", async () => {
