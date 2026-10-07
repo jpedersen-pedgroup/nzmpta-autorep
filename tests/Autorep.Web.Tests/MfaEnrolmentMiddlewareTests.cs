@@ -51,4 +51,40 @@ public class MfaEnrolmentMiddlewareTests : IClassFixture<AuthedWebAppFactory>
         var client = _factory.CreateClientAs(Roles.SuperAdministrator);
         (await client.GetAsync("/Admin")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task A_required_role_session_past_30_days_since_its_code_is_signed_out()
+    {
+        var stale = _factory.CreateClientAs(Roles.SuperAdministrator, mfaAt: DateTimeOffset.UtcNow.AddDays(-31));
+
+        var page = await stale.GetAsync("/Admin/Testers");
+        page.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        page.Headers.Location!.ToString().Should().StartWith("/Account/Login?returnUrl=%2FAdmin%2FTesters&reason=mfa-expired");
+        // The application cookie is cleared, not merely bypassed.
+        page.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        cookies!.Should().Contain(c => c.StartsWith(".AspNetCore.Identity.Application=", StringComparison.Ordinal) && c.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+
+        var api = await stale.GetAsync("/api/tests");
+        api.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await api.Content.ReadAsStringAsync()).Should().Contain("two-factor-expired");
+    }
+
+    [Fact]
+    public async Task A_recent_code_or_a_role_without_the_requirement_is_left_alone()
+    {
+        var fresh = _factory.CreateClientAs(Roles.SuperAdministrator, mfaAt: DateTimeOffset.UtcNow.AddDays(-29));
+        (await fresh.GetAsync("/Admin")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var companyAdmin = _factory.CreateClientAs(Roles.CompanyAdministrator, mfaAt: DateTimeOffset.UtcNow.AddDays(-400));
+        (await companyAdmin.GetAsync("/Admin")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task The_login_page_explains_an_expired_session()
+    {
+        var anonymous = _factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var page = await anonymous.GetAsync("/Account/Login?reason=mfa-expired");
+        page.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await page.Content.ReadAsStringAsync()).Should().Contain("30 days since you last verified");
+    }
 }

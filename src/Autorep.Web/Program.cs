@@ -75,6 +75,8 @@ builder.Services
     .AddEntityFrameworkStores<AutorepDbContext>()
     // Marks a lapsed Tester's principal sync-only on every sign-in path (see LicenceScope).
     .AddClaimsPrincipalFactory<TesterClaimsPrincipalFactory>()
+    // Records in each session when the second factor was last proved (see MfaPolicy.SessionStampKey).
+    .AddSignInManager<TesterSignInManager>()
     .AddDefaultTokenProviders();
 
 builder.Services.ConfigureApplicationCookie(opts =>

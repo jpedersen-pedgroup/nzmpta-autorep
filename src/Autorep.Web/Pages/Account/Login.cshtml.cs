@@ -33,6 +33,8 @@ public class LoginModel : PageModel
     public InputModel Input { get; set; } = new();
     public string? ErrorMessage { get; set; }
     public string? ReturnUrl { get; set; }
+    /// <summary>Why the user is back here, when the app sent them (e.g. <c>mfa-expired</c>).</summary>
+    public string? Reason { get; set; }
 
     public class InputModel
     {
@@ -41,9 +43,10 @@ public class LoginModel : PageModel
         public bool RememberMe { get; set; }
     }
 
-    public async Task OnGetAsync(string? returnUrl = null)
+    public async Task OnGetAsync(string? returnUrl = null, string? reason = null)
     {
         ReturnUrl = returnUrl;
+        Reason = reason;
         await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
     }
 

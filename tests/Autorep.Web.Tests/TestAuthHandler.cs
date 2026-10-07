@@ -17,6 +17,9 @@ public class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> option
     public const string RoleHeader = "X-Test-Role";
     /// <summary>Extra "type=value" claims, semicolon-separated — e.g. the sync-only licence scope.</summary>
     public const string ClaimsHeader = "X-Test-Claims";
+    /// <summary>Round-trip timestamp for the session's last second-factor proof, stored in the
+    /// ticket's properties under <c>MfaPolicy.SessionStampKey</c> as TesterSignInManager does.</summary>
+    public const string MfaAtHeader = "X-Test-MfaAt";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -45,6 +48,9 @@ public class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> option
         }
 
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
-        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));
+        var properties = new AuthenticationProperties();
+        if (Request.Headers.TryGetValue(MfaAtHeader, out var mfaAt) && !string.IsNullOrEmpty(mfaAt))
+            properties.Items[Autorep.Web.Domain.MfaPolicy.SessionStampKey] = mfaAt.ToString();
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, properties, SchemeName)));
     }
 }
