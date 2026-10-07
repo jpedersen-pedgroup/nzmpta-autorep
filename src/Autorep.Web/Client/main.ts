@@ -30,6 +30,7 @@ import { requestPersistentStorage, watchForFullStorage } from "./storage/durabil
 import { cachedIdentity, loadIdentity } from "./db/identity";
 import { purgeOtherTesterLayouts } from "./wizard/layoutPreference";
 import { enableSessionChecks } from "./connectivity";
+import { startAutoSync } from "./sync/autoSync";
 import { isShellDocument, renderShellChrome, renderShellPage } from "./shell/shell";
 import { isTesterPath } from "./shell/routes";
 import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "./appEvents";
@@ -120,14 +121,23 @@ async function boot(): Promise<void> {
       .then((tests) => (tests.length > 0 ? requestPersistentStorage() : null))
       .catch(() => null);
 
-    void enableSessionChecks().then(async () => {
+    // Tests captured offline go up by themselves once the connection is back (sync/autoSync.ts).
+    const autoSync = startAutoSync();
+
+    void enableSessionChecks().then(async (connection) => {
       // The shell drew this page for whoever the device's record named. If the server now says
       // someone else is signed in (they signed in while the record still named the previous
       // tester), start again as them — but only once the new record is really stored, or a device
       // that can't write it would reload for ever.
-      if (!shell || cachedIdentity()?.testerId === bootIdentity?.testerId) return;
-      const stored = await loadIdentity();
-      if (stored && stored.testerId !== bootIdentity?.testerId) location.reload();
+      if (shell && cachedIdentity()?.testerId !== bootIdentity?.testerId) {
+        const stored = await loadIdentity();
+        if (stored && stored.testerId !== bootIdentity?.testerId) {
+          location.reload();
+          return;
+        }
+      }
+      // The session is good: send anything still waiting on this device.
+      if (connection === "online") void autoSync.trigger("page load");
     });
   }
 

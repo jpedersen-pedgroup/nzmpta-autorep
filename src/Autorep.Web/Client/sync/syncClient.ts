@@ -121,7 +121,24 @@ async function pushTest(t: LocalTest): Promise<void> {
   });
   assertApiResponse(res);
   if (!res.ok) throw new Error(`Push failed (${res.status})`);
-  await putTest({ ...t, syncState: "uploaded", everUploaded: true });
+  await markSent(t);
+}
+
+/**
+ * Marks what was SENT as uploaded — not whatever is on the device now. The push took a network
+ * round trip, and the test may have been edited meanwhile (the wizard saves on every keystroke, and
+ * a sync can start on its own when the connection returns). Writing the sent snapshot back would
+ * silently undo that edit; marking the edited copy "uploaded" would mean it never gets sent.
+ */
+async function markSent(sent: LocalTest): Promise<void> {
+  const now = await getTest(sent.id);
+  if (!now) return; // deleted meanwhile: the server's copy comes back on the next pull
+  if (now.syncState === "local-only" && now.updatedAt === sent.updatedAt) {
+    await putTest({ ...now, syncState: "uploaded", everUploaded: true });
+  } else if (!now.everUploaded) {
+    // Edited during the push: the server has an earlier copy, and the edit goes up next time.
+    await putTest({ ...now, everUploaded: true });
+  }
 }
 
 /**
@@ -257,11 +274,49 @@ async function storePulled(remote: readonly TestSummaryDto[]): Promise<number> {
   return added;
 }
 
-/** Push every local-only test, then pull the Tester's tests down. Also flushes a pending
+/** Dispatched on window when a sync starts and finishes (`detail.running`). */
+export const SYNC_STATE_EVENT = "autorep:sync-state";
+
+let running: Promise<SyncResult> | null = null;
+let queued: Promise<SyncResult> | null = null;
+
+function announceSync(isRunning: boolean): void {
+  const target = globalThis as { dispatchEvent?: (e: Event) => boolean };
+  if (typeof target.dispatchEvent === "function" && typeof CustomEvent === "function") {
+    target.dispatchEvent(new CustomEvent(SYNC_STATE_EVENT, { detail: { running: isRunning } }));
+  }
+}
+
+/**
+ * Push every local-only test, then pull the Tester's tests down. Also flushes a pending
  * offline edit of the tester's calibration dates (kept dirty until the server accepts it) and
  * re-checks the company branding for the report letterhead (a 304 unless an admin changed it) and
- * the tester's own details the report names. */
-export async function syncAll(): Promise<SyncResult> {
+ * the tester's own details the report names.
+ *
+ * One at a time: syncs can now start on their own (sync/autoSync.ts) as well as from Sync now and
+ * sign-off. A call made while one is running gets ONE more run after it — the running one may have
+ * read the queue before the caller's latest change (a test just marked complete) — and every call
+ * made meanwhile shares that same follow-up run.
+ */
+export function syncAll(): Promise<SyncResult> {
+  if (!running) {
+    announceSync(true);
+    running = runSync().finally(() => {
+      running = null;
+      announceSync(false);
+    });
+    return running;
+  }
+  queued ??= running
+    .catch(() => undefined)
+    .then(() => {
+      queued = null;
+      return syncAll();
+    });
+  return queued;
+}
+
+async function runSync(): Promise<SyncResult> {
   await flushCalibration();
   await initCompanyBranding();
   await initTesterDetails();
