@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<!--
+  The offline stand-in for every tester page. When a tester-route navigation can't reach the
+  server, wwwroot/sw.js (shellNavigation) answers with this document from the cache, and the
+  bundle (Client/shell/) draws the page for the URL the tester asked for.
+
+  IDENTITY-FREE BY DESIGN. The Cache API holding this file is shared by every account that uses
+  the device, so it carries no name, no initials, no licence details, no antiforgery token and no
+  window.__autorep* globals. The bundle reads who is signed in from the device's identity record
+  (Client/db/identity.ts, IndexedDB) and fills in the header and licence banner itself. Sign out is
+  a link, not a form: there is no token to post with, so it goes to the server's confirmation page.
+
+  The header mirrors the tester header in Pages/Shared/_Layout.cshtml — change them together.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoRep · NZMPTA AutoRep</title>
+
+    <link rel="stylesheet" href="/lib/fontawesome/css/all.min.css" />
+    <script src="https://kit.fontawesome.com/46ebb87e5d.js" crossorigin="anonymous" defer></script>
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#003893" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AutoRep" />
+    <link rel="preload" href="/lib/fonts/opensans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/lib/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body data-app-shell>
+    <header class="app-header">
+        <div class="app-header__inner">
+            <a class="app-header__brand" href="/">
+                <img class="app-header__brand-logo" src="/img/logo-mpnz-white.svg" alt="" width="88" height="30" />
+                <span>AutoRep App</span>
+            </a>
+            <span id="app-status-root" class="app-header__status"></span>
+            <button type="button" class="app-header__burger" id="nav-burger" aria-label="Toggle menu" aria-expanded="false">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+            </button>
+            <div class="app-header__menu">
+                <nav class="app-header__nav">
+                    <a href="/App">Home</a>
+                    <a href="/App/Tests">My tests</a>
+                    <a href="/App/Tests/Company">Company tests</a>
+                    <a href="/App/Tests/New">New test</a>
+                    <a href="/Help">Help</a>
+                </nav>
+                <div class="app-header__user" id="shell-user" hidden>
+                    <a class="app-header__user-name" href="/Account/Manage" style="text-decoration:none">
+                        <span class="app-header__user-avatar" id="shell-user-initials"></span>
+                        <span id="shell-user-name"></span>
+                    </a>
+                    <a class="btn btn--ghost" href="/Account/Logout">Sign out</a>
+                </div>
+            </div>
+        </div>
+    </header>
+    <div id="licence-banner-root"></div>
+
+    <main id="shell-main">
+        <p class="td-muted">Loading&hellip;</p>
+    </main>
+    <footer class="app-footer">
+        &copy; 2026 NZMPTA · Built by Pedersen Group
+    </footer>
+
+    <script src="/js/pwa-register.js"></script>
+    <script>
+        (function () {
+            var b = document.getElementById('nav-burger');
+            var header = document.querySelector('.app-header');
+            if (b && header) {
+                b.addEventListener('click', function () {
+                    var open = header.classList.toggle('app-header--open');
+                    b.setAttribute('aria-expanded', open ? 'true' : 'false');
+                });
+            }
+        })();
+    </script>
+    <script type="module" src="/js/dist/autorep.js"></script>
+</body>
+</html>

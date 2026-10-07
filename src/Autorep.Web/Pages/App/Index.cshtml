@@ -4,30 +4,11 @@
     ViewData["Title"] = "Home";
 }
 
-<section class="welcome">
-    <h1>Welcome back</h1>
-    <p>Pick up where you left off, or start a fresh test on a new farm.</p>
-</section>
+@* Drawn by the bundle (Client/shell/HomePage.tsx) so the offline shell, which serves this page
+   from the device when there's no signal, shows exactly the same home. Loading the bundle here
+   also keeps the device's tests, farm book and reference data fresh from the first screen. *@
+<div id="home-root"></div>
 
-<div class="tile-grid">
-    <a class="tile" asp-page="/App/Tests/New">
-        <div class="tile__icon"><i class="fa-solid fa-file-circle-plus" aria-hidden="true"></i></div>
-        <div class="tile__title">Start a new test</div>
-        <div class="tile__desc">Begin a fresh machine test at a farm.</div>
-    </a>
-    <a class="tile" asp-page="/App/Tests/Index">
-        <div class="tile__icon"><i class="fa-solid fa-list-check" aria-hidden="true"></i></div>
-        <div class="tile__title">My tests</div>
-        <div class="tile__desc">View tests you've created and synced.</div>
-    </a>
-    <a class="tile" asp-page="/App/Tests/Company">
-        <div class="tile__icon"><i class="fa-solid fa-users" aria-hidden="true"></i></div>
-        <div class="tile__title">Company tests</div>
-        <div class="tile__desc">Read completed tests from everyone at your company. Needs a connection.</div>
-    </a>
-    <a class="tile" asp-page="/Help/Index">
-        <div class="tile__icon"><i class="fa-solid fa-book-open" aria-hidden="true"></i></div>
-        <div class="tile__title">Help &amp; guides</div>
-        <div class="tile__desc">The tester work instructions: running, signing off and syncing machine tests.</div>
-    </a>
-</div>
+@section Scripts {
+    <script type="module" src="~/js/dist/autorep.js"></script>
+}

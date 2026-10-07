@@ -132,6 +132,22 @@ jobs:
         with:
           global-json-file: global.json
 
+      # The offline suite drives the real client: the shell, the wizard and the service worker's
+      # precache of the bundle all need wwwroot/js/dist, which is built, not checked in. Without it
+      # the worker's install fails on the missing bundle and every offline case fails with it.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/Autorep.Web/package-lock.json
+
+      - name: Build the client bundle
+        run: |
+          npm ci
+          npm run build:prod
+        working-directory: src/Autorep.Web
+
       - name: Build test project
         run: dotnet build tests/Autorep.Web.Tests/Autorep.Web.Tests.csproj --configuration Release
 

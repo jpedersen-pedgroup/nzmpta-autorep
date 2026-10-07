@@ -4,6 +4,7 @@
 // edit them offline. Same dirty-wins rule as tests: an offline edit stays cached as dirty
 // and is pushed on the next app load / sync; the server copy only replaces a CLEAN cache.
 import { getReference, putReference } from "../db/testStore";
+import { fetchWithTimeout } from "../connectivity";
 import type { CalibrationDates } from "../calibration/status";
 
 interface CachedCalibration {
@@ -41,7 +42,7 @@ function normalize(dto: unknown): CalibrationDates {
 /** PUT the full set to the tester's profile. False on any failure (offline, auth). */
 async function push(values: CalibrationDates): Promise<boolean> {
   try {
-    const res = await fetch("/api/profile/calibration", {
+    const res = await fetchWithTimeout("/api/profile/calibration", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -65,7 +66,7 @@ export async function initCalibration(): Promise<void> {
       if (!(await push(cached.values))) return;
       await writeCache({ values: cached.values, dirty: false });
     }
-    const res = await fetch("/api/profile/calibration", { headers: { Accept: "application/json" } });
+    const res = await fetchWithTimeout("/api/profile/calibration", { headers: { Accept: "application/json" } });
     if (!res.ok) return;
     await writeCache({ values: normalize(await res.json()), dirty: false });
   } catch {

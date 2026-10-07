@@ -1,17 +1,19 @@
-// Service worker: caches the application shell so the PWA loads offline, runtime-caches
-// milk-supply company logos (reference data) so testers can see them offline once viewed, and keeps
-// the Help & guides work-instruction PDFs on the device once they've been downloaded.
+// Service worker: caches the application shell so the PWA loads offline, answers the tester's
+// page navigations with the identity-free shell document (wwwroot/app-shell.html) when the server
+// can't, runtime-caches milk-supply company logos (reference data) so testers can see them offline,
+// and keeps the Help & guides work-instruction PDFs on the device once they've been downloaded.
 //
-// Phase 2 (M2) will expand this with IndexedDB for Machine Test data + a sync queue, and
-// should PROACTIVELY pre-cache all active milk-company logos on reference-data sync (not just
-// ones already viewed) and render the tester pages offline so cached logos actually display.
+// THE RULE THIS FILE EXISTS TO KEEP: nothing that identifies a tester or a farm goes into the Cache
+// API. It is shared by every account that uses the device. No rendered Razor page, no /api/* JSON,
+// ever — page data lives in the per-tester IndexedDB, and the shell draws the tester's name from
+// there. The Playwright offline suite enumerates every cache and fails if a name turns up.
 
 // Rewritten by tools/stamp-sw.mjs on every client build with a fingerprint of the bundle and of the
 // APP_SHELL files below — do not edit by hand. The static cache is cache-first and matched with
 // ignoreSearch, so renaming this cache is the ONLY thing that retires a previous build's assets.
 // The stamper reads APP_SHELL out of this file, and every entry must be a real file under wwwroot
 // so it can be hashed; a served route would build green and then never cache-bust.
-const CACHE_VERSION = 'autorep-067d7c90b9a1';
+const CACHE_VERSION = 'autorep-fbb525cc890f';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 // Work-instruction PDFs (/guides/*, GuidesController). Its own cache, filled at runtime, so the
@@ -22,7 +24,19 @@ const GUIDE_CACHE = 'autorep-guides-v1';
 // A guide dropped from the catalogue is never requested again, so its 404 clean-up below never
 // runs; activation prunes the cache against this list instead.
 const GUIDE_FILES = ['autorep-company-admin-guide.pdf', 'autorep-super-admin-guide.pdf', 'autorep-tester-guide.pdf'];
+// The client bundle's entry plus every chunk it loads without being asked — written in by
+// tools/stamp-sw.mjs from the esbuild metafile, because chunk names carry a content hash. Precached
+// with the shell so a worker that has just installed can launch the app with no signal: a runtime
+// copy alone isn't enough, since activating a new build throws the old cache away. The report
+// generator's chunks (~2.4 MB) are left out on purpose; Client/report/generatorChunks.ts warms them
+// after a successful sync instead of making every install wait on them.
+const BUNDLE_FILES = ['/js/dist/autorep.js', '/js/dist/chunks/chunk-SK6HMZ5B.js', '/js/dist/chunks/chunk-SZYPPOUP.js', '/js/dist/chunks/toast-MKJDFINQ.js'];
+// The offline stand-in for every tester page (see shellNavigation below). Static and identity-free:
+// the bundle renders the page, and the tester's name, from IndexedDB.
+const SHELL_URL = '/app-shell.html';
 const APP_SHELL = [
+  // SHELL_URL, spelled out: tools/stamp-sw.mjs reads this list's string literals and hashes each file.
+  '/app-shell.html',
   '/manifest.webmanifest',
   '/css/site.css',
   '/js/pwa-register.js',
@@ -154,6 +168,49 @@ async function guideResponse(request, url) {
   return fetch(request);
 }
 
+// The tester pages the shell can stand in for. Pathname-based, because the wizard is always
+// opened with a query string (?id=, or ?farmId=&farmName=), and case-insensitive because ASP.NET
+// routing is. /Admin is not here and must never be: the admin portal is online-only.
+const SHELL_ROUTES = ['/', '/app', '/app/index', '/app/tests', '/app/tests/index', '/app/tests/new', '/app/tests/wizard'];
+
+function isShellRoute(pathname) {
+  const path = pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  return SHELL_ROUTES.includes(path);
+}
+
+// How long a tester page waits for the server before the shell answers instead. Weak signal at a
+// farm doesn't fail a request, it hangs it — for the browser's own timeout, which is minutes.
+// 8 s is well past a normal page load on poor signal; a server that is merely slow (Azure SQL
+// resuming from pause takes ~30 s on staging) loses to the shell, which is the same page drawn
+// from the device, so nothing is lost by not waiting.
+const NAVIGATION_TIMEOUT_MS = 8000;
+
+// The server answered, but only to say it can't right now — a restart or a deploy in progress.
+// The device can do better than that error page. (A 500 is a real fault and is shown as one.)
+const GATEWAY_FAILURES = [502, 503, 504];
+
+async function shellNavigation(request) {
+  // The original request, so a redirect (signed out → /Account/Login) reaches the browser as one.
+  const network = fetch(request);
+  network.catch(() => {}); // the timeout may win; don't leave the rejection unhandled
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(null), NAVIGATION_TIMEOUT_MS);
+  });
+  try {
+    const response = await Promise.race([network, timeout]);
+    if (response && !GATEWAY_FAILURES.includes(response.status)) return response;
+  } catch {
+    // Offline — the shell answers below.
+  } finally {
+    clearTimeout(timer);
+  }
+  const shell = await caches.match(SHELL_URL);
+  if (shell) return shell;
+  // No shell on this device yet (first visit, or storage cleared): the server is all there is.
+  return network.catch(() => offlineResponse());
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION).then(async (cache) => {
@@ -164,10 +221,11 @@ self.addEventListener('install', (event) => {
       // pwa-register.js keep the same URL for ever and are served without Cache-Control, so the
       // browser treats a days-old copy as fresh for hours — and a plain add() would seed this
       // brand-new cache with the OLD bytes, defeating the stamp that named it.
+      const precache = [...APP_SHELL, ...BUNDLE_FILES];
       const results = await Promise.allSettled(
-        APP_SHELL.map((asset) => cache.add(new Request(asset, { cache: 'reload' })))
+        precache.map((asset) => cache.add(new Request(asset, { cache: 'reload' })))
       );
-      const failed = APP_SHELL.filter((_, i) => results[i].status === 'rejected');
+      const failed = precache.filter((_, i) => results[i].status === 'rejected');
       if (failed.length) {
         // A shell with holes must not go live: activating would delete the previous, complete
         // cache and then invite a reload onto nothing (a tester on marginal farm Wi-Fi). Failing
@@ -268,18 +326,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API, auth flows + the health probe: always go to the network (never cache-serve, so the
-  // connectivity check reflects real reachability).
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/Account/') || url.pathname === '/health') {
+  // API + the health probe: always go to the network (never cache-serve, so the connectivity
+  // check reflects real reachability).
+  if (url.pathname.startsWith('/api/') || url.pathname === '/health') {
     return;
   }
 
-  // Navigation requests: network-first, falling back to the generated offline page. Nothing is
-  // read from the cache here on purpose (see OFFLINE_HTML) — and the fallback must be a real
-  // Response, since respondWith resolving to anything else surfaces the browser's raw network
-  // error instead of a page.
+  // Navigation requests. Tester routes: the server first, the cached shell when it can't answer.
+  // Everything else — /Admin, /Account, /Help — network-first with the generated offline card,
+  // and nothing is read from the cache for it (see OFFLINE_HTML). The fallback must be a real
+  // Response: respondWith resolving to anything else surfaces the browser's raw network error.
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request).catch(() => offlineResponse()));
+    event.respondWith(
+      url.origin === self.location.origin && isShellRoute(url.pathname)
+        ? shellNavigation(event.request)
+        : fetch(event.request).catch(() => offlineResponse())
+    );
+    return;
+  }
+
+  // Sign-in flows are never cache-served. After the navigation branch, not before it, so that
+  // tapping your own name or Sign out with no signal gets the branded offline card rather than
+  // the browser's raw network error page.
+  if (url.pathname.startsWith('/Account/')) {
     return;
   }
 

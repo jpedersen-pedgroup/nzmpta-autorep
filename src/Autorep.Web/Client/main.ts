@@ -1,10 +1,19 @@
-// Entry point for the AutoRep PWA client bundle (output: wwwroot/js/dist/autorep.js).
-// Loads the synced test standards (cached-then-fresh, with an update notice), then mounts the
-// offline Preact wizard and the "My tests" list when their roots are present.
-import { initStandards } from "./standards/standardsSync";
-import { initEquipment } from "./standards/equipmentSync";
-import { initFaultCatalog } from "./standards/faultCatalogSync";
-import { initPrivacy } from "./standards/privacySync";
+// Entry point for the AutoRep PWA client bundle (output: wwwroot/js/dist/autorep.js). It runs on
+// the server-rendered tester pages, the lapsed-licence page, the admin read-only test view, and in
+// the offline shell (wwwroot/app-shell.html) the service worker serves when the server can't
+// answer. In order:
+//  1. Who is signed in: a server-rendered page says so itself; the shell has only the device's
+//     identity record (db/identity.ts).
+//  2. Shell only: draw the header and put the page's empty root in place (shell/shell.tsx).
+//  3. Purge other testers' local data (shared-device isolation) — which needs (1).
+//  4. Apply the CACHED reference data (IndexedDB only) and mount. Nothing up to here waits on the
+//     network: a tester on one bar of signal sees their page straight away.
+//  5. In the background: confirm the session, refresh the reference data, and tell the mounted
+//     apps if anything they render from changed.
+import { applyCachedStandards, refreshStandards } from "./standards/standardsSync";
+import { applyCachedEquipment, refreshEquipment } from "./standards/equipmentSync";
+import { applyCachedFaultCatalog, refreshFaultCatalog } from "./standards/faultCatalogSync";
+import { applyCachedPrivacy, refreshPrivacy } from "./standards/privacySync";
 import { initFarms } from "./sync/farmsSync";
 import { initCalibration } from "./sync/calibrationSync";
 import { initCompanyBranding } from "./sync/companyBrandingSync";
@@ -13,10 +22,23 @@ import { mountWizard } from "./wizard/WizardApp";
 import { mountTestList } from "./ui/TestListApp";
 import { mountSyncOnly } from "./ui/SyncOnlyApp";
 import { mountCompanyTestList } from "./ui/CompanyTestListApp";
+import { mountHome } from "./shell/HomePage";
+import { mountAppStatus } from "./shell/AppStatus";
 import { purgeStaleLocalData } from "./db/testStore";
+import { cachedIdentity, loadIdentity } from "./db/identity";
 import { purgeOtherTesterLayouts } from "./wizard/layoutPreference";
+import { enableSessionChecks } from "./connectivity";
+import { isShellDocument, renderShellChrome, renderShellPage } from "./shell/shell";
+import { isTesterPath } from "./shell/routes";
+import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "./appEvents";
 
 function mountApps(): void {
+  const statusRoot = document.getElementById("app-status-root");
+  if (statusRoot) mountAppStatus(statusRoot);
+
+  const homeRoot = document.getElementById("home-root");
+  if (homeRoot) mountHome(homeRoot);
+
   const wizardRoot = document.getElementById("wizard-root");
   if (wizardRoot) {
     const params = new URLSearchParams(location.search);
@@ -42,38 +64,65 @@ function mountApps(): void {
   if (companyListRoot) mountCompanyTestList(companyListRoot);
 }
 
-// Purge any other tester's locally-cached data first (shared-device isolation), THEN load the
-// synced reference data and mount the offline wizard + "My tests" list. The farm book is
-// tester-pages-only: on the admin read-only test view (wizard root with data-server-test) the
-// bundle also runs, and for a Super-Admin /api/farms is the entire national list — caching that
-// PII into an admin's IndexedDB buys nothing (admins never pick farms offline).
-const wizardHost = document.getElementById("wizard-root");
-const isTesterPage =
-  document.getElementById("test-list-root") !== null ||
-  (wizardHost !== null && !wizardHost.getAttribute("data-server-test"));
-const referenceSyncs = [initStandards, initEquipment, initFaultCatalog, initPrivacy];
-if (isTesterPage) referenceSyncs.push(initFarms, initCalibration, initCompanyBranding, initTesterDetails);
-purgeOtherTesterLayouts();
-void purgeStaleLocalData()
-  .then((purge) => {
-    if (purge.retained?.length) {
-      // That work exists nowhere but this device, and only its owner can send it — a test is
-      // attributed to whoever is signed in, so it can never be flushed from this account.
-      const known = purge.retained.filter((r) => r.unsyncedCount !== null);
-      const total = known.reduce((sum, r) => sum + (r.unsyncedCount ?? 0), 0);
-      const unreadable = purge.retained.length - known.length;
-      const parts: string[] = [];
-      if (total > 0) parts.push(`${total} unsynced test${total === 1 ? "" : "s"}`);
-      if (unreadable > 0) parts.push(`data that couldn't be read`);
-      void import("./ui/toast").then(({ showToast }) =>
-        showToast(
-          `This device still holds ${parts.join(" and ")} from ` +
-            `${purge.retained!.length === 1 ? "another tester" : `${purge.retained!.length} other testers`}. ` +
-            "It can't be sent from your account — they need to sign in and sync.",
-          "error",
-        ),
-      );
-    }
-    return Promise.allSettled(referenceSyncs.map((sync) => sync()));
-  })
-  .finally(mountApps);
+async function warnAboutRetainedWork(): Promise<void> {
+  const purge = await purgeStaleLocalData();
+  if (!purge.retained?.length) return;
+  // That work exists nowhere but this device, and only its owner can send it — a test is
+  // attributed to whoever is signed in, so it can never be flushed from this account.
+  const known = purge.retained.filter((r) => r.unsyncedCount !== null);
+  const total = known.reduce((sum, r) => sum + (r.unsyncedCount ?? 0), 0);
+  const unreadable = purge.retained.length - known.length;
+  const parts: string[] = [];
+  if (total > 0) parts.push(`${total} unsynced test${total === 1 ? "" : "s"}`);
+  if (unreadable > 0) parts.push(`data that couldn't be read`);
+  const { showToast } = await import("./ui/toast");
+  showToast(
+    `This device still holds ${parts.join(" and ")} from ` +
+      `${purge.retained.length === 1 ? "another tester" : `${purge.retained.length} other testers`}. ` +
+      "It can't be sent from your account — they need to sign in and sync.",
+    "error",
+  );
+}
+
+async function boot(): Promise<void> {
+  const shell = isShellDocument();
+  const bootIdentity = await loadIdentity();
+  if (shell) {
+    renderShellChrome(bootIdentity);
+    renderShellPage(bootIdentity); // may move "/" to "/App" — read the path after this
+  }
+
+  // The tester app proper keeps the device's own data fresh (farm book, calibration, branding).
+  // Path-based, because in the shell the page's roots only exist once the bundle has drawn them.
+  // /Admin is excluded: a Super-Administrator's /api/farms is the entire national farm list, and
+  // caching that PII into an admin's IndexedDB buys nothing — admins never pick farms offline.
+  const testerPage = isTesterPath(location.pathname);
+
+  await warnAboutRetainedWork().catch(() => undefined);
+  purgeOtherTesterLayouts();
+
+  // Cached reference data only — IndexedDB, never the network — so the wizard's first render
+  // judges readings against the standards this device last synced, not the bundled defaults.
+  await Promise.allSettled([applyCachedStandards(), applyCachedEquipment(), applyCachedFaultCatalog(), applyCachedPrivacy()]);
+  mountApps();
+
+  if (testerPage) {
+    void enableSessionChecks().then(async () => {
+      // The shell drew this page for whoever the device's record named. If the server now says
+      // someone else is signed in (they signed in while the record still named the previous
+      // tester), start again as them — but only once the new record is really stored, or a device
+      // that can't write it would reload for ever.
+      if (!shell || cachedIdentity()?.testerId === bootIdentity?.testerId) return;
+      const stored = await loadIdentity();
+      if (stored && stored.testerId !== bootIdentity?.testerId) location.reload();
+    });
+  }
+
+  const refreshes: Array<() => Promise<boolean | void>> = [refreshStandards, refreshEquipment, refreshFaultCatalog, refreshPrivacy];
+  if (testerPage) refreshes.push(initFarms, initCalibration, initCompanyBranding, initTesterDetails);
+  const results = await Promise.allSettled(refreshes.map((refresh) => refresh()));
+  const changed = results.some((r) => r.status === "fulfilled" && r.value !== false);
+  dispatchEvent(new CustomEvent<ReferenceRefreshedDetail>(REFERENCE_REFRESHED_EVENT, { detail: { changed } }));
+}
+
+void boot();

@@ -32,6 +32,9 @@ public class ServiceWorkerCacheE2ETests : IClassFixture<E2EWebAppFactory>, IAsyn
     /// <summary>Everything the shell needs before a tester loses signal.</summary>
     private static readonly string[] Expected =
     [
+        // The offline stand-in for every tester page, and the bundle that draws it.
+        "/app-shell.html",
+        "/js/dist/autorep.js",
         "/manifest.webmanifest",
         "/css/site.css",
         "/js/pwa-register.js",

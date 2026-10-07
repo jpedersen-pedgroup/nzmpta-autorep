@@ -26,6 +26,8 @@ public class ApiChallengeTests : IClassFixture<WebAppFactory>
     [InlineData("/api/sync/tests")]
     [InlineData("/api/farms")]
     [InlineData("/api/profile/calibration")]
+    // The offline shell reads "signed out" from exactly this answer, so it must stay a 401.
+    [InlineData("/api/session")]
     public async Task Api_answers_401_rather_than_redirecting_to_login(string path)
     {
         var res = await Client().GetAsync(path);

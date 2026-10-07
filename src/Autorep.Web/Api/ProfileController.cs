@@ -11,11 +11,12 @@ using Microsoft.Net.Http.Headers;
 
 namespace Autorep.Web.Api;
 
-// The signed-in Tester's own profile data used by the PWA: the equipment calibration expiry
-// dates, which belong to the TESTER (their instruments travel with them), not to a farm or test,
-// and their Testing Company's report branding. The device caches both for offline use and pushes
-// calibration edits back here; the wizard stamps the calibration dates and the company into each
-// test at sign-off for the printed report.
+// The signed-in Tester's own profile data used by the PWA: who they are (GET /api/session, which
+// the offline shell runs on), the equipment calibration expiry dates, which belong to the TESTER
+// (their instruments travel with them), not to a farm or test, and their Testing Company's report
+// branding. The device caches all of it for offline use and pushes calibration edits back here;
+// the wizard stamps the calibration dates and the company into each test at sign-off for the
+// printed report.
 [ApiController]
 [Route("api/profile")]
 [Authorize(Roles = Roles.Tester)]
@@ -24,6 +25,45 @@ public class ProfileController : ControllerBase
     private readonly AutorepDbContext _db;
 
     public ProfileController(AutorepDbContext db) => _db = db;
+
+    /// <summary>The signed-in tester as the offline shell needs them. <c>LicenceExpiryDate</c> is
+    /// ISO yyyy-MM-dd (null = never set); <c>SyncOnly</c> is the lapsed-licence session scope.</summary>
+    public record SessionDto(
+        string TesterId, string DisplayName, string? UserName, IReadOnlyList<string> Roles,
+        string? CertificateNo, DateOnly? LicenceExpiryDate, bool SyncOnly, DateTimeOffset ServerTime);
+
+    // Who is signed in. The device writes this to its identity record (an IndexedDB database of its
+    // own, never the Cache API — the shell document is shared by every account on the device and
+    // must stay identity-free), so a cold launch with no signal knows whose tests to open and can
+    // draw the name, initials and licence banner itself. It is also the authenticated half of the
+    // connectivity check: /health only proves the server answers, while a 401 here (never a
+    // redirect — see Program.cs) means "online, but signed out", which needs a different prompt.
+    //
+    // Absolute route so it reads as the session, not a profile sub-resource; the class-level
+    // Tester-role gate still applies, which also covers a lapsed licence's sync-only session.
+    [HttpGet("/api/session")]
+    public async Task<IActionResult> GetSession(CancellationToken ct)
+    {
+        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var user = await _db.Users
+            .Where(u => u.Id == testerId)
+            .Select(u => new { u.Id, u.DisplayName, u.Email, u.UserName, u.CertificateNo, u.LicenceExpiryDate })
+            .FirstOrDefaultAsync(ct);
+        // A cookie for an account that no longer exists is not a session worth caching.
+        if (user is null) return Unauthorized();
+
+        // Names and licence details: never let an intermediary or the HTTP cache keep a copy.
+        Response.Headers.CacheControl = "no-store";
+        return Ok(new SessionDto(
+            user.Id,
+            user.DisplayName != "" ? user.DisplayName : (user.Email ?? user.UserName ?? ""),
+            User.Identity?.Name ?? user.UserName,
+            User.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct().Order().ToList(),
+            user.CertificateNo,
+            user.LicenceExpiryDate,
+            User.HasClaim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly),
+            DateTimeOffset.UtcNow));
+    }
 
     /// <summary>ISO yyyy-MM-dd dates (DateOnly's JSON shape) — null = never recorded.</summary>
     public record CalibrationDto(DateOnly? AirFlowMeters, DateOnly? PulsatorTesters, DateOnly? VacuumGauges);

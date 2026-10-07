@@ -15,6 +15,7 @@ import { initTesterDetails } from "./testerDetailsSync";
 import { warmReportGenerator } from "../report/generatorChunks";
 import { isBlankRegulatorRow, regulatorRows } from "../wizard/pumpRows";
 import { guidesForRoles, TESTER_ROLE, warmGuides } from "../guides/guides";
+import { reportSessionOk, reportSignedOut } from "../connectivity";
 
 interface TestSummaryDto {
   clientId: string;
@@ -59,6 +60,8 @@ export class SessionExpiredError extends Error {
  */
 function assertApiResponse(res: Response): void {
   if (res.status === 401 || res.status === 403 || res.type === "opaqueredirect" || res.redirected) {
+    // The header indicator should say so too, not keep showing "online".
+    reportSignedOut();
     throw new SessionExpiredError();
   }
 }
@@ -225,6 +228,8 @@ export async function syncAll(): Promise<SyncResult> {
     }
   }
   const pulled = await pullTests();
+  // The server just accepted this session end to end.
+  reportSessionOk();
 
   // A sync just succeeded, so the connection is real and the tester is almost certainly not
   // stuck in a paddock. That is the moment to pull down the report generator's lazy chunks, so

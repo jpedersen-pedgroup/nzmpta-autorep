@@ -19,8 +19,8 @@ The **data layer is done. The shell layer is not.** That gap is why offline feel
 | Offline farm **detail** lookup for a chosen farm | ✅ | `farms.ts:32` → `farmsSync.ts:51-53` → `WizardApp.tsx:226` |
 | Delta test pull with lagged watermark | ✅ | `syncClient.ts:62-73`, `Api/SyncController.cs:66-96` |
 | Wizard step navigation, pass/fail, fault rollup, PDF doc build | ✅ | `WizardApp.tsx`, `Client/report/testSummaryPdf.ts` |
-| **Any page navigation offline** | ⬜ | `sw.js:126-129` — navigate is network-only + generated offline card |
-| **Cold PWA launch offline** | ⬜ | `manifest.webmanifest:5` `start_url:"/"` → `Pages/Index.cshtml.cs` server redirect |
+| **Any page navigation offline** | ✅ (Phase 2, Oct 2026) | `sw.js` `shellNavigation`: tester routes are server-first, then the cached identity-free `wwwroot/app-shell.html` (offline, or no answer within 8 s); everything else keeps the offline card |
+| **Cold PWA launch offline** | ✅ (Phase 2, Oct 2026) | `start_url` unchanged (`/`); the shell answers `/` and makes the role decision from the device's identity record (`Client/db/identity.ts`, `shell/shell.tsx`) |
 | **Starting a test offline** | ⬜ | `Pages/App/Tests/New.cshtml:100-101` farm list is Razor-inlined; submit is a server POST |
 | **Printing offline on a device that never printed online** | ⬜ | PDF chunks only cached on first fetch (`sw.js:133-148`); `chunks/pdfmake-EIRMY33F.js` is 2.85 MB and is never fetched until a report is generated |
 | Precache list actually serving | ⬜ | `sw.js:13,14,19` precache bare URLs; pages request `?v=` (`_Layout.cshtml:33,120`, `_BrandHead.cshtml:37`) and `sw.js:135` matches with no `ignoreSearch` — those three entries are **dead** |
@@ -153,21 +153,54 @@ the remainder:
 
 ---
 
-### Phase 2 — Offline navigation: the identity-free shell
+### Phase 2 — Offline navigation: the identity-free shell ✅ DONE Oct 2026
 
 The headline. Cold launch, navigate, resume.
 
-- [ ] **Add `GET /api/session`** (authenticated, 401 when not) returning `{ testerId, displayName, certificateNo, licenceExpiryDate, serverTime }`. Extend `Api/ProfileController.cs` rather than adding a controller. This doubles as the reconnect gate (re-evaluating the licence/terms checks that only run at sign-in) and as the third connectivity state — today `/health` is anonymous, so `connectivity.ts` cannot distinguish "no network" from "network but dead session".
-- [ ] **Persist the identity record to the per-tester IndexedDB** on every successful online load, and have `currentTesterId()` (`testStore.ts:153-156`) fall back to it. See Decision (a) — this is *not* localStorage, and it comes with the explicit single-tester-per-device-offline rule.
-- [ ] **Build `wwwroot/app-shell.html`**: a static, identity-free document with the header chrome markup, tester nav (`/App`, `/App/Tests/Index`, `/App/Tests/New` — hardcode the literals; `TestListApp.tsx:101,123,157` already hardcodes exactly these), footer, an empty mount point, and `<script type="module" src="/js/dist/autorep.js">`. No name, no initials, no licence banner, no antiforgery token, no `window.__autorep*`.
-- [ ] **Render the chrome client-side** from the cached identity record: initials + display name (replacing `_Layout.cshtml:78-79`), and the licence banner (replacing `_Layout.cshtml:89-111`, whose day arithmetic at `:19-22` is trivially client-computable — and will then stay *correct* as days pass offline, which is better than today). Remove the `@inject UserManager` at `_Layout.cshtml:1` and the per-request `GetUserAsync` at `:16` — it is the only DB query on three of the four tester pages.
-- [ ] **Route navigations to the shell in the SW.** Replace `sw.js:126-129` with: network-first, and on failure, if the pathname is in the tester allowlist, serve the cached shell. The allowlist must be **pathname-based** and must cover `/`, `/App`, `/App/Tests/Index`, `/App/Tests/New`, `/App/Tests/Wizard` — the wizard is always visited with a query string (`main.ts:17-24` reads `?id`/`?farmId`/`?farmName`), so matching on `event.request` would miss. Everything else keeps the current offline card. `/Admin/*` explicitly excluded.
-- [ ] **Handle the cold launch.** `manifest.webmanifest:5` is `start_url:"/"` and `Pages/Index.cshtml.cs` is a server-side role redirect. **Recommendation:** keep `start_url:"/"` and have the SW serve the shell for a failed `/` navigation — a changed `start_url` may not take effect on already-installed iPad PWAs without a reinstall (unverified; do not risk it on devices already in the field). The shell then does the role branch client-side from the cached identity record.
-- [ ] **`/Account/*` offline dead ends.** `sw.js:118-120` short-circuits `/Account/` *before* the navigate branch at `:126`, so tapping your own name (`_Layout.cshtml:77`) offline gives the browser's raw network-error page. Move the `/Account/` check after the navigate branch so it at least gets the branded card, and disable the Manage link + Sign out button in the shell when `isServerReachable()` is false.
-- [ ] **Connectivity + pending-work indicator in the shell chrome**, driven by `useServerOnline()` (`connectivity.ts:27-57`, already written and polling-aware) plus a count of `syncState === "local-only"` from IndexedDB. Once pages serve from cache, the *absence* of this indicator is actively misleading. Depends on Phase 0 being done or the count lies.
-- [ ] **Don't block first paint on the reference syncs.** `main.ts:42-44` mounts only in `.finally()` after `Promise.allSettled` of six untimed fetches. Mount first, let the syncs land in the background and re-render — all four reference syncs already apply the cached value before fetching, so early mount is safe. Give each sync the `connectivity.ts` timeout pattern.
-- [ ] **Widen tester-page detection.** `main.ts:36-41` keys off `test-list-root` / `wizard-root`; from a shell those are absent until the client renders them. Move to a path check or a body-level data attribute so `initFarms`/`initCalibration` still run.
-- [ ] Playwright offline suite (see §7).
+> **STATUS (7 Oct 2026, branch `claude/offline-tester-shell`).** Built and covered by the Playwright
+> offline suite (`tests/Autorep.Web.Tests/E2E/OfflineTesterE2ETests.cs`). Where the build departs
+> from the bullets below, and why:
+>
+> - **The identity record is NOT in the per-tester IndexedDB.** That bullet predates the §5a
+>   amendment, which is right: `dbName()` needs the tester id to open that database, so reading the id
+>   from inside it is circular. It lives in a database of its own, `autorep-identity` — deliberately not
+>   `autorep_<x>`, which `purgeStaleLocalData` would treat as a tester store and delete. Still no
+>   localStorage. Cleared at sign-out by `wwwroot/js/pwa-register.js`, which also warns (never blocks)
+>   when the tester has unsent tests — they are kept.
+> - **`@inject UserManager` / `GetUserAsync` stay in `_Layout.cshtml`.** The server banner is still
+>   needed on `/Help` and `/Account/Manage`, which don't load the bundle. The shell draws the same banner
+>   client-side (`Client/shell/licenceBanner.ts`); the per-request query is a cost, not an offline defect.
+> - **Manage and Sign out are not disabled offline** (superseded by §5a "never block sign-out"). Both
+>   are links in the shell; offline they land on the branded offline card, because `/Account/*` now
+>   reaches the navigation branch. Sign out from the shell goes to a new GET confirmation page
+>   (`Pages/Account/Logout.cshtml`) — the shell has no antiforgery token to post with.
+> - **Added: an 8 s navigation timeout** on tester routes before the shell answers. Weak signal hangs
+>   a request rather than failing it.
+> - **Added: the bundle is precached.** `tools/stamp-sw.mjs` writes `BUNDLE_FILES` (entry + static
+>   chunks + small lazy chunks) from the metafile, so a worker that has just installed can launch the
+>   app offline — a runtime-only copy is thrown away with the previous build's cache.
+> - **Added: bundle-load recovery** in `pwa-register.js` — a module graph that fails to load (cached
+>   entry, chunk deployed away) fetches the new worker or drops the cached bundle and reloads once;
+>   never offline, never more than once a minute.
+> - **The tester page bodies are client-rendered on the server pages too** (`/App` home tiles, the My
+>   tests header), so the shell and the server draw the same thing. `/App` now loads the bundle.
+> - **Testing note:** `context.SetOfflineAsync(true)` does not reach a service worker's own fetches in
+>   Chromium (the `PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS` flag reaches only some worker
+>   sessions — tried, flaky), so "offline" navigations came back as live pages. The suite's factory
+>   (`OfflineE2EWebAppFactory.NetworkDown`) drops every connection server-side as well. The CI E2E job
+>   now builds the client bundle; it didn't, and the shell needs it.
+
+- [x] **Add `GET /api/session`** (authenticated, 401 when not) returning `{ testerId, displayName, certificateNo, licenceExpiryDate, serverTime }`. Extend `Api/ProfileController.cs` rather than adding a controller. This doubles as the reconnect gate (re-evaluating the licence/terms checks that only run at sign-in) and as the third connectivity state — today `/health` is anonymous, so `connectivity.ts` cannot distinguish "no network" from "network but dead session".
+- [x] **Persist the identity record ~~to the per-tester IndexedDB~~ (its own `autorep-identity` database — see STATUS)** on every successful online load, and have `currentTesterId()` (`testStore.ts:153-156`) fall back to it. See Decision (a) — this is *not* localStorage, and it comes with the explicit single-tester-per-device-offline rule.
+- [x] **Build `wwwroot/app-shell.html`**: a static, identity-free document with the header chrome markup, tester nav (`/App`, `/App/Tests/Index`, `/App/Tests/New` — hardcode the literals; `TestListApp.tsx:101,123,157` already hardcodes exactly these), footer, an empty mount point, and `<script type="module" src="/js/dist/autorep.js">`. No name, no initials, no licence banner, no antiforgery token, no `window.__autorep*`.
+- [x] **Render the chrome client-side** (in the shell; the server layout keeps its own — see STATUS) from the cached identity record: initials + display name (replacing `_Layout.cshtml:78-79`), and the licence banner (replacing `_Layout.cshtml:89-111`, whose day arithmetic at `:19-22` is trivially client-computable — and will then stay *correct* as days pass offline, which is better than today). Remove the `@inject UserManager` at `_Layout.cshtml:1` and the per-request `GetUserAsync` at `:16` — it is the only DB query on three of the four tester pages.
+- [x] **Route navigations to the shell in the SW.** Replace `sw.js:126-129` with: network-first, and on failure, if the pathname is in the tester allowlist, serve the cached shell. The allowlist must be **pathname-based** and must cover `/`, `/App`, `/App/Tests/Index`, `/App/Tests/New`, `/App/Tests/Wizard` — the wizard is always visited with a query string (`main.ts:17-24` reads `?id`/`?farmId`/`?farmName`), so matching on `event.request` would miss. Everything else keeps the current offline card. `/Admin/*` explicitly excluded.
+- [x] **Handle the cold launch.** `manifest.webmanifest:5` is `start_url:"/"` and `Pages/Index.cshtml.cs` is a server-side role redirect. **Recommendation:** keep `start_url:"/"` and have the SW serve the shell for a failed `/` navigation — a changed `start_url` may not take effect on already-installed iPad PWAs without a reinstall (unverified; do not risk it on devices already in the field). The shell then does the role branch client-side from the cached identity record.
+- [x] **`/Account/*` offline dead ends.** (Moved; the disabling half superseded — see STATUS.) `sw.js:118-120` short-circuits `/Account/` *before* the navigate branch at `:126`, so tapping your own name (`_Layout.cshtml:77`) offline gives the browser's raw network-error page. Move the `/Account/` check after the navigate branch so it at least gets the branded card, and disable the Manage link + Sign out button in the shell when `isServerReachable()` is false.
+- [x] **Connectivity + pending-work indicator in the shell chrome** (and the server header: `Client/shell/AppStatus.tsx`; three states — online, offline, signed out — from `/health` polling plus `/api/session` on load, reconnect and focus, never on the 30 s timer, which would keep an idle session alive for ever), driven by `useServerOnline()` (`connectivity.ts:27-57`, already written and polling-aware) plus a count of `syncState === "local-only"` from IndexedDB. Once pages serve from cache, the *absence* of this indicator is actively misleading. Depends on Phase 0 being done or the count lies.
+- [x] **Don't block first paint on the reference syncs.** (Each sync is split into apply-cached and refresh; the page mounts on the cached set, and a `autorep:reference-refreshed` event re-renders the wizard if anything changed.) `main.ts:42-44` mounts only in `.finally()` after `Promise.allSettled` of six untimed fetches. Mount first, let the syncs land in the background and re-render — all four reference syncs already apply the cached value before fetching, so early mount is safe. Give each sync the `connectivity.ts` timeout pattern.
+- [x] **Widen tester-page detection.** (`isTesterPath` — `/App/*`.) `main.ts:36-41` keys off `test-list-root` / `wizard-root`; from a shell those are absent until the client renders them. Move to a path check or a body-level data attribute so `initFarms`/`initCalibration` still run.
+- [x] Playwright offline suite (see §7).
 
 **Files:** `wwwroot/app-shell.html` (new), `wwwroot/sw.js`, `Pages/Shared/_Layout.cshtml`, `Api/ProfileController.cs`, `Client/main.ts`, `Client/db/testStore.ts`, `Client/ui/` (new shell chrome component), `Client/connectivity.ts`, `Pages/App/Index.cshtml`.
 **Estimate: 5–8 days.**
@@ -338,23 +371,23 @@ Current coverage of anything in this document: **zero**. `tests/Autorep.Web.Test
 
 **Vitest (fast, runs in CI already):**
 - [ ] New `Client/sync/farmsSync.test.ts` — full replace on success, cache untouched on non-ok, cache untouched on throw, `getCachedFarm` hit/miss, empty-on-never-synced. `fake-indexeddb` is already a devDependency.
-- [ ] New `Client/sync/syncClient.test.ts` — continue-on-push-failure, pull still runs after a failed push, redirect-to-HTML treated as failure (not `uploaded`), watermark only advanced after all rows stored.
-- [ ] Extend `Client/db/testStore.test.ts` — purge no-ops on null identity; purge refuses when the outgoing DB holds `local-only` tests.
+- [x] New `Client/sync/syncClient.test.ts` (Phase 0) — continue-on-push-failure, pull still runs after a failed push, redirect-to-HTML treated as failure (not `uploaded`), watermark only advanced after all rows stored.
+- [x] Extend `Client/db/testStore.test.ts` (Phase 0, `testStore.purge.test.ts`; the shell's identity-record path in `testStore.identity.test.ts`) — purge no-ops on null identity; purge refuses when the outgoing DB holds `local-only` tests.
 
 **Playwright (offline is the point):**
-- [ ] `context.setOffline(true)` is the primary lever. Sequence per case: load online as a seeded tester → wait for the SW to control the page (`navigator.serviceWorker.ready` + a `controllerchange` await) → `setOffline(true)` → act.
-- [ ] Cold launch offline: `setOffline(true)`, `page.goto('/')`, assert the shell renders and the nav is present.
-- [ ] Navigate offline: home → My tests → open a saved test in the wizard → assert steps render and a value persists across a reload.
+- [x] `context.setOffline(true)` is the primary lever — **but not enough on its own**: in Chromium it doesn't reach the service worker's fetches, so the suite also drops connections server-side (`OfflineE2EWebAppFactory.NetworkDown`; Phase 2 STATUS). Sequence per case: load online as a seeded tester → wait for the SW to control the page (`navigator.serviceWorker.ready` + a `controllerchange` await) → `setOffline(true)` → act.
+- [x] Cold launch offline: `setOffline(true)`, `page.goto('/')`, assert the shell renders and the nav is present.
+- [x] Navigate offline: home → My tests → open a saved test in the wizard → assert steps render and a value persists across a reload.
 - [ ] Capture offline: complete a test end to end, assert it lands in IndexedDB with `syncState:"local-only"`, then `setOffline(false)` and assert it pushes.
-- [ ] Print offline: after one online sync (which warms the chunks), go offline and assert the PDF blob is produced.
-- [ ] **PII assertion:** enumerate `caches.keys()` → every entry's body, assert none contains the tester's display name/email or any seeded farm name. This is the test the whole shell strategy rests on.
-- [ ] Deploy-churn recovery: change the bundle hash and delete the old chunk, then assert the app recovers rather than 504-looping.
-- [ ] SW cache contents after first online load match the expected key set.
+- [x] Print offline: after one online sync (which warms the chunks), go offline and assert the PDF blob is produced.
+- [x] **PII assertion:** enumerate `caches.keys()` → every entry's body, assert none contains the tester's display name/email or any seeded farm name. This is the test the whole shell strategy rests on.
+- [x] Deploy-churn recovery (simulated by caching an entry whose chunk the server doesn't have; the renderer's memory cache has to be switched off or Chromium never asks the worker — a real cold launch has nothing in it): change the bundle hash and delete the old chunk, then assert the app recovers rather than 504-looping.
+- [x] SW cache contents after first online load match the expected key set (now including `/app-shell.html` and the bundle).
 
 **xUnit:**
-- [ ] `/api/*` returns 401 (not a 302 to login) for an unauthenticated request — the Phase 0 fix.
+- [x] `/api/*` returns 401 (not a 302 to login) for an unauthenticated request — the Phase 0 fix (`ApiChallengeTests`, now including `/api/session`).
 - [ ] `GET /api/sync/tests` pagination: page size honoured, continuation correct, no rows dropped or duplicated across pages.
-- [ ] `GET /api/session` shape + 401 when unauthenticated.
+- [x] `GET /api/session` shape + 401 when unauthenticated (`SessionEndpointTests`, `ApiChallengeTests`).
 
 CI already runs Vitest + typecheck and E2E as its own job (`.github/workflows/app.yml`), so the offline cases slot into the existing E2E job with no new infrastructure.
 

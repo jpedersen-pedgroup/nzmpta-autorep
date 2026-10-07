@@ -12,7 +12,34 @@ import { GuideLink } from "./GuideLink";
 import { showToast } from "./toast";
 
 export function mountTestList(root: HTMLElement): void {
-  render(<TestListApp />, root);
+  render(
+    <>
+      <PageHeader />
+      <TestListApp />
+    </>,
+    root,
+  );
+}
+
+/** Drawn here rather than in Pages/App/Tests/Index.cshtml so the offline shell, which serves this
+ * page from the device, renders exactly what the server does. */
+function PageHeader() {
+  return (
+    <div class="page-header">
+      <div class="page-header__heading">
+        <h1>My tests</h1>
+        <p>Machine tests you've created, saved on this device.</p>
+      </div>
+      <div class="page-header__actions">
+        <a class="btn btn--secondary" href="/App/Tests/Company">
+          Company tests
+        </a>
+        <a class="btn" href="/App/Tests/New">
+          + New test
+        </a>
+      </div>
+    </div>
+  );
 }
 
 function syncLabel(state: LocalTest["syncState"]): string {
