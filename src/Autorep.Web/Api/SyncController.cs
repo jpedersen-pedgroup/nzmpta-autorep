@@ -210,8 +210,10 @@ public class SyncController : ControllerBase
     //    created via the New-test "add farm" modal).
     // Deliberately does NOT filter on Farm.IsActive: a test may have been started in the field
     // before the farm was deactivated, and the completed work must still land on the right farm
-    // rather than be stranded or duplicated. (New tests can't be *started* on inactive farms —
-    // the New-test page enforces that.)
+    // rather than be stranded or duplicated. (New tests aren't *started* on inactive farms: the
+    // New-test picker offers only the device's cached farm book, which holds active farms only.
+    // A farm deactivated since the device last synced can still be picked offline — by design,
+    // the test lands on it here rather than being lost.)
     private async Task<Farm> ResolveFarmAsync(
         UploadTestRequest req, string testerId, Guid? companyId, CancellationToken ct)
     {

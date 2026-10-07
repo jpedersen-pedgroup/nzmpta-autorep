@@ -7,7 +7,7 @@
 @* Drawn by the bundle (Client/shell/HomePage.tsx) so the offline shell, which serves this page
    from the device when there's no signal, shows exactly the same home. Loading the bundle here
    also keeps the device's tests, farm book and reference data fresh from the first screen. *@
-<div id="home-root"></div>
+<div id="home-root" data-bundle-root></div>
 
 @section Scripts {
     <script type="module" src="~/js/dist/autorep.js"></script>

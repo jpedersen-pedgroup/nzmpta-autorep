@@ -26,6 +26,7 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
     public async Task DisposeAsync()
     {
         _factory.NetworkDown = false;
+        _factory.ServiceWorkerSuffix = null;
         if (_browser is not null) await _browser.DisposeAsync();
         _playwright?.Dispose();
     }
@@ -161,6 +162,88 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         Assert.True(await IsShellAsync(page));
         await page.Locator("input[placeholder='e.g. 30 a-side']").WaitForAsync();
         Assert.Equal("24 a-side", await page.InputValueAsync("input[placeholder='e.g. 30 a-side']"));
+    }
+
+    /// <summary>Online, until the farm book holds <paramref name="farm"/> (it arrives in the background).</summary>
+    private async Task WaitForFarmBookAsync(IPage page, string farm) =>
+        Assert.True(await PollAsync(page, @"async ([testerId, farm]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains('reference')) { db.close(); resolve(false); return; }
+                    const get = db.transaction('reference').objectStore('reference').get('farms');
+                    get.onsuccess = () => { db.close(); resolve((get.result?.rows ?? []).some((f) => f.name === farm)); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })", new[] { _factory.TesterId, farm }), $"the farm book never brought {farm} to the device");
+
+    // Phase 3: the New-test page is drawn from the farm book on the device, so a test can start
+    // at a farm with no signal at all — the whole point of an offline tester app.
+    [Fact]
+    public async Task A_test_starts_offline_from_the_farm_book_on_the_device()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        await WaitForFarmBookAsync(page, OfflineE2EWebAppFactory.RimuFarm);
+
+        await GoOfflineAsync(context);
+        await page.GotoAsync("/App");
+        await page.Locator(".tile", new() { HasText = "Start a new test" }).ClickAsync();
+        await page.WaitForURLAsync(url => url.EndsWith("/App/Tests/New", StringComparison.Ordinal));
+        Assert.True(await IsShellAsync(page));
+
+        await page.FillAsync("#farm-search", "rimu");
+        await page.Locator("#farm-menu button", new() { HasText = OfflineE2EWebAppFactory.RimuFarm }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Start test" }).ClickAsync();
+
+        await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal));
+        var testId = new Uri(page.Url).Query.Split("id=")[1];
+        Assert.True(await PollAsync(page, @"async ([testerId, testId]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    const get = db.transaction('tests').objectStore('tests').get(testId);
+                    get.onsuccess = () => { db.close(); resolve(!!get.result?.farm?.supplyNumber); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })", new[] { _factory.TesterId, testId }), "the wizard never snapshotted the farm from the cached book");
+
+        var stored = JsonDocument.Parse((await LocalTestJsonAsync(page, _factory.TesterId, testId))!).RootElement;
+        Assert.Equal(_factory.RimuFarmId.ToString(), stored.GetProperty("farmId").GetString());
+        Assert.Equal("40456", stored.GetProperty("farm").GetProperty("supplyNumber").GetString());
+        Assert.Equal("local-only", stored.GetProperty("syncState").GetString());
+    }
+
+    // Adding a farm stays online-only (Phase 5 was cut). Offline it must say so plainly instead of
+    // failing silently; online it adds the farm and the device can pick it from then on.
+    [Fact]
+    public async Task Adding_a_farm_needs_a_connection_and_then_lands_in_the_farm_book()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        await WaitForFarmBookAsync(page, OfflineE2EWebAppFactory.RimuFarm);
+
+        await GoOfflineAsync(context);
+        await page.GotoAsync("/App/Tests/New");
+        await page.GetByRole(AriaRole.Button, new() { Name = "＋ Add a new farm" }).ClickAsync();
+        await page.GetByText("Adding a farm needs a connection").WaitForAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Close" }).ClickAsync();
+
+        await GoOnlineAsync(context);
+        await page.GotoAsync("/App/Tests/New");
+        Assert.False(await IsShellAsync(page));
+        await page.GetByRole(AriaRole.Button, new() { Name = "＋ Add a new farm" }).ClickAsync();
+        await page.FillAsync("#nf-name", "Totara Valley E2E");
+        await page.FillAsync("#nf-supply", "70777");
+        await page.ClickAsync("#nf-create");
+
+        // Picked straight away, and in the cached book for next time — offline included.
+        await Assertions.Expect(page.Locator("#farm-search")).ToHaveValueAsync("Totara Valley E2E");
+        await WaitForFarmBookAsync(page, "Totara Valley E2E");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Start test" }).ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -329,6 +412,46 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         Assert.True(await IsShellAsync(page));
         await page.GetByText("nobody is signed in here").WaitForAsync();
         Assert.Equal(0, await page.Locator("#test-list-root, #wizard-root, #home-root").CountAsync());
+    }
+
+    // Straight after a deploy, a page drawn by the bundle (here New test, which the previous build
+    // couldn't draw) can arrive before the new worker has taken over, so the device's cached bundle
+    // is the old one and the page sits empty. When the new build arrives, a page with nothing drawn
+    // has nothing to lose: it must reload into the new build by itself, once.
+    [Fact]
+    public async Task A_page_the_old_bundle_cannot_draw_reloads_into_the_new_build_by_itself()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        try
+        {
+            // The previous build, as far as this page is concerned: it loads fine and draws nothing.
+            await page.EvaluateAsync(@"async () => {
+                    const name = (await caches.keys()).find((k) => /^autorep-[0-9a-f]{12}$/.test(k));
+                    await (await caches.open(name)).put(new Request('/js/dist/autorep.js'), new Response(
+                        '/* the previous build: knows nothing about this page */',
+                        { headers: { 'Content-Type': 'text/javascript' } }));
+                }");
+            var cdp = await context.NewCDPSessionAsync(page); // a real launch has no renderer memory cache
+            await cdp.SendAsync("Network.enable");
+            await cdp.SendAsync("Network.setCacheDisabled", new Dictionary<string, object> { ["cacheDisabled"] = true });
+
+            var navigations = 0;
+            page.FrameNavigated += (_, frame) => { if (frame == page.MainFrame) navigations++; };
+            await page.GotoAsync("/App/Tests/New");
+            Assert.Equal(0, await page.Locator("#new-test-root > *").CountAsync());
+
+            // Deploy: the worker changes, the browser installs it, and it takes over.
+            _factory.ServiceWorkerSuffix = $"\n// deployed {Guid.NewGuid()}\n";
+            await page.EvaluateAsync("() => navigator.serviceWorker.getRegistration().then((r) => r.update())");
+
+            await page.Locator("#farm-search").WaitForAsync();
+            Assert.Equal(2, navigations);
+        }
+        finally
+        {
+            _factory.ServiceWorkerSuffix = null;
+        }
     }
 
     [Fact]

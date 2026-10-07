@@ -21,7 +21,7 @@ The **data layer is done. The shell layer is not.** That gap is why offline feel
 | Wizard step navigation, pass/fail, fault rollup, PDF doc build | ✅ | `WizardApp.tsx`, `Client/report/testSummaryPdf.ts` |
 | **Any page navigation offline** | ✅ (Phase 2, Oct 2026) | `sw.js` `shellNavigation`: tester routes are server-first, then the cached identity-free `wwwroot/app-shell.html` (offline, or no answer within 8 s); everything else keeps the offline card |
 | **Cold PWA launch offline** | ✅ (Phase 2, Oct 2026) | `start_url` unchanged (`/`); the shell answers `/` and makes the role decision from the device's identity record (`Client/db/identity.ts`, `shell/shell.tsx`) |
-| **Starting a test offline** | ⬜ | `Pages/App/Tests/New.cshtml:100-101` farm list is Razor-inlined; submit is a server POST |
+| **Starting a test offline** | ✅ (Phase 3, Oct 2026) | `/App/Tests/New` is drawn on the device (`Client/ui/NewTestApp.tsx`) from the cached farm book and opens the wizard directly; adding a farm is `POST /api/farms`, online-only and says so |
 | **Printing offline on a device that never printed online** | ⬜ | PDF chunks only cached on first fetch (`sw.js:133-148`); `chunks/pdfmake-EIRMY33F.js` is 2.85 MB and is never fetched until a report is generated |
 | Precache list actually serving | ⬜ | `sw.js:13,14,19` precache bare URLs; pages request `?v=` (`_Layout.cshtml:33,120`, `_BrandHead.cshtml:37`) and `sw.js:135` matches with no `ignoreSearch` — those three entries are **dead** |
 
@@ -208,18 +208,49 @@ The headline. Cold launch, navigate, resume.
 
 ---
 
-### Phase 3 — Start a test offline (client-rendered `/App/Tests/New`)
+### Phase 3 — Start a test offline (client-rendered `/App/Tests/New`) ✅ DONE Oct 2026
+
+> **STATUS (7 Oct 2026, branch `claude/offline-tester-new-test`, stacked on Phase 2).** Covered by
+> `OfflineTesterE2ETests` (start a test offline from the cached book; add-a-farm offline vs online),
+> `NewFarmTests`, `FarmsControllerTests` and `Client/sync/farmsSync.test.ts`. Departures:
+>
+> - **The farm book's version stamp is an ETag + 304, not `{version, items}`.** The body stays a plain
+>   array, so a device still running the previous bundle keeps working through a deploy. The ETag is
+>   over the exact bytes (deterministic order, `ThenBy(Id)`), and the response is `no-store` so the
+>   browser's own HTTP cache never keeps farmers' details on a shared device.
+> - **One new endpoint after all: `GET /api/farms/new-farm-options`** (regions + milk companies).
+>   The "no list endpoints needed" note under Phase 5 assumed the modal stayed server-rendered; once
+>   the page is drawn on the device the online-only form still needs its pick lists. Reference data,
+>   fetched when the form opens.
+> - **Not `Combobox.tsx`:** it works on strings, and two farms can share a name. A small farm picker
+>   shows supply number / town / processor so same-named farms can be told apart, and a typed name
+>   only counts as a choice when it matches exactly one farm.
+> - **The old page's OnPost scope tests are gone with the handler.** Inactive farms: the picker only
+>   offers the cached book, which is active farms only; a farm deactivated since the device last
+>   synced can still be picked offline, and the sync push lands the test on it rather than losing it
+>   (comment updated in `SyncController.ResolveFarmAsync`).
+> - **Added to the POST:** an unknown or inactive region/milk company is a 400, not a foreign-key
+>   failure; a sync-only session gets 403; the review email isn't tied to the request's cancellation.
+> - **Logos:** only the ones the device doesn't already hold are fetched, after a changed book; an
+>   unchanged book re-checks once per tab session (tops up a capped or evicted logo cache).
+> - **Found on the way — deploy skew.** A page the bundle draws can arrive before the new worker has
+>   taken over, so the previous build's cached bundle runs and may not know the page (New test,
+>   straight after this ships). Bundle mount points are now marked `data-bundle-root` with a
+>   "Loading…" placeholder; when the new build arrives and a root is still empty, `pwa-register.js`
+>   reloads into it once instead of showing the banner (nothing was drawn, nothing to lose), and a
+>   root still empty 10 s after load gets a "Try again" bar. E2E:
+>   `A_page_the_old_bundle_cannot_draw_reloads_into_the_new_build_by_itself`.
 
 `/App/Tests/New` is the only tester page with real server data, and it is therefore the only one the PII rule forbids caching. Rewriting it removes the objection outright and finishes the goal.
 
-- [ ] **Replace the inline farm-picker IIFE** (`New.cshtml:97-196`, over the Razor-serialised array at `:100-101`) with a Preact component mounted on an empty root, reading `getCachedFarms()` (`farmsSync.ts:41`). Reuse `Client/ui/Combobox.tsx`. Delete the 5 DB queries in `New.cshtml.cs:144-171` that feed it.
-- [ ] **Add the bundle to this page** — it currently loads no `autorep.js` at all, which is also why the farm book never refreshes on the one page that needs it.
-- [ ] **Replace the POST→`RedirectToPage`** (`New.cshtml:15`, handler `New.cshtml.cs:58-79`) with a client-side navigation to `/App/Tests/Wizard?farmId=…&farmName=…` — the wizard already accepts exactly those params (`main.ts:20-21`). The server-side scope re-check is not lost: it still happens on `GET /api/farms/{id}` and on sync push (`SyncController.ResolveFarmAsync`), and an offline picker can only offer farms from the tester's own already-scoped cached book.
-- [ ] **Render the privacy notice from the client cache** (`Client/config/privacyContent.ts`, already synced by `privacySync.ts`) instead of the DB query at `New.cshtml.cs:169-170`. One query dropped for free.
-- [ ] **Give `/api/farms` a version stamp.** `farmsSync.ts:28-38` re-downloads the entire company farm book on *every* tester page load with no version/ETag — contrast `standardsSync`/`equipmentSync`, which carry one. Once navigation is cached and testers move freely between four screens this is a multi-MB fetch per navigation. Add `{version, items}` to `Api/FarmsController.cs` List and short-circuit when unchanged.
-- [ ] **Pre-cache milk-company logos.** After a farm-book sync, iterate the distinct `milkCompanyId` values and `fetch('/api/milk-companies/'+id+'/logo')` — the SW's existing stale-while-revalidate rule (`sw.js:80-95`) does the rest, no SW change needed. This is the outstanding M2 item already flagged at `sw.js:5-6` and `plans/build-checklist.md:53`. Note logos currently appear on this one tester surface only (`New.cshtml:112-120`) and nowhere in the wizard or the PDF, so keep it cheap.
-- [ ] **Add-a-farm modal: online-only, clearly.** Detect `isServerReachable()` and show "you need signal to add a new farm" instead of a silent 400. **Note:** the antiforgery token read at `New.cshtml:108` comes from the *layout's* logout form (`_Layout.cshtml:81-83` renders before `@RenderBody()` at `:114`), not this page's own form. Removing or client-rendering the shell's sign-out form breaks farm creation. If the handler is kept, move it to a `POST` on `Api/FarmsController.cs` (controllers registered by `AddControllers()` get no antiforgery filter — `Client/sync/syncClient.ts:39` already POSTs with only a Content-Type header).
-- [ ] Drop the server-rendered role hint (`New.cshtml:83-89`) — always show the review hint; it is accurate for plain Testers and harmlessly redundant for admins. Move validation errors to the modal's own `#farm-modal-errors` div / `showToast`.
+- [x] **Replace the inline farm-picker IIFE** (`New.cshtml:97-196`, over the Razor-serialised array at `:100-101`) with a Preact component mounted on an empty root, reading `getCachedFarms()` (`farmsSync.ts:41`). Reuse `Client/ui/Combobox.tsx`. Delete the 5 DB queries in `New.cshtml.cs:144-171` that feed it.
+- [x] **Add the bundle to this page** — it currently loads no `autorep.js` at all, which is also why the farm book never refreshes on the one page that needs it.
+- [x] **Replace the POST→`RedirectToPage`** (`New.cshtml:15`, handler `New.cshtml.cs:58-79`) with a client-side navigation to `/App/Tests/Wizard?farmId=…&farmName=…` — the wizard already accepts exactly those params (`main.ts:20-21`). The server-side scope re-check is not lost: it still happens on `GET /api/farms/{id}` and on sync push (`SyncController.ResolveFarmAsync`), and an offline picker can only offer farms from the tester's own already-scoped cached book.
+- [x] **Render the privacy notice from the client cache** (`Client/config/privacyContent.ts`, already synced by `privacySync.ts`) instead of the DB query at `New.cshtml.cs:169-170`. One query dropped for free.
+- [x] **Give `/api/farms` a version stamp.** (As an ETag — see STATUS.) `farmsSync.ts:28-38` re-downloads the entire company farm book on *every* tester page load with no version/ETag — contrast `standardsSync`/`equipmentSync`, which carry one. Once navigation is cached and testers move freely between four screens this is a multi-MB fetch per navigation. Add `{version, items}` to `Api/FarmsController.cs` List and short-circuit when unchanged.
+- [x] **Pre-cache milk-company logos.** After a farm-book sync, iterate the distinct `milkCompanyId` values and `fetch('/api/milk-companies/'+id+'/logo')` — the SW's existing stale-while-revalidate rule (`sw.js:80-95`) does the rest, no SW change needed. This is the outstanding M2 item already flagged at `sw.js:5-6` and `plans/build-checklist.md:53`. Note logos currently appear on this one tester surface only (`New.cshtml:112-120`) and nowhere in the wizard or the PDF, so keep it cheap.
+- [x] **Add-a-farm modal: online-only, clearly.** (Moved to `POST /api/farms`.) Detect `isServerReachable()` and show "you need signal to add a new farm" instead of a silent 400. **Note:** the antiforgery token read at `New.cshtml:108` comes from the *layout's* logout form (`_Layout.cshtml:81-83` renders before `@RenderBody()` at `:114`), not this page's own form. Removing or client-rendering the shell's sign-out form breaks farm creation. If the handler is kept, move it to a `POST` on `Api/FarmsController.cs` (controllers registered by `AddControllers()` get no antiforgery filter — `Client/sync/syncClient.ts:39` already POSTs with only a Content-Type header).
+- [x] Drop the server-rendered role hint (`New.cshtml:83-89`) — always show the review hint; it is accurate for plain Testers and harmlessly redundant for admins. Move validation errors to the modal's own `#farm-modal-errors` div / `showToast`.
 
 **Files:** `Pages/App/Tests/New.cshtml`, `Pages/App/Tests/New.cshtml.cs`, new `Client/ui/NewTestApp.tsx`, `Client/sync/farmsSync.ts`, `Api/FarmsController.cs`, `Client/main.ts`, `Client/config/privacyContent.ts`.
 **Estimate: 4–6 days.**
@@ -370,7 +401,7 @@ This is the item most likely to produce "worked in testing, failed in the field"
 Current coverage of anything in this document: **zero**. `tests/Autorep.Web.Tests/E2E/` is three files (`E2EWebAppFactory.cs`, `FarmAutocompleteE2ETests.cs`, `StubNzPostHandler.cs`), and grepping the tests tree for `sw.js` / `serviceWorker` / `offline` returns only comment hits. On the client side there are twelve Vitest files, and **`Client/sync/farmsSync.ts` has none** — no test for `initFarms`, `getCachedFarms` or `getCachedFarm`, despite the farm book being the data source for the entire offline picker. `Client/sync/syncClient.ts` has none either.
 
 **Vitest (fast, runs in CI already):**
-- [ ] New `Client/sync/farmsSync.test.ts` — full replace on success, cache untouched on non-ok, cache untouched on throw, `getCachedFarm` hit/miss, empty-on-never-synced. `fake-indexeddb` is already a devDependency.
+- [x] New `Client/sync/farmsSync.test.ts` (Phase 3, plus the ETag/304 and logo-warming cases) — full replace on success, cache untouched on non-ok, cache untouched on throw, `getCachedFarm` hit/miss, empty-on-never-synced. `fake-indexeddb` is already a devDependency.
 - [x] New `Client/sync/syncClient.test.ts` (Phase 0) — continue-on-push-failure, pull still runs after a failed push, redirect-to-HTML treated as failure (not `uploaded`), watermark only advanced after all rows stored.
 - [x] Extend `Client/db/testStore.test.ts` (Phase 0, `testStore.purge.test.ts`; the shell's identity-record path in `testStore.identity.test.ts`) — purge no-ops on null identity; purge refuses when the outgoing DB holds `local-only` tests.
 

@@ -147,4 +147,136 @@ public class FarmsControllerTests : IClassFixture<AuthedWebAppFactory>
         farms.Should().NotContain(f => f.Id == othersId);   // another tester's farm — not harvestable
         farms.Should().NotContain(f => f.Id == inactiveId); // deactivated farms drop out of the book
     }
+    private async Task<Guid> SeedCompanyTesterAsync(string testerId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var company = new TestingCompany { Name = "Co " + testerId };
+        db.TestingCompanies.Add(company);
+        db.Users.Add(new Tester { Id = testerId, UserName = testerId, TestingCompanyId = company.Id });
+        await db.SaveChangesAsync();
+        return company.Id;
+    }
+
+    private async Task<Guid> SeedFarmAsync(string name, Guid? createdByCompany)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var farm = new Farm { Name = name, CreatedByTestingCompanyId = createdByCompany };
+        db.Farms.Add(farm);
+        await db.SaveChangesAsync();
+        return farm.Id;
+    }
+
+    // The farm book is refreshed on every tester page and is the biggest thing they fetch: an
+    // unchanged book must cost a bodyless 304, and any change to it a full answer.
+    [Fact]
+    public async Task List_answers_304_while_the_book_is_unchanged_and_in_full_once_it_changes()
+    {
+        var companyId = await SeedCompanyTesterAsync("tester-etag-1");
+        await SeedFarmAsync("ETag Farm One", companyId);
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-etag-1");
+
+        var first = await client.GetAsync("/api/farms");
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        var etag = first.Headers.ETag;
+        etag.Should().NotBeNull();
+
+        var again = new HttpRequestMessage(HttpMethod.Get, "/api/farms");
+        again.Headers.IfNoneMatch.Add(etag!);
+        var unchanged = await client.SendAsync(again);
+        unchanged.StatusCode.Should().Be(HttpStatusCode.NotModified);
+        (await unchanged.Content.ReadAsByteArrayAsync()).Should().BeEmpty();
+
+        await SeedFarmAsync("ETag Farm Two", companyId);
+        var afterChange = new HttpRequestMessage(HttpMethod.Get, "/api/farms");
+        afterChange.Headers.IfNoneMatch.Add(etag!);
+        var changed = await client.SendAsync(afterChange);
+        changed.StatusCode.Should().Be(HttpStatusCode.OK);
+        changed.Headers.ETag.Should().NotBe(etag);
+        (await changed.Content.ReadFromJsonAsync<List<FarmResponse>>())!
+            .Select(f => f.Name).Should().Contain(["ETag Farm One", "ETag Farm Two"]);
+    }
+
+    // Farmers' contact details on a shared device: the conditional request is the device's to make
+    // from IndexedDB; the browser's own HTTP cache must never keep a copy.
+    [Fact]
+    public async Task List_is_never_kept_by_the_browser_cache()
+    {
+        await SeedCompanyTesterAsync("tester-etag-2");
+        var client = _factory.CreateClientAs(Roles.Tester, "tester-etag-2");
+
+        var res = await client.GetAsync("/api/farms");
+
+        res.Headers.CacheControl!.NoStore.Should().BeTrue();
+        res.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+    }
+
+    // The migrated-farm shape: no CreatedBy company, but tested by a colleague. It must be in the
+    // book (the scope's test-history leg), or the device could never start a test on it — this
+    // was a New-test page check while that page was server-rendered.
+    [Fact]
+    public async Task List_includes_a_farm_in_scope_only_through_a_colleagues_test_history()
+    {
+        var companyId = await SeedCompanyTesterAsync("tester-history-1");
+        Guid farmId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            db.Users.Add(new Tester { Id = "tester-history-2", UserName = "tester-history-2", TestingCompanyId = companyId });
+            var farm = new Farm { Name = "Legacy History Farm" };
+            db.Farms.Add(farm);
+            db.MachineTests.Add(new MachineTest { TesterId = "tester-history-2", FarmId = farm.Id });
+            await db.SaveChangesAsync();
+            farmId = farm.Id;
+        }
+
+        var farms = await _factory.CreateClientAs(Roles.Tester, "tester-history-1")
+            .GetFromJsonAsync<List<FarmResponse>>("/api/farms");
+
+        farms!.Should().Contain(f => f.Id == farmId);
+    }
+
+    private sealed record Option(Guid Id, string Name, string? Island);
+    private sealed record Options(List<Option> Regions, List<Option> MilkCompanies);
+
+    [Fact]
+    public async Task New_farm_options_offer_only_active_regions_and_milk_companies()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            db.Regions.AddRange(
+                new Region { Name = "Opts Live Region", Island = "South Island" },
+                new Region { Name = "Opts Retired Region", Island = "South Island", IsActive = false });
+            db.MilkSupplyCompanies.AddRange(
+                new MilkSupplyCompany { Name = "Opts Live Co" },
+                new MilkSupplyCompany { Name = "Opts Retired Co", IsActive = false });
+            await db.SaveChangesAsync();
+        }
+
+        var options = await _factory.CreateClientAs(Roles.Tester, "tester-opts")
+            .GetFromJsonAsync<Options>("/api/farms/new-farm-options");
+
+        options!.Regions.Should().Contain(r => r.Name == "Opts Live Region" && r.Island == "South Island");
+        options.Regions.Should().NotContain(r => r.Name == "Opts Retired Region");
+        options.MilkCompanies.Should().Contain(c => c.Name == "Opts Live Co");
+        options.MilkCompanies.Should().NotContain(c => c.Name == "Opts Retired Co");
+    }
+
+    // The page used to inline the company's whole farm book. Now it's drawn on the device, and the
+    // HTML the server sends — the kind of document a device might cache — names no farm at all.
+    [Fact]
+    public async Task The_New_test_page_carries_no_farm_data()
+    {
+        var companyId = await SeedCompanyTesterAsync("tester-newpage");
+        await SeedFarmAsync("Should Not Appear Farm", companyId);
+
+        var res = await _factory.CreateClientAs(Roles.Tester, "tester-newpage").GetAsync("/App/Tests/New");
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var html = await res.Content.ReadAsStringAsync();
+        html.Should().Contain("id=\"new-test-root\"");
+        html.Should().NotContain("Should Not Appear Farm");
+    }
 }

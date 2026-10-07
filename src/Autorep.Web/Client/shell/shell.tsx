@@ -67,9 +67,11 @@ function Notice({ title, children, retry = true }: { title: string; children: Co
   );
 }
 
+/** An empty mount point, marked like the server pages' (see wwwroot/js/pwa-register.js). */
 function root(id: string): HTMLElement {
   const el = document.createElement("div");
   el.id = id;
+  el.setAttribute("data-bundle-root", "");
   return el;
 }
 
@@ -147,15 +149,8 @@ export function renderShellPage(identity: IdentityRecord | null): ShellRoute | n
       main.appendChild(root("wizard-root"));
       break;
     case "new":
-      return show(
-        TITLES.new,
-        <Notice title="Starting a test needs a connection">
-          <p>
-            Choosing a farm for a new test still needs signal. Tests already on this device carry on as normal
-            — open one from My tests.
-          </p>
-        </Notice>,
-      );
+      main.appendChild(root("new-test-root"));
+      break;
     default:
       return show(
         "Offline",
