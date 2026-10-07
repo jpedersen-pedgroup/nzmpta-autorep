@@ -125,11 +125,12 @@ public class UpcomingModel : PageModel
         => LatestDue(db, companyId, horizon).Select(t => t.FarmId);
 
     /// <summary>The scoping shared by <see cref="Query"/> and <see cref="DueFarmIds"/>: completed,
-    /// current-version, in the company (when one is given), each farm's latest, with a next test
-    /// date on or before the horizon (any date when null).</summary>
+    /// not deleted, current-version, in the company (when one is given), each farm's latest, with a
+    /// next test date on or before the horizon (any date when null). A soft-deleted test never
+    /// happened as far as the schedule is concerned: the farm is due from its previous test.</summary>
     private static IQueryable<MachineTest> LatestDue(AutorepDbContext db, Guid? companyId, DateOnly? horizon)
     {
-        var tests = db.MachineTests.Where(t => t.MarkedCompleteAt != null);
+        var tests = db.MachineTests.Where(t => t.MarkedCompleteAt != null && !t.IsDeleted);
         if (companyId is { } company) tests = tests.InCompany(company);
         tests = tests.CurrentVersionsOnly(db);
 

@@ -84,6 +84,12 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             .Property(t => t.AuthorId).HasMaxLength(450);
 
         builder.Entity<MachineTest>()
+            .Property(t => t.DeletedById).HasMaxLength(450);
+
+        builder.Entity<MachineTest>()
+            .Property(t => t.DeletedReason).HasMaxLength(500);
+
+        builder.Entity<MachineTest>()
             .Property(t => t.SuccessorStamp).IsConcurrencyToken();
 
         builder.Entity<SyncConflict>(c =>

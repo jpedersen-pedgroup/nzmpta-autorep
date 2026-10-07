@@ -20,6 +20,7 @@ import { fetchFarm } from "../farms";
 import { buildAmendmentRecord, computeChanges, computeChangesWithPaths } from "../versioning/amendments";
 import { buildAdminPayload, draftFromPayload, withinScope, type EditScope } from "../versioning/adminEdit";
 import { isReplaced } from "../versioning/chain";
+import { deletedOnServer, type Deletion } from "../sync/removals";
 import { AdminEditBar, VersionNotices, type SaveProblem } from "./VersionBanners";
 import { deriveReadings } from "../passfail/derived";
 import { useServerOnline } from "../connectivity";
@@ -90,6 +91,10 @@ interface ServerTestDto {
   latestVersion?: number | null;
   /** The tester's unfinished new version of this test, if there is one. */
   draft?: { version: number; startedAt: string } | null;
+  /** Soft-deleted (administrators only): who, when and why; and what this viewer may do about it. */
+  deletion?: { at?: string | null; by?: string | null; reason?: string | null } | null;
+  canDelete?: boolean;
+  canRestore?: boolean;
 }
 
 /** An administrator's edit in progress: the scope, the stored version it started from (shaped for
@@ -194,6 +199,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
   // The other tests on this device — this test's other versions among them — for the notices about
   // an edit made elsewhere. Empty on a server view.
   const [others, setOthers] = useState<LocalTest[]>([]);
+  // On a tester's device: NZMPTA deleted this test, and it's still here because it holds unsent edits.
+  const [deletion, setDeletion] = useState<Deletion | null>(null);
   const [adminEdit, setAdminEdit] = useState<AdminEdit | null>(null);
   const [editReason, setEditReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -301,6 +308,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
         t = { ...t, readonly: true };
       }
       if (active) setOthers(everything.filter((x) => x.id !== t!.id));
+      const deletions = await deletedOnServer();
+      if (active) setDeletion(deletions[t.id] ?? null);
       // An editable test's calculated readings are brought up to date on open — in memory only,
       // so opening never dirties the record. Otherwise a test saved by an older build could show a
       // hand-typed value under the "calculated" tag right up to sign-off. Frozen and migrated
@@ -648,6 +657,31 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
     }
   };
 
+  /** A Super-Administrator's soft-delete or restore of the whole test; the page reloads to show it. */
+  const changeDeletion = async (action: "delete" | "restore", reason?: string): Promise<string | null> => {
+    if (!serverDto) return null;
+    try {
+      const res = await fetch(`/api/admin/tests/${serverDto.id}/${action}`, {
+        method: "POST",
+        redirect: "manual",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(action === "delete" ? { reason } : {}),
+      });
+      if (res.ok) {
+        location.reload();
+        return null;
+      }
+      if (res.status === 401 || res.status === 403 || res.type === "opaqueredirect") {
+        return "You've been signed out, or your role can't do this. Sign in again and retry.";
+      }
+      const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+      if (res.status === 409) return "This test changed at the same moment — reload the page and try again.";
+      return body?.message ?? `The server didn't do it (HTTP ${res.status}). Try again.`;
+    } catch {
+      return "The server couldn't be reached. Try again when you're back online.";
+    }
+  };
+
   const downloadReport = (only?: ReportPart[]) => {
     setGenerating(true);
     void downloadTestSummaryPdf(test, serverBranding, serverTester, only)
@@ -717,6 +751,9 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
         draft: serverDto.draft,
         testerName: serverDto.testerName,
         completedAt: serverDto.markedCompleteAt,
+        deletion: serverDto.deletion,
+        canDelete: serverDto.canDelete,
+        canRestore: serverDto.canRestore,
       }}
       editing={editScope}
       reason={editReason}
@@ -729,6 +766,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
       onSave={() => void saveEditing()}
       onCancel={cancelEditing}
       onDownload={() => downloadReport()}
+      onDelete={(reason) => changeDeletion("delete", reason)}
+      onRestore={() => changeDeletion("restore")}
     />
   ) : null;
 
@@ -760,7 +799,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
 
       {/* Who made this version when it wasn't the tester, what a merge combined, and an edit made
           elsewhere while this one is unfinished. */}
-      <VersionNotices test={test} others={others} />
+      <VersionNotices test={test} others={others} deletion={serverTestId ? null : deletion} />
 
       {/* Renewal warning for the tester's own equipment while testing — informational only, never a
           gate. The Setup step shows it inside the calibration panel instead. */}

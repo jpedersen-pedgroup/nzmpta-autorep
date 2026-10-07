@@ -56,7 +56,15 @@ public class TestsController : ControllerBase
         string? EditBlocked = null,
         Guid? LatestId = null,
         int? LatestVersion = null,
-        TestsController.DraftDto? Draft = null);
+        TestsController.DraftDto? Draft = null,
+        // Administrators only: a soft-deleted test (testers never reach one), and whether this
+        // viewer may delete or restore it.
+        TestsController.DeletionDto? Deletion = null,
+        bool CanDelete = false,
+        bool CanRestore = false);
+
+    /// <summary>Who deleted a test, when and why.</summary>
+    public record DeletionDto(DateTimeOffset? At, string? By, string? Reason);
 
     /// <summary>The tester's unfinished new version of a test: an administrator's edit is combined
     /// with it when the tester signs it off.</summary>
@@ -101,6 +109,7 @@ public class TestsController : ControllerBase
         string? editScope = null, editBlocked = null;
         MachineTest? latest = null;
         DraftDto? draft = null;
+        DeletionDto? deletion = null;
         var superAdmin = User.IsInRole(Roles.SuperAdministrator);
         if (superAdmin || User.IsInRole(Roles.CompanyAdministrator))
         {
@@ -111,6 +120,13 @@ public class TestsController : ControllerBase
                 : null;
             if (state.Head is { } head && head.Id != test.Id) latest = head;
             if (state.Draft is { } d) draft = new DraftDto(d.Version, d.CreatedAt);
+            if (test.IsDeleted)
+            {
+                var by = await _db.Users.Where(u => u.Id == test.DeletedById)
+                    .Select(u => u.DisplayName != "" ? u.DisplayName : u.Email)
+                    .FirstOrDefaultAsync(ct);
+                deletion = new DeletionDto(test.DeletedAt, by, test.DeletedReason);
+            }
         }
 
         Response.Headers.CacheControl = "no-store";
@@ -130,7 +146,10 @@ public class TestsController : ControllerBase
             editBlocked,
             latest?.Id,
             latest?.Version,
-            draft));
+            draft,
+            deletion,
+            superAdmin && !test.IsDeleted,
+            superAdmin && test.IsDeleted));
     }
 
     // The Company tests list: completed tests done for the caller's Testing Company, current
@@ -156,7 +175,7 @@ public class TestsController : ControllerBase
 
         var query = _db.MachineTests
             .InCompany(company)
-            .Where(t => t.MarkedCompleteAt != null)
+            .Where(t => t.MarkedCompleteAt != null && !t.IsDeleted)
             .CurrentVersionsOnly(_db);
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -211,7 +230,9 @@ public class TestsController : ControllerBase
 
         if (!User.IsInRole(Roles.Tester)) return _db.MachineTests.Where(t => false);
 
-        return _db.MachineTests.ReadableByTester(me, await CompanyOfAsync(me, ct));
+        // A soft-deleted test has left the tester's world: their device removes it, and it's gone
+        // from Company tests. Administrators still reach it (to see why, or restore it).
+        return _db.MachineTests.Where(t => !t.IsDeleted).ReadableByTester(me, await CompanyOfAsync(me, ct));
     }
 
     private Task<Guid?> CompanyOfAsync(string? userId, CancellationToken ct) =>

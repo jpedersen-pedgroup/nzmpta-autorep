@@ -27,10 +27,12 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public Guid? FarmId { get; set; }
     [BindProperty(SupportsGet = true)] public Guid? CompanyId { get; set; }
     [BindProperty(SupportsGet = true)] public string? TesterId { get; set; }
+    /// <summary>Include soft-deleted tests (marked as such). They're hidden by default.</summary>
+    [BindProperty(SupportsGet = true)] public bool ShowDeleted { get; set; }
     public string? FarmName { get; private set; }
     public List<SelectListItem> CompanyOptions { get; private set; } = [];
     public List<SelectListItem> TesterOptions { get; private set; } = [];
-    public bool HasFilter => !string.IsNullOrWhiteSpace(Q) || CompanyId is not null || !string.IsNullOrEmpty(TesterId);
+    public bool HasFilter => !string.IsNullOrWhiteSpace(Q) || CompanyId is not null || !string.IsNullOrEmpty(TesterId) || ShowDeleted;
     public int PageSize { get; } = 50;
     public int TotalCount { get; private set; }
     public int TotalPages => TotalCount == 0 ? 1 : (int)Math.Ceiling(TotalCount / (double)PageSize);
@@ -83,6 +85,9 @@ public class IndexModel : PageModel
 
         if (!string.IsNullOrEmpty(TesterId))
             query = query.Where(t => t.TesterId == TesterId);
+
+        if (!ShowDeleted)
+            query = query.Where(t => !t.IsDeleted);
 
         // Deep-link from a farm's details page: scope to that farm's tests. Resolve the heading's
         // farm name through the company scope for non-super-admins, so a guessed farm id can't

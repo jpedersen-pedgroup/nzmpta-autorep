@@ -60,6 +60,9 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
 
         /// <summary>A later version exists; edits are made from the current one.</summary>
         public const string Superseded = "superseded";
+
+        /// <summary>Soft-deleted: restore it first.</summary>
+        public const string Deleted = "deleted";
     }
 
     /// <summary>Whether an edit in <paramref name="scope"/> may change <paramref name="unit"/>
@@ -74,6 +77,7 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
     /// <paramref name="head"/> is its test's current version.</summary>
     public static string? BlockedReason(MachineTest version, MachineTest? head)
     {
+        if (version.IsDeleted) return Blocked.Deleted;
         if (version.MarkedCompleteAt is null) return Blocked.InProgress;
         var payload = PayloadUnits.Parse(version.PayloadJson);
         if (version.ClientId is null || payload is null) return Blocked.NoRecord;

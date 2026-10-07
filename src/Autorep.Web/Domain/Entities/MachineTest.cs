@@ -73,6 +73,14 @@ public class MachineTest
     /// version reaches their device and their history.</summary>
     public string? AuthorId { get; set; }
 
+    /// <summary>Soft-deleted by a Super-Administrator (PRD story 70): hidden from every list and
+    /// removed from the tester's device at its next sync, but kept — with who, when and why — for the
+    /// audit window. Deleting a test deletes every version of it. Never hard-deleted.</summary>
+    public bool IsDeleted { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
+    public string? DeletedById { get; set; }
+    public string? DeletedReason { get; set; }
+
     /// <summary>Optimistic-concurrency token, renewed whenever a completed version that replaces this
     /// one is written. Two writers that each checked "nothing has replaced this yet" — an
     /// administrator saving while the tester's edit arrives — can't both succeed: the second fails

@@ -44,6 +44,10 @@
             <option value="@o.Value" selected="@o.Selected">@o.Text</option>
         }
     </select>
+    <label class="form-check" style="margin:0">
+        <input type="checkbox" name="showDeleted" value="true" checked="@Model.ShowDeleted" onchange="this.form.submit()" />
+        <span>Show deleted</span>
+    </label>
     <button type="submit" class="btn btn--secondary">Search</button>
     @if (Model.HasFilter)
     {
@@ -95,6 +99,10 @@ else
                             {
                                 <span class="badge badge--success">Complete</span>
                             }
+                            @if (t.IsDeleted)
+                            {
+                                <span class="badge badge--danger" title="@t.DeletedReason">Deleted</span>
+                            }
                         </td>
                         <td><a class="btn btn--secondary btn--sm" href="/Admin/Tests/View/@t.Id">View</a></td>
                     </tr>
@@ -106,12 +114,12 @@ else
     <div style="display:flex;gap:var(--space-3);align-items:center;margin-top:var(--space-4)">
         @if (Model.PageNumber > 1)
         {
-            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId" asp-route-companyId="@Model.CompanyId" asp-route-testerId="@Model.TesterId">‹ Prev</a>
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId" asp-route-companyId="@Model.CompanyId" asp-route-testerId="@Model.TesterId" asp-route-showDeleted="@(Model.ShowDeleted ? "true" : null)">‹ Prev</a>
         }
         <span class="td-muted">Page @Model.PageNumber of @Model.TotalPages · @Model.TotalCount total</span>
         @if (Model.PageNumber < Model.TotalPages)
         {
-            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId" asp-route-companyId="@Model.CompanyId" asp-route-testerId="@Model.TesterId">Next ›</a>
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId" asp-route-companyId="@Model.CompanyId" asp-route-testerId="@Model.TesterId" asp-route-showDeleted="@(Model.ShowDeleted ? "true" : null)">Next ›</a>
         }
     </div>
 }

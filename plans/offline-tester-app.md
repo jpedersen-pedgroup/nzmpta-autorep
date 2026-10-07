@@ -268,8 +268,11 @@ The headline. Cold launch, navigate, resume.
 > - **Paging is an offset cursor over (created desc, id desc), not a keyset.** EF can't compare
 >   GUIDs for a keyset, and migrated tests share timestamps. Rows are never deleted and never leave
 >   the `since` window, so a shifting offset can only re-deliver a row (the pull upserts), never skip
->   one. **Revisit when O2 soft-delete lands** — a row leaving the window mid-pull could then be
->   skipped. Without `?limit=` the endpoint answers exactly as before, so older bundles keep working.
+>   one. **Revisited when O2 soft-delete landed (Oct 2026):** the pull does NOT filter deleted rows —
+>   a soft-deleted test stays in the result set and is delivered as a tombstone
+>   (`TestSummaryDto.Deleted`), and deleting only moves `UpdatedAt` forward — so rows still only ever
+>   arrive, never leave, and the offset stays safe (`SoftDeleteTests`, "deleted in the middle of a
+>   paged pull"). Without `?limit=` the endpoint answers exactly as before, so older bundles keep working.
 >   The device keeps the FIRST page's watermark and saves progress after each page, so an
 >   interrupted first sync resumes rather than restarting; a cursor the server rejects restarts once.
 > - **The attachment is dropped a week after it's safe, not "after a successful push".** Same-day
