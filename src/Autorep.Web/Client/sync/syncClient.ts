@@ -78,12 +78,15 @@ interface Collision {
   headVersion: number;
 }
 
-async function readCollision(res: Response): Promise<Collision | null> {
+/** A 409's body: a collision to reconcile, or "completed" — the server already holds this version
+ * signed off, and a signed-off version never changes in place. */
+async function readConflict(res: Response): Promise<{ collision: Collision | null; completed: boolean }> {
   try {
-    const body = (await res.json()) as Partial<Collision> | null;
-    return body?.conflict === "superseded" && body.base && body.head ? (body as Collision) : null;
+    const body = (await res.json()) as (Partial<Collision> & { error?: string }) | null;
+    const collision = body?.conflict === "superseded" && body.base && body.head ? (body as Collision) : null;
+    return { collision, completed: body?.error === "completed" };
   } catch {
-    return null;
+    return { collision: null, completed: false };
   }
 }
 
@@ -168,10 +171,15 @@ async function pushTest(t: LocalTest): Promise<boolean> {
   });
   assertApiResponse(res);
   if (res.status === 409) {
-    const collision = await readCollision(res);
+    const { collision, completed } = await readConflict(res);
     if (collision) {
       await reconcile(t, collision);
       return true;
+    }
+    if (completed) {
+      // The server's signed-off copy stands; this one goes clean and the pull refreshes it from there.
+      await markSent(t);
+      return false;
     }
   }
   if (!res.ok) throw new Error(`Push failed (${res.status})`);
@@ -202,7 +210,7 @@ async function reconcile(t: LocalTest, first: Collision): Promise<void> {
     });
     assertApiResponse(res);
     if (res.status === 409) {
-      const next = await readCollision(res);
+      const next = (await readConflict(res)).collision;
       if (next) {
         collision = next;
         continue;

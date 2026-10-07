@@ -33,6 +33,14 @@ public static class PayloadUnits
         "config", "readings", "visualFaults", "recommendations", "dataFields",
     };
 
+    /// <summary>The same in every version of a test, whoever makes it: who did the test, for whom,
+    /// at which farm, and a migrated test's as-recorded fields.</summary>
+    public static readonly IReadOnlySet<string> Fixed = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "farmId", "farmName", "farm", "testedBy", "testingCompanyId", "testingCompanyName",
+        "verdicts", "recordedRecommendations", "recordedVisualFaults", "legacy",
+    };
+
     public static JsonObject? Parse(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;
@@ -85,6 +93,47 @@ public static class PayloadUnits
             && DerivedReadings.IsDerived(unit["readings.".Length..]));
         both.RemoveWhere(unit => Same(ValueAt(head, unit), ValueAt(incoming, unit)));
         return both;
+    }
+
+    /// <summary>
+    /// Where a device's combine of two versions doesn't follow the reconciliation rule, field by
+    /// field: <paramref name="incoming"/>'s value wherever it changed something (alone, or as the
+    /// later arrival where both changed it), <paramref name="head"/>'s everywhere else, and the head's
+    /// for the fields no version changes. Calculated readings are skipped — the device recomputes them
+    /// from the merged inputs. Empty for a faithful combine; anything listed would mean the device
+    /// dropped or invented a change, and the combine is refused.
+    /// </summary>
+    public static IReadOnlyList<string> MergeDepartures(
+        JsonObject? @base, JsonObject? head, JsonObject? incoming, JsonObject? merged)
+    {
+        var departures = new List<string>();
+        foreach (var unit in new[] { @base, head, incoming, merged }.SelectMany(UnitsOf).Distinct())
+        {
+            var dot = unit.IndexOf('.');
+            var top = dot > 0 && Keyed.Contains(unit[..dot]) ? unit[..dot] : unit;
+            if (top == "readings" && DerivedReadings.IsDerived(unit["readings.".Length..])) continue;
+            var expected = Fixed.Contains(top) || Same(ValueAt(incoming, unit), ValueAt(@base, unit))
+                ? ValueAt(head, unit)
+                : ValueAt(incoming, unit);
+            if (!Same(ValueAt(merged, unit), expected)) departures.Add(unit);
+        }
+        departures.Sort(StringComparer.Ordinal);
+        return departures;
+    }
+
+    /// <summary>The units a payload has a value for (the same division as <see cref="Changed"/>).</summary>
+    private static IEnumerable<string> UnitsOf(JsonObject? payload)
+    {
+        foreach (var key in KeysOf(payload))
+        {
+            if (Bookkeeping.Contains(key)) continue;
+            if (Keyed.Contains(key))
+            {
+                foreach (var inner in KeysOf(payload![key] as JsonObject)) yield return $"{key}.{inner}";
+                continue;
+            }
+            yield return key;
+        }
     }
 
     private static JsonNode? ValueAt(JsonObject? payload, string unit)

@@ -81,11 +81,14 @@ public class SyncReconciliationTests : IClassFixture<AuthedWebAppFactory>
         };
     }
 
-    private static object Combined(Arranged a, Guid clientId, Guid incoming, Guid head, int version = 3) => new
+    /// <summary>The device's combine, following the rule: the admin's version with the tester's reading
+    /// (and, where the tester changed the comments too, theirs — the later arrival).</summary>
+    private static object Combined(Arranged a, Guid clientId, Guid incoming, Guid head, int version = 3,
+        string notes = "Admin's comment", Action<JsonObject>? tamper = null) => new
     {
         clientId,
         farmName = "Kowhai Flats",
-        notes = "Admin's comment",
+        notes,
         markedCompleteAt = DateTimeOffset.UtcNow,
         createdAt = DateTimeOffset.UtcNow,
         payloadJson = Edited(a.AdminPayload, p =>
@@ -95,6 +98,8 @@ public class SyncReconciliationTests : IClassFixture<AuthedWebAppFactory>
             p["supersedesId"] = head.ToString();
             p["mergedFromId"] = incoming.ToString();
             p["readings"]!["tr.workingVacuum"] = 46;
+            p["notes"] = notes;
+            tamper?.Invoke(p);
         }, version).ToJsonString(),
         version,
         supersedesClientId = head,
@@ -159,7 +164,8 @@ public class SyncReconciliationTests : IClassFixture<AuthedWebAppFactory>
         var res = await a.Tester.PostAsJsonAsync("/api/sync/tests/merge", new
         {
             incoming = TesterVersion(a, mine, signedOff: true, p => p["notes"] = "Tester's comment"),
-            merged = Combined(a, combined, mine, a.AdminClientId),
+            // Both changed the comments: the tester's version arrived second, so its comment stands.
+            merged = Combined(a, combined, mine, a.AdminClientId, notes: "Tester's comment"),
             headClientId = a.AdminClientId,
         });
 
@@ -180,6 +186,7 @@ public class SyncReconciliationTests : IClassFixture<AuthedWebAppFactory>
         merged.RootClientId.Should().Be(a.V1.ClientId);
         merged.TestingCompanyId.Should().Be(a.CompanyId);
         merged.Configuration.Should().NotBeNull();
+        merged.Notes.Should().Be("Tester's comment", "mirrored from the checked payload");
 
         var conflict = await WithDbAsync(db => db.SyncConflicts.SingleAsync(c => c.IncomingClientId == mine));
         conflict.Status.Should().Be(SyncConflictStatus.Merged);
@@ -265,6 +272,106 @@ public class SyncReconciliationTests : IClassFixture<AuthedWebAppFactory>
 
         wrongParent.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         tooLow.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    // Codex review of #80: the server holds the combine to the rule itself, from the stored versions.
+    [Theory]
+    [InlineData("drops-admin-change", "notes")]
+    [InlineData("invents-a-change", "recommendations.vp.wick")]
+    [InlineData("drops-tester-change", "readings.tr.workingVacuum")]
+    [InlineData("drops-attestations", "attestations")]
+    [InlineData("rewrites-history", "amendments")]
+    public async Task A_combine_that_departs_from_the_rule_is_refused(string tampering, string field)
+    {
+        var a = await ArrangeAsync($"rc-tamper-{tampering}");
+        var mine = Guid.NewGuid();
+        Action<JsonObject> tamper = tampering switch
+        {
+            "drops-admin-change" => p => p["notes"] = "Original comment",
+            "invents-a-change" => p => p["recommendations"]!["vp.wick"] = "Something nobody wrote",
+            "drops-tester-change" => p => p["readings"]!["tr.workingVacuum"] = 48,
+            "drops-attestations" => p => p["attestations"] = new JsonArray(),
+            _ => p => p["amendments"]![0]!["reason"] = "A kinder reason",
+        };
+
+        var res = await a.Tester.PostAsJsonAsync("/api/sync/tests/merge", new
+        {
+            incoming = TesterVersion(a, mine, signedOff: true),
+            merged = Combined(a, Guid.NewGuid(), mine, a.AdminClientId, tamper: tamper),
+            headClientId = a.AdminClientId,
+        });
+
+        res.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var body = (await res.Content.ReadFromJsonAsync<JsonObject>())!;
+        body["fields"]!.AsArray().Select(f => f!.GetValue<string>()).Should().Contain(field);
+        (await WithDbAsync(db => db.MachineTests.AnyAsync(t => t.ClientId == mine || t.MergedFromClientId == mine)))
+            .Should().BeFalse("nothing is stored from a combine that doesn't follow the rule");
+    }
+
+    [Fact]
+    public async Task The_combined_versions_own_links_are_the_servers_whatever_its_payload_says()
+    {
+        var a = await ArrangeAsync("rc-links");
+        var mine = Guid.NewGuid();
+        var combined = Guid.NewGuid();
+
+        var res = await a.Tester.PostAsJsonAsync("/api/sync/tests/merge", new
+        {
+            incoming = TesterVersion(a, mine, signedOff: true),
+            merged = Combined(a, combined, mine, a.AdminClientId, tamper: p => p["supersedesId"] = Guid.NewGuid().ToString()),
+            headClientId = a.AdminClientId,
+        });
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK, await res.Content.ReadAsStringAsync());
+        var payload = JsonNode.Parse(await WithDbAsync(db => db.MachineTests.Where(t => t.ClientId == combined).Select(t => t.PayloadJson!).SingleAsync()))!;
+        payload["supersedesId"]!.GetValue<string>().Should().Be(a.AdminClientId.ToString());
+        payload["mergedFromId"]!.GetValue<string>().Should().Be(mine.ToString());
+    }
+
+    // Codex review of #80: an administrator's version carries the tester's id, so the tester's device
+    // knows its ClientId. A signed-off version must never change in place through the sync push.
+    [Fact]
+    public async Task A_signed_off_version_cant_be_overwritten_through_the_push()
+    {
+        var a = await ArrangeAsync("rc-frozen");
+        var before = await WithDbAsync(db => db.MachineTests.AsNoTracking().SingleAsync(t => t.ClientId == a.AdminClientId));
+        var tampered = (JsonObject)a.AdminPayload.DeepClone();
+        tampered["notes"] = "Quietly changed back";
+
+        var change = await a.Tester.PostAsJsonAsync("/api/sync/tests", new
+        {
+            clientId = a.AdminClientId, farmName = "Kowhai Flats", markedCompleteAt = before.MarkedCompleteAt,
+            notes = "Quietly changed back", payloadJson = tampered.ToJsonString(), version = 2, supersedesClientId = a.V1.ClientId,
+        });
+        var uncomplete = await a.Tester.PostAsJsonAsync("/api/sync/tests", new
+        {
+            clientId = a.AdminClientId, farmName = "Kowhai Flats", markedCompleteAt = (DateTimeOffset?)null,
+            payloadJson = a.AdminPayload.ToJsonString(), version = 2, supersedesClientId = a.V1.ClientId,
+        });
+        // The tester's device marks the version it reopens read-only and re-sends it: bookkeeping
+        // only, so it's a harmless retry.
+        var retry = (JsonObject)a.AdminPayload.DeepClone();
+        retry["readonly"] = true;
+        retry["syncState"] = "local-only";
+        var resend = await a.Tester.PostAsJsonAsync("/api/sync/tests", new
+        {
+            clientId = a.AdminClientId, farmName = "Kowhai Flats", markedCompleteAt = before.MarkedCompleteAt,
+            payloadJson = retry.ToJsonString(), version = 2, supersedesClientId = a.V1.ClientId,
+        });
+
+        change.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = (await change.Content.ReadFromJsonAsync<JsonObject>())!;
+        body["error"]!.GetValue<string>().Should().Be("completed");
+        body["fields"]!.AsArray().Select(f => f!.GetValue<string>()).Should().Equal("notes");
+        uncomplete.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        resend.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await resend.Content.ReadFromJsonAsync<JsonObject>())!["status"]!.GetValue<string>().Should().Be("unchanged");
+
+        var after = await WithDbAsync(db => db.MachineTests.AsNoTracking().SingleAsync(t => t.ClientId == a.AdminClientId));
+        after.PayloadJson.Should().Be(before.PayloadJson);
+        after.Notes.Should().Be(before.Notes);
+        after.MarkedCompleteAt.Should().Be(before.MarkedCompleteAt);
+        after.UpdatedAt.Should().Be(before.UpdatedAt, "a retry that changes nothing writes nothing");
     }
 
     [Fact]

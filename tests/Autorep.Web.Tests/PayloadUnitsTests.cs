@@ -62,6 +62,30 @@ public class PayloadUnitsTests
     }
 
     [Fact]
+    public void A_faithful_combine_follows_the_rule_field_by_field()
+    {
+        var @base = P("""{"farmName":"Kowhai","notes":"a","readings":{"tr.workingVacuum":48,"tr.nominalVacuum":50,"tr.regulationDeviation":-2},"recommendations":{"vp.wick":"Clean"}}""");
+        var head = P("""{"farmName":"Kowhai","notes":"admin","readings":{"tr.workingVacuum":48,"tr.nominalVacuum":49,"tr.regulationDeviation":-1},"recommendations":{"vp.wick":"Clean"}}""");
+        var incoming = P("""{"farmName":"Kowhai","notes":"tester","readings":{"tr.workingVacuum":46,"tr.nominalVacuum":50,"tr.regulationDeviation":-4},"recommendations":{"vp.wick":"Clean"}}""");
+        // The later arrival's comment; each side's own reading; 1c recomputed (not checked here).
+        var merged = P("""{"farmName":"Kowhai","notes":"tester","readings":{"tr.workingVacuum":46,"tr.nominalVacuum":49,"tr.regulationDeviation":-3},"recommendations":{"vp.wick":"Clean"}}""");
+
+        PayloadUnits.MergeDepartures(@base, head, incoming, merged).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_combine_that_drops_or_invents_a_change_departs_from_the_rule()
+    {
+        var @base = P("""{"farmName":"Kowhai","notes":"a","recommendations":{"vp.wick":"Clean"}}""");
+        var head = P("""{"farmName":"Kowhai","notes":"admin","recommendations":{"vp.wick":"Clean"}}""");
+        var incoming = P("""{"farmName":"Kowhai","notes":"a","recommendations":{"vp.wick":"Clean"}}""");
+        var merged = P("""{"farmName":"Somewhere","notes":"a","recommendations":{"vp.wick":"Clean","vp.oil":"New"}}""");
+
+        PayloadUnits.MergeDepartures(@base, head, incoming, merged)
+            .Should().Equal("farmName", "notes", "recommendations.vp.oil");
+    }
+
+    [Fact]
     public void A_legacy_payload_is_recognised_as_one()
     {
         PayloadUnits.IsLegacy(P("""{"legacy":{"TestNo":1}}""")).Should().BeTrue();

@@ -169,6 +169,24 @@ describe("reconciling a version that arrived second", () => {
     expect(JSON.parse(merges[1].merged.payloadJson).notes).toBe("Admin again");
   });
 
+  // A signed-off version never changes in place on the server. A copy here that differs from the
+  // server's stops trying to send itself, and the pull brings the server's copy back.
+  it("lets go of a signed-off copy the server already holds differently, and takes the server's", async () => {
+    const mine: LocalTest = { ...v1(), notes: "Local, never meant to differ", syncState: "local-only" };
+    await putTest(mine);
+    const server = { ...v1(), notes: "As signed off" };
+    stubFetch((_url, init) =>
+      init?.method === "POST"
+        ? json({ error: "completed", fields: ["notes"] }, 409)
+        : json({ watermark: SIGNED, tests: [summary(server)] }),
+    );
+
+    const result = await syncAll();
+
+    expect(result).toEqual({ pushed: 1, failed: 0, pulled: 1 });
+    expect(await getTest("v1")).toMatchObject({ notes: "As signed off", syncState: "uploaded" });
+  });
+
   it("counts a 409 that isn't a collision as an ordinary failed push", async () => {
     await putTest(testerV2());
     stubFetch((_url, init) => (init?.method === "POST" ? json({ error: "something else" }, 409) : json(EMPTY_PULL)));

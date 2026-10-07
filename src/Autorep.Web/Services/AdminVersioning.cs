@@ -62,18 +62,10 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
         public const string Superseded = "superseded";
     }
 
-    /// <summary>Fields no edit changes, whatever the role: who did the test, for whom, at which farm,
-    /// and a migrated test's as-recorded fields.</summary>
-    private static readonly HashSet<string> Fixed = new(StringComparer.Ordinal)
-    {
-        "farmId", "farmName", "farm", "testedBy", "testingCompanyId", "testingCompanyName",
-        "verdicts", "recordedRecommendations", "recordedVisualFaults", "legacy",
-    };
-
     /// <summary>Whether an edit in <paramref name="scope"/> may change <paramref name="unit"/>
-    /// (a <see cref="PayloadUnits"/> field path).</summary>
+    /// (a <see cref="PayloadUnits"/> field path). Nobody changes <see cref="PayloadUnits.Fixed"/>.</summary>
     public static bool MayChange(string scope, string unit) =>
-        !Fixed.Contains(unit)
+        !PayloadUnits.Fixed.Contains(unit)
         && (scope == EditScope.Full
             || unit == "notes"
             || unit.StartsWith("recommendations.", StringComparison.Ordinal));

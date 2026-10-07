@@ -1,5 +1,8 @@
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
@@ -198,10 +201,11 @@ public class SyncController : ControllerBase
     // Push: upsert by ClientId (idempotent), linking the Farm by id / farm identity within the
     // tester's company scope (see ResolveFarmAsync), creating a company-tagged farm if needed.
     //
-    // A version (one that replaces an earlier version) is first checked for a collision: if
-    // something else has already replaced its parent — an administrator edited the test while this
-    // device was offline — a SIGNED-OFF version is answered 409 with what the device needs to
-    // combine the two (see Reconciliation). An in-progress one is stored as usual: it's still a
+    // A version already signed off on the server is a record and never changes in place (see
+    // FrozenAsync). A version (one that replaces an earlier version) is then checked for a
+    // collision: if something else has already replaced its parent — an administrator edited the test
+    // while this device was offline — a SIGNED-OFF version is answered 409 with what the device needs
+    // to combine the two (see Reconciliation). An in-progress one is stored as usual: it's still a
     // draft, and is combined when it's signed off. Either way the collision is recorded.
     [HttpPost("tests")]
     public async Task<IActionResult> UploadTest([FromBody] UploadTestRequest req, CancellationToken ct)
@@ -211,6 +215,8 @@ public class SyncController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(req.FarmName))
             return BadRequest(new { error = "FarmName is required" });
+
+        if (await FrozenAsync(testerId, req, ct) is { } frozen) return frozen;
 
         if (req.SupersedesClientId is { } parent
             && await _reconciliation.CollisionAsync(testerId, req.ClientId, parent, ct) is { } collision)
@@ -290,14 +296,57 @@ public class SyncController : ControllerBase
         if (await _db.MachineTests.AnyAsync(t => t.TesterId == testerId && t.ClientId == merged.ClientId, ct))
             return BadRequest(new { error = "The combined version's id is already in use." });
 
+        // The combine must follow the reconciliation rule, field by field — checked here against the
+        // stored versions, never taken on trust. A defective or tampered client must not drop the
+        // head's changes, or slip in changes nobody made, behind a version every list then treats as
+        // current. (The device does the combine because the calculated readings and the worded record
+        // come from its TypeScript; the outcome of the rule is the server's to hold it to.)
+        var mergedJson = PayloadUnits.Parse(merged.PayloadJson);
+        if (mergedJson is null) return BadRequest(new { error = "The combined version didn't arrive." });
+        var headJson = PayloadUnits.Parse(head.PayloadJson);
+        var incomingJson = PayloadUnits.Parse(incoming.PayloadJson);
+        var departures = PayloadUnits.MergeDepartures(PayloadUnits.Parse(baseVersion.PayloadJson), headJson, incomingJson, mergedJson)
+            .ToList();
+        if (!KeepsEvery(headJson?["attestations"], mergedJson["attestations"])
+            || !KeepsEvery(incomingJson?["attestations"], mergedJson["attestations"]))
+            departures.Add("attestations");
+        var headHistory = headJson?["amendments"] as JsonArray ?? [];
+        if (mergedJson["amendments"] is not JsonArray history
+            || history.Count != headHistory.Count + 1
+            || headHistory.Where((earlier, i) => !PayloadUnits.Same(earlier, history[i])).Any())
+            departures.Add("amendments");
+        if (departures.Count > 0)
+            return UnprocessableEntity(new { error = "not-the-merge", fields = departures });
+
+        // Its own bookkeeping is the server's, whatever was sent.
+        mergedJson["id"] = merged.ClientId.ToString();
+        mergedJson["version"] = mergedVersion;
+        mergedJson["supersedesId"] = head.ClientId!.Value.ToString();
+        mergedJson["mergedFromId"] = incoming.ClientId.ToString();
+        // As complete as the later of the two sign-offs it combines (a merge isn't a sign-off).
+        var completedAt = head.MarkedCompleteAt > incoming.MarkedCompleteAt ? head.MarkedCompleteAt : incoming.MarkedCompleteAt;
+
         try
         {
             // The incoming version, as its own version — then the combine, which may take its PDF.
-            var storedIncoming = await StoreAsync(incoming, testerId, ct);
+            // Signed off here already (a retry whose answer was lost): it stands as stored.
+            var existingIncoming = await _db.MachineTests
+                .FirstOrDefaultAsync(t => t.TesterId == testerId && t.ClientId == incoming.ClientId, ct);
+            MachineTest incomingRow;
+            if (existingIncoming?.MarkedCompleteAt is not null)
+            {
+                if (PayloadUnits.Changed(PayloadUnits.Parse(existingIncoming.PayloadJson), incomingJson).Count > 0)
+                    return Conflict(new { error = "completed" });
+                incomingRow = existingIncoming;
+            }
+            else
+            {
+                incomingRow = (await StoreAsync(incoming, testerId, ct)).Test;
+            }
             var mergedPayload = await PulsationPayload.WithStoredBytesAsync(
-                merged.PayloadJson, [incoming.ClientId, head.ClientId!.Value],
+                mergedJson.ToJsonString(PayloadWrite), [incoming.ClientId, head.ClientId!.Value],
                 id => id == incoming.ClientId
-                    ? Task.FromResult(storedIncoming.Test.PayloadJson)
+                    ? Task.FromResult(incomingRow.PayloadJson)
                     : _db.MachineTests.Where(t => t.TesterId == testerId && t.ClientId == id)
                         .Select(t => t.PayloadJson).FirstOrDefaultAsync(ct));
 
@@ -308,24 +357,38 @@ public class SyncController : ControllerBase
                 TestingCompanyId = head.TestingCompanyId,
                 FarmId = head.FarmId,
                 RootClientId = TestLineage.KeyOf(head),
-                Notes = merged.Notes,
-                MarkedCompleteAt = merged.MarkedCompleteAt,
-                CreatedAt = merged.CreatedAt ?? DateTimeOffset.UtcNow,
+                // Mirrored from the checked payload, not from the request's own fields.
+                Notes = mergedJson["notes"] is JsonValue notes && notes.TryGetValue<string>(out var text) ? text : null,
+                MarkedCompleteAt = completedAt,
+                CreatedAt = DateTimeOffset.UtcNow,
                 PayloadJson = mergedPayload,
                 Version = mergedVersion,
                 SupersedesClientId = head.ClientId,
                 MergedFromClientId = incoming.ClientId,
-                NextTestDate = merged.NextTestDate ?? head.NextTestDate,
+                NextTestDate = mergedJson["nextTestDate"] is JsonValue next && next.TryGetValue<string>(out var day)
+                    && DateOnly.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var due)
+                        ? due
+                        : head.NextTestDate,
             };
-            // The head's configuration columns carry over, then the combine's own configuration.
+            // The head's configuration columns carry over, then the checked payload's configuration.
             if (await _db.MachineConfigurations.FirstOrDefaultAsync(c => c.MachineTestId == head.Id, ct) is { } headConfig)
                 ApplyConfig(combined, ToDto(headConfig));
-            ApplyConfig(combined, merged.Config);
+            if (mergedJson["config"] is JsonObject config)
+            {
+                try
+                {
+                    ApplyConfig(combined, config.Deserialize<ConfigDto>(JsonSerializerOptions.Web));
+                }
+                catch (JsonException)
+                {
+                    return BadRequest(new { error = "The combined version's machine configuration couldn't be read." });
+                }
+            }
             _db.MachineTests.Add(combined);
             head.SuccessorStamp = Guid.NewGuid();
 
-            await _reconciliation.NoteMergedAsync(baseVersion, head, storedIncoming.Test, combined,
-                storedIncoming.Test.PayloadJson, ct);
+            await _reconciliation.NoteMergedAsync(baseVersion, head, incomingRow, combined,
+                incomingRow.PayloadJson, ct);
             await _db.SaveChangesAsync(ct);
             return Ok(new { status = "merged", id = combined.Id, mergedClientId = combined.ClientId });
         }
@@ -340,6 +403,39 @@ public class SyncController : ControllerBase
                 : Conflict(await CollisionBodyAsync(new Reconciliation.Collision(again, newHead), ct));
         }
     }
+
+    /// <summary>
+    /// A version already signed off on the server is a record: it never changes in place, whoever
+    /// pushes it — the tester's own device, or anyone holding its ClientId (an administrator's version
+    /// carries the tester's id, so the tester's device knows it). Re-sending it unchanged is a harmless
+    /// retry, answered "unchanged" without writing anything; a push that would change it (or undo its
+    /// sign-off) is refused with a 409 naming the fields — a change belongs in a new version. Null when
+    /// the push is to a draft or a version the server hasn't got.
+    /// </summary>
+    private async Task<IActionResult?> FrozenAsync(string testerId, UploadTestRequest req, CancellationToken ct)
+    {
+        var stored = await _db.MachineTests.AsNoTracking()
+            .Where(t => t.TesterId == testerId && t.ClientId == req.ClientId && t.MarkedCompleteAt != null)
+            .Select(t => new { t.Id, t.PayloadJson })
+            .FirstOrDefaultAsync(ct);
+        if (stored is null) return null;
+        var changed = req.MarkedCompleteAt is null
+            ? ["markedCompleteAt"]
+            : PayloadUnits.Changed(PayloadUnits.Parse(stored.PayloadJson), PayloadUnits.Parse(req.PayloadJson)).ToList();
+        return changed.Count == 0
+            ? Ok(new { id = stored.Id, status = "unchanged" })
+            : Conflict(new { error = "completed", fields = changed });
+    }
+
+    /// <summary>Whether every attestation in <paramref name="from"/> is also in <paramref name="to"/>.</summary>
+    private static bool KeepsEvery(JsonNode? from, JsonNode? to)
+    {
+        var kept = (to as JsonArray)?.ToList() ?? [];
+        return ((from as JsonArray)?.ToList() ?? []).All(a => kept.Any(k => PayloadUnits.Same(a, k)));
+    }
+
+    // Rewriting a payload must not re-encode its text (macrons in Māori place names): see PulsationPayload.
+    private static readonly JsonSerializerOptions PayloadWrite = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     private async Task<CollisionResponse> CollisionBodyAsync(Reconciliation.Collision collision, CancellationToken ct)
     {
