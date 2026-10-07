@@ -21,7 +21,8 @@ namespace Autorep.Web.Api;
 [Route("api/admin/tests")]
 [Authorize(Roles = Roles.SuperAdministrator + "," + Roles.CompanyAdministrator)]
 public class AdminTestsController(
-    AutorepDbContext db, AdminVersioning versioning, TestDeletion deletion, UserManager<Tester> users)
+    AutorepDbContext db, AdminVersioning versioning, TestDeletion deletion, FinalReportStore reports,
+    UserManager<Tester> users)
     : ControllerBase
 {
     public record ReasonRequest(string? Reason);
@@ -209,4 +210,57 @@ public class AdminTestsController(
             _ => NotFound(),
         };
     }
+
+    /// <summary>
+    /// The Final Report of a version an administrator saved, as the admin viewer generated it right
+    /// after the save — the tester's engine, the full report with the analyser's pages (PRD 73) — kept
+    /// as that version's stored report (FinalReportStore), as a tester's device keeps the one it signed
+    /// off. Only for a version made in the admin portal: a tester's version keeps the report its device
+    /// sent at sign-off (409). The body is the PDF itself. Same scope as the save: 404 outside it.
+    /// </summary>
+    [HttpPut("{id:guid}/final-report")]
+    [RequestSizeLimit(FinalReportStore.MaxBytes)]
+    public async Task<IActionResult> PutFinalReport(Guid id, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var me = await users.GetUserAsync(User);
+        if (me is null) return Forbid();
+
+        if (!FinalReportStore.IsPdf(Request.ContentType))
+            return StatusCode(StatusCodes.Status415UnsupportedMediaType, new { error = "Send the report as application/pdf." });
+        if (Request.ContentLength is > FinalReportStore.MaxBytes) return TooLarge();
+
+        var version = await db.MachineTests
+            .AdministeredBy(User.IsInRole(Roles.SuperAdministrator), me.TestingCompanyId)
+            .Where(t => t.Id == id)
+            .Select(t => new { t.Id, t.TesterId, t.ClientId, t.AuthorId })
+            .FirstOrDefaultAsync(ct);
+        if (version is null) return NotFound();
+        if (version.AuthorId is null || version.ClientId is not { } clientId)
+            return Conflict(new { error = "not-an-admin-version", message = "This version's report is the one its tester's device sent at sign-off." });
+
+        byte[] bytes;
+        try
+        {
+            bytes = await FinalReportStore.ReadBodyAsync(Request, ct);
+        }
+        catch (FinalReportStore.BodyTooLargeException)
+        {
+            return TooLarge();
+        }
+
+        return await reports.StoreAsync(version.Id, version.TesterId, clientId, bytes, me.Id, ct) switch
+        {
+            FinalReportStore.Stored { Status: "created" } s => StatusCode(StatusCodes.Status201Created,
+                new FinalReportsController.StoredResponse(s.Status, s.Sha256, s.SizeBytes)),
+            FinalReportStore.Stored s => Ok(new FinalReportsController.StoredResponse(s.Status, s.Sha256, s.SizeBytes)),
+            FinalReportStore.NotPdf => BadRequest(new { error = "not-a-pdf", message = "That isn't a PDF." }),
+            FinalReportStore.Busy => Conflict(new { error = "busy", message = "The report was being stored by another request — try again." }),
+            _ => StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "unavailable", message = "The report store is unavailable right now." }),
+        };
+    }
+
+    private ObjectResult TooLarge() =>
+        StatusCode(StatusCodes.Status413PayloadTooLarge,
+            new { error = "too-large", message = $"A Final Report can be at most {FinalReportStore.MaxBytes / 1024 / 1024} MB." });
 }

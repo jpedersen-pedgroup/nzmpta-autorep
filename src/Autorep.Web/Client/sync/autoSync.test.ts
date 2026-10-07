@@ -45,6 +45,28 @@ describe("automatic sync", () => {
     expect(deps.sync).not.toHaveBeenCalled();
   });
 
+  it("with every test sent, still sends a report signed off with them — without waiting on it", async () => {
+    let finish!: () => void;
+    const flushReports = vi.fn(() => new Promise<void>((r) => (finish = r)));
+    const { deps, auto } = harness({ unsynced: vi.fn(async () => 0), flushReports });
+
+    await auto.trigger("online"); // returns while the report is still going
+
+    expect(flushReports).toHaveBeenCalledTimes(1);
+    expect(deps.sync).not.toHaveBeenCalled();
+    // The next trigger isn't held up behind it either.
+    await auto.trigger("visible");
+    expect(flushReports).toHaveBeenCalledTimes(2);
+    finish();
+  });
+
+  it("doesn't touch the report queue while the device is offline", async () => {
+    const flushReports = vi.fn(async () => undefined);
+    const { auto } = harness({ canTry: () => false, flushReports });
+    await auto.trigger("visible");
+    expect(flushReports).not.toHaveBeenCalled();
+  });
+
   it("doesn't try while the device is offline", async () => {
     const { deps, auto } = harness({ canTry: () => false });
     await auto.trigger("visible");

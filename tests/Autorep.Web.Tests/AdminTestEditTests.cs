@@ -5,6 +5,8 @@ using System.Text.Json.Nodes;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
+using Autorep.Web.Services.Pdfs;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -182,12 +184,25 @@ public class AdminTestEditTests : IClassFixture<AuthedWebAppFactory>
         return (await SeedTestAsync(Services, $"{tag}-tester", farmId, companyId, payload, clientId: clientId), payload);
     }
 
-    private async Task<string> StoredPayloadAsync(HttpResponseMessage res)
+    private InMemoryPdfStore Store => Services.GetRequiredService<InMemoryPdfStore>();
+
+    private async Task<(Guid Id, string Payload)> SavedAsync(HttpResponseMessage res)
     {
         res.StatusCode.Should().Be(HttpStatusCode.Created, await res.Content.ReadAsStringAsync());
         var saved = (await res.Content.ReadFromJsonAsync<Saved>())!;
-        return await WithDbAsync(db => db.MachineTests.Where(t => t.Id == saved.Id).Select(t => t.PayloadJson!).SingleAsync());
+        return (saved.Id, await WithDbAsync(db => db.MachineTests.Where(t => t.Id == saved.Id).Select(t => t.PayloadJson!).SingleAsync()));
     }
+
+    /// <summary>The analyser PDF as the admin viewer's report fetches it.</summary>
+    private static async Task<byte[]> PdfOfAsync(HttpClient client, Guid testId)
+    {
+        var res = await client.GetAsync($"/api/tests/{testId}/pulsation-pdf");
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        return await res.Content.ReadAsByteArrayAsync();
+    }
+
+    // Since the PDF store, a payload never keeps the bytes: an attachment is a pointer naming the
+    // stored copy (sha256), and the copy stays under the version that first sent it (serverTestId).
 
     [Fact]
     public async Task A_super_admin_can_replace_the_analyser_pdf_as_part_of_a_new_version()
@@ -195,28 +210,63 @@ public class AdminTestEditTests : IClassFixture<AuthedWebAppFactory>
         var (test, payload) = await ArrangeWithPdfAsync("pdf-replace");
         var admin = await SuperAdminAsync("pdf-replace-admin");
 
-        var stored = await StoredPayloadAsync(await SaveAsync(admin, test.Id,
+        var (id, stored) = await SavedAsync(await SaveAsync(admin, test.Id,
             Edited(payload, p => p["pulsationPdf"] = Attachment("pulse-corrected.pdf", PdfB, "2026-10-07T00:00:00.000Z"))));
 
-        Autorep.Web.Services.PulsationPayload.Base64(stored).Should().Be(PdfB);
-        Autorep.Web.Services.PulsationPayload.FileName(stored).Should().Be("pulse-corrected.pdf");
+        PulsationPayload.Base64(stored).Should().BeNull("the new PDF went to the PDF store");
+        PulsationPayload.StoredSha256(stored).Should().Be(PdfHash.Sha256Hex(Convert.FromBase64String(PdfB)));
+        PulsationPayload.HolderClientId(stored).Should().BeNull("it's stored under the new version itself");
+        PulsationPayload.FileName(stored).Should().Be("pulse-corrected.pdf");
+        (await PdfOfAsync(admin, id)).Should().Equal(Convert.FromBase64String(PdfB));
+        (await PdfOfAsync(admin, test.Id)).Should().Equal(Convert.FromBase64String(PdfA), "the version it replaced keeps its own");
         var audit = await WithDbAsync(db => db.AuditEntries.SingleAsync(e => e.Operation == "AdminVersionCreated" && e.Actor == "pdf-replace-admin"));
         audit.AfterJson.Should().Contain("pulsationPdf").And.NotContain(PdfB, "no bytes in the audit store");
     }
 
     [Fact]
-    public async Task An_attachment_the_browser_held_only_as_a_pointer_keeps_its_bytes_in_the_new_version()
+    public async Task A_carried_over_attachment_points_at_the_edited_versions_stored_copy()
     {
+        // The usual case: the edited version's PDF is in the store, and the browser — which fetched the
+        // view with attachments=omit — sends the pointer back unchanged.
+        var (test, payload) = await ArrangeWithPdfAsync("pdf-stored");
+        var bytes = Convert.FromBase64String(PdfA);
+        var sha = PdfHash.Sha256Hex(bytes);
+        await Store.PutAsync(PdfContainer.PulsationData, PdfKeys.Pulsation(test.TesterId, test.ClientId!.Value, sha), bytes, "application/pdf");
+        await WithDbAsync(async db =>
+        {
+            var row = await db.MachineTests.SingleAsync(t => t.Id == test.Id);
+            row.PayloadJson = PulsationPayload.AsStored(row.PayloadJson, sha, holderClientId: null);
+            return await db.SaveChangesAsync();
+        });
+        var pointer = JsonNode.Parse(PulsationPayload.AsStored(payload.ToJsonString(), sha, null)!)!.AsObject();
+        var admin = await SuperAdminAsync("pdf-stored-admin");
+        var before = Store.Keys(PdfContainer.PulsationData).Count;
+
+        var (id, stored) = await SavedAsync(await SaveAsync(admin, test.Id, Edited(pointer, p => p["notes"] = "Only the comment changed")));
+
+        PulsationPayload.StoredSha256(stored).Should().Be(sha);
+        PulsationPayload.HolderClientId(stored).Should().Be(test.ClientId!.Value, "the bytes stay under the version that sent them");
+        Store.Keys(PdfContainer.PulsationData).Count.Should().Be(before, "nothing is copied");
+        (await PdfOfAsync(admin, id)).Should().Equal(bytes);
+    }
+
+    [Fact]
+    public async Task An_attachment_still_inline_in_the_edited_version_moves_to_the_store_with_the_new_one()
+    {
+        // The edited version was written before the PDF store, so its row still holds the bytes; the
+        // browser was sent a pointer. The new version's copy goes to the store.
         var (test, payload) = await ArrangeWithPdfAsync("pdf-pointer");
         var admin = await SuperAdminAsync("pdf-pointer-admin");
 
-        var stored = await StoredPayloadAsync(await SaveAsync(admin, test.Id, Edited(payload, p =>
+        var (id, stored) = await SavedAsync(await SaveAsync(admin, test.Id, Edited(payload, p =>
         {
             p["pulsationPdf"] = Attachment("pulse.pdf", null, "2026-09-01T00:00:00.000Z", pointer: true);
             p["notes"] = "Only the comment changed";
         })));
 
-        Autorep.Web.Services.PulsationPayload.Base64(stored).Should().Be(PdfA);
+        PulsationPayload.Base64(stored).Should().BeNull();
+        PulsationPayload.StoredSha256(stored).Should().Be(PdfHash.Sha256Hex(Convert.FromBase64String(PdfA)));
+        (await PdfOfAsync(admin, id)).Should().Equal(Convert.FromBase64String(PdfA));
     }
 
     [Fact]

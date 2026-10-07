@@ -6,6 +6,7 @@ using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
+using Autorep.Web.Services.Pdfs;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -160,6 +161,13 @@ public class SyncPagingAndAttachmentTests : IClassFixture<AuthedWebAppFactory>
         JsonNode.Parse(full.PayloadJson!)!["pulsationPdf"]!["base64"]!.GetValue<string>().Should().Be(PdfBase64);
     }
 
+    /// <summary>The analyser PDF as the tester's own route hands it back (null on 404).</summary>
+    private static async Task<byte[]?> PdfBackAsync(HttpClient client, Guid clientId)
+    {
+        var res = await client.GetAsync($"/api/sync/tests/{clientId}/pulsation-pdf");
+        return res.StatusCode == HttpStatusCode.NotFound ? null : await res.Content.ReadAsByteArrayAsync();
+    }
+
     [Fact]
     public async Task Re_sending_a_test_without_its_pdf_bytes_keeps_the_bytes_already_stored()
     {
@@ -170,7 +178,9 @@ public class SyncPagingAndAttachmentTests : IClassFixture<AuthedWebAppFactory>
         // The device let its copy go, then something made the test dirty and it was pushed again.
         await PushAsync(client, id, PayloadWith(new { name = "pulse.pdf", size = 24, attachedAt = "2026-10-01T00:00:00Z", onServer = true }));
 
-        PulsationPayload.Base64(await StoredPayloadAsync("tester-attach-2", id)).Should().Be(PdfBase64);
+        PulsationPayload.StoredSha256(await StoredPayloadAsync("tester-attach-2", id))
+            .Should().Be(PdfHash.Sha256Hex(Convert.FromBase64String(PdfBase64)));
+        (await PdfBackAsync(client, id)).Should().Equal(Convert.FromBase64String(PdfBase64));
     }
 
     [Fact]
@@ -190,8 +200,11 @@ public class SyncPagingAndAttachmentTests : IClassFixture<AuthedWebAppFactory>
             PayloadWith(new { name = "pulse.pdf", size = 24, attachedAt = "2026-10-01T00:00:00Z", onServer = true }),
             supersedes: original);
 
-        PulsationPayload.Base64(await StoredPayloadAsync("tester-attach-3", named)).Should().Be(PdfBase64);
-        PulsationPayload.Base64(await StoredPayloadAsync("tester-attach-3", unnamed)).Should().Be(PdfBase64);
+        (await PdfBackAsync(client, named)).Should().Equal(Convert.FromBase64String(PdfBase64));
+        (await PdfBackAsync(client, unnamed)).Should().Equal(Convert.FromBase64String(PdfBase64));
+        // Both point at the original's stored copy rather than copying it.
+        PulsationPayload.HolderClientId(await StoredPayloadAsync("tester-attach-3", named)).Should().Be(original);
+        PulsationPayload.HolderClientId(await StoredPayloadAsync("tester-attach-3", unnamed)).Should().Be(original);
     }
 
     // Codex review of #76: two devices, one test. Device X let its copy of PDF A go; device Y has
@@ -209,7 +222,9 @@ public class SyncPagingAndAttachmentTests : IClassFixture<AuthedWebAppFactory>
 
         var stored = await StoredPayloadAsync("tester-attach-6", id);
         PulsationPayload.Base64(stored).Should().BeNull("B's bytes must not be filed under A's name");
+        PulsationPayload.StoredSha256(stored).Should().BeNull("nor may A's pointer name B's stored copy");
         PulsationPayload.IsServerPointer(stored, out _).Should().BeTrue();
+        (await PdfBackAsync(client, id)).Should().BeNull("the report prints without the PDF rather than with the wrong one");
     }
 
     [Fact]
@@ -269,5 +284,55 @@ public class PulsationPayloadTests
         PulsationPayload.IsServerPointer($$$"""{"pulsationPdf":{"name":"a.pdf","onServer":true,"serverTestId":"{{{id}}}"}}""", out var source)
             .Should().BeTrue();
         source.Should().Be(id);
+    }
+
+    [Fact]
+    public void The_stored_pointer_is_the_devices_pointer_plus_the_hash_naming_the_stored_copy()
+    {
+        var sha = new string('c', 64);
+        var holder = Guid.NewGuid();
+        var payload = $$$"""{"farmName":"Ōtorohanga","pulsationPdf":{"name":"a.pdf","base64":"{{{Bytes}}}","size":9,"attachedAt":"2026-10-01T00:00:00Z"}}""";
+
+        var stored = PulsationPayload.AsStored(payload, sha, holder)!;
+
+        PulsationPayload.Base64(stored).Should().BeNull();
+        PulsationPayload.StoredSha256(stored).Should().Be(sha);
+        PulsationPayload.HolderClientId(stored).Should().Be(holder);
+        PulsationPayload.IsServerPointer(stored, out var source).Should().BeTrue("a device reads it as the pointer it already knows");
+        source.Should().Be(holder);
+        PulsationPayload.SameAttachment(payload, stored).Should().BeTrue("name, size and attach time are kept");
+        stored.Should().Contain("Ōtorohanga");
+
+        PulsationPayload.HolderClientId(PulsationPayload.AsStored(stored, sha, holderClientId: null)).Should().BeNull();
+    }
+
+    [Fact]
+    public void Putting_the_bytes_back_clears_the_pointer_and_the_hash()
+    {
+        var stored = PulsationPayload.AsStored("""{"pulsationPdf":{"name":"a.pdf","size":9}}""", new string('d', 64), Guid.NewGuid())!;
+
+        var full = PulsationPayload.WithBytes(stored, Bytes);
+
+        PulsationPayload.Base64(full).Should().Be(Bytes);
+        PulsationPayload.StoredSha256(full).Should().BeNull();
+        PulsationPayload.HolderClientId(full).Should().BeNull();
+        PulsationPayload.IsServerPointer(full, out _).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("not-a-hash")]
+    [InlineData("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")] // upper case: not a key we make
+    public void A_hash_that_isnt_one_names_nothing(string sha) =>
+        PulsationPayload.StoredSha256($$$"""{"pulsationPdf":{"name":"a.pdf","onServer":true,"sha256":"{{{sha}}}"}}""").Should().BeNull();
+
+    [Fact]
+    public void An_unmatched_pointer_loses_any_hash_it_carried()
+    {
+        var forged = $$$"""{"pulsationPdf":{"name":"a.pdf","onServer":true,"sha256":"{{{new string('e', 64)}}}"}}""";
+
+        var kept = PulsationPayload.WithoutStoredHash(forged);
+
+        PulsationPayload.StoredSha256(kept).Should().BeNull();
+        PulsationPayload.IsServerPointer(kept, out _).Should().BeTrue();
     }
 }

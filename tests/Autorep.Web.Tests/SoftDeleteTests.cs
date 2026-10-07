@@ -5,10 +5,12 @@ using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Autorep.Web.Services;
+using Autorep.Web.Services.Pdfs;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using static Autorep.Web.Tests.TestPayloads;
 
 namespace Autorep.Web.Tests;
@@ -437,7 +439,8 @@ public class SoftDeleteTests : IClassFixture<AuthedWebAppFactory>
         using var scope = Services.CreateScope();
         await using var db = RacingContext(scope, new RivalSavesFirst(rival, thenFail: true));
         var payload = JsonNode.Parse(a.V2.PayloadJson!)!.AsObject();
-        return await new AdminVersioning(db, new Reconciliation(db)).SaveAsync(db.MachineTests, a.V2.Id,
+        var attachments = new PulsationAttachments(db, scope.ServiceProvider.GetRequiredService<IPdfStore>(), NullLogger<PulsationAttachments>.Instance);
+        return await new AdminVersioning(db, new Reconciliation(db), attachments).SaveAsync(db.MachineTests, a.V2.Id,
             Edited(payload, p => p["notes"] = "Corrected", version: 3).ToJsonString(), "Corrected on the farmer's call",
             new AdminVersioning.Editor($"{a.TesterId}-admin", "admin@local", "Sam Superadmin", true), default);
     }

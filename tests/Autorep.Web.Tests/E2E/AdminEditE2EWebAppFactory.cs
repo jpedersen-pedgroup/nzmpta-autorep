@@ -7,15 +7,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Autorep.Web.Tests.E2E;
 
-// The offline tester factory's world — a tester with a device, their company and its farms — plus
-// the two people who edit tests from the admin portal: a Super-Administrator (two-factor enrolled, as
-// the role requires) and a Company Administrator at the tester's company. Each case seeds the
-// completed test it works on, so cases don't depend on each other's edits.
+// The offline tester factory's world — a tester with a device, their company and its farms, and a
+// Company Administrator at that company (CompanyAdminEmail) — plus a Super-Administrator, two-factor
+// enrolled as the role requires: the two people who edit tests from the admin portal. Each case seeds
+// the completed test it works on, so cases don't depend on each other's edits.
 public class AdminEditE2EWebAppFactory : OfflineE2EWebAppFactory
 {
     public const string AdminEmail = "e2e-admin@local";
     public const string AdminName = "Sam Superadmin";
-    public const string CompanyAdminEmail = "e2e-coadmin@local";
+    /// <summary>The base factory's Company Administrator's display name.</summary>
     public const string CompanyAdminName = "Cora Companyadmin";
 
     public string AdminId { get; private set; } = "";
@@ -33,7 +33,7 @@ public class AdminEditE2EWebAppFactory : OfflineE2EWebAppFactory
         AdminAuthenticatorKey = (await users.GetAuthenticatorKeyAsync(admin))!;
         AdminId = admin.Id;
 
-        CompanyAdminId = (await CreateAsync(users, CompanyAdminEmail, CompanyAdminName, CompanyId, Roles.CompanyAdministrator)).Id;
+        CompanyAdminId = (await users.FindByEmailAsync(CompanyAdminEmail))!.Id;
     }
 
     private static async Task<Tester> CreateAsync(UserManager<Tester> users, string email, string name, Guid? companyId, string role)

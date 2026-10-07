@@ -24,7 +24,7 @@ namespace Autorep.Web.Services;
 /// which fields changed, that the history so far is untouched, and that the edit was made from the
 /// test's current version.
 /// </summary>
-public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconciliation)
+public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconciliation, PulsationAttachments attachments)
 {
     public const int MaxReasonLength = 500;
 
@@ -197,10 +197,10 @@ public sealed class AdminVersioning(AutorepDbContext db, Reconciliation reconcil
         record.Remove("baseUnavailable");
         record.Remove("merge");
 
-        // An attachment the browser held only as a pointer gets its bytes back from the base.
-        var payload = await PulsationPayload.WithStoredBytesAsync(edited.ToJsonString(Write), [basis.ClientId.Value],
-            id => db.MachineTests.Where(t => t.TesterId == basis.TesterId && t.ClientId == id)
-                .Select(t => t.PayloadJson).FirstOrDefaultAsync(ct));
+        // The analyser PDF, as for any new version: one the administrator attached goes to the PDF
+        // store under this version; one carried over (the browser holds only a pointer) points at the
+        // edited version's stored copy.
+        var payload = await attachments.StoreIncomingAsync(edited.ToJsonString(Write), basis.TesterId, clientId, basis.ClientId, ct);
 
         var row = new MachineTest
         {
