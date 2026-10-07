@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Autorep.Web.Data;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Pages.Admin.Tests;
 using Autorep.Web.Services;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -76,6 +77,27 @@ public class VersionQueryTranslationTests
         var sql = db.MachineTests.CurrentVersionsOnly(db).ToQueryString();
 
         sql.Should().Contain("NOT EXISTS").And.Contain("[SupersedesClientId]").And.Contain("[MergedFromClientId]");
+    }
+
+    [Fact]
+    public void The_admin_lists_filters_translate_together()
+    {
+        using var db = SqlServer();
+        var filter = new AdminTestQuery.Filter(
+            Guid.NewGuid(), "tester", Guid.NewGuid(), "kowhai", new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31),
+            AdminTestQuery.Complete, HasConflicts: true, ShowDeleted: false);
+
+        var sql = AdminTestQuery.Newest(AdminTestQuery.Apply(db, filter)).Skip(50).Take(50).ToQueryString();
+
+        sql.Should().Contain("[SyncConflicts]").And.Contain("COALESCE").And.Contain("LIKE").And.Contain("[IsDeleted]")
+            .And.Contain("ORDER BY").And.Contain("OFFSET");
+    }
+
+    [Fact]
+    public async Task Flagging_a_pages_conflicted_tests_translates()
+    {
+        using var db = SqlServer();
+        await db.Invoking(d => AdminTestQuery.ConflictedAsync(d, [AVersion()])).Should().ThrowAsync<Translated>();
     }
 
     [Fact]

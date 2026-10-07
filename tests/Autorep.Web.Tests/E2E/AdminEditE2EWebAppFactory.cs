@@ -52,8 +52,9 @@ public class AdminEditE2EWebAppFactory : OfflineE2EWebAppFactory
     }
 
     /// <summary>A completed version-1 test of the tester's at a farm of its own, carrying the capture
-    /// payload a device would have sent: a fault with its recommendation, readings, comments.</summary>
-    public async Task<(Guid Id, Guid ClientId)> SeedCompletedTestAsync(string farmName)
+    /// payload a device would have sent: a fault with its recommendation, readings, comments.
+    /// <paramref name="shape"/> adjusts the payload before it's stored.</summary>
+    public async Task<(Guid Id, Guid ClientId)> SeedCompletedTestAsync(string farmName, Action<JsonObject>? shape = null)
     {
         using var scope = AppServices.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
@@ -101,6 +102,7 @@ public class AdminEditE2EWebAppFactory : OfflineE2EWebAppFactory
             ["syncState"] = "uploaded",
             ["version"] = 1,
         };
+        shape?.Invoke(payload);
 
         var test = new MachineTest
         {

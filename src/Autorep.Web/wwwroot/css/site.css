@@ -587,6 +587,7 @@ main {
 .badge--success { background: var(--success-bg); color: #166534; }
 .badge--warning { background: #fef3c7; color: #92400e; }
 .badge--danger  { background: var(--danger-bg); color: #991b1b; }
+.badge--info    { background: #e8eefa; color: var(--brand); }
 
 /* ----- Auth layout (login/access-denied) ----------------------------------- */
 .auth-layout {
@@ -1959,6 +1960,97 @@ main {
 .admin-edit__report { margin: var(--space-2) 0 0; font-size: 0.875rem; }
 .admin-edit__draft { margin: var(--space-2) 0 0; color: #92400e; }
 .version-note strong { font-weight: 600; }
-.admin-edit__danger { display: flex; justify-content: flex-end; margin: calc(-1 * var(--space-2)) 0 var(--space-4); }
+.admin-edit__tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+}
+.admin-edit__tools .badge { margin-left: var(--space-2); }
+.admin-edit__danger { margin-left: auto; }
 .admin-edit__deleted .btn { margin-left: var(--space-2); }
 .removed-tests { margin: var(--space-2) 0 var(--space-3); padding-left: 1.25rem; }
+
+/* ----- All tests: filter chips ------------------------------------------------------
+   Each active filter as a pill whose × removes just that one (Pages/Admin/Tests/Index). */
+.list-filters__date { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 0.875rem; color: var(--text-muted); }
+.list-filters__date input[type="date"] {
+  height: 40px; padding: 0 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); font: inherit;
+}
+.filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: calc(-1 * var(--space-2)) 0 var(--space-4); }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.65rem; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--brand-pale); color: var(--brand); font-size: 0.8125rem;
+  text-decoration: none;
+}
+.filter-chip:hover { background: var(--bg); border-color: var(--brand); }
+.filter-chip__x { font-size: 1rem; line-height: 1; }
+.filter-chips__clear { font-size: 0.8125rem; color: var(--text-muted); }
+
+/* ----- History & audit drawer ------------------------------------------------------
+   The admin viewer's audit panel (Client/wizard/AuditPanel.tsx): versions, sync conflicts, how the
+   visual checks were verified, administrators' actions. Slides over the page from the right; full
+   width on a phone. */
+.drawer-overlay {
+  position: fixed; inset: 0; z-index: 100; background: rgba(17,24,39,0.45);
+  display: flex; justify-content: flex-end;
+}
+.drawer {
+  background: var(--surface); width: min(640px, 100%); height: 100%;
+  display: flex; flex-direction: column; box-shadow: var(--shadow-lg);
+}
+.drawer__head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border);
+}
+.drawer__title { margin: 0; font-size: 1.125rem; }
+.drawer__close {
+  border: 0; background: transparent; font-size: 1.5rem; line-height: 1; padding: 0.25rem 0.5rem;
+  border-radius: var(--radius); color: var(--text-muted); cursor: pointer;
+}
+.drawer__close:hover { background: var(--surface-alt); color: var(--text); }
+.drawer__body { flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-8); }
+
+.audit-section { margin-bottom: var(--space-6); }
+.audit-section__title {
+  font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+  margin: 0 0 var(--space-3);
+}
+.audit-timeline { list-style: none; margin: 0; padding: 0 0 0 var(--space-4); border-left: 2px solid var(--brand-pale); }
+.audit-version { position: relative; padding: 0 0 var(--space-5) var(--space-3); }
+.audit-version::before {
+  content: ""; position: absolute; left: calc(-1 * var(--space-4) - 6px); top: 0.35rem;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--brand);
+}
+.audit-version__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.audit-version__meta { font-size: 0.875rem; color: var(--text-muted); margin-top: 0.15rem; }
+.audit-version__reason { margin: var(--space-2) 0 0; font-style: italic; }
+.audit-version__note { margin: var(--space-2) 0 0; font-size: 0.875rem; color: var(--text-muted); }
+.audit-version__open { display: inline-block; margin-top: var(--space-2); font-size: 0.875rem; color: var(--brand); }
+.audit-changes, .audit-merge { margin-top: var(--space-2); font-size: 0.875rem; }
+.audit-changes summary { cursor: pointer; color: var(--brand); }
+.audit-table { width: 100%; border-collapse: collapse; margin-top: var(--space-2); font-size: 0.8125rem; }
+.audit-table th, .audit-table td {
+  text-align: left; vertical-align: top; padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.audit-table th { color: var(--text-muted); font-weight: 600; }
+.audit-table__section { display: block; font-size: 0.75rem; color: var(--text-subtle); }
+.audit-table__kept { background: var(--success-bg); font-weight: 600; }
+
+.audit-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); font-size: 0.875rem; }
+.audit-conflict__fields { margin-top: var(--space-1); color: var(--text-muted); }
+
+.audit-check { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: var(--space-2); background: var(--surface); }
+.audit-check summary {
+  cursor: pointer; padding: var(--space-2) var(--space-3); display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--space-2); font-size: 0.875rem;
+}
+.audit-check__title { font-weight: 600; }
+.audit-check__counts { flex-basis: 100%; font-size: 0.8125rem; color: var(--text-muted); }
+.audit-check__attest { margin: 0 var(--space-3) var(--space-2); font-size: 0.8125rem; font-style: italic; color: var(--text-muted); }
+.audit-check__items { list-style: none; margin: 0; padding: 0 var(--space-3) var(--space-2); font-size: 0.8125rem; }
+.audit-check__items li {
+  display: flex; justify-content: space-between; gap: var(--space-3); padding: 0.25rem 0; border-top: 1px solid var(--border);
+}
+.audit-check__status { color: var(--text-muted); text-align: right; }
+.audit-check__items li[data-verified="individual"] .audit-check__status { color: var(--text); }

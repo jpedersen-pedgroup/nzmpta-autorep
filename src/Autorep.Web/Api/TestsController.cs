@@ -74,7 +74,9 @@ public class TestsController : ControllerBase
         // viewer may delete or restore it.
         TestsController.DeletionDto? Deletion = null,
         bool CanDelete = false,
-        bool CanRestore = false);
+        bool CanRestore = false,
+        // Administrators only: how many sync conflicts the test's history holds (its audit panel lists them).
+        int ConflictCount = 0);
 
     /// <summary>Who deleted a test, when and why.</summary>
     public record DeletionDto(DateTimeOffset? At, string? By, string? Reason);
@@ -137,9 +139,12 @@ public class TestsController : ControllerBase
         MachineTest? latest = null;
         DraftDto? draft = null;
         DeletionDto? deletion = null;
+        var conflictCount = 0;
         var superAdmin = User.IsInRole(Roles.SuperAdministrator);
         if (superAdmin || User.IsInRole(Roles.CompanyAdministrator))
         {
+            var key = TestLineage.KeyOf(test);
+            conflictCount = await _db.SyncConflicts.CountAsync(c => c.TesterId == test.TesterId && c.RootClientId == key, ct);
             var state = await _versioning.StateAsync(test, ct);
             editBlocked = state.Blocked;
             editScope = state.Blocked is null
@@ -177,7 +182,8 @@ public class TestsController : ControllerBase
             draft,
             deletion,
             superAdmin && !test.IsDeleted,
-            superAdmin && test.IsDeleted));
+            superAdmin && test.IsDeleted,
+            conflictCount));
     }
 
     // The Final Report as the tester signed it off — what the farmer was given — for anyone who can

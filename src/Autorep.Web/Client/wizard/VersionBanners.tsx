@@ -10,7 +10,8 @@ import type { EditScope } from "../versioning/adminEdit";
 import type { Deletion } from "../sync/removals";
 import type { SavedReportState } from "../versioning/adminReport";
 
-function when(iso?: string | null): string {
+/** A date and time as the admin and tester screens show them (en-NZ); "—" when there is none. */
+export function when(iso?: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
@@ -93,6 +94,8 @@ export interface AdminView {
   /** A Super-Administrator may delete it (when it isn't) or restore it (when it is). */
   canDelete?: boolean;
   canRestore?: boolean;
+  /** Sync conflicts in the test's history (its audit panel lists them). */
+  conflictCount?: number;
 }
 
 /** Why a save didn't happen, as the edit bar words it. */
@@ -127,6 +130,8 @@ interface AdminEditBarProps {
   /** Soft-delete the test with a reason; resolves with a message when it didn't happen. */
   onDelete(reason: string): Promise<string | null>;
   onRestore(): Promise<string | null>;
+  /** Open the History & audit panel. */
+  onHistory(): void;
 }
 
 const BLOCKED_TEXT: Record<string, string> = {
@@ -283,7 +288,15 @@ export function AdminEditBar(props: AdminEditBarProps) {
           is shown as recorded at the time of testing.
         </div>
       )}
-      {view.canDelete && <DeleteControl onDelete={props.onDelete} />}
+      <div class="admin-edit__tools">
+        <button class="btn btn--secondary btn--sm" data-open-history onClick={props.onHistory}>
+          History &amp; audit
+          {view.conflictCount ? (
+            <span class="badge badge--warning">{plural(view.conflictCount, "sync conflict")}</span>
+          ) : null}
+        </button>
+        {view.canDelete && <DeleteControl onDelete={props.onDelete} />}
+      </div>
     </>
   );
 }

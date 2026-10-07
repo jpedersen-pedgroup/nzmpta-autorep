@@ -1,6 +1,7 @@
 @page
 @model Autorep.Web.Pages.Admin.Tests.IndexModel
 @using Autorep.Web.Domain
+@using Autorep.Web.Pages.Admin.Tests
 @{
     ViewData["Title"] = "All tests";
 }
@@ -21,12 +22,15 @@
     }
 </div>
 
-<form method="get" class="list-filters">
+@* Filtered on the server over the paginated query (AdminTestQuery). Each active filter shows as a
+   chip whose × removes just that one. *@
+<form method="get" class="list-filters" id="test-filters">
     @if (Model.FarmId is not null)
     {
         <input type="hidden" name="farmId" value="@Model.FarmId" />
     }
-    <input type="search" name="q" value="@Model.Q" placeholder="@(Model.FarmName is null ? "Search by farm or tester email…" : "Search this farm by tester email…")" />
+    <input type="search" name="q" value="@Model.Q" aria-label="Search by farm or tester"
+           placeholder="@(Model.FarmName is null ? "Farm, supply number or tester…" : "Search this farm by tester…")" />
     @if (Model.CompanyOptions.Any())
     {
         <select name="companyId" onchange="if (this.form.testerId) this.form.testerId.value = ''; this.form.submit()" aria-label="Filter by company">
@@ -44,16 +48,46 @@
             <option value="@o.Value" selected="@o.Selected">@o.Text</option>
         }
     </select>
+    <label class="list-filters__date">
+        <span>Tested from</span>
+        <input type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" onchange="this.form.submit()" />
+    </label>
+    <label class="list-filters__date">
+        <span>to</span>
+        <input type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" onchange="this.form.submit()" />
+    </label>
+    <select name="status" onchange="this.form.submit()" aria-label="Filter by status">
+        <option value="">Any status</option>
+        <option value="@AdminTestQuery.Complete" selected="@(Model.Status == AdminTestQuery.Complete)">Complete</option>
+        <option value="@AdminTestQuery.InProgress" selected="@(Model.Status == AdminTestQuery.InProgress)">In progress</option>
+    </select>
+    <label class="form-check" style="margin:0">
+        <input type="checkbox" name="hasConflicts" value="true" checked="@Model.HasConflicts" onchange="this.form.submit()" />
+        <span>Has conflicts</span>
+    </label>
     <label class="form-check" style="margin:0">
         <input type="checkbox" name="showDeleted" value="true" checked="@Model.ShowDeleted" onchange="this.form.submit()" />
         <span>Show deleted</span>
     </label>
     <button type="submit" class="btn btn--secondary">Search</button>
-    @if (Model.HasFilter)
-    {
-        <a class="btn btn--secondary" asp-page="/Admin/Tests/Index" asp-route-farmId="@Model.FarmId">Clear</a>
-    }
 </form>
+
+@if (Model.Chips.Any())
+{
+    <div class="filter-chips" aria-label="Active filters">
+        @foreach (var (label, param) in Model.Chips)
+        {
+            <a class="filter-chip" asp-page="/Admin/Tests/Index" asp-all-route-data="@Model.RouteWith(without: param)"
+               title="Remove this filter">
+                @label <span class="filter-chip__x" aria-hidden="true">×</span><span class="visually-hidden">(remove)</span>
+            </a>
+        }
+        @if (Model.Chips.Count > 1)
+        {
+            <a class="filter-chips__clear" asp-page="/Admin/Tests/Index">Clear all</a>
+        }
+    </div>
+}
 
 @if (!Model.Tests.Any())
 {
@@ -78,7 +112,7 @@ else
                 <tr>
                     <th>Tester</th>
                     <th>Farm</th>
-                    <th>Created</th>
+                    <th>Tested</th>
                     <th>Status</th>
                     <th></th>
                 </tr>
@@ -87,9 +121,18 @@ else
                 @foreach (var t in Model.Tests)
                 {
                     <tr>
-                        <td>@t.Tester?.UserName</td>
+                        <td>@(string.IsNullOrEmpty(t.Tester?.DisplayName) ? t.Tester?.UserName : t.Tester.DisplayName)</td>
                         <td>@t.Farm?.Name</td>
-                        <td class="td-muted">@t.CreatedAt.ToNz().ToString("dd MMM yyyy, HH:mm")</td>
+                        <td class="td-muted">
+                            @if (t.MarkedCompleteAt is { } done)
+                            {
+                                @done.ToNz().ToString("dd MMM yyyy, HH:mm")
+                            }
+                            else
+                            {
+                                <text>Started @t.CreatedAt.ToNz().ToString("dd MMM yyyy, HH:mm")</text>
+                            }
+                        </td>
                         <td>
                             @if (t.MarkedCompleteAt is null)
                             {
@@ -98,6 +141,18 @@ else
                             else
                             {
                                 <span class="badge badge--success">Complete</span>
+                            }
+                            @if (t.Version > 1)
+                            {
+                                <span class="badge" title="Earlier versions are in its history">v@(t.Version)</span>
+                            }
+                            @if (t.AuthorId is not null)
+                            {
+                                <span class="badge">Edited by admin</span>
+                            }
+                            @if (Model.ConflictedIds.Contains(t.Id))
+                            {
+                                <span class="badge badge--warning" title="Two versions of this test replaced the same one; see its history">Conflict</span>
                             }
                             @if (t.IsDeleted)
                             {
@@ -114,12 +169,12 @@ else
     <div style="display:flex;gap:var(--space-3);align-items:center;margin-top:var(--space-4)">
         @if (Model.PageNumber > 1)
         {
-            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId" asp-route-companyId="@Model.CompanyId" asp-route-testerId="@Model.TesterId" asp-route-showDeleted="@(Model.ShowDeleted ? "true" : null)">‹ Prev</a>
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-all-route-data="@Model.RouteWith(page: Model.PageNumber - 1)">‹ Prev</a>
         }
         <span class="td-muted">Page @Model.PageNumber of @Model.TotalPages · @Model.TotalCount total</span>
         @if (Model.PageNumber < Model.TotalPages)
         {
-            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-farmId="@Model.FarmId" asp-route-companyId="@Model.CompanyId" asp-route-testerId="@Model.TesterId" asp-route-showDeleted="@(Model.ShowDeleted ? "true" : null)">Next ›</a>
+            <a class="btn btn--secondary btn--sm" asp-page="/Admin/Tests/Index" asp-all-route-data="@Model.RouteWith(page: Model.PageNumber + 1)">Next ›</a>
         }
     </div>
 }

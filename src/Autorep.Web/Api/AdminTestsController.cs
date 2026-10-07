@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
@@ -64,6 +66,113 @@ public class AdminTestsController(
     public record SaveVersionRequest(string? PayloadJson, string? Reason);
 
     public record SavedVersionDto(Guid Id, Guid ClientId, int Version);
+
+    /// <summary>A test's audit trail for the admin viewer's panel (PRD stories 68–69).</summary>
+    public record HistoryDto(
+        IReadOnlyList<HistoryVersionDto> Versions,
+        IReadOnlyList<HistoryConflictDto> Conflicts,
+        IReadOnlyList<HistoryEventDto> Events);
+
+    /// <summary>One version: who made it (the tester, an administrator, or an automatic merge), its
+    /// own amendment record (what it changed, field by field, in words — null on an original) and the
+    /// attestations it carries (which checklist sections were bulk-confirmed).</summary>
+    public record HistoryVersionDto(
+        Guid Id, int Version, Guid? ClientId, Guid? SupersedesClientId, Guid? MergedFromClientId,
+        DateTimeOffset CreatedAt, DateTimeOffset? MarkedCompleteAt,
+        string? Author, string AuthorKind, bool IsCurrent, bool IsDeleted,
+        JsonNode? Amendment, JsonNode? Attestations);
+
+    /// <summary>A collision of two versions (SyncConflict). The versions are named by id — the two that
+    /// collided were both made from the same version, so they share a version number — and the
+    /// overlapping fields as payload paths.</summary>
+    public record HistoryConflictDto(
+        Guid Id, string Status, string DetectedOn, DateTimeOffset DetectedAt, DateTimeOffset? ResolvedAt,
+        Guid? BaseId, Guid? HeadId, Guid? IncomingId, Guid? MergedId,
+        IReadOnlyList<string> OverlappingFields);
+
+    /// <summary>An administrator's action on the test, from the audit log: the version it saved
+    /// (AdminVersionCreated) and the reason given (a save or a deletion).</summary>
+    public record HistoryEventDto(DateTimeOffset At, string? Actor, string Operation, int? Version, string? Reason);
+
+    private static readonly string[] HistoryOperations = ["AdminVersionCreated", "SoftDeleted", "Restored"];
+
+    /// <summary>
+    /// The audit panel's data for the test version <paramref name="id"/> belongs to: every version of
+    /// it, oldest first, the collisions between them, and administrators' edits, deletions and
+    /// restores. Same scope as the read: a Company Administrator's out-of-company id is a 404.
+    /// </summary>
+    [HttpGet("{id:guid}/history")]
+    public async Task<IActionResult> History(Guid id, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var me = await users.GetUserAsync(User);
+        if (me is null) return Forbid();
+        var test = await db.MachineTests
+            .AdministeredBy(User.IsInRole(Roles.SuperAdministrator), me.TestingCompanyId)
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (test is null) return NotFound();
+
+        var versions = (await TestLineage.VersionsAsync(db, test, ct))
+            .OrderBy(v => v.Version).ThenBy(v => v.CreatedAt).ToList();
+        var head = TestLineage.Head(versions);
+        var people = versions.Select(v => v.AuthorId ?? v.TesterId).Distinct().ToList();
+        var names = await db.Users.Where(u => people.Contains(u.Id))
+            .Select(u => new { u.Id, Name = u.DisplayName != "" ? u.DisplayName : u.Email })
+            .ToDictionaryAsync(u => u.Id, u => u.Name, ct);
+
+        var versionDtos = versions.Select(v =>
+        {
+            var payload = PayloadUnits.Parse(v.PayloadJson);
+            var own = (payload?["amendments"] as JsonArray)?.LastOrDefault() is JsonObject last
+                && last["version"] is JsonValue n && n.TryGetValue<int>(out var number) && number == v.Version
+                    ? last.DeepClone()
+                    : null;
+            var kind = v.AuthorId is not null ? "admin" : v.MergedFromClientId is not null ? "merge" : "tester";
+            return new HistoryVersionDto(
+                v.Id, v.Version, v.ClientId, v.SupersedesClientId, v.MergedFromClientId,
+                v.CreatedAt, v.MarkedCompleteAt,
+                names.GetValueOrDefault(v.AuthorId ?? v.TesterId), kind,
+                head is not null && head.Id == v.Id, v.IsDeleted,
+                own, payload?["attestations"]?.DeepClone());
+        }).ToList();
+
+        Guid? IdOf(Guid? clientId) => clientId is null ? null : versions.FirstOrDefault(v => v.ClientId == clientId)?.Id;
+        var key = TestLineage.KeyOf(test);
+        var conflicts = (await db.SyncConflicts
+                .Where(c => c.TesterId == test.TesterId && c.RootClientId == key)
+                .OrderBy(c => c.DetectedAt)
+                .ToListAsync(ct))
+            .Select(c => new HistoryConflictDto(
+                c.Id, c.Status, c.DetectedOn, c.DetectedAt, c.ResolvedAt,
+                IdOf(c.BaseClientId), IdOf(c.HeadClientId), IdOf(c.IncomingClientId), IdOf(c.MergedClientId),
+                string.IsNullOrEmpty(c.OverlappingFieldsJson)
+                    ? []
+                    : JsonSerializer.Deserialize<List<string>>(c.OverlappingFieldsJson) ?? []))
+            .ToList();
+
+        var keys = versions.Select(v => v.Id.ToString()).ToList();
+        var events = await db.AuditEntries
+            .Where(e => e.EntityType == nameof(MachineTest) && keys.Contains(e.EntityKey) && HistoryOperations.Contains(e.Operation))
+            .OrderBy(e => e.Timestamp)
+            .Select(e => new { e.Timestamp, e.Actor, e.Operation, e.AfterJson })
+            .ToListAsync(ct);
+        var actors = events.Select(e => e.Actor).Distinct().ToList();
+        var actorNames = await db.Users.Where(u => actors.Contains(u.Id))
+            .Select(u => new { u.Id, Name = u.DisplayName != "" ? u.DisplayName : u.Email })
+            .ToDictionaryAsync(u => u.Id, u => u.Name, ct);
+
+        return Ok(new HistoryDto(
+            versionDtos,
+            conflicts,
+            events.Select(e =>
+            {
+                var detail = PayloadUnits.Parse(e.AfterJson);
+                return new HistoryEventDto(
+                    e.Timestamp, actorNames.GetValueOrDefault(e.Actor ?? "") ?? e.Actor, e.Operation,
+                    detail?["version"] is JsonValue v && v.TryGetValue<int>(out var n) ? n : null,
+                    detail?["reason"] is JsonValue r && r.TryGetValue<string>(out var why) ? why : null);
+            }).ToList()));
+    }
 
     /// <summary>
     /// Saves an administrator's edit of the completed version <paramref name="id"/> as the test's next
