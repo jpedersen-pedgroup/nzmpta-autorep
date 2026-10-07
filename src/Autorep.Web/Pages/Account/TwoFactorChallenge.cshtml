@@ -17,7 +17,7 @@
         <div class="auth-card__logo"><img class="auth-card__logo-img" src="~/img/logo-mpnz.svg" alt="MPNZ — Milking & Pumping since 1932" /></div>
         <h1 class="auth-card__title">Verification code</h1>
         <p class="auth-card__subtitle">Open your authenticator app and enter the 6-digit code.</p>
-        <form method="post">
+        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-route-rememberMe="@Model.RememberMe">
             <div class="form-field">
                 <label asp-for="Input.Code">Code</label>
                 <input asp-for="Input.Code" required autofocus inputmode="numeric" pattern="[0-9 -]*" autocomplete="one-time-code" />
@@ -32,6 +32,9 @@
             }
             <button type="submit" class="btn btn--full">Verify</button>
         </form>
+        <p style="text-align:center;margin-top:1.5rem;font-size:0.875rem">
+            <a asp-page="/Account/TwoFactorRecovery" asp-route-returnUrl="@Model.ReturnUrl" style="color:var(--text-muted)">Lost your authenticator app? Use a recovery code</a>
+        </p>
     </div>
 </body>
 </html>

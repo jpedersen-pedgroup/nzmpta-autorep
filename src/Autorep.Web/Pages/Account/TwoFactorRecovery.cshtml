@@ -1,0 +1,39 @@
+@page
+@model Autorep.Web.Pages.Account.TwoFactorRecoveryModel
+@{
+    ViewData["Title"] = "Recovery code";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recovery code · NZMPTA AutoRep</title>
+    <partial name="_BrandHead" />
+</head>
+<body class="auth-layout">
+    <div class="auth-card">
+        <div class="auth-card__logo"><img class="auth-card__logo-img" src="~/img/logo-mpnz.svg" alt="MPNZ — Milking & Pumping since 1932" /></div>
+        <h1 class="auth-card__title">Recovery code</h1>
+        <p class="auth-card__subtitle">Enter one of the recovery codes you saved when you set up two-factor. Each code works once.</p>
+        <form method="post" asp-route-returnUrl="@Model.ReturnUrl">
+            <div class="form-field">
+                <label asp-for="Code">Recovery code</label>
+                <input asp-for="Code" required autofocus autocomplete="off" spellcheck="false" />
+            </div>
+            @if (Model.ErrorMessage is not null)
+            {
+                <div class="alert alert--danger">@Model.ErrorMessage</div>
+            }
+            <button type="submit" class="btn btn--full">Sign in</button>
+        </form>
+        <p style="text-align:center;margin-top:1.5rem;font-size:0.875rem">
+            <a asp-page="/Account/TwoFactorChallenge" asp-route-returnUrl="@Model.ReturnUrl" style="color:var(--text-muted)">Back to the authenticator code</a>
+        </p>
+        <p style="text-align:center;margin-top:0.75rem;font-size:0.8125rem;color:var(--text-muted)">
+            No codes left either? An NZMPTA administrator can reset two-factor on your account.
+        </p>
+    </div>
+</body>
+</html>

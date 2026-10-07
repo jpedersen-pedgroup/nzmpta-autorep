@@ -1,52 +1,87 @@
 @page
 @model Autorep.Web.Pages.Account.SetupAuthenticatorModel
 @{
-    ViewData["Title"] = "Set up two-factor authentication";
+    ViewData["Title"] = Model.Enrolled || Model.ReplacementInProgress ? "Set up a new authenticator" : "Set up two-factor authentication";
 }
 
 <div class="page-header">
     <div class="page-header__heading">
-        <h1>Set up two-factor authentication</h1>
+        <h1>@ViewData["Title"]</h1>
         <p>Add an extra step to your sign-in with an authenticator app.</p>
     </div>
 </div>
 
-<div class="card" style="max-width:640px">
-    <h2 class="card__title">1. Install an authenticator app</h2>
-    <p style="color:var(--text-muted)">
-        Microsoft Authenticator, Google Authenticator, 1Password, Authy or any TOTP-compatible app works.
-    </p>
-</div>
-
-<div class="card" style="max-width:640px">
-    <h2 class="card__title">2. Add this account</h2>
-    <p style="color:var(--text-muted)">Either scan the URI in the app, or enter the shared key manually:</p>
-    <div style="background:var(--surface-alt);padding:1rem;border-radius:var(--radius);font-family:var(--font-mono);word-break:break-all;margin-bottom:0.5rem">
-        @Model.SharedKey
+@if (Model.Enrolled)
+{
+    <div class="card" style="max-width:640px">
+        <h2 class="card__title">You already have an authenticator</h2>
+        <p style="color:var(--text-muted)">
+            Replacing it is for a new or lost phone. The moment you continue, your current app and your current recovery codes stop working,
+            and you'll scan a new code with the new app. Nothing changes until you choose to continue.
+        </p>
+        <form method="post" asp-page-handler="Replace">
+            <div class="form-actions">
+                <button type="submit" class="btn btn--danger">Replace authenticator</button>
+                <a class="btn btn--secondary" asp-page="/Account/Manage">Cancel</a>
+            </div>
+        </form>
     </div>
-    <details>
-        <summary style="cursor:pointer;color:var(--text-muted);font-size:0.875rem">Show otpauth URI</summary>
-        <div style="background:var(--surface-alt);padding:1rem;border-radius:var(--radius);font-family:var(--font-mono);word-break:break-all;margin-top:0.5rem;font-size:0.8125rem">
-            @Model.AuthenticatorUri
+}
+else
+{
+    @if (Model.Required)
+    {
+        <div class="alert alert--info" style="max-width:640px">
+            <strong>Two-factor authentication is required for Super Administrator accounts.</strong>
+            Finish these three steps to continue to the admin portal. It takes about two minutes.
         </div>
-    </details>
-</div>
+    }
+    @if (Model.ReplacementInProgress)
+    {
+        <div class="alert alert--warning" style="max-width:640px">
+            Your previous authenticator and recovery codes no longer work. Verify a code from the new app below to finish — you'll get fresh recovery codes.
+        </div>
+    }
 
-<div class="card" style="max-width:640px">
-    <h2 class="card__title">3. Verify</h2>
-    <p style="color:var(--text-muted)">Enter the 6-digit code your app shows for this account.</p>
-    <form method="post">
-        <div class="form-field">
-            <label asp-for="Code">Verification code</label>
-            <input asp-for="Code" required autofocus inputmode="numeric" pattern="[0-9 -]*" autocomplete="one-time-code" />
-        </div>
-        @if (Model.Errors.Any())
-        {
-            <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
-        }
-        <div class="form-actions">
-            <button type="submit" class="btn">Verify and enable</button>
-            <a class="btn btn--secondary" asp-page="/Account/Manage">Cancel</a>
-        </div>
-    </form>
-</div>
+    <div class="card" style="max-width:640px">
+        <h2 class="card__title">1. Install an authenticator app</h2>
+        <p style="color:var(--text-muted)">
+            Microsoft Authenticator, Google Authenticator, 1Password, Authy or any TOTP-compatible app works.
+        </p>
+    </div>
+
+    <div class="card" style="max-width:640px">
+        <h2 class="card__title">2. Add this account</h2>
+        <p style="color:var(--text-muted)">Scan this code with the app:</p>
+        <div class="qr-code" aria-label="QR code for the authenticator app">@Html.Raw(Model.QrCodeSvg)</div>
+        <details style="margin-top:0.75rem">
+            <summary style="cursor:pointer;color:var(--text-muted);font-size:0.875rem">Can't scan? Enter the key manually</summary>
+            <p style="color:var(--text-muted);font-size:0.875rem;margin:0.5rem 0 0.25rem">Type this key into the app (spaces don't matter), with time-based codes:</p>
+            <div style="background:var(--surface-alt);padding:1rem;border-radius:var(--radius);font-family:var(--font-mono);word-break:break-all">
+                @Model.SharedKey
+            </div>
+        </details>
+    </div>
+
+    <div class="card" style="max-width:640px">
+        <h2 class="card__title">3. Verify</h2>
+        <p style="color:var(--text-muted)">Enter the 6-digit code your app shows for this account.</p>
+        <form method="post">
+            <div class="form-field">
+                <label asp-for="Code">Verification code</label>
+                <input asp-for="Code" required autofocus inputmode="numeric" pattern="[0-9 -]*" autocomplete="one-time-code" />
+            </div>
+            @if (Model.Errors.Any())
+            {
+                <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+            }
+            <div class="form-actions">
+                <button type="submit" class="btn">Verify and enable</button>
+                @if (!Model.Required)
+                {
+                    <a class="btn btn--secondary" asp-page="/Account/Manage">Cancel</a>
+                }
+            </div>
+        </form>
+    </div>
+}

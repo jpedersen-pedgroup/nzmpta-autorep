@@ -2,181 +2,225 @@
 
 > Tracks the contracted **$43,750** scope: mandatory **M1–M6** + optional **O1, O2, O3**. *(O3 added by variation 8 Jun 2026, +$2,500.)*
 > Status legend: ✅ Complete · 🟡 Partial · ⬜ Not started · ❓ Needs confirmation · ⛔ Out of contracted scope
-> Organised by the **4 contract delivery phases** → **scope items (M/O)**. The repo's tracer-bullet build order lives in `plans/autorep-rebuild.md` (11 implementation phases); the mapping is noted per item.
+> Organised by the **4 contract delivery phases** → **scope items (M/O)**. The original tracer-bullet build order lives in `plans/autorep-rebuild.md`; the GitHub phase issues (#2–#12) that mirrored it were closed on 7 Oct 2026 — **this file is the plan of record** for what remains.
 >
-> **Last assessed:** 5 Jun 2026 (against repo HEAD `fe83d8e`). **Indicative overall completion: ~20–25% by contract value.**
+> **Last assessed:** 7 Oct 2026 against `main` @ `91c673a` (PR #69), then updated the same day for what merged after it: #70 (migration tool), #71 (two-factor enforcement), #72 (admin home 500) — items that cite one of those PRs were verified against `main` @ `7f30b97` and later. Every other ✅ below was checked against the code at `91c673a`; ❓ marks a claim that was not verified in code. **Indicative overall completion: ~75–80% by contract value.** The feature build is largely done; what remains is O2 admin editing, the offline shell, hardening/go-live, and the migration cutover itself.
+>
+> **Previous assessment:** 5 Jun 2026 @ `fe83d8e` (~20–25%).
 
 ## Status summary
 
 | Milestone | Scope item | Payment milestone | Status | Est. % |
 |---|---|---|---|---|
-| **M1** | Foundation, data model & shared platform | Phase 1 | 🟡 Substantial | ~70% |
-| **M2** | Tester PWA core (offline + sync) | Phase 2 | 🟡 Early | ~20% |
-| **M3** | Wizard test capture (steps 1–11) | Phase 2 | ⬜ Not started | ~5% |
-| **M4** | Existing reports — PDF generation (7) | Phase 3 | ⬜ Not started | 0% |
-| **M5** | Admin portal — users, companies & reference data | Phase 3 | 🟡 Identity done, ref-data not | ~50% |
-| **M6** | Hardening, UAT, security review & go-live | Phase 4 | ⬜ Not started | 0% |
-| **O1** | Data migration tooling & cutover | Phase 4 | ⬜ Not started | 0% |
-| **O2** | Admin test view & edit + audit | Phase 3 | 🟡 View only | ~15% |
-| **O3** | Pulsation-data PDF upload & merge into Final Report | Phase 3 | ⬜ Not started | 0% |
+| **M1** | Foundation, data model & shared platform | Phase 1 | ✅ Done (prod never deployed — see M6) | ~95% |
+| **M2** | Tester PWA core (offline + sync) | Phase 2 | 🟡 Capture + sync + offline print done; **offline navigation not** | ~65% |
+| **M3** | Wizard test capture (steps 1–11) | Phase 2 | ✅ Done, with Sep-2026 tester-feedback leftovers | ~95% |
+| **M4** | Existing reports — PDF generation (7) | Phase 3 | 🟡 Report built and split into selectable sections; Test Report Results not separately selectable; golden-file tests missing | ~90% |
+| **M5** | Admin portal — users, companies & reference data | Phase 3 | 🟡 Company-admin test edits (PRD 49–50) and manual upload missing; 2FA enforced since PR #71 | ~85% |
+| **M6** | Hardening, UAT, security review & go-live | Phase 4 | ⬜ Not started | ~5% |
+| **O1** | Data migration tooling & cutover | Phase 4 | 🟡 Tool built and dry-run against staging; cutover not | ~60% |
+| **O2** | Admin test view & edit + audit | Phase 3 | 🟡 **View only** — no edit, soft-delete, filters or audit panel | ~30% |
+| **O3** | Pulsation-data PDF upload & merge into Final Report | Phase 3 | ✅ Done (tester side); no admin upload | ~85% |
 
 ---
 
-## Phase 1 — Foundation  ·  M1  ·  🟡 ~70%
-*Repo plan: Phase 1 (walking skeleton) + Phase 8 (identity) merged in.*
+## What is left to build — the short list
+
+In priority order. Each line expands in the sections below.
+
+1. **Production has never been deployed.** `app-prod.yml` and `infra-prod.yml` have zero runs. The workflow fixes landed 30 Sep (PR #69); the first infra + app deploy to `newzealandnorth` is the next step and unblocks everything in M6.
+2. **O2 admin edit** — edit a synced test into a new version, soft-delete with a mandatory reason, list filter chips, audit panel. The admin viewer today is read-only (`Pages/Admin/Tests/View.cshtml` → wizard bundle in read-only mode).
+3. **Offline tester shell (M2)** — `plans/offline-tester-app.md` Phases 2–4: navigation offline, cold launch offline, start-a-test offline, storage durability. Today every page navigation needs the server (`wwwroot/sw.js:281-282`).
+4. **M6 hardening** — `plans/m6-infra-review.md` is untouched: security review, load test, alert rules, custom domain + certificate, test restore, WAF decision, remove the personal SQL admin, `CostCentre` tag, security headers/CSP (only HSTS is set today, `Program.cs:235`).
+5. **O1 cutover** — NZMPTA review of the data-quality CSV, report-parity review of sample migrated tests, a real region check before cutover, cutover runbook, parallel run, legacy decommission. (`tools/Migration/README.md` now documents the tool as built.)
+6. **Contracted items never started:** Company Administrator edits of the final summary / recommendations on their company's tests as a new version (PRD stories 49–50, rebuild plan Phase 9 — distinct from the Super-Administrator O2 surface), server-side Final Report store (`/api/sync/final-report`), Test Standard Manual upload, Vendor Specification Effective Date (❓ — see M5).
+7. **Tester-feedback leftovers** (`plans/tester-feedback-2026-09-15.md`): oil-vs-water recommendation split by pump lubrication (4.1), ISO 16 final checks, and the open questions owned by Jono / Maria / NZMPTA.
+8. **Tests still owed:** golden-file PDF (T4), wizard happy-path Playwright (T5), real-device iPad UAT incl. the 7-day storage rule (T6).
+
+---
+
+## Phase 1 — Foundation  ·  M1  ·  ✅ ~95%
 
 ### M1 — Foundation, data model & shared platform
-- [x] ✅ Azure infrastructure as code — App Service, Azure SQL + Private Endpoint, Key Vault, Storage, App Insights, TLS 1.2+ (`infra/` Bicep, complete)
-- [x] ✅ Azure infrastructure **deployed** (confirmed in place). Full hardening/security review deferred to M6. **Fixed 5 Jun:** prod region was `australiaeast` → corrected to `newzealandnorth` for NZ data-residency (staging already NZ North; SQL + Storage backups are LRS/in-region). *If prod was already deployed in AU, redeploy to NZ North before any data migration.*
-- [x] ✅ CI/CD pipeline — build + unit tests on PR, deploy to staging on merge (`.github/workflows/app.yml`)
-- [x] ✅ ASP.NET Core Identity — email + password, lockout (`Program.cs`, `Pages/Account/*`)
-- [x] ✅ JWT access token (1h) + refresh token (7d sliding) with rotation & replay detection (`Api/AuthController.cs`, `Services/JwtTokenService.cs`, `Services/RefreshTokenService.cs`)
-- [x] ✅ Tester licence-expiry check at login **and** refresh (`Pages/Account/Login.cshtml.cs`)
-- [x] ✅ Audit-trail infrastructure — EF `SaveChangesInterceptor`, before/after JSON, same transaction (`Data/AuditInterceptor.cs`, `Domain/Entities/AuditEntry.cs`)
-- [x] ✅ Base Razor Pages shell + role-gating (`/app` Tester, `/admin` Admin, cross-role 403) (`Program.cs`, `Domain/Roles.cs`)
-- [ ] 🟡 **Full** EF Core domain model — only core entities exist (Tester, TestingCompany, Farm, MachineTest, AuditEntry, RefreshToken). Missing the wider schema: TestVersion, VendorSpecification(+Snapshot), EquipmentModel, TestStandardManual, Fault, ChecklistAttestation, FinalReportBlob, StandardRecommendationWording, SyncConflict
-- [x] ✅ EF Core migrations (`Migrations/InitialCreate`, `Migrations/Phase8_*`)
-- [ ] 🟡 Seed data — **dev-only** (`admin@local`, `tester@local`); no production/go-live seed
-- [ ] ⬜ Data-migration tooling **skeleton** against staging (plan listed under Phase 1; see O1)
-- [ ] ❌ Unit + integration tests for the above (M1 price includes testing — currently only an empty placeholder)
+- [x] ✅ Azure infrastructure as code — App Service, Azure SQL + Private Endpoint, Key Vault, Storage, App Insights, TLS 1.2+ (`infra/` Bicep)
+- [x] ✅ **Staging** deployed in `newzealandnorth`; auto-deploys on every push to `main` (`.github/workflows/app.yml`, `/health` check)
+- [ ] ⬜ **Production** deployed — **never run** as of 7 Oct 2026 (`infra-prod.yml`, `app-prod.yml` both manual, `prod` environment reviewers). Prod params already say `newzealandnorth`. Tracked under M6.
+- [x] ✅ CI/CD — build, client typecheck + Vitest, xUnit unit/integration, Playwright E2E as its own job, TRX artefacts + job summary; prod deploy gated on E2E (PR #69); OIDC tokens only on the jobs that log in to Azure
+- [x] ✅ ASP.NET Core Identity — email + password (12 chars, mixed case, digit), lockout 5 attempts / 15 min, forced reset on first login, self-service reset (Graph email in prod, logging sender otherwise)
+- [x] ✅ JWT access + refresh tokens with rotation & replay detection (`Api/AuthController.cs`, `Services/RefreshTokenService.cs`)
+- [x] ✅ Tester licence-expiry handling — lapsed licence gives a **sync-only session** rather than stranding unsynced work (`Domain/LicenceScope.cs`, `Services/TesterClaimsPrincipalFactory.cs`, PR #40)
+- [x] ✅ Audit-trail infrastructure — `SaveChangesInterceptor`, before/after JSON, same transaction, PII redaction (`Data/AuditInterceptor.cs`, `AuditRedactionTests`)
+- [x] ✅ Razor Pages shell + role-gating (`/app` Tester, `/admin` Admin, cross-role 403); `/api/*` returns 401/403 instead of redirecting (PR #37)
+- [x] ✅ Domain model as built: Tester, TestingCompany (+logo), Farm (+Region, MilkSupplyCompany, review state), MachineTest (+Version/ReplacesClientId, NextTestDate, PayloadJson), MachineConfiguration, PumpDetails, EquipmentItem, TestStandard, FaultObservation, PrivacyContent, AuditEntry, RefreshToken. **Deliberate departure from the PRD schema:** readings, faults, attestations, pulsation PDF and amendment history live in `MachineTest.PayloadJson`; versions are linked `MachineTest` rows, not a `TestVersion` table; no `VendorSpecificationSnapshot`, `FinalReportBlob` or `SyncConflict` tables. Works, but note it when NZMPTA asks about the data model.
+- [x] ✅ EF Core migrations current; startup retries Azure SQL serverless resume (PR #49)
+- [x] ✅ Seed data — reference data (regions, processors, equipment, standards, fault observations, privacy) seeded on startup; config-driven bootstrap Super-Administrator (#22); dev users Development-only
+- [x] ✅ Terms-of-use gate for testers + admin-managed privacy notices (`Pages/Account/AcceptTerms`, `Pages/Admin/Privacy`)
+- [x] ✅ MPNZ brand rolled out across the shell, self-hosted fonts, raster PWA icons (PRs #28, #41, #51)
+- [x] ✅ Unit + integration tests — 150 xUnit facts/theories (incl. 2 Playwright E2E) + 283 Vitest cases on `main` @ `91c673a`
 
 ---
 
-## Phase 2 — Tester core  ·  M2 + M3  ·  🟡 ~12%
-*Repo plan: Phases 2–4.*
+## Phase 2 — Tester core  ·  M2 + M3  ·  🟡 ~80%
 
 ### M2 — Tester PWA core (offline + sync)
-- [x] ✅ PWA installable — web manifest + service worker registered (`wwwroot/manifest.webmanifest`, `sw.js`, `js/pwa-register.js`)
-- [ ] 🟡 Service worker caches **app shell** for offline UI (`sw.js`) — static assets only. **No page HTML is cached, so every tester page navigation fails offline**; a failed navigation now returns a generated offline card (22 Jul 2026). The identity-free shell that makes this tick honest is scoped in `plans/offline-tester-app.md`
-- [x] ✅ Sync endpoints `POST /api/sync/tests` (upsert by ClientId, idempotent, **now carries Machine Configuration**) + `GET /api/sync/tests` (pull) (`Api/SyncController.cs`) — 9 Jun
-- [x] 🟡 IndexedDB local storage — **tests done** (`Client/db/testStore.ts`, `LocalTest` store); reference data still to come
-- [ ] 🟡 Reference-data **logos offline** — service worker now runtime-caches `/api/milk-companies/{id}/logo` (viewed logos available offline). M2 still needs: **pre-cache all active logos on sync** (so unseen ones work too) + render tester pages offline so cached logos actually display
-- [x] ✅ Offline-first **test creation** on-device (9 Jun) — the single Preact wizard creates/edits tests in IndexedDB; the create flow hands it the chosen farm
-- [ ] 🟡 `syncState` — `local-only`/`uploaded` wired (badges in My Tests); `uploading`/`merge-conflict` await the Sync Reconciliation Engine
-- [ ] ⬜ Vendor-specification caching for offline pass/fail
-- [ ] ⬜ Reference-data delta sync endpoint (`GET /api/sync/reference-data?asOf=`)
-- [ ] ⬜ Final Report blob sync endpoint (`/api/sync/final-report/{testId}`)
-- [x] 🟡 **Tester test-history sync** — push local-only tests + **pull** the Tester's tests into IndexedDB (`Client/sync/syncClient.ts`, "Sync now" button). Still to come: delta/`asOf` cursor + background/login sync
-- [ ] ⬜ **Offline reprint of historical tests** — regenerate the Final Report client-side from synced data + the test's standards snapshot (avoid bulk-storing PDFs on-device, esp. iOS); cache only recently-opened PDFs
-- [x] 🟡 Offline/sync status indicators — per-test sync badge + "Sync now" in My Tests; full offline/online connectivity banner still to come
-- [x] 🟡 Tests — **sync round-trip integration green** (`SyncControllerTests`) + Vitest (store/resolver/checklist); offline lifecycle still manual UAT
+- [x] ✅ PWA installable — manifest, service worker, raster icons; **prompt-to-reload** when a new build takes over (decided 15 Sep 2026, `wwwroot/js/pwa-register.js`)
+- [x] ✅ Service worker precaches the app shell assets per-URL with `cache: 'reload'`, build-stamped cache name, `ignoreSearch` for `?v=` URLs; honest 404-vs-offline handling (PR #41)
+- [x] ✅ **Offline printing** — PDF generator chunks warmed while online, clear message when missing (PR #42)
+- [x] ✅ IndexedDB capture store — tests, config, faults, readings, attachments, amendments; per-tester DB namespacing; purge guard fails closed (PR #39)
+- [x] ✅ Reference data synced to device with version stamps — standards, equipment, fault catalog, privacy, company branding/logo, tester details, calibration dates
+- [x] ✅ Company farm book cached to device; offline farm detail lookup (PR #33)
+- [x] ✅ Sync — `POST /api/sync/tests` idempotent upsert by ClientId carrying config + payload; `GET /api/sync/tests?since=` delta pull with lagged watermark; continue-on-failure pushes; expired-session detection (PRs #33, #37)
+- [x] ✅ Tester test history on device — push local-only, pull own + **company-wide read access** (PR #38); sync badges + "Sync now"
+- [x] ✅ Offline reprint of historical tests — regenerate client-side from synced data; migrated legacy tests reprint faithfully from stored verdicts (`Client/report/legacyAdapter.ts`)
+- [x] ✅ Tester-created farms go **under review** with admin approval; company-less pending farms escalate (PR #35)
+- [x] ✅ Equipment calibration dates on the tester profile (PR #36)
+- [x] ✅ In-app Help & guides, cached for offline (PR #60)
+- [ ] ⬜ **Offline navigation / identity-free shell** — `plans/offline-tester-app.md` Phase 2: `GET /api/session`, cached identity record, `app-shell.html`, SW serves the shell for tester routes, cold launch at `/`, connectivity + pending-work indicator in the chrome. **Today `sw.js:281-282` is network-first with the offline card; every navigation needs the server.**
+- [ ] ⬜ **Start a test offline** — Phase 3: client-rendered `/App/Tests/New` from the cached farm book; `/api/farms` version stamp; pre-cache milk-company logos
+- [ ] ⬜ **Storage durability** — Phase 4: paginate the first pull, drop the local base64 attachment after push, `navigator.storage.persist()` + quota surfacing, cap the logo/FA caches
+- [ ] ⬜ Real-device UAT on the target iPads — install, capture, airplane mode, >7 days, cold launch (never done)
+- [ ] 🟡 Connectivity indicator — `useServerOnline()` drives the wizard and company list; no shell-level banner yet (lands with the shell)
+- [x] ✅ Tests — sync round-trip integration (`SyncControllerTests`), Vitest on store/sync/purge, Playwright SW precache check (`ServiceWorkerCacheE2ETests`)
+- [ ] ⬜ Playwright offline suite (`plans/offline-tester-app.md` §7) — cold launch, navigate, capture, print offline, PII-in-cache assertion
+- ~~Offline farm creation~~ — **cut 22 Jul 2026**; online-only by design
+- ~~Reference-data delta endpoint `GET /api/sync/reference-data?asOf=`~~ — superseded by per-catalogue versioned syncs; no further work
+- [ ] 🟡 **Automatic sync on reconnect** — `syncAll()` runs only from the sign-off attempt and the "Sync now" buttons; the online/visibility listeners in `Client/connectivity.ts` just re-probe `/health`. A test completed offline stays device-only until the tester presses Sync (PRD story 34 wants it uploaded automatically). Trigger a sync on the online event and on tab focus when there are `local-only` tests; retry with backoff.
+- [ ] ⬜ **Sync reconciliation (contracted, PRD §Decisions)** — field-level merge + a `SyncConflict` record visible in the admin portal. Today `POST /api/sync/tests` is last-writer-wins by ClientId. Becomes a real risk the moment O2 admin editing lands (tester offline edit vs admin edit of the same test), so build it with O2 — see the O2 section.
 
 ### M3 — Wizard test capture (steps 1–11)
-- [ ] 🟡 Test setup step (select/create farm) — basic `Pages/App/Tests/New` exists; not the full wizard
-- [ ] 🟡 Machine configuration step — **`MachineConfiguration` entity + EF migration done (8 Jun)** (plant type, cluster count, pulsator, claw/shell/liner, milkline, VSD, pump lubrication, ancillary flags, ISO ports, pulsator-stop); **UI step pending**
-- [ ] ⬜ Ancillary equipment step (+ "Other" on every lookup)
-- [x] ✅ Wizard Step Resolver — **.NET + TS mirror done (8 Jun)**: legacy-aligned steps + branch rules (rotary/herringbone, VSD min-speed, ACR/ancillary sections, optional cluster step, short-test flag); shared JSON fixtures in `tests/fixtures/wizard` drive **both** (6 xUnit + 6 Vitest green). TS toolchain stood up: npm + esbuild + Vitest under `src/Autorep.Web` (`Client/`), CI runs typecheck + Vitest. *(esbuild pinned ≥0.25 via override; remaining npm-audit items are dev-server-only vite advisories — prod deps 0 vulns.)*
-- [ ] ⬜ Visual faults — pre-start (checklist + "Check all as verified" + attestation)
-- [ ] ⬜ Visual faults — running (+ Guards-Installed-on-Pulsators boolean)
-- [ ] 🟡 Vacuum & reserve / **Test Record** — **first cut (9 Jun)**: tabbed System-vacuum / Reserve / Gauge-accuracy readings with **live pass/fail** (config-driven effective-reserve threshold from cluster count); full ISO 1–9 reading set + remaining standards still to come
-- [x] ✅ Additional Tests — **done (9 Jun)**: config-gated sections (ACR/milk-meter/teat-sprayer/gate/releaser shown only when present) + readings with pass/fail; cluster-air-admission band is vented-liner-aware
-- [ ] 🟡 Pulsator tests — **summary cut (9 Jun)**: fastest/slowest rate, highest/lowest ratio, airline stability (≤4 kPa). **Per-pulsator row table** ("faulty rows only" / "enter all" + range checks) still to come
-- [ ] 🟡 Individual cluster tests — **simplified cut (9 Jun)**: optional step with summary airflow readings; **per-cluster row table** still to come
-- [x] ✅ Pass/Fail Calculator — **.NET + TS mirror done (9 Jun)**: pure evaluator (atMost/atLeast/between/tolerance/none), shared fixtures in `tests/fixtures/passfail` drive both (xUnit + Vitest). Standards: EffectiveArea reserve-by-cluster lookup embedded
-- [x] ✅ Fault Aggregator — **.NET + TS mirror done (9 Jun)**: groups visual faults + failed readings by component, worst-severity rollup + counts; shared fixtures in `tests/fixtures/faults` (xUnit + Vitest). Fault Summary step renders grouped faults + per-fault recommendation field
-- [ ] 🟡 Recommendations — **freeform per-fault rec field done (9 Jun)** in the Fault Summary step; **Standard Recommendation Wording dropdown** (from the 113-row CMM catalog) still to wire
-- [ ] ⬜ Next Test Date (pre-populated +12 months) + compliance disclaimer
-- [ ] ⬜ Review & sign-off step (+ back-navigation to any step)
-- [ ] ❌ Wizard unit tests + Playwright happy-path
+- [x] ✅ Single offline-first Preact wizard; **ISO flowchart step order**, show-on-fail cluster step, three layouts (hub / rail / scroll) chosen from a header cog (PRs #43–#48, #56)
+- [x] ✅ Machine configuration + ancillary step — full legacy field set; vacuum pumps, regulators (type + quantity + suitable-for-plant), releaser pump as lists; OEM capacity beside 8a (PRs #57, #65)
+- [x] ✅ Visual faults pre-start + running — full checklists with fault dropdowns, CMM severity + recommendation auto-fill, "choice" items (cluster position, tube type)
+- [x] ✅ "Check all as verified" + attestation recorded in the payload and printed
+- [x] ✅ Test Record — full ISO groups 1–9 with live pass/fail; **derived readings calculated, not typed** (1c, 2d/f, 3f–h, 4c/e, 5b, 7c/f/i, 10b/d, 11b, 12b, 14b/d/f, 15b) (PR #55); decimal entry fixed
+- [x] ✅ Additional tests, pulsator step (per-pulsator rows, failed-units-only tables, analyser spreads), individual cluster rows
+- [x] ✅ Standards — admin-editable with device sync + update alert; ISO/manual-fixed listed read-only; legacy reference tables recovered; 14d at 35 L/min per cluster, vented-liner 12b floor (PRs #52, #64)
+- [x] ✅ Fault Aggregator + Fault Summary step; failed readings get a default recommendation (PR #67)
+- [x] ✅ Next Test Date (+12 months, amendments never move it) + compliance disclaimer (PRs #62, #63)
+- [x] ✅ Review & sign-off — mark complete + sync, Download report, section picker, general comments; **edit-after-complete creates a linked new version with an amendment audit trail** (PRs #31, #33)
+- [x] ✅ Test deletion — tester deletes own in-progress tests only
+- [x] ✅ Wizard Step Resolver, Pass/Fail Calculator, Fault Aggregator — .NET + TS mirrors over shared fixtures (`tests/fixtures/*`)
+- [ ] 🟡 Tester-feedback leftovers (`plans/tester-feedback-2026-09-15.md`): **4.1 oil-vs-water** observations split by pump lubrication (still one "Oil / water" item, `visualChecklist.ts:33-35`); **ISO 16 final checks** (16a vs 1a, 16b vs 2a) not captured; 15b relabel; buttons with no fault list (claw inlet/outlet, long milk tube)
+- [ ] ❓ Open questions for Jono / Maria / NZMPTA: airline bends size vs length; manual "add faulty pulsator"; vented 12b minimum; 2h cleaning-reserve formula vs legacy; shell condition under Claw; oil wording; 8a verdict (Read Industrial)
+- [ ] ⬜ **Repeat-farm "Next test" (PRD story 11)** — start a new test for a farm pre-populated with the machine configuration from that farm's last test. Today `/App/Tests/New` picks a farm and opens a blank wizard; `Client/ui/TestListApp.tsx` offers View/Edit only, so the whole configuration is re-keyed on every annual visit.
+- [ ] ⬜ Playwright wizard happy-path (Rotary full ancillaries; Herringbone minimal) — unit coverage is strong, E2E is not
 
 ---
 
-## Phase 3 — Reporting & admin  ·  M4 + M5 + O2 + O3  ·  🟡 ~30%
-*Repo plan: Phases 5–10.*
+## Phase 3 — Reporting & admin  ·  M4 + M5 + O2 + O3  ·  🟡 ~75%
 
 ### M4 — Existing reports (PDF generation)
-- [x] ✅ **Engine decided (5 Jun 2026): client-side** (pdfmake + pdf-lib, on-device). NZMPTA requires testers to print on-site from portable printers and hand to farmers **while offline**, so server-side rendering (the proposal §4.1 QuestPDF line) cannot work. PRD already reflects client-side.
-- [ ] ⬜ Test Summary (per-fault severity, Next Test Date, compliance disclaimer)
-- [ ] ⬜ Test Report Results
-- [ ] ⬜ Visual Faults Checklist
-- [ ] ⬜ Test Record (incl. Vacuum Pump Speed/Capacity bug fixed)
-- [ ] ⬜ Additional Testing
-- [ ] ⬜ Individual Cluster Airflow Test
-- [ ] ⬜ Pulsation System Result
-- [ ] ⬜ Equipment-not-present sections hidden (not "N/A")
-- [ ] ❌ Golden-file PDF tests (one per report)
+- [x] ✅ Engine: client-side pdfmake + pdf-lib on device (decided 5 Jun 2026); same code renders in the admin viewer
+- [x] ✅ **The report, as one PDF or any selection of its sections.** On mark-complete the tester gets "Download full report" in one tap, or "Choose sections…" (`Client/wizard/ReportSectionPicker.tsx`, PR #68). The ten parts (`REPORT_PARTS` in `Client/report/testSummaryPdf.ts`): Test summary (page one: letterhead, tester block, farm/test details, fault summary + recommendations, general comments, Next Test Date, severity legend, compliance disclaimer), Machine configuration, Vacuum tests (ISO 1–9), Airflow (10–12), Individual cluster tests (13), Pulsation & ancillary (14–15), Additional tests, Visual checks, the attached analyser PDF, and attestations/amendment history (PRs #59–#68)
+- [x] ✅ Six of the seven legacy reports are selectable on their own: Test Summary (page one), Test Record (= Machine configuration + ISO 1–9 + ISO 10–12), Individual Cluster Airflow (13), Pulsation System Result (14–15), Additional Testing, Visual Faults Checklist
+- [ ] 🟡 **Test Report Results** — the legacy per-fault results-and-recommendations document — prints only as the fault table inside page one; there is no `results` part, so it can't be chosen without the rest of the summary. Either add it as its own part or have NZMPTA accept the merged page one (the sample PDFs sent 24 Sep show the merged form)
+- [x] ✅ Equipment-not-present sections omitted (a part with nothing in it is not offered or printed)
+- [x] ✅ Company logo on every page; MPNZ letterhead; NZ time stamps
+- [x] ✅ Faithful reprint of migrated tests from stored verdicts
+- [ ] ❓ Page count ignores pages appended by pdf-lib (noted 15 Sep; not re-verified)
+- [ ] ⬜ **Golden-file PDF tests (T4)** — `testSummaryPdf.test.ts` is structural (786 lines, no snapshot/golden). Decide: normalised-byte golden vs. keep structural
 
 ### M5 — Admin portal — users, companies & reference data
-- [x] ✅ Tester CRUD — list, create, edit, deactivate, reset password, force-logout (`Pages/Admin/Testers/*`)
-- [x] ✅ Testing Company CRUD (`Pages/Admin/Companies/*`)
-- [x] ✅ Testing Company **report logo** — Company Administrator uploads / replaces / removes their own company's logo on **My company** (`Pages/Admin/MyCompany`, company taken from the signed-in user, never the route/form); Super-Admin does any company from `Companies/New` / `Companies/Edit`. PNG, JPEG or SVG judged by its bytes, ≤ 1 MB (`Services/LogoImage`). Devices sync it via `companyBrandingSync` and every report page prints it.
-- [x] ✅ Role assignment + licence-expiry management (`Pages/Admin/Testers/Edit`)
-- [x] ✅ Self-service password reset + forced-reset-on-first-login (`Pages/Account/ForgotPassword`, `ResetPassword`)
-- [x] ✅ 2FA **enrolment** — TOTP setup, challenge, recovery codes (`Pages/Account/SetupAuthenticator`, `TwoFactorChallenge`, `RecoveryCodes`)
-- [ ] 🟡 2FA **enforcement** (every 30 days / new device) — enrolment only, not enforced
-- [ ] ⬜ Equipment Catalogue management (11 equipment types)
-- [ ] ⬜ Vendor Specification editor (with Effective Date picker)
-- [ ] ⬜ Standard Recommendation Wording CRUD
+- [x] ✅ Tester CRUD — list/search, create, tabbed edit, multi-role, deactivate, reset password, force-logout, certificate number, licence expiry (PRs #29, #30)
+- [x] ✅ Testing Company CRUD + **report logo** upload (PNG/JPEG/SVG by bytes, ≤1 MB) on My company and Companies (PR #58)
+- [x] ✅ Self-service password reset, forced reset on first login
+- [x] ✅ 2FA **enrolment** — TOTP with a QR code (QRCoder) and the key as text; recovery codes shown once, regenerated by POST; "Set up a new authenticator" replaces the old one only on an explicit confirmation (PR #71)
+- [x] ✅ **2FA enforcement for Super-Administrators** (PR #71, merged 7 Oct 2026; PRD story 58): an unenrolled Super-Administrator is held on the set-up page (`MfaEnrolmentMiddleware`, 403 on `/api/*`); a trusted device holds for a hard 30 days (`SlidingExpiration` off) and loses trust when the security stamp changes; a live session is also capped at 30 days from its last code (`TesterSignInManager` stamps the ticket, the middleware signs out past it); two-factor can't be switched off for the role; the JWT login refuses any account that has or must have 2FA; recovery-code sign-in page; admin **Reset two-factor**; forced reset / licence / terms gates run after the code as after the password (`SignInGates`); the browser sign-in, challenge, recovery-code and enrolment/replacement outcomes are audited (`LoginAudit`); security stamp re-checked every minute so force sign-out and reset bite within a minute. Covered by `TwoFactorSignInTests`, `MfaEnrolmentMiddlewareTests`, `MfaSessionStampTests`, `TrustedDeviceCookieOptionsTests`; the Playwright admin signs in through the real challenge
+- [ ] ⬜ **Audit gaps in authentication** — `POST /api/auth/login` and `/api/auth/refresh` (success, failure, lockout, two-factor-required) write no `LoginAudit` row; neither does a wrong code on the set-up page; and the admin **Reset two-factor** (`Testers/Edit`, `OnPostResetTwoFactorAsync`) leaves only the generic entity-change audit, in which the two-factor and security-stamp columns are redacted, so no stable "2fa-reset by whom" event exists. Small; fold into the M6 security review so the auth audit trail is complete before it is relied on
+- [ ] ❓ **Email-code fallback** for 2FA — never confirmed by NZMPTA; recovery codes and the admin reset cover the lost-device case today. Decide, or close
+- [ ] 🟡 Equipment catalogue — CRUD + device sync for **8 types** (Shell, Liner, Pulsator, MilklineSize, PulsatorConfiguration, VacuumPump, ReleaserPump, Regulator). Contract says 11; ❓ confirm the remaining three with NZMPTA or close the line
+- [x] ✅ Test standards — admin CRUD (accordion page), device sync, update alert
+- [ ] ❓ **Vendor Specification editor with Effective Date** — standards are editable but there is no per-model spec with a scheduled effective date, and no snapshot-at-test-start. Confirm whether the current model satisfies NZMPTA; otherwise this is a schema + UI item
+- [x] ✅ Standard Recommendation Wording — delivered as the **Fault Observations catalogue** (CMM severity + recommendation, admin CRUD, device sync); reading-level defaults in `Client/faults/readingRecommendations.ts`
 - [ ] ⬜ Test Standard Manual upload (versioned, retained, downloadable)
-- [x] ✅ Region & Milk Supply Company catalogues — schema, seed **and admin CRUD built (5 Jun)** (list / create / edit / deactivate; Super-Admin only)
-- [x] ✅ Farm Details edit — **built (5 Jun)**: `/Admin/Farms` Index + Edit; Super-Admin edits any, Company-Admin scoped to farms with completed tests by their testers.
-- [x] ✅ NZ Post address autocomplete on Farm Edit — **built (5 Jun)**: keyless legacy suggest+details via server-side proxy (`/api/address/*`); fills Address/Town/PostCode. Online-only; manual entry always available.
-- [ ] ⬜ Company-level reporting for Company Administrators
-- [ ] ❌ Admin portal CRUD Playwright tests
+- [x] ✅ Region & Milk Supply Company catalogues (CRUD, islands, logos)
+- [x] ✅ Farm Details — list with filters + cross-links, tabbed edit, NZ Post autocomplete, company scoping, pending-review approval (PRs #17, #32, #35). This is the farm half of PRD story 49
+- [ ] ⬜ **Company Administrator edits the final summary / recommendations on their company's tests** (PRD stories 49–50; rebuild plan Phase 9) — field-restricted (summary, recommendations, general comments), scoped to their own company, saved as a **new version** with the Company Administrator as actor and the amendment trail the tester-side edit already writes. Today the admin viewer is read-only and `Api/TestsController.cs` has GET actions only. Contracted under M5, not optional O2: build it as the first slice of the admin write path, reusing `Client/versioning/amendments.ts`
+- [x] ✅ **Upcoming tests** page — farms due or overdue (PR #62); dashboard counts (pending farms, overdue tests)
+- [x] ✅ Admin timestamps in NZ local time (PR #53)
+- [ ] 🟡 Company-level reporting for Company Administrators — scoped test list + upcoming/overdue is all there is; ❓ confirm whether NZMPTA wants more (e.g. tests per tester, export)
+- [ ] 🟡 Admin CRUD Playwright — one E2E (farm edit + NZ Post); rest covered by integration tests
 
 ### O2 — Admin test view & edit + audit
-- [x] ✅ Test **list** view `/admin/tests` — Super-Admin sees all; Company-Admin scoped to their own company's tests (5 Jun 2026) (`Pages/Admin/Tests/Index`)
-- [ ] 🟡 Test **detail** view (read-only; not the full wizard-style render)
-- [ ] ⬜ Filter chips (Tester, Company, Farm, date range, status, has-conflicts)
-- [ ] ⬜ Edit any field → new Test Version (Test Versioning Engine)
-- [ ] ⬜ Audit panel — version timeline + per-field diffs + ChecklistAttestation events
-- [ ] ⬜ Regenerate Final Report on admin edit (same engine as PWA)
-- [ ] ⬜ Soft-delete with mandatory reason
-- [ ] ❌ O2 Playwright path (edit synced test → report regenerates)
+- [x] ✅ Test **list** `/admin/tests` — paginated, searchable, company-scoped (PR #26)
+- [x] ✅ Test **detail** — wizard-style **read-only** render via the shared bundle (`Pages/Admin/Tests/View.cshtml`), incl. migrated tests
+- [ ] ⬜ Filter chips (Tester, Company, Farm, date range, status)
+- [ ] ⬜ **Edit any field → new linked version** — reuse the tester-side amendment model (`Client/versioning/amendments.ts`); needs an admin write path (today `/api/tests/{id}` is GET-only)
+- [ ] ⬜ Audit panel — version timeline + per-field diffs + attestation events (data exists in the payload)
+- [x] ✅ Report download from the admin viewer — the server-view branch of `ReviewSignOffStep` offers "Download report (PDF)" and `WizardApp` runs the shared generator over the server-fetched test and branding; the admin edit path just has to leave that in place
+- [ ] ⬜ Soft-delete with mandatory reason (no `IsDeleted`/`DeletedAt` on `MachineTest` today)
+- [ ] ⬜ **Sync reconciliation** — once admins can edit, a tester's queued offline edit and an admin edit of the same test can collide. Contracted answer (PRD §Decisions): field-level merge where the edited field sets don't overlap, last-writer-wins per field where they do, both states kept as versions, and a `SyncConflict` record surfaced in the admin list ("has conflicts" filter). Build alongside the edit path, not after it.
+- [ ] ⬜ O2 Playwright path (admin edits synced test → new version → report regenerates)
 
-### O3 — Pulsation-data PDF upload & merge into Final Report *(added by variation 8 Jun 2026, +$2,500)*
-- [ ] ⬜ Upload pulsation-graph PDF against a test (tester PWA + admin portal)
-- [ ] ⬜ Store the uploaded blob + offline-capable upload queue (syncs when back online)
-- [ ] ⬜ Merge the uploaded PDF into the generated Final Report (pdf-lib)
-- [ ] ⬜ Final Report blob sync carries the merged output
-- [ ] ❌ Tests (merge golden-file + upload round-trip)
-*(Repo `PRD.md` + `plans/autorep-rebuild.md` Phase 6 already assume O3 — now correctly in contracted scope.)*
+### O3 — Pulsation-data PDF upload & merge into Final Report
+- [x] ✅ Pulsation PDF dropzone on sign-off; stored in the payload (base64), syncs with the test, appended to the report with pdf-lib (PR #23)
+- [x] ✅ Offline-capable — the attachment rides the normal sync queue
+- [ ] ⬜ Admin-portal upload against a test (lands with O2 edit)
+- [ ] ⬜ Server-side **Final Report store** (`/api/sync/final-report/{testId}`) — PRD says the server keeps the latest client-generated PDF for admin display. **Decision needed:** build it, or formally replace it with regenerate-on-demand in the admin viewer (above). Recommend the latter + a written note to NZMPTA.
+- [ ] 🟡 Tests — Vitest covers the append path; no merge golden-file
 
 ---
 
-## Phase 4 — Hardening & cutover  ·  M6 + O1  ·  ⬜ 0%
-*Repo plan: Phase 11 + cross-cutting hardening.*
+## Phase 4 — Hardening & cutover  ·  M6 + O1  ·  🟡 ~30%
 
 ### O1 — Data migration tooling & cutover
-- [ ] ⬜ Standalone .NET console migration project (none exists yet)
-- [ ] ❓ Legacy Azure SQL read access + sample tester accounts obtained (NZMPTA dependency — blocks design)
-- [ ] ⬜ Legacy → new schema mapping (companies, testers, farms, tests, vendor specs, equipment)
-- [ ] ⬜ Row-level quarantine + data-quality CSV report
-- [ ] ⬜ Idempotent dry-run mode (staging) + single-shot cutover guard
-- [ ] ⬜ Migrated testers flagged `forcedPasswordResetRequired`
-- [ ] ⬜ **Migrated Machine Tests attributed to the migrated Tester** so each Tester can browse / download / **reprint their full history** (migrate as DATA; surfaced offline via the M2 test-history sync below)
-- [ ] ⬜ Sample migrated tests regenerated & compared to legacy reports
-- [ ] ❓ **Reprint strategy for migrated tests** — regenerate client-side from migrated data + historical standards snapshot (preferred; legacy DB has no PDF blob) vs. migrate stored legacy PDFs; and must a reprint match the legacy layout exactly? (NZMPTA decision — affects O1/M4)
-- [ ] ❌ Golden-record migration test + cutover runbook
+- [x] ✅ Standalone console tool `tools/Migration`: `validate-source`, `dry-run --target-conn "<staging>" [--limit n]`, `cutover --target-conn "<prod>" --confirm "GO-LIVE…"` (target also via `$AUTOREP_TARGET_CONN`; `--limit` is refused on `cutover`). Documented in `tools/Migration/README.md`
+- [x] ✅ Legacy read access obtained; full staging pull done 18 Jun 2026 (22,797 tests, 35 tables); 4 review findings fixed 19 Jun
+- [x] ✅ Mapping: companies → testers → farms → tests + config + payload, deterministic ids; a re-run **skips** rows whose ids already exist (it does not update them — see the fresh-run item below); duplicate-GUID handling; owner-orphans to a synthetic tester; NZ time conversion; 83 company logos + certificate numbers; deleted tests excluded and reported
+- [x] ✅ Quarantine + PII-redacted data-quality CSV (`data-quality.csv`; informational findings included, so not a quarantine count — see the README) + per-entity reconciliation counts (`reconciliation.csv`; the Farms row now counts farms, not referencing tests)
+- [x] ✅ Cutover guard (`Pipeline/CutoverGuard.cs`): `GO-LIVE` confirm token, target must hold zero `MachineTests` (single-shot), and a server **name** containing `australiaeast` is refused
+- [ ] ⬜ **Real data-residency check before cutover** — the guard's region test is a hostname sniff; `infra/modules/sql.bicep` names servers `sql-<base>` with no region in them, so a non-NZ target normally passes. Verify the target's actual Azure location (ARM lookup in the guard, or an explicit pre-check in the runbook) before the first production run
+- [x] ✅ Migrated tests attributed to the migrated tester **and stamped with the company as at the test** (`MachineTest.TestingCompanyId` ← the legacy test row's `Tests.CompanyID`; the owner's current `Users.CompanyID` only when the test row's company didn't map, e.g. an unnamed company excluded from migration; an owner-orphan test keeps its company under the synthetic tester). Fixed 7 Oct 2026 in #70 — until then every migrated test would have been missing from company-scoped lists and company branding after cutover, and a tester who had moved companies would have carried their history to the new one. Reprint faithfully from stored verdicts (M2/M4). **The June staging load predates this stamp: the fresh dry-run below is what puts it right.**
+- [x] ✅ Migrated testers flagged for forced password reset (`MigrationRunner` sets `ForcedPasswordResetRequired = true`); legacy-inactive accounts carry a far-future lockout
+- [ ] ⬜ **NZMPTA review of the data-quality CSV** (quarantined rows, excluded deletes)
+- [ ] ⬜ **Report-parity review** — sample migrated tests regenerated and compared with legacy prints (Maria)
+- [ ] ❓ Map legacy `TestVaccumPumpDetails` into the new pump fields, or accept forward-only (Josh)
+- [ ] ⬜ Cutover runbook (pre-checks, run, post-checks, rollback) + golden-record migration test
+- [ ] ⬜ **Fresh dry-run into a cleared staging database** before the parity review and again before cutover. The runner is skip-only: after a mapping fix or a source correction, rows already in staging keep their old values and the CSV reports them as skipped, so a re-run over the June load does not validate the fix. Clear the target first (or make the runner a real upsert)
 
 ### M6 — Hardening, UAT support, security review & go-live
-- [ ] ⬜ Performance testing (20–30 concurrent sessions)
-- [ ] ⬜ Security review (TLS, private endpoint, secrets, auth, headers)
-- [ ] ⬜ Full integration test pass across delivered scope
-- [ ] ⬜ UAT cycles with NZMPTA (scripted scenarios; Maria Scott sign-off)
-- [ ] ⬜ Tester onboarding communications + documentation
-- [ ] ⬜ Parallel-run period
-- [ ] ⬜ Production cutover + legacy decommission (Go-Live)
+*Detail in `plans/m6-infra-review.md` — nothing there is ticked.*
+- [ ] ⬜ **First production deploy** — `infra-prod.yml` then `app-prod.yml`; confirm every resource lands in `newzealandnorth`; prod SKUs available
+- [ ] ⬜ Security review — headers/CSP (only HSTS today), CORS on `/api/*`, token policy in prod config, dependency scan, remove personal SQL admin, Key Vault RBAC, decide internal checklist vs external pen test
+- [ ] ⬜ WAF / Front Door decision; geo-filter decision
+- [ ] ⬜ Performance test — 20–30 concurrent sessions + sync bursts
+- [ ] ⬜ Alert rules routed to Pedersen Group; availability test on `/health`; Log Analytics retention; Defender decision
+- [ ] ⬜ Test restore of the SQL backup; 7-year audit retention strategy
+- [ ] ⬜ Custom domain + managed certificate; manifest `start_url`/`scope` re-validated on the real host
+- [ ] ⬜ `CostCentre: 'TODO'` tag; budget + cost alert; resource locks
+- [ ] ⬜ Full integration pass across delivered scope (T3) + the owed T4/T5/T6 coverage
+- [ ] ⬜ UAT cycles with NZMPTA — scripted scenarios; Maria Scott sign-off. Jono's 11 Sep run was the first real-world test; a second round after the offline shell is the natural gate
+- [ ] ⬜ Tester onboarding comms — install PWA, first-login reset; guides exist in-app (PR #60)
+- [ ] ⬜ Parallel run → DNS cutover → legacy decommission
 
 ---
 
 ## Out of contracted scope (add only by written variation)
-- [ ] ⛔ **O4** Proactive notification schedule (upcoming/overdue reminders) — $2,500
-- [ ] ⛔ **O5** Vendor self-service portal (Phase 2 candidate) — $3,500
+- [ ] ⛔ **O4** Proactive notification schedule — $2,500. *Note:* the Upcoming tests page (PR #62) already surfaces due/overdue farms to admins; O4 would add the emails.
+- [ ] ⛔ **O5** Vendor self-service portal — $3,500
 
-> **O3** (pulsation-data PDF upload & merge) was **added to scope by variation on 8 Jun 2026** (+$2,500 → $43,750) — see Phase 3. *Formalise the written variation + confirm final price.*
+> **O3** formal written variation + final price — ❓ still to confirm with NZMPTA.
 
-## Cross-cutting / carried through every phase
-- [ ] 🟡 Automated test suite — **harness + first Playwright E2E (5 Jun)**: xUnit unit + `WebApplicationFactory` integration + a Playwright happy-path (admin farm edit + NZ Post autocomplete), **11 green**; CI runs E2E as its own job. Still need golden-file PDF + wizard/broader coverage. See `plans/test-schedule.md`
-- [x] ✅ Audit logging of admin actions (interceptor in place; 7-yr retention is an Azure backup/config item)
-- [ ] ⬜ Brand assets applied (logo, colours, typography) — NZMPTA dependency, before Phase 3
-- [ ] ⬜ Accessibility baseline (semantic HTML, ARIA, keyboard, contrast)
+## Cross-cutting
+- [x] ✅ Automated suite — 150 xUnit (unit + `WebApplicationFactory` integration + 2 Playwright) and 283 Vitest on `main` @ `91c673a`; CI runs all of it on every PR. Still owed: golden-file PDF, wizard E2E, offline E2E. See `plans/test-schedule.md` (its execution record stops at 5 Jun 2026 — refresh it with the current run).
+- [x] ✅ Audit logging of admin actions
+- [x] ✅ Brand assets applied (MPNZ)
+- [ ] ⬜ Accessibility baseline (semantic HTML, ARIA, keyboard, contrast) — never assessed
+- [ ] ⬜ `plans/test-schedule.md` execution record refreshed; `tools/Migration/README.md` command table corrected
 
-## Notes & open items
-- **❓ Open item for NZMPTA (farms):** Are Farms created/loaded by NZMPTA or admins **before** a tester visits, or do testers create them **on-farm**? This drives the farm-picker UX and whether **offline** farm creation (M2) is essential. Current tester new-test flow: pick an existing farm, or add one via an in-page modal (online only for now).
-- **Biggest risks to "done":** (1) grow the partial domain model to the full schema; (2) **establish the test suite** — it's near-zero today and M1/M4/etc. prices include testing. *(Infra confirmed deployed; prod region corrected — see M1.)*
-- **Resolved (5 Jun 2026):** report engine is **client-side** (pdfmake/pdf-lib) for offline on-site printing; proposal §4.1 (QuestPDF/server-side) is superseded. No price change (offline print was always required) — worth noting to NZMPTA as a clarification, ideally in a Requirements v1.2.
-- **Farm details schema built (5 Jun 2026):** `Farm` expanded (identity, location, farmer contact, `IsActive`, `UpdatedAt`) + `Region` and `MilkSupplyCompany` reference tables (nullable FKs, seeded 16 regions / 10 processors, cached offline). Migration `FarmDetailsAndReferenceData`; builds clean. **Edit authorization:** Company Administrator edits Farm Details for farms tied to completed tests by *their* testers (scoped); Super-Administrator edits any — both are online admin screens, so **NZ Post address autocomplete is viable there** (online-only; still a paid integration outside the $41,250 → variation). Tester on-farm farm creation stays manual (offline). **Open design Q (still open):** the edit UI implements the **propagate** model — editing the shared Farm updates it for all that farm's tests, with `UpdatedAt` + the audit interceptor recording the change. If NZMPTA needs per-test snapshots of farm details as-at test time, that's a future change.
-- **Admin test list scoped to company (5 Jun 2026):** `/admin/tests` now filters by the viewer's Testing Company — a Company Administrator sees only Machine Tests performed by Testers in their own company; Super-Administrator sees all (`Pages/Admin/Tests/Index`, mirrors the `/Admin/Farms` in-page scoping). **Open design Q (still open):** scoping follows the Tester's *current* `TestingCompanyId` because `MachineTest` carries no company of its own — if a Tester moves companies, their historical tests move with them. If NZMPTA needs point-in-time company ownership (a Test attributed to the company as-at test time), denormalise a `CompanyId`/snapshot onto `MachineTest` — a future schema change, the direct analog of the Farm-details snapshot question above.
-- **Offline history & reprint (8 Jun 2026, Josh):** Testers must be able to download & **reprint their historical (incl. migrated legacy) tests offline**. Proposed approach: delta-sync each Tester's tests as **DATA** into IndexedDB (not bulk PDFs); **reprint = regenerate client-side** from data + the standards snapshot. **Open Qs for NZMPTA:** (1) do legacy PDFs exist anywhere (legacy DB has no PDF blob → likely regenerate from data); (2) must a reprinted legacy test match the old layout exactly, or is new-format rendering acceptable? Affects O1/M4 scope.
-- **NZMPTA dependencies blocking work:** legacy SQL access (O1), brand assets (M4/M5), wizard validation workshop (M3), §14 confirmations.
+## Decisions and open items (for NZMPTA / Josh)
+- **Server-side Final Report store** — build, or replace with regenerate-on-demand (recommended).
+- **Vendor Specification Effective Date / snapshot-at-test-start** — not built as specified; confirm the standards model is sufficient.
+- **Equipment types** — 8 built vs 11 in the contract line; name the missing three or close.
+- **2FA mechanism** (TOTP only vs email fallback) — never confirmed; TOTP enforcement for Super-Administrators shipped in PR #71 regardless. Confirm whether an email-code fallback is still wanted.
+- **Farm details propagate vs snapshot** — still the propagate model: editing a farm updates it for every test of that farm. *(The sibling question about test company ownership is resolved: `MachineTest.TestingCompanyId` is stamped on first upload and deliberately never re-stamped, so a tester who changes company does not take their history with them — `CompanyTestVisibilityTests`.)*
+- **Tester-feedback open questions** — see `plans/tester-feedback-2026-09-15.md` §Open questions.
+
+## History
+- **5 Jun 2026** — first assessment @ `fe83d8e`: ~20–25%. Engine decision (client-side PDF), prod region corrected to NZ North, farm schema + NZ Post built.
+- **8–11 Jun 2026** — wizard, pass/fail, faults, first report, O3 append, admin catalogues.
+- **18–25 Jun 2026** — O1 tool + staging pull, legacy reprint, privacy gate, admin test viewer, versioning, brand rollout.
+- **Jul 2026** — sync hardening, offline printing, licence sync-only session, farm review, calibration, offline-app plan.
+- **Aug 2026** — layouts, legacy standards, NZ times, serverless resume retry.
+- **Sep 2026** — tester feedback (Jono, 11 Sep run): calculated readings, flowchart order, pumps/regulators; report redesign (page one, letterhead, logo, disclaimer, next test date; section picker to print the whole report or chosen sections); help guides; upcoming tests; prod workflow fixes.
+- **7 Oct 2026** — this reassessment @ `91c673a`; GitHub phase issues #1–#12 closed in favour of this file. Same day: 2FA enforcement for Super-Administrators (#71), the admin home 500 on SQL Server fixed (#72), and the migration tool's company stamp, farm units and `--limit` guard (#70).

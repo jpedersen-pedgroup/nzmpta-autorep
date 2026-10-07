@@ -148,11 +148,15 @@ public sealed class MigrationRunner
         {
             var cid = Row.Int(r, "ID")!.Value;
             var id = DeterministicGuid.Create(Ns, $"company:{cid}");
-            ids.Company[cid] = id;
-            if (existingIds.Contains(id)) { skipped++; continue; }
+            // Mapped only once the company is known to exist in the target (already there, or
+            // inserted below). A company excluded here must not be mapped: testers and tests would
+            // then be stamped with an id no TestingCompany row has, and fall out of every real
+            // company scope instead of taking their fallback.
+            if (existingIds.Contains(id)) { ids.Company[cid] = id; skipped++; continue; }
 
             var name = Row.Str(r, "CompanyName", 450);
             if (name is null) { q.Add("Companies", cid.ToString(), "TestingCompany", "company_name_missing"); continue; }
+            ids.Company[cid] = id;
             if (!usedNames.Add(name))
             {
                 name = $"{name} (CompanyID {cid})";
@@ -215,6 +219,17 @@ public sealed class MigrationRunner
         {
             var uid = Row.Int(r, "ID")!.Value;
             var id = DeterministicGuid.Create(Ns, $"user:{uid}").ToString();
+
+            // The tester's company, recorded for every legacy user regardless of what happens to
+            // the identity below (skipped as existing, or quarantined): MigrateTests stamps it on
+            // the user's tests either way, so a test kept under the synthetic tester still shows
+            // in its company's lists and carries its company's branding.
+            Guid? companyId = null;
+            var cid = Row.Int(r, "CompanyID");
+            if (cid is not null && ids.Company.TryGetValue(cid.Value, out var mapped)) companyId = mapped;
+            else if (cid is not null && !existingIds.Contains(id)) q.Add("Users", uid.ToString(), "Tester", "tester_company_orphan", "info");
+            ids.UserCompany[uid] = companyId;
+
             if (existingIds.Contains(id)) { ids.User[uid] = id; skipped++; continue; }
 
             // Quarantined users are NOT inserted, so they must NOT enter the id map — otherwise a
@@ -224,11 +239,6 @@ public sealed class MigrationRunner
             if (email is null) { q.Add("Users", uid.ToString(), "Tester", "tester_email_missing"); continue; }
             var norm = email.ToUpperInvariant();
             if (!usedNames.Add(norm)) { q.Add("Users", uid.ToString(), "Tester", "identity_username_collision"); continue; }
-
-            Guid? companyId = null;
-            var cid = Row.Int(r, "CompanyID");
-            if (cid is not null && ids.Company.TryGetValue(cid.Value, out var mapped)) companyId = mapped;
-            else if (cid is not null) q.Add("Users", uid.ToString(), "Tester", "tester_company_orphan", "info");
 
             var phone = Row.Str(r, "MobileNo", 50) ?? Row.Str(r, "PhoneNo", 50);
             var cert = Row.Str(r, "CertificateNo", 50);
@@ -384,16 +394,23 @@ public sealed class MigrationRunner
             migrated++;
         }
 
-        // placeholder farms for tests with no farm info (FK is required)
+        // Placeholder farms for tests with no farm info (FK is required). Keyed by GUID *and* test
+        // number: a duplicate-GUID group split into distinct tests must not share one placeholder.
+        var placeholders = new HashSet<Guid>();
         foreach (var lt in logicals.Where(l => l.FarmKey is null))
         {
-            var id = DeterministicGuid.Create(Ns, $"farm:test:{lt.SourceGuid}");
+            var id = DeterministicGuid.Create(Ns, $"farm:test:{lt.SourceGuid}:{lt.TestNo}");
             lt.FarmId = id;
-            if (existingIds.Contains(id) || !addedIds.Add(id)) continue;
+            if (!placeholders.Add(id)) continue; // a true re-insert of the same test: one farm, counted once
+            if (existingIds.Contains(id)) { skipped++; continue; }
+            addedIds.Add(id);
             add.Add(new Farm { Id = id, Name = $"Unknown Farm (Test {lt.SourceGuid})", IsActive = true, CreatedAt = Epoch });
             q.Add("Tests", lt.SourceGuid.ToString(), "Farm", "test_no_farminfo", "info");
             migrated++;
         }
+        // Source rows in farm units - distinct keyed farms plus distinct placeholders - so the three
+        // columns reconcile (Source = Migrated + Skipped on a clean run; intra-run reuse is not a skip).
+        var sourceFarms = sample.Count + placeholders.Count;
 
         // resolve keyed tests to their farm id
         foreach (var lt in logicals.Where(l => l.FarmKey is not null))
@@ -405,7 +422,7 @@ public sealed class MigrationRunner
             c.Farms.AddRange(chunk);
             c.SaveChanges();
         }
-        return ("Farms", logicals.Count, migrated, skipped);
+        return ("Farms", sourceFarms, migrated, skipped);
     }
 
     private static Farm BuildFarm(Guid id, IReadOnlyDictionary<string, object?> t, IReadOnlyDictionary<string, Guid> msc, DateTimeOffset created)
@@ -480,11 +497,16 @@ public sealed class MigrationRunner
             {
                 if (!_seen.Add(lt.ClientId)) continue;
                 var testDate = Row.Date(lt.Header, "TestDate");
+                var (testerId, companyId) = ResolveOwner(lt, ids, q);
                 var mt = new MachineTest
                 {
                     Id = Guid.NewGuid(),
                     ClientId = lt.ClientId,
-                    TesterId = ResolveTester(lt, ids, q),
+                    TesterId = testerId,
+                    // The company the work was done under. TestScope.InCompany and the company test
+                    // list filter on this column alone, so without it every migrated test would be
+                    // invisible to Company Administrators and colleagues after cutover.
+                    TestingCompanyId = companyId,
                     FarmId = lt.FarmId,
                     CreatedAt = NzDate(testDate) ?? Epoch,
                     MarkedCompleteAt = NzDate(Row.Date(lt.Header, "SynDate")) ?? NzDate(testDate),
@@ -505,12 +527,26 @@ public sealed class MigrationRunner
     private List<LogicalTest> _pending = new();
     private HashSet<Guid> _seen = new();
 
-    private string ResolveTester(LogicalTest lt, IdMaps ids, Quarantine q)
+    /// <summary>The migrated tester who owns the test and, from the same legacy user row, the
+    /// company it was done under - the legacy test row's own CompanyID first (the company as at
+    /// the test, so a tester who has since moved companies does not take their history with them,
+    /// which is also how the new app stamps TestingCompanyId), and the owner's current company
+    /// only when the test row has none that maps. A test whose owner was not migrated
+    /// (quarantined, or unknown to the legacy Users table) goes to the synthetic tester but keeps
+    /// that company, so it is not lost from the company's history.</summary>
+    private (string TesterId, Guid? CompanyId) ResolveOwner(LogicalTest lt, IdMaps ids, Quarantine q)
     {
         var uid = Row.Int(lt.Header, "UserID");
-        if (uid is not null && ids.User.TryGetValue(uid.Value, out var tid)) return tid;
+        Guid? company = null;
+        if (Row.Int(lt.Header, "CompanyID") is { } testCompany && ids.Company.TryGetValue(testCompany, out var mapped))
+            company = mapped;
+        else if (uid is { } u)
+            company = ids.UserCompany.GetValueOrDefault(u);
+
+        if (uid is not null && ids.User.TryGetValue(uid.Value, out var tid))
+            return (tid, company);
         q.Add("Tests", lt.SourceGuid.ToString(), "MachineTest", "test_owner_unresolved");
-        return ids.SyntheticUnknownTesterId;
+        return (ids.SyntheticUnknownTesterId, company);
     }
 
     private static MachineConfiguration BuildConfig(LogicalTest lt, Quarantine q)
