@@ -6,7 +6,7 @@
 
 @* Admin read-only view: the offline wizard bundle (autorep.js) sees data-server-test and fetches
    the test from /api/tests/{id} instead of IndexedDB, rendering it read-only. *@
-<div id="wizard-root" data-server-test="@Model.Id"></div>
+<div id="wizard-root" data-bundle-root data-server-test="@Model.Id"></div>
 
 @section Scripts {
     <script type="module" src="~/js/dist/autorep.js"></script>

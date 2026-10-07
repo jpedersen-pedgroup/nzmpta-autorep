@@ -23,6 +23,7 @@ import { mountTestList } from "./ui/TestListApp";
 import { mountSyncOnly } from "./ui/SyncOnlyApp";
 import { mountCompanyTestList } from "./ui/CompanyTestListApp";
 import { mountHome } from "./shell/HomePage";
+import { mountNewTest } from "./ui/NewTestApp";
 import { mountAppStatus } from "./shell/AppStatus";
 import { purgeStaleLocalData } from "./db/testStore";
 import { cachedIdentity, loadIdentity } from "./db/identity";
@@ -55,6 +56,9 @@ function mountApps(): void {
 
   const listRoot = document.getElementById("test-list-root");
   if (listRoot) mountTestList(listRoot);
+
+  const newTestRoot = document.getElementById("new-test-root");
+  if (newTestRoot) mountNewTest(newTestRoot);
 
   // Lapsed licence: the only tester surface still reachable (/Account/FinishSync).
   const syncOnlyRoot = document.getElementById("sync-only-root");

@@ -788,6 +788,9 @@ main {
 /* The shell reveals the user block once it knows who is signed in; display:flex above would
    otherwise beat the hidden attribute. */
 .app-header__user[hidden] { display: none; }
+/* A page the bundle draws says so until it has (data-bundle-root — see wwwroot/js/pwa-register.js,
+   which also uses the emptiness to tell when a page is waiting on a new build). */
+[data-bundle-root]:empty::before { content: "Loading…"; display: block; padding: var(--space-4) 0; color: var(--text-muted); }
 
 /* ----- Burger (mobile nav toggle) ------------------------------------------ */
 .app-header__burger {

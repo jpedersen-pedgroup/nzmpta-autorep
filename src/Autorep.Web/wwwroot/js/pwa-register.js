@@ -22,7 +22,11 @@ if ('serviceWorker' in navigator) {
   const quietPage = location.pathname.startsWith('/Account/');
 
   const onNewBuild = () => {
-    if (hadWorker && !quietPage) showUpdateBanner();
+    if (!hadWorker || quietPage) return;
+    // Nothing on this page was drawn (see emptyBundleRoot), so there's nothing to lose by taking
+    // the new build straight away rather than asking.
+    if (emptyBundleRoot() && reloadForNewBuildOnce()) return;
+    showUpdateBanner();
   };
   navigator.serviceWorker.addEventListener('controllerchange', onNewBuild);
   // A navigation-triggered update can finish before this script runs, so controllerchange has
@@ -221,3 +225,36 @@ window.addEventListener('error', function (event) {
   if (new URL(el.src, location.href).pathname.indexOf('/js/dist/') !== 0) return;
   recoverBundle();
 }, true);
+
+// ---- A page the running bundle can't draw ----------------------------------------------------------
+// Several pages are drawn entirely by the bundle, into an element marked data-bundle-root (the
+// tester home, New test, My tests). Straight after a deploy the page comes from the new build, but
+// until the new service worker takes over the bundle is the previous build's cached copy — which
+// may not know the page at all, and would leave it on "Loading…". Two answers: when the new build
+// arrives and a root is still empty, reload into it (nothing was drawn, so nothing is lost); and if
+// a root is still empty well after load — a slow update, or a script error — say so.
+var BUILD_RELOAD_KEY = 'autorep:new-build-reload';
+
+function emptyBundleRoot() {
+  return Array.prototype.some.call(document.querySelectorAll('[data-bundle-root]'), function (el) {
+    return el.childElementCount === 0;
+  });
+}
+
+function reloadForNewBuildOnce() {
+  try {
+    var last = Number(sessionStorage.getItem(BUILD_RELOAD_KEY)) || 0;
+    if (Date.now() - last < 30000) return false; // once, never a loop
+    sessionStorage.setItem(BUILD_RELOAD_KEY, String(Date.now()));
+  } catch (e) {
+    return false;
+  }
+  location.replace(location.href);
+  return true;
+}
+
+window.addEventListener('load', function () {
+  setTimeout(function () {
+    if (emptyBundleRoot()) showAppProblem('This page hasn\u2019t finished loading \u2014 AutoRep may be updating. Try again.');
+  }, 10000);
+});

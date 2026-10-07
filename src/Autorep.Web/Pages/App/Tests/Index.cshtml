@@ -6,7 +6,7 @@
 @* The tester's tests live in IndexedDB (offline-first) and are listed client-side by the Preact
    bundle, page header included (Client/ui/TestListApp.tsx): the offline shell (wwwroot/app-shell.html)
    serves this page from the device, and both must draw the same thing. *@
-<div id="test-list-root"></div>
+<div id="test-list-root" data-bundle-root></div>
 
 @section Scripts {
     <script type="module" src="~/js/dist/autorep.js"></script>
