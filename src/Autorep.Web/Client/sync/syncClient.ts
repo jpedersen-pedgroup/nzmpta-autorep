@@ -6,7 +6,15 @@
 // real time slightly (see SyncController), so recently-written tests are re-delivered on the
 // next pull; that's by design and harmless — the loop below skips tests already on-device.
 // Auth is the tester's cookie (same-origin fetch sends it automatically).
-import { allTests, currentTesterId, getTest, putTest, getReference, putReference, storeOwner, type LocalTest } from "../db/testStore";
+//
+// Reconciliation: a signed-off version whose parent an administrator (or this tester's other
+// device) has already replaced is answered 409, with the version both were made from and the one
+// already on the server. The device combines them field by field (versioning/merge.ts) and sends
+// the pair to /api/sync/tests/merge; every version stays on record. A pull brings an
+// administrator's version of a test down like any other (it carries the tester's id), and the
+// version it replaces goes read-only through the supersedes link.
+import { allTests, currentTesterId, currentTesterName, getTest, putTest, getReference, putReference, storeOwner, type LocalTest } from "../db/testStore";
+import { mergeVersions } from "../versioning/merge";
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
@@ -57,6 +65,30 @@ export interface SyncResult {
   /** Tests whose push failed. The rest of the sync still ran — a stuck test must never wedge it. */
   failed: number;
   pulled: number;
+  /** Pushed tests that arrived after another edit of the same test and were combined with it.
+   * Present only when there were some. */
+  merged?: number;
+}
+
+/** The server's answer to a version that arrived second (SyncController.CollisionResponse). */
+interface Collision {
+  conflict: "superseded";
+  baseClientId: string;
+  base: TestSummaryDto;
+  head: TestSummaryDto;
+  headVersion: number;
+}
+
+/** A 409's body: a collision to reconcile, or "completed" — the server already holds this version
+ * signed off, and a signed-off version never changes in place. */
+async function readConflict(res: Response): Promise<{ collision: Collision | null; completed: boolean }> {
+  try {
+    const body = (await res.json()) as (Partial<Collision> & { error?: string }) | null;
+    const collision = body?.conflict === "superseded" && body.base && body.head ? (body as Collision) : null;
+    return { collision, completed: body?.error === "completed" };
+  } catch {
+    return { collision: null, completed: false };
+  }
 }
 
 /** Thrown when this page's store belongs to a different tester than the one now signed in: the
@@ -104,36 +136,98 @@ function configForServer(config: MachineConfiguration): MachineConfiguration {
   };
 }
 
-async function pushTest(t: LocalTest): Promise<void> {
+/** A test as the push (and the merge) sends it. */
+function pushBody(t: LocalTest) {
+  return {
+    clientId: t.id,
+    farmName: t.farmName,
+    // Farm identity so the server links the right farm within the tester's company scope
+    // (id from the picker, plus supply number + milk processor to disambiguate same names).
+    farmId: t.farmId ?? null,
+    farmSupplyNumber: t.farm?.supplyNumber ?? null,
+    farmMilkCompanyName: t.farm?.milkCompanyName ?? null,
+    notes: t.notes ?? null,
+    markedCompleteAt: t.markedCompleteAt ?? null,
+    createdAt: t.createdAt,
+    config: t.config ? configForServer(t.config) : t.config,
+    // Version chain, mirrored out of the payload into its own columns so the server can hide
+    // superseded versions from the company-wide list without parsing (and loading) the payload.
+    version: t.version ?? 1,
+    supersedesClientId: t.supersedesId ?? null,
+    mergedFromClientId: t.mergedFromId ?? null,
+    // Mirrored into its own column for the admin Upcoming tests page.
+    nextTestDate: t.nextTestDate ?? null,
+    // The full rich capture round-trips as JSON so a re-download rehydrates exactly.
+    payloadJson: JSON.stringify(t),
+  };
+}
+
+/** Sends one test. Resolves true when it had to be combined with another edit of the same test. */
+async function pushTest(t: LocalTest): Promise<boolean> {
   const res = await fetch("/api/sync/tests", {
     method: "POST",
     redirect: "manual",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      clientId: t.id,
-      farmName: t.farmName,
-      // Farm identity so the server links the right farm within the tester's company scope
-      // (id from the picker, plus supply number + milk processor to disambiguate same names).
-      farmId: t.farmId ?? null,
-      farmSupplyNumber: t.farm?.supplyNumber ?? null,
-      farmMilkCompanyName: t.farm?.milkCompanyName ?? null,
-      notes: t.notes ?? null,
-      markedCompleteAt: t.markedCompleteAt ?? null,
-      createdAt: t.createdAt,
-      config: t.config ? configForServer(t.config) : t.config,
-      // Version chain, mirrored out of the payload into its own columns so the server can hide
-      // superseded versions from the company-wide list without parsing (and loading) the payload.
-      version: t.version ?? 1,
-      supersedesClientId: t.supersedesId ?? null,
-      // Mirrored into its own column for the admin Upcoming tests page.
-      nextTestDate: t.nextTestDate ?? null,
-      // The full rich capture round-trips as JSON so a re-download rehydrates exactly.
-      payloadJson: JSON.stringify(t),
-    }),
+    body: JSON.stringify(pushBody(t)),
   });
   assertApiResponse(res);
+  if (res.status === 409) {
+    const { collision, completed } = await readConflict(res);
+    if (collision) {
+      await reconcile(t, collision);
+      return true;
+    }
+    if (completed) {
+      // The server's signed-off copy stands; this one goes clean and the pull refreshes it from there.
+      await markSent(t);
+      return false;
+    }
+  }
   if (!res.ok) throw new Error(`Push failed (${res.status})`);
   await markSent(t);
+  return false;
+}
+
+/**
+ * Combines a signed-off version the server answered 409 with the test's current version, and sends
+ * the pair. If the test moves on again meanwhile (another administrator edit), the server answers
+ * with the new head and the combine is redone against it — a few times at most.
+ */
+async function reconcile(t: LocalTest, first: Collision): Promise<void> {
+  let collision = first;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const base = localFromSummary(collision.base);
+    const head = localFromSummary(collision.head);
+    const { merged } = mergeVersions(base, head, t, {
+      id: crypto.randomUUID(),
+      now: new Date().toISOString(),
+      mergedBy: currentTesterName() ?? null,
+    });
+    const res = await fetch("/api/sync/tests/merge", {
+      method: "POST",
+      redirect: "manual",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ incoming: pushBody(t), merged: pushBody(merged), headClientId: head.id }),
+    });
+    assertApiResponse(res);
+    if (res.status === 409) {
+      const next = (await readConflict(res)).collision;
+      if (next) {
+        collision = next;
+        continue;
+      }
+    }
+    if (!res.ok) throw new Error(`Merge failed (${res.status})`);
+    const answer = (await res.json().catch(() => null)) as { status?: string } | null;
+    if (answer?.status === "merged") {
+      // What the server now holds: the head (if this device didn't have it) and the combined version.
+      if (!(await getTest(head.id))) await putTest(head);
+      await putTest({ ...merged, syncState: "uploaded", everUploaded: true });
+    }
+    await markSent(t);
+    return;
+  }
+  throw new Error("The test kept changing on the server while it was being combined");
 }
 
 /**
@@ -209,6 +303,68 @@ async function pullTests(): Promise<number> {
   return added;
 }
 
+/** A test the server sent (a pull, or a collision answer) as this device holds it: clean, since the
+ * server has it. */
+function localFromSummary(r: TestSummaryDto): LocalTest {
+  const now = new Date().toISOString();
+  // Prefer the full payload (exact rehydration); fall back to the header for older tests.
+  if (r.payloadJson) {
+    try {
+      const parsed = JSON.parse(r.payloadJson) as Record<string, unknown>;
+      if (parsed.legacy !== undefined && parsed.currentStep === undefined) {
+        // MIGRATED legacy test: the payload is raw legacy columns, not a LocalTest. Adapt it into
+        // a read-only LocalTest carrying the original (as-recorded) pass/fail verdicts.
+        const adapted = adaptLegacyReadings(parsed);
+        return {
+          id: r.clientId,
+          farmName: r.farmName,
+          config: r.config ?? defaultMachineConfiguration(),
+          currentStep: "Setup",
+          visualFaults: {},
+          attestations: [],
+          readings: adapted.readings,
+          verdicts: adapted.verdicts,
+          recordedRecommendations: adapted.recordedRecommendations,
+          recordedVisualFaults: adapted.recordedVisualFaults,
+          clusterRows: adapted.clusterRows,
+          calAirFlowMeters: adapted.calAirFlowMeters,
+          calPulsatorTesters: adapted.calPulsatorTesters,
+          calVacuumGauges: adapted.calVacuumGauges,
+          recommendations: {},
+          dataFields: {},
+          notes: adapted.comment,
+          createdAt: r.createdAt,
+          updatedAt: now,
+          markedCompleteAt: r.markedCompleteAt,
+          syncState: "uploaded",
+          everUploaded: true,
+          readonly: true,
+        };
+      }
+      // New-format test: the payload IS a serialised LocalTest — rehydrate exactly.
+      return { ...(parsed as unknown as LocalTest), id: r.clientId, syncState: "uploaded", everUploaded: true };
+    } catch {
+      // Unreadable payload — fall through to the header.
+    }
+  }
+  return {
+    id: r.clientId,
+    farmName: r.farmName,
+    config: r.config ?? defaultMachineConfiguration(),
+    currentStep: "Setup",
+    visualFaults: {},
+    attestations: [],
+    readings: {},
+    recommendations: {},
+    dataFields: {},
+    createdAt: r.createdAt,
+    updatedAt: now,
+    markedCompleteAt: r.markedCompleteAt,
+    syncState: "uploaded",
+    everUploaded: true,
+  };
+}
+
 async function storePulled(remote: readonly TestSummaryDto[]): Promise<number> {
   let added = 0;
   for (const r of remote) {
@@ -218,69 +374,9 @@ async function storePulled(remote: readonly TestSummaryDto[]): Promise<number> {
     // keep it stale forever and never receive the completed version or its amendment history.
     const existing = await getTest(r.clientId);
     if (existing && existing.syncState !== "uploaded") continue;
-    const now = new Date().toISOString();
-
-    // Prefer the full payload (exact rehydration); fall back to the header for older tests.
-    let local: LocalTest | null = null;
-    if (r.payloadJson) {
-      try {
-        const parsed = JSON.parse(r.payloadJson) as Record<string, unknown>;
-        if (parsed.legacy !== undefined && parsed.currentStep === undefined) {
-          // MIGRATED legacy test: the payload is raw legacy columns, not a LocalTest. Adapt it into
-          // a read-only LocalTest carrying the original (as-recorded) pass/fail verdicts.
-          const adapted = adaptLegacyReadings(parsed);
-          local = {
-            id: r.clientId,
-            farmName: r.farmName,
-            config: r.config ?? defaultMachineConfiguration(),
-            currentStep: "Setup",
-            visualFaults: {},
-            attestations: [],
-            readings: adapted.readings,
-            verdicts: adapted.verdicts,
-            recordedRecommendations: adapted.recordedRecommendations,
-            recordedVisualFaults: adapted.recordedVisualFaults,
-            clusterRows: adapted.clusterRows,
-            calAirFlowMeters: adapted.calAirFlowMeters,
-            calPulsatorTesters: adapted.calPulsatorTesters,
-            calVacuumGauges: adapted.calVacuumGauges,
-            recommendations: {},
-            dataFields: {},
-            notes: adapted.comment,
-            createdAt: r.createdAt,
-            updatedAt: now,
-            markedCompleteAt: r.markedCompleteAt,
-            syncState: "uploaded",
-            everUploaded: true,
-            readonly: true,
-          };
-        } else {
-          // New-format test: the payload IS a serialised LocalTest — rehydrate exactly.
-          local = { ...(parsed as unknown as LocalTest), id: r.clientId, syncState: "uploaded", everUploaded: true };
-        }
-      } catch {
-        local = null;
-      }
-    }
-    local ??= {
-      id: r.clientId,
-      farmName: r.farmName,
-      config: r.config ?? defaultMachineConfiguration(),
-      currentStep: "Setup",
-      visualFaults: {},
-      attestations: [],
-      readings: {},
-      recommendations: {},
-      dataFields: {},
-      createdAt: r.createdAt,
-      updatedAt: now,
-      markedCompleteAt: r.markedCompleteAt,
-      syncState: "uploaded",
-      everUploaded: true,
-    };
 
     // The server leaves analyser PDFs' bytes behind; keep this device's copy if it holds one.
-    await putTest(keepHeldBytes(existing, local));
+    await putTest(keepHeldBytes(existing, localFromSummary(r)));
     added++;
   }
   return added;
@@ -337,10 +433,11 @@ async function runSync(): Promise<SyncResult> {
   const locals = await allTests();
   let pushed = 0;
   let failed = 0;
+  let merged = 0;
   for (const t of locals) {
     if (t.syncState !== "local-only") continue;
     try {
-      await pushTest(t);
+      if (await pushTest(t)) merged++;
       pushed++;
     } catch (e) {
       // One test the server won't take (oversized payload, validation, a transient 5xx) must not
@@ -372,5 +469,5 @@ async function runSync(): Promise<SyncResult> {
   // the Help page can't open offline, but the guide links in the tester app can — from this copy.
   void warmGuides(guidesForRoles([TESTER_ROLE]));
 
-  return { pushed, failed, pulled };
+  return merged > 0 ? { pushed, failed, pulled, merged } : { pushed, failed, pulled };
 }

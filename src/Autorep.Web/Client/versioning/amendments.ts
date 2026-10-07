@@ -96,6 +96,13 @@ const CLUSTER_COLS: Record<string, string> = {
   airVent: "Air-vent admission",
 };
 
+/** A change together with the payload field it came from — "config.clusterCount", "readings.<key>",
+ * "notes" — the same division into separately edited fields that versioning/merge.ts and the
+ * server's PayloadUnits make. The stored record keeps the plain {@link FieldChange}. */
+export interface PathedChange extends FieldChange {
+  path: string;
+}
+
 /** Pump rows are positional - pump 2 is pump 2 - so they diff by index, field by field, and a row
  * only one version has reads as blanks on the other side. An absent boolean and an explicit false
  * are the same thing to the tester, so both normalise to No rather than showing as a change. */
@@ -104,15 +111,16 @@ function diffPumpRows(
   before: Record<string, unknown>[],
   after: Record<string, unknown>[],
   cols: Record<string, string>,
-): FieldChange[] {
-  const out: FieldChange[] = [];
+  path: string,
+): PathedChange[] {
+  const out: PathedChange[] = [];
   for (let i = 0; i < Math.max(before.length, after.length); i++) {
     for (const [key, label] of Object.entries(cols)) {
       const cell = (row: Record<string, unknown> | undefined) =>
         key === "drivesMilkPump" ? fmt(row?.[key] ?? false) : fmt(row?.[key]);
       const from = cell(before[i]);
       const to = cell(after[i]);
-      if (from !== to) out.push({ section: S_CONFIG, label: `${noun} ${i + 1} · ${label}`, from, to });
+      if (from !== to) out.push({ section: S_CONFIG, label: `${noun} ${i + 1} · ${label}`, from, to, path });
     }
   }
   return out;
@@ -162,14 +170,15 @@ function diffRecord(
   before: Record<string, unknown> | undefined,
   after: Record<string, unknown> | undefined,
   labelFor: (key: string) => string,
+  pathFor: (key: string) => string,
   format: (key: string, v: unknown) => string = (_k, v) => fmt(v),
-): FieldChange[] {
-  const out: FieldChange[] = [];
+): PathedChange[] {
+  const out: PathedChange[] = [];
   const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
   for (const key of keys) {
     const from = format(key, before?.[key]);
     const to = format(key, after?.[key]);
-    if (from !== to) out.push({ section, label: labelFor(key), from, to });
+    if (from !== to) out.push({ section, label: labelFor(key), from, to, path: pathFor(key) });
   }
   return out;
 }
@@ -199,8 +208,9 @@ function diffRows(
   before: MeasurementRow[] | undefined,
   after: MeasurementRow[] | undefined,
   cols: Record<string, string>,
-): FieldChange[] {
-  const out: FieldChange[] = [];
+  path: string,
+): PathedChange[] {
+  const out: PathedChange[] = [];
   const b = [...(before ?? [])];
   const a = [...(after ?? [])];
 
@@ -218,7 +228,7 @@ function diffRows(
 
   for (const [prev, next] of pairs) {
     if (prev.unit !== next.unit) {
-      out.push({ section, label: `${rowNoun} ${prev.unit}`, from: `Unit ${prev.unit}`, to: `Unit ${next.unit}` });
+      out.push({ section, label: `${rowNoun} ${prev.unit}`, from: `Unit ${prev.unit}`, to: `Unit ${next.unit}`, path });
     }
     out.push(
       ...diffRecord(
@@ -226,15 +236,16 @@ function diffRows(
         prev.values,
         next.values,
         (k) => `${rowNoun} ${next.unit} · ${cols[k] ?? k}`,
+        () => path,
         (_k, v) => fmtCell(v),
       ),
     );
   }
   for (const row of unmatchedB) {
-    out.push({ section, label: `${rowNoun} ${row.unit}`, from: rowSummary(row.values, cols), to: "Removed" });
+    out.push({ section, label: `${rowNoun} ${row.unit}`, from: rowSummary(row.values, cols), to: "Removed", path });
   }
   for (const row of a) {
-    out.push({ section, label: `${rowNoun} ${row.unit}`, from: "—", to: `Added (${rowSummary(row.values, cols)})` });
+    out.push({ section, label: `${rowNoun} ${row.unit}`, from: "—", to: `Added (${rowSummary(row.values, cols)})`, path });
   }
   return out;
 }
@@ -261,26 +272,31 @@ function fmtAttachment(p: LocalTest["pulsationPdf"]): string | undefined {
 
 /** All field-level differences between a superseded version and its edited replacement. */
 export function computeChanges(base: LocalTest, edited: LocalTest): FieldChange[] {
-  const changes: FieldChange[] = [];
+  return computeChangesWithPaths(base, edited).map(({ path: _path, ...change }) => change);
+}
+
+/** {@link computeChanges}, each change naming the payload field it came from. */
+export function computeChangesWithPaths(base: LocalTest, edited: LocalTest): PathedChange[] {
+  const changes: PathedChange[] = [];
 
   if (fmt(base.farmName) !== fmt(edited.farmName)) {
-    changes.push({ section: S_FARM, label: "Farm", from: fmt(base.farmName), to: fmt(edited.farmName) });
+    changes.push({ section: S_FARM, label: "Farm", from: fmt(base.farmName), to: fmt(edited.farmName), path: "farmName" });
   }
 
   for (const key of Object.keys(CONFIG_LABELS) as (keyof MachineConfiguration)[]) {
     if (CONFIG_LIST_KEYS.has(key)) continue;
     const from = fmt(base.config[key]);
     const to = fmt(edited.config[key]);
-    if (from !== to) changes.push({ section: S_CONFIG, label: CONFIG_LABELS[key], from, to });
+    if (from !== to) changes.push({ section: S_CONFIG, label: CONFIG_LABELS[key], from, to, path: `config.${key}` });
   }
   changes.push(
-    ...diffPumpRows("Vacuum pump", vacuumPumpRows(base.config), vacuumPumpRows(edited.config), VACUUM_PUMP_COLS),
+    ...diffPumpRows("Vacuum pump", vacuumPumpRows(base.config), vacuumPumpRows(edited.config), VACUUM_PUMP_COLS, "config.vacuumPumps"),
   );
   changes.push(
-    ...diffPumpRows("Regulator", regulatorRows(base.config), regulatorRows(edited.config), REGULATOR_COLS),
+    ...diffPumpRows("Regulator", regulatorRows(base.config), regulatorRows(edited.config), REGULATOR_COLS, "config.regulators"),
   );
   changes.push(
-    ...diffPumpRows("Releaser pump", releaserPumpRows(base.config), releaserPumpRows(edited.config), RELEASER_PUMP_COLS),
+    ...diffPumpRows("Releaser pump", releaserPumpRows(base.config), releaserPumpRows(edited.config), RELEASER_PUMP_COLS, "config.releaserPumps"),
   );
 
   const readingLabels = readingLabelMap(base, edited);
@@ -290,20 +306,21 @@ export function computeChanges(base: LocalTest, edited: LocalTest): FieldChange[
       base.readings,
       edited.readings,
       (k) => readingLabels.get(k)?.label ?? k,
+      (k) => `readings.${k}`,
       (k, v) => (v == null ? "—" : `${v}${readingLabels.get(k)?.unit ? ` ${readingLabels.get(k)!.unit}` : ""}`),
     ),
   );
 
   // A row added and never filled in is not data (see measurementRows.ts) — not an amendment either.
-  changes.push(...diffRows(S_PULSATORS, "Pulsator", recordedRows(base.pulsatorRows), recordedRows(edited.pulsatorRows), PULSATOR_COLS));
-  changes.push(...diffRows(S_CLUSTERS, "Cluster", recordedRows(base.clusterRows), recordedRows(edited.clusterRows), CLUSTER_COLS));
+  changes.push(...diffRows(S_PULSATORS, "Pulsator", recordedRows(base.pulsatorRows), recordedRows(edited.pulsatorRows), PULSATOR_COLS, "pulsatorRows"));
+  changes.push(...diffRows(S_CLUSTERS, "Cluster", recordedRows(base.clusterRows), recordedRows(edited.clusterRows), CLUSTER_COLS, "clusterRows"));
 
   const visualLabels = visualLabelMap();
   const visualKeys = new Set([...Object.keys(base.visualFaults), ...Object.keys(edited.visualFaults)]);
   for (const key of visualKeys) {
     const from = fmtVisual(base.visualFaults[key]);
     const to = fmtVisual(edited.visualFaults[key]);
-    if (from !== to) changes.push({ section: S_VISUAL, label: visualLabels.get(key) ?? key, from, to });
+    if (from !== to) changes.push({ section: S_VISUAL, label: visualLabels.get(key) ?? key, from, to, path: `visualFaults.${key}` });
   }
   // guardsOnPulsators is the one optional boolean: absent and explicit-false render identically
   // in the UI, so normalise before comparing — absent → false is not an amendment.
@@ -313,29 +330,31 @@ export function computeChanges(base: LocalTest, edited: LocalTest): FieldChange[
       label: "Guards installed on pulsators",
       from: fmt(base.guardsOnPulsators ?? false),
       to: fmt(edited.guardsOnPulsators ?? false),
+      path: "guardsOnPulsators",
     });
   }
 
-  changes.push(...diffRecord(S_DATA, base.dataFields, edited.dataFields, (k) => visualLabels.get(k) ?? k));
+  changes.push(...diffRecord(S_DATA, base.dataFields, edited.dataFields, (k) => visualLabels.get(k) ?? k, (k) => `dataFields.${k}`));
   changes.push(
     ...diffRecord(
       S_RECS,
       base.recommendations,
       edited.recommendations,
       (k) => visualLabels.get(k) ?? readingLabels.get(k)?.label ?? k,
+      (k) => `recommendations.${k}`,
     ),
   );
 
-  const other: Array<[string, unknown, unknown]> = [
-    ["General comments", base.notes, edited.notes],
-    ["Next test date", base.nextTestDate, edited.nextTestDate],
-    ["Calibration expiry — airflow meters", base.calAirFlowMeters, edited.calAirFlowMeters],
-    ["Calibration expiry — pulsator testers", base.calPulsatorTesters, edited.calPulsatorTesters],
-    ["Calibration expiry — vacuum gauges", base.calVacuumGauges, edited.calVacuumGauges],
-    ["Pulsation analyser attachment", fmtAttachment(base.pulsationPdf), fmtAttachment(edited.pulsationPdf)],
+  const other: Array<[string, unknown, unknown, string]> = [
+    ["General comments", base.notes, edited.notes, "notes"],
+    ["Next test date", base.nextTestDate, edited.nextTestDate, "nextTestDate"],
+    ["Calibration expiry — airflow meters", base.calAirFlowMeters, edited.calAirFlowMeters, "calAirFlowMeters"],
+    ["Calibration expiry — pulsator testers", base.calPulsatorTesters, edited.calPulsatorTesters, "calPulsatorTesters"],
+    ["Calibration expiry — vacuum gauges", base.calVacuumGauges, edited.calVacuumGauges, "calVacuumGauges"],
+    ["Pulsation analyser attachment", fmtAttachment(base.pulsationPdf), fmtAttachment(edited.pulsationPdf), "pulsationPdf"],
   ];
-  for (const [label, from, to] of other) {
-    if (fmt(from) !== fmt(to)) changes.push({ section: S_OTHER, label, from: fmt(from), to: fmt(to) });
+  for (const [label, from, to, path] of other) {
+    if (fmt(from) !== fmt(to)) changes.push({ section: S_OTHER, label, from: fmt(from), to: fmt(to), path });
   }
 
   return changes.sort((x, y) => SECTION_ORDER.indexOf(x.section) - SECTION_ORDER.indexOf(y.section));

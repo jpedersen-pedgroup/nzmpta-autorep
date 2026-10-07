@@ -54,6 +54,31 @@ public class MachineTest
     /// in AutorepDbContext), so a push can't claim to supersede another tester's test.</summary>
     public Guid? SupersedesClientId { get; set; }
 
+    /// <summary>The ClientId of the original (version 1) every version of this test descends from:
+    /// the test's identity across its versions, so "all versions of this test" is one indexed
+    /// query rather than a walk up the chain. Equal to ClientId on an original. A version pushed
+    /// before its parent reached the server carries the parent's ClientId until the parent arrives
+    /// and repairs it (see TestLineage.RootForNewVersionAsync).</summary>
+    public Guid? RootClientId { get; set; }
+
+    /// <summary>The second parent of an automatic merge: the version that was combined into this one
+    /// because it and <see cref="SupersedesClientId"/> both replaced the same earlier version (a
+    /// tester's offline edit and an administrator's online edit). Null on every other version. A
+    /// version named here is superseded just as one named by SupersedesClientId is.</summary>
+    public Guid? MergedFromClientId { get; set; }
+
+    /// <summary>Who made this version when it wasn't the tester: the administrator whose edit
+    /// created it. Null on the tester's own versions (TesterId made those), including automatic
+    /// merges, which the tester's device performs. The tester stays the owner either way, so the
+    /// version reaches their device and their history.</summary>
+    public string? AuthorId { get; set; }
+
+    /// <summary>Optimistic-concurrency token, renewed whenever a completed version that replaces this
+    /// one is written. Two writers that each checked "nothing has replaced this yet" — an
+    /// administrator saving while the tester's edit arrives — can't both succeed: the second fails
+    /// on the stale stamp and is told about the first.</summary>
+    public Guid SuccessorStamp { get; set; } = Guid.NewGuid();
+
     /// <summary>The full offline capture payload (visual faults, readings, recommendations,
     /// data-fields, per-pulsator/cluster rows, attestations, calibration dates) serialised as JSON.
     /// The Device is the source of truth; this round-trips it for sync + reprint. Queryable header

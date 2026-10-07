@@ -17,11 +17,21 @@ import {
 } from "./types";
 import { allTests, currentTesterName, getTest, putTest, type LocalTest, type TesterDetails } from "../db/testStore";
 import { fetchFarm } from "../farms";
-import { buildAmendmentRecord } from "../versioning/amendments";
+import { buildAmendmentRecord, computeChanges, computeChangesWithPaths } from "../versioning/amendments";
+import { buildAdminPayload, draftFromPayload, withinScope, type EditScope } from "../versioning/adminEdit";
+import { isReplaced, savedByAdministrator } from "../versioning/chain";
+import { storeAdminVersionReport, type SavedReportState } from "../versioning/adminReport";
+import { AdminEditBar, VersionNotices, type SaveProblem } from "./VersionBanners";
 import { deriveReadings } from "../passfail/derived";
 import { useServerOnline } from "../connectivity";
 import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "../appEvents";
-import { downloadTestSummaryPdf, reportFileName, savePdf, type ReportBranding } from "../report/testSummaryPdf";
+import {
+  downloadTestSummaryPdf,
+  reportFileName,
+  savePdf,
+  type ReportBranding,
+  type ReportPart,
+} from "../report/testSummaryPdf";
 import { ReportGeneratorUnavailableError } from "../report/generatorChunks";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { syncAll, SessionExpiredError } from "../sync/syncClient";
@@ -58,6 +68,9 @@ export interface WizardOptions {
   serverTestId?: string;
   /** Where "Back" returns to from a server view — the admin list or the Company tests list. */
   backHref?: string;
+  /** The admin portal's viewer: an administrator may edit the test as its next version, within
+   * what the server says their role allows. Never set on a tester page. */
+  admin?: boolean;
 }
 
 export function mountWizard(root: HTMLElement, opts: WizardOptions): void {
@@ -78,7 +91,27 @@ interface ServerTestDto {
   testingCompanyLogo?: string | null;
   /** The Final Report as the tester signed it off, when their device has sent it. */
   finalReport?: StoredReport | null;
+  version?: number;
+  /** For an administrator: how far they may edit this version ("full"/"summary"), or why not. */
+  editScope?: EditScope | null;
+  editBlocked?: string | null;
+  /** The test's current version, when this one has been replaced. */
+  latestId?: string | null;
+  latestVersion?: number | null;
+  /** The tester's unfinished new version of this test, if there is one. */
+  draft?: { version: number; startedAt: string } | null;
 }
+
+/** An administrator's edit in progress: the scope, the stored version it started from (shaped for
+ * the wizard, for the diff), and that version's payload as stored (what the save builds on). */
+interface AdminEdit {
+  scope: EditScope;
+  base: LocalTest;
+  raw: Record<string, unknown>;
+}
+
+/** Set just before leaving for the saved version, so the unsaved-changes guard lets the page go. */
+let leavingAfterSave = false;
 
 /** Build a read-only LocalTest from a server fetch. Migrated legacy payloads are adapted to
  * readings + as-recorded verdicts; new-format payloads rehydrate wholesale — the payload IS a
@@ -162,10 +195,19 @@ const SHELLS: Record<WizardLayout, (props: ShellProps) => VNode> = {
   hub: HubShell,
 };
 
-function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptions) {
+function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
   const [error, setError] = useState<LoadFailure | null>(null);
   const [colleagueName, setColleagueName] = useState<string | null>(null);
+  // A server view's test as the server sent it (the admin viewer's edit state rides on it).
+  const [serverDto, setServerDto] = useState<ServerTestDto | null>(null);
+  // The other tests on this device — this test's other versions among them — for the notices about
+  // an edit made elsewhere. Empty on a server view.
+  const [others, setOthers] = useState<LocalTest[]>([]);
+  const [adminEdit, setAdminEdit] = useState<AdminEdit | null>(null);
+  const [editReason, setEditReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveProblem, setSaveProblem] = useState<SaveProblem | null>(null);
   // Read-only server view: the letterhead comes from the server, for the company the test was
   // done for — never from this device's cache, which holds the VIEWER's company (or none, for an
   // admin).
@@ -175,6 +217,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   const [serverTester, setServerTester] = useState<TesterDetails | null | undefined>(undefined);
   // …and the report as the tester signed it off, when the server holds one.
   const [storedReport, setStoredReport] = useState<StoredReport | null>(null);
+  // …and, just after an administrator's save, keeping the new version's own report there.
+  const [savedReport, setSavedReport] = useState<SavedReportState | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -229,6 +273,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
           if (!res.ok) throw new Error("failed");
           const dto = (await res.json()) as ServerTestDto;
           if (active) {
+            setServerDto(dto);
             setTest(localTestFromServer(dto));
             setServerBranding({ companyName: dto.testingCompanyName ?? null, companyLogo: dto.testingCompanyLogo ?? null });
             setServerTester(dto.testerName ? { name: dto.testerName } : null);
@@ -264,11 +309,14 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
           await putTest(t);
         }
       }
-      // A superseded original is read-only even if its stored flag didn't round-trip from another
-      // device — having any later version supersede it is the source of truth.
-      if (!t.readonly && (await allTests()).some((x) => x.supersedesId === t!.id)) {
+      // A replaced version is read-only even if its stored flag didn't round-trip from another
+      // device — a later version naming it (superseded, or merged in) is the source of truth. That
+      // later version may be an administrator's, pulled from the server.
+      const everything = await allTests();
+      if (!t.readonly && isReplaced(t, everything)) {
         t = { ...t, readonly: true };
       }
+      if (active) setOthers(everything.filter((x) => x.id !== t!.id));
       // An editable test's calculated readings are brought up to date on open — in memory only,
       // so opening never dirties the record. Otherwise a test saved by an older build could show a
       // hand-typed value under the "calculated" tag right up to sign-off. Frozen and migrated
@@ -282,6 +330,32 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       active = false;
     };
   }, [id, farmId, farmName, serverTestId, reloadKey]);
+
+  // An administrator's unsaved edit exists nowhere but this page: say so before it's left.
+  useEffect(() => {
+    if (!adminEdit || !test) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      if (leavingAfterSave || computeChanges(adminEdit.base, test).length === 0) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    addEventListener("beforeunload", warn);
+    return () => removeEventListener("beforeunload", warn);
+  }, [adminEdit, test]);
+
+  // Just after an administrator's save, the viewer opens the new version: its report is made and kept
+  // on the server (versioning/adminReport.ts) — once, and not when the server already holds one.
+  const keepSavedReport = async (version: LocalTest) => {
+    setSavedReport({ kind: "storing" });
+    const outcome = await storeAdminVersionReport(version, serverBranding, serverTester);
+    setSavedReport(outcome);
+    if (outcome.kind === "stored") setStoredReport({ storedAt: new Date().toISOString(), sizeBytes: outcome.sizeBytes });
+  };
+  useEffect(() => {
+    if (!admin || !serverDto || !test || adminEdit || savedReport || serverDto.finalReport) return;
+    if (!new URLSearchParams(location.search).get("saved")) return;
+    void keepSavedReport(test);
+  }, [serverDto, test]);
 
   if (error) {
     const back = backHref ?? "/App/Tests/Index";
@@ -331,12 +405,21 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
   // freezes a version — without that, a signed-off test could be silently altered afterwards and
   // the next version's amendment diff would report a falsified "Previous" column. Changing a
   // completed test is done by reopening it as a new version (the audited path). Navigation still
-  // persists (currentStep), but data edits are no-ops.
-  const readonly = (test.readonly ?? false) || test.markedCompleteAt != null;
+  // persists (currentStep), but data edits are no-ops. The one exception is an administrator's
+  // edit, which is a new version in the making (in memory here, saved by the server).
+  const editScope = adminEdit?.scope ?? null;
+  const readonly = editScope ? false : (test.readonly ?? false) || test.markedCompleteAt != null;
   // Every data edit flips the test dirty ("local-only") so it re-pushes on the next sync —
-  // an edit that kept syncState "uploaded" would silently diverge from the server copy.
-  const persistEdit = (patch: Partial<LocalTest>) =>
-    readonly ? Promise.resolve() : persist({ syncState: "local-only", ...patch });
+  // an edit that kept syncState "uploaded" would silently diverge from the server copy. A Company
+  // Administrator's edit only reaches the recommendations and comments; anything else is dropped.
+  const persistEdit = (patch: Partial<LocalTest>) => {
+    if (readonly) return Promise.resolve();
+    if (editScope) {
+      const allowed = withinScope(editScope, patch);
+      return Object.keys(allowed).length > 0 ? persist(allowed) : Promise.resolve();
+    }
+    return persist({ syncState: "local-only", ...patch });
+  };
   // The calculated readings (1c, 2d, 12b, 15b … see passfail/derived.ts) are re-derived from their
   // inputs on every edit of a reading OR the configuration (2g/2h and the 12b band depend on it),
   // so what is stored, judged, printed and diffed is always the formula's value — never a typed one.
@@ -386,6 +469,13 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     setSyncing(true);
     try {
       const r = await syncAll();
+      // Signed off after the same test had been changed on the server (an administrator's edit):
+      // the two were combined as a new version. Open that one — its banner says what happened.
+      const combined = r.merged ? (await allTests()).find((x) => x.mergedFromId === test.id) : undefined;
+      if (combined) {
+        location.href = `/App/Tests/Wizard?id=${combined.id}`;
+        return;
+      }
       const fresh = await getTest(test.id);
       if (fresh) setTest(fresh);
       if (fresh && fresh.syncState === "local-only") {
@@ -406,7 +496,8 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     }
   };
   const attachPulsationPdf = async (file: File) => {
-    if (readonly) return;
+    // A Company Administrator's edit doesn't reach the attachment; a Super-Administrator's does.
+    if (readonly || editScope === "summary") return;
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
     if (!isPdf) {
       showToast("Only PDF files can be attached here.", "error");
@@ -505,20 +596,126 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     await runSync("Test marked complete");
   };
 
+  // ---- The admin portal: edit this completed test as its next version (O2; PRD stories 49–50) ----
+  // The edit happens in memory on the stored version; the server saves it as the next version and
+  // checks every changed field against the stored one, so the role limits here are for the UI only.
+  const startEditing = () => {
+    const scope = serverDto?.editScope;
+    if (!scope || !serverDto?.payloadJson) return;
+    let raw: Record<string, unknown>;
+    try {
+      raw = JSON.parse(serverDto.payloadJson) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    const base = draftFromPayload(raw, localTestFromServer(serverDto));
+    // As when a tester reopens a test: the calculated readings are brought up to date, so a formula
+    // fixed since the test was done shows — and is recorded — as part of this edit.
+    const draft = scope === "full" ? { ...base, readings: deriveReadings(base.config, base.readings) } : base;
+    setAdminEdit({ scope, base, raw });
+    setEditReason("");
+    setSaveProblem(null);
+    // A Company Administrator's edit is all on the Fault Summary step: take them there.
+    setTest({ ...draft, currentStep: scope === "summary" ? "FaultSummary" : test.currentStep });
+  };
+
+  const cancelEditing = () => {
+    if (adminEdit && computeChanges(adminEdit.base, test).length > 0 && !confirm("Discard your changes? Nothing has been saved.")) return;
+    setAdminEdit(null);
+    setEditReason("");
+    setSaveProblem(null);
+    if (serverDto) setTest({ ...localTestFromServer(serverDto), currentStep: test.currentStep });
+  };
+
+  const saveEditing = async () => {
+    if (!adminEdit || !serverDto) return;
+    const reason = editReason.trim();
+    if (!reason) {
+      setSaveProblem({ kind: "reason" });
+      return;
+    }
+    const version = (adminEdit.base.version ?? 1) + 1;
+    let edited: LocalTest = { ...test, version };
+    // Belt and braces, as at a tester's sign-off: what is saved is the formulas' values.
+    if (adminEdit.scope === "full") edited = { ...edited, readings: deriveReadings(edited.config, edited.readings) };
+    if (computeChanges(adminEdit.base, edited).length === 0) {
+      setSaveProblem({ kind: "unchanged" });
+      return;
+    }
+    const record = { ...buildAmendmentRecord(adminEdit.base, edited, new Date().toISOString(), currentTesterName()), reason };
+    const payload = buildAdminPayload(adminEdit.raw, edited, adminEdit.scope, record);
+    setSaving(true);
+    setSaveProblem(null);
+    try {
+      const res = await fetch(`/api/admin/tests/${serverDto.id}/versions`, {
+        method: "POST",
+        redirect: "manual",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ payloadJson: JSON.stringify(payload), reason }),
+      });
+      if (res.status === 201) {
+        const saved = (await res.json()) as { id: string; version: number };
+        leavingAfterSave = true;
+        location.assign(`/Admin/Tests/View/${saved.id}?saved=${saved.version}`);
+        return;
+      }
+      const body = (await res.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+        fields?: string[];
+        latest?: { id?: string; version?: number };
+      } | null;
+      if (res.status === 401 || res.status === 403 || res.type === "opaqueredirect") {
+        setSaveProblem({ kind: "signedOut" });
+      } else if (res.status === 409 && body?.error === "superseded") {
+        setSaveProblem({ kind: "stale", latestId: body.latest?.id, latestVersion: body.latest?.version });
+      } else if (res.status === 409) {
+        setSaveProblem({ kind: "blocked", reason: body?.error ?? "" });
+      } else if (res.status === 422) {
+        const labels = new Map(computeChangesWithPaths(adminEdit.base, edited).map((c) => [c.path, c.label]));
+        setSaveProblem({ kind: "fields", labels: (body?.fields ?? []).map((f) => labels.get(f) ?? f) });
+      } else {
+        setSaveProblem({ kind: "message", text: body?.message ?? `The server didn't save it (HTTP ${res.status}). Try again.` });
+      }
+    } catch {
+      setSaveProblem({ kind: "network" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const downloadReport = (only?: ReportPart[]) => {
+    setGenerating(true);
+    void downloadTestSummaryPdf(test, serverBranding, serverTester, only, Boolean(serverTestId))
+      .catch((e) =>
+        // A missing generator chunk is recoverable and the tester can act on it — don't bury it
+        // under the generic message.
+        showToast(
+          e instanceof ReportGeneratorUnavailableError
+            ? e.message
+            : "Could not generate the report on this device.",
+          "error",
+        ),
+      )
+      .finally(() => setGenerating(false));
+  };
+
   // Read-only server view: the report the tester's device stored at sign-off, as it was — beside
-  // Download report, which makes a new one from the recorded data.
+  // Download report, which makes a new one from the recorded data. For a version an administrator
+  // saved, the copy made at the save.
   const downloadStoredReport = async () => {
     if (!serverTestId) return;
+    const as = savedByAdministrator(test) ? "as saved" : "as signed off";
     try {
       const res = await fetch(`/api/tests/${encodeURIComponent(serverTestId)}/final-report`, { redirect: "manual" });
       if (res.status === 404) {
-        showToast("The server has no copy of this report as it was signed off.", "error");
+        showToast(`The server has no copy of this report ${as === "as saved" ? "as it was saved" : "as it was signed off"}.`, "error");
         return;
       }
       if (!res.ok || res.type === "opaqueredirect") throw new Error(String(res.status));
-      savePdf(new Uint8Array(await res.arrayBuffer()), reportFileName(test).replace(/\.pdf$/i, " - as signed off.pdf"));
+      savePdf(new Uint8Array(await res.arrayBuffer()), reportFileName(test).replace(/\.pdf$/i, ` - ${as}.pdf`));
     } catch {
-      showToast("Could not download the report as signed off — check your connection and try again.", "error");
+      showToast(`Could not download the report ${as} — check your connection and try again.`, "error");
     }
   };
 
@@ -537,6 +734,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     plan,
     completed,
     serverTestId,
+    editScope,
     colleagueName,
     syncing,
     generating,
@@ -551,28 +749,47 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
     persistEdit: (patch) => void persistEdit(patch),
     onMarkComplete: () => void markComplete(),
     onResync: () => void runSync("Re-synced"),
-    onDownloadReport: (only) => {
-      setGenerating(true);
-      void downloadTestSummaryPdf(test, serverBranding, serverTester, only, Boolean(serverTestId))
-        .catch((e) =>
-          // A missing generator chunk is recoverable and the tester can act on it — don't bury it
-          // under the generic message.
-          showToast(
-            e instanceof ReportGeneratorUnavailableError
-              ? e.message
-              : "Could not generate the report on this device.",
-            "error",
-          ),
-        )
-        .finally(() => setGenerating(false));
-    },
+    onDownloadReport: downloadReport,
     storedReport: serverTestId ? storedReport : null,
     onDownloadStoredReport: downloadStoredReport,
     onAttachPdf: (file) => void attachPulsationPdf(file),
     onRemovePdf: () => void persistEdit({ pulsationPdf: null, syncState: "local-only" }),
-    // An amendment keeps the original test's date; the sign-off step shows it read-only.
-    onNextTestDateChange: (date) => { if (!test.supersedesId) void persistEdit({ nextTestDate: date }); },
+    // A tester's amendment keeps the original test's date; the sign-off step shows it read-only. A
+    // Super-Administrator's edit can correct it.
+    onNextTestDateChange: (date) => {
+      if (editScope === "full" || !test.supersedesId) void persistEdit({ nextTestDate: date });
+    },
   };
+
+  // The admin portal's view of this version: what its viewer may do with it.
+  const savedVersion = admin && serverTestId ? new URLSearchParams(location.search).get("saved") : null;
+  const adminBar = admin && serverDto ? (
+    <AdminEditBar
+      view={{
+        version: serverDto.version ?? test.version ?? 1,
+        editScope: serverDto.editScope,
+        editBlocked: serverDto.editBlocked,
+        latestId: serverDto.latestId,
+        latestVersion: serverDto.latestVersion,
+        draft: serverDto.draft,
+        testerName: serverDto.testerName,
+        completedAt: serverDto.markedCompleteAt,
+      }}
+      editing={editScope}
+      reason={editReason}
+      onReason={setEditReason}
+      saving={saving}
+      problem={saveProblem}
+      savedVersion={savedVersion}
+      savedReport={savedReport}
+      onRetrySavedReport={() => void keepSavedReport(test)}
+      generating={generating}
+      onStart={startEditing}
+      onSave={() => void saveEditing()}
+      onCancel={cancelEditing}
+      onDownload={() => downloadReport()}
+    />
+  ) : null;
 
   const banners = (
     <>
@@ -583,20 +800,26 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref }: WizardOptio
       )}
 
       {/* Someone else's test is neutral news — nothing is wrong and nothing you expected to do is
-          blocked — so it reads as info, not a warning. Your own frozen test keeps the warning. */}
-      {readonly &&
-        (serverTestId && colleagueName ? (
-          <div class="alert alert--info">
-            👁 <strong>{colleagueName}'s test</strong> — read-only. You're viewing your company's test
-            history; only {colleagueName.split(" ")[0]} can edit this test. Pass/fail is shown as
-            recorded at the time of testing.
-          </div>
-        ) : (
-          <div class="alert alert--warning">
-            📄 <strong>Read-only</strong> — this test can't be edited here. Pass/fail is shown as
-            recorded at the time of testing.
-          </div>
-        ))}
+          blocked — so it reads as info, not a warning. Your own frozen test keeps the warning. The
+          admin portal says instead what its viewer can do with the version on screen. */}
+      {adminBar ??
+        (readonly &&
+          (serverTestId && colleagueName ? (
+            <div class="alert alert--info">
+              👁 <strong>{colleagueName}'s test</strong> — read-only. You're viewing your company's test
+              history; only {colleagueName.split(" ")[0]} can edit this test. Pass/fail is shown as
+              recorded at the time of testing.
+            </div>
+          ) : (
+            <div class="alert alert--warning">
+              📄 <strong>Read-only</strong> — this test can't be edited here. Pass/fail is shown as
+              recorded at the time of testing.
+            </div>
+          )))}
+
+      {/* Who made this version when it wasn't the tester, what a merge combined, and an edit made
+          elsewhere while this one is unfinished. */}
+      <VersionNotices test={test} others={others} />
 
       {/* Renewal warning for the tester's own equipment while testing — informational only, never a
           gate. The Setup step shows it inside the calibration panel instead. */}

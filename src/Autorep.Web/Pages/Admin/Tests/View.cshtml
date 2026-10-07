@@ -4,9 +4,10 @@
     ViewData["Title"] = "View test";
 }
 
-@* Admin read-only view: the offline wizard bundle (autorep.js) sees data-server-test and fetches
-   the test from /api/tests/{id} instead of IndexedDB, rendering it read-only. *@
-<div id="wizard-root" data-bundle-root data-server-test="@Model.Id"></div>
+@* Admin viewer: the offline wizard bundle (autorep.js) sees data-server-test and fetches the test from
+   /api/tests/{id} instead of IndexedDB. data-admin offers an administrator the edit-as-a-new-version
+   controls, within what that endpoint says their role allows; the save goes to /api/admin/tests. *@
+<div id="wizard-root" data-bundle-root data-server-test="@Model.Id" data-back="/Admin/Tests" data-admin></div>
 
 @section Scripts {
     <script type="module" src="~/js/dist/autorep.js"></script>

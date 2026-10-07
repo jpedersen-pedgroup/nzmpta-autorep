@@ -7,7 +7,8 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { allTests, deleteTest, putTest, TESTS_CHANGED_EVENT, type LocalTest } from "../db/testStore";
 import { describeStorage, storageReport } from "../storage/durability";
-import { syncAll, SessionExpiredError } from "../sync/syncClient";
+import { syncAll, SessionExpiredError, type SyncResult } from "../sync/syncClient";
+import { hasUnfinishedSibling, madeByOther, replacedIds, rivalsOf } from "../versioning/chain";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { GuideLink } from "./GuideLink";
 import { showToast } from "./toast";
@@ -61,6 +62,13 @@ function canDelete(t: LocalTest): boolean {
   return !t.markedCompleteAt && t.syncState === "local-only" && !t.everUploaded;
 }
 
+/** The note added to a sync's toast when tests were combined with an edit made on the server. */
+export function mergedNote(r: SyncResult): string {
+  if (!r.merged) return "";
+  return ` ${r.merged === 1 ? "1 test was" : `${r.merged} tests were`} changed on the server while you were editing — ` +
+    "your changes were combined with theirs as a new version. Check it before you print it again.";
+}
+
 function TestListApp() {
   const [tests, setTests] = useState<LocalTest[] | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -103,7 +111,7 @@ function TestListApp() {
           "error",
         );
       } else {
-        showToast(`Synced — ${r.pushed} pushed, ${r.pulled} pulled.`, "success");
+        showToast(`Synced — ${r.pushed} pushed, ${r.pulled} pulled.${mergedNote(r)}`, r.merged ? "info" : "success");
       }
     } catch (e) {
       await reload();
@@ -167,7 +175,8 @@ function TestListApp() {
   };
 
   if (!tests) return <p class="td-muted">Loading…</p>;
-  const supersededIds = new Set(tests.map((t) => t.supersedesId).filter(Boolean) as string[]);
+  // Replaced by a later version — the tester's own, an administrator's, or an automatic merge.
+  const supersededIds = replacedIds(tests);
 
   return (
     <div>
@@ -218,6 +227,7 @@ function TestListApp() {
                     <span class="badge">{syncLabel(t.syncState)}</span>
                     {(t.version ?? 1) > 1 && <> <span class="badge">v{t.version}</span></>}
                     {supersededIds.has(t.id) && <> <span class="badge">superseded</span></>}
+                    <VersionBadge test={t} tests={tests} />
                   </td>
                   <td class="td-actions">
                     {canDelete(t) && (
@@ -228,7 +238,9 @@ function TestListApp() {
                     <a class="btn btn--secondary btn--sm" href={`/App/Tests/Wizard?id=${t.id}`}>
                       {t.markedCompleteAt ? "View" : "Continue"}
                     </a>
-                    {t.markedCompleteAt && !supersededIds.has(t.id) && !t.readonly && (
+                    {/* Not while an unfinished edit of the same test is on the device: a second edit
+                        would only fork the test again (finish that one — it's combined on sign-off). */}
+                    {t.markedCompleteAt && !supersededIds.has(t.id) && !t.readonly && !hasUnfinishedSibling(t, tests) && (
                       <button class="btn btn--secondary btn--sm" onClick={() => void editAsNewVersion(t)}>
                         Edit
                       </button>
@@ -277,4 +289,16 @@ function TestListApp() {
       )}
     </div>
   );
+}
+
+/** Who else had a hand in this version: an administrator's edit, or an automatic merge — or, on an
+ * unfinished one, an edit of the same test made elsewhere, which it's combined with on sign-off. */
+function VersionBadge({ test, tests }: { test: LocalTest; tests: readonly LocalTest[] }) {
+  const other = madeByOther(test);
+  if (other?.merge) return <> <span class="badge" title="Combined automatically with an edit made on the server">combined</span></>;
+  if (other) return <> <span class="badge" title={`Made by ${other.amendedByName ?? other.amendedBy ?? "an administrator"} (${other.amendedByRole})`}>edited by admin</span></>;
+  if (!test.markedCompleteAt && rivalsOf(test, tests).length > 0) {
+    return <> <span class="badge badge--warning" title="Someone else changed this test while you were editing it">changed on the server</span></>;
+  }
+  return null;
 }

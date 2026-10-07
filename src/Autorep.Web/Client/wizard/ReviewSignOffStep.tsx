@@ -14,6 +14,7 @@ import { nzDate, proposedNextTestDate } from "./nextTestDate";
 import { reportPartOptions, type ReportPart } from "../report/testSummaryPdf";
 import { ReportSectionPicker } from "./ReportSectionPicker";
 import type { StoredReport } from "./WizardSteps";
+import { savedByAdministrator } from "../versioning/chain";
 
 function fmtSize(bytes: number): string {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -36,6 +37,13 @@ interface Props {
    * that only make sense for a test on this device: syncing (it would run the VIEWER's own
    * push/pull from inside someone else's record) and attaching/removing the analyser PDF. */
   isServerView?: boolean;
+  /** An administrator is editing this test as its next version: there's no sign-off or download
+   * here — the edit bar at the top saves it, and the report comes from the saved version. */
+  adminEditing?: boolean;
+  /** A Super-Administrator's edit may attach, replace or remove the analyser PDF (O3)… */
+  canEditAttachment?: boolean;
+  /** …and correct the next test date, which a tester's own amendment can't move. */
+  canEditNextTestDate?: boolean;
   /** Who performed the test, when that isn't the viewer. Shown on a server view in place of the
    * local sync state, which means nothing for a record held on the server. */
   colleagueName?: string | null;
@@ -60,6 +68,9 @@ export function ReviewSignOffStep({
   syncing,
   generating,
   isServerView,
+  adminEditing,
+  canEditAttachment,
+  canEditNextTestDate,
   colleagueName,
   onMarkComplete,
   onResync,
@@ -78,6 +89,8 @@ export function ReviewSignOffStep({
   const fileInput = useRef<HTMLInputElement>(null);
   const summary = aggregate(buildFaultInputs(test));
   const isComplete = Boolean(test.markedCompleteAt);
+  // An administrator's version keeps the report made when it was saved, not one signed off on a device.
+  const asSaved = Boolean(isServerView) && savedByAdministrator(test);
   const partOptions = useMemo(() => (isComplete ? reportPartOptions(test) : []), [test, isComplete]);
   const download = (only?: ReportPart[]) => {
     setPrinting(only);
@@ -91,6 +104,8 @@ export function ReviewSignOffStep({
   const isAmendment = Boolean(test.supersedesId);
   const nextTestDate = isComplete || isAmendment ? test.nextTestDate : proposedNextTestDate(test, nowIso);
   const nextTestInPast = !isComplete && nextTestDate != null && nextTestDate <= nzDate(nowIso);
+  // A server view shows the attachment read-only, except in a Super-Administrator's edit.
+  const attachmentEditable = !isServerView || Boolean(canEditAttachment);
 
   const pickFile = (files: FileList | null | undefined) => {
     const file = files?.[0];
@@ -128,7 +143,12 @@ export function ReviewSignOffStep({
 
       <div class="form-field signoff-next">
         <label class="signoff__label" for="next-test-date">Next test due</label>
-        {isComplete || isServerView ? (
+        {canEditNextTestDate ? (
+          <>
+            <DatePicker id="next-test-date" value={test.nextTestDate ?? null} onChange={onNextTestDateChange} />
+            <div class="form-field__hint">Correcting it here changes when the farm shows as due.</div>
+          </>
+        ) : isComplete || isServerView ? (
           <div>{nextTestDate ? formatDisplayDate(nextTestDate) : "—"}</div>
         ) : isAmendment ? (
           <>
@@ -178,11 +198,11 @@ export function ReviewSignOffStep({
                 ? "appended to the report"
                 : "kept on the server to save space here — fetched when you print (needs signal)"}
             </span>
-            {!isServerView && (
+            {attachmentEditable && (
               <button class="attach-chip__remove" title="Remove attachment" onClick={onRemovePdf}>×</button>
             )}
           </div>
-        ) : isServerView ? (
+        ) : !attachmentEditable ? (
           <p class="td-muted" style="margin:0">None attached.</p>
         ) : (
           <div
@@ -216,7 +236,12 @@ export function ReviewSignOffStep({
       </div>
 
       <div class="signoff-footer">
-        {isComplete ? (
+        {adminEditing ? (
+          <p class="td-muted" style="margin:0">
+            Save this edit with the bar at the top of the page. The report is downloaded from the saved
+            version, so it carries the change in its amendment history.
+          </p>
+        ) : isComplete ? (
           <div class="signoff-complete">
             <p>
               ✓ Completed {fmtDate(test.markedCompleteAt)}
@@ -240,7 +265,7 @@ export function ReviewSignOffStep({
                     void onDownloadStoredReport().finally(() => setFetchingStored(false));
                   }}
                 >
-                  {fetchingStored ? "Downloading…" : "Download the report as signed off"}
+                  {fetchingStored ? "Downloading…" : asSaved ? "Download the report as saved" : "Download the report as signed off"}
                 </button>
               )}
               {!isServerView && (
@@ -253,9 +278,13 @@ export function ReviewSignOffStep({
               // Download report makes a new copy from the recorded data; this says what the other
               // button is, or why it isn't there. Not on a migrated test: those never had one.
               <p class="form-field__hint" style="margin:var(--space-2) 0 0" data-stored-report>
-                {storedReport
-                  ? `"As signed off" is the copy the tester's device made at sign-off (${fmtSize(storedReport.sizeBytes)}, received ${fmtDate(storedReport.storedAt)}).`
-                  : "No copy of the report as signed off is held for this test — it was signed off before reports were kept, or the tester's device hasn't sent it yet."}
+                {asSaved
+                  ? storedReport
+                    ? `"As saved" is the copy made in the admin portal when this version was saved (${fmtSize(storedReport.sizeBytes)}, received ${fmtDate(storedReport.storedAt)}).`
+                    : "No copy of this version's report is held — it's kept when the version is saved in the admin portal."
+                  : storedReport
+                    ? `"As signed off" is the copy the tester's device made at sign-off (${fmtSize(storedReport.sizeBytes)}, received ${fmtDate(storedReport.storedAt)}).`
+                    : "No copy of the report as signed off is held for this test — it was signed off before reports were kept, or the tester's device hasn't sent it yet."}
               </p>
             )}
           </div>

@@ -131,6 +131,11 @@ else
 // Emails Company Administrators when a tester sets up a farm in the field (review flow).
 builder.Services.AddScoped<FarmReviewNotifier>();
 
+// Versions of a test: an administrator's edit saved as a new version, and the reconciliation of two
+// versions that both replaced the same one (a tester's offline edit and an administrator's).
+builder.Services.AddScoped<Reconciliation>();
+builder.Services.AddScoped<AdminVersioning>();
+
 // Sign-in: the audit row for every attempt, and the gates (forced reset, lapsed licence, stale
 // terms) that run once an account is actually in - after the password, or after the 2FA code.
 builder.Services.AddScoped<LoginAudit>();
@@ -238,6 +243,8 @@ builder.Services.AddPdfStore(builder.Configuration, builder.Environment);
 // the pass that moves any still inline when a start is asked to (PdfStore:PulsationBackfill: Off
 // unless set to DryRun or Run).
 builder.Services.AddScoped<PulsationAttachments>();
+// Each version's Final Report, as its tester's device or the admin viewer sent it.
+builder.Services.AddScoped<FinalReportStore>();
 builder.Services.AddScoped<PulsationBackfill>();
 builder.Services.AddHostedService<PulsationBackfillService>();
 

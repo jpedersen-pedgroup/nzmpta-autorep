@@ -38,8 +38,13 @@ public sealed class PulsationAttachments
     /// pointer (another device has since attached a different PDF) must never get the newer PDF's
     /// bytes under the old one's name, so with no match the pointer is kept as sent, minus any hash:
     /// the report prints without the PDF rather than with the wrong one.
+    /// <paramref name="unsaved"/>: other versions written in the same save, by ClientId, which the
+    /// database doesn't have yet — candidates too (an automatic merge stores the incoming version and
+    /// the combined one together, and the combined one can carry the incoming one's PDF).
     /// </summary>
-    public async Task<string?> StoreIncomingAsync(string? incoming, string testerId, Guid clientId, Guid? supersedesClientId, CancellationToken ct)
+    public async Task<string?> StoreIncomingAsync(
+        string? incoming, string testerId, Guid clientId, Guid? supersedesClientId, CancellationToken ct,
+        IReadOnlyDictionary<Guid, string?>? unsaved = null)
     {
         if (PulsationPayload.Base64(incoming) is { } inline)
             return await MoveInlineAsync(incoming!, inline, testerId, clientId, ct) ?? incoming;
@@ -48,12 +53,15 @@ public sealed class PulsationAttachments
 
         var candidates = new List<Guid> { source ?? clientId, clientId };
         if (supersedesClientId is { } previous) candidates.Add(previous);
+        if (unsaved is not null) candidates.AddRange(unsaved.Keys);
         foreach (var id in candidates.Distinct())
         {
-            var stored = await _db.MachineTests
-                .Where(t => t.TesterId == testerId && t.ClientId == id)
-                .Select(t => t.PayloadJson)
-                .FirstOrDefaultAsync(ct);
+            var stored = unsaved is not null && unsaved.TryGetValue(id, out var pending)
+                ? pending
+                : await _db.MachineTests
+                    .Where(t => t.TesterId == testerId && t.ClientId == id)
+                    .Select(t => t.PayloadJson)
+                    .FirstOrDefaultAsync(ct);
             if (!PulsationPayload.SameAttachment(stored, incoming)) continue;
 
             if (PulsationPayload.StoredSha256(stored) is { } sha)

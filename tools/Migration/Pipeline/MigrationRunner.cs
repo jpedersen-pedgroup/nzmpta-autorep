@@ -502,6 +502,8 @@ public sealed class MigrationRunner
                 {
                     Id = Guid.NewGuid(),
                     ClientId = lt.ClientId,
+                    // A migrated test is an original, so it is its own root (MachineTest.RootClientId).
+                    RootClientId = lt.ClientId,
                     TesterId = testerId,
                     // The company the work was done under. TestScope.InCompany and the company test
                     // list filter on this column alone, so without it every migrated test would be

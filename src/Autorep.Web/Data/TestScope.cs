@@ -29,14 +29,25 @@ public static class TestScope
             : tests.Where(t => t.TesterId == testerId);
 
     /// <summary>
-    /// Drops versions that a later version supersedes, so a re-edited test appears once. The chain
-    /// is matched within one tester's rows (s.TesterId == t.TesterId) because ClientId space is
-    /// per-tester by design — a push claiming to supersede another tester's ClientId can never
-    /// withdraw their test.
+    /// What an administrator may read (and so edit, within their role's fields): every test for a
+    /// Super-Administrator; the tests done for their own Testing Company for a Company
+    /// Administrator — the same stamp the admin list scopes on — and nothing without a company.
+    /// </summary>
+    public static IQueryable<MachineTest> AdministeredBy(
+        this IQueryable<MachineTest> tests, bool superAdministrator, Guid? companyId)
+        => superAdministrator ? tests
+            : companyId is { } company ? tests.InCompany(company)
+            : tests.Where(t => false);
+
+    /// <summary>
+    /// Drops versions that a later version supersedes — or that an automatic merge combined — so a
+    /// re-edited test appears once. The chain is matched within one tester's rows
+    /// (s.TesterId == t.TesterId) because ClientId space is per-tester by design — a push claiming to
+    /// supersede another tester's ClientId can never withdraw their test.
     /// </summary>
     public static IQueryable<MachineTest> CurrentVersionsOnly(
         this IQueryable<MachineTest> tests, AutorepDbContext db)
         => tests.Where(t => t.ClientId == null
             || !db.MachineTests.Any(s => s.TesterId == t.TesterId
-                && s.SupersedesClientId == t.ClientId));
+                && (s.SupersedesClientId == t.ClientId || s.MergedFromClientId == t.ClientId)));
 }

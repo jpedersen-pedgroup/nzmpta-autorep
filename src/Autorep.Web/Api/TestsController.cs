@@ -13,8 +13,9 @@ namespace Autorep.Web.Api;
 
 // Read-only access to Machine Tests. Super-Administrator sees any test; a Company-Administrator
 // sees tests done for their company in any state; a Tester sees their own tests plus COMPLETED
-// tests done for the same Testing Company (the "Company tests" screen) — read-only, since every
-// write goes through SyncController and is scoped to the caller's own rows.
+// tests done for the same Testing Company (the "Company tests" screen) — read-only, since a
+// tester's writes go through SyncController (scoped to the caller's own rows) and an
+// administrator's through AdminTestsController (new versions only).
 //
 // Scope is applied to the QUERY, not checked after loading, so an out-of-scope id simply doesn't
 // match and reads as NotFound — the test's existence is never disclosed.
@@ -26,13 +27,17 @@ public class TestsController : ControllerBase
     private readonly AutorepDbContext _db;
     private readonly IPdfStore _store;
     private readonly PulsationAttachments _attachments;
+    private readonly AdminVersioning _versioning;
     private readonly ILogger<TestsController> _log;
 
-    public TestsController(AutorepDbContext db, IPdfStore store, PulsationAttachments attachments, ILogger<TestsController> log)
+    public TestsController(
+        AutorepDbContext db, IPdfStore store, PulsationAttachments attachments, AdminVersioning versioning,
+        ILogger<TestsController> log)
     {
         _db = db;
         _store = store;
         _attachments = attachments;
+        _versioning = versioning;
         _log = log;
     }
 
@@ -55,9 +60,22 @@ public class TestsController : ControllerBase
         // The Final Report as the tester signed it off, when the device has sent it (see
         // FinalReportsController): the view offers it beside the regenerated download. Null for a
         // test signed off before reports were stored, or whose device hasn't synced since.
-        StoredFinalReportDto? FinalReport = null);
+        StoredFinalReportDto? FinalReport = null,
+        int Version = 1,
+        // Administrators only (null for a tester): what this viewer may change if they edit it as a
+        // new version ("full" or "summary"; null when they can't), why they can't, the test's current
+        // version when this one has been replaced, and the tester's unfinished new version of it.
+        string? EditScope = null,
+        string? EditBlocked = null,
+        Guid? LatestId = null,
+        int? LatestVersion = null,
+        TestsController.DraftDto? Draft = null);
 
     public record StoredFinalReportDto(DateTimeOffset StoredAt, long SizeBytes);
+
+    /// <summary>The tester's unfinished new version of a test: an administrator's edit is combined
+    /// with it when the tester signs it off.</summary>
+    public record DraftDto(int Version, DateTimeOffset StartedAt);
 
     /// <summary>A row of the Company tests list. Header fields only — no PayloadJson (it carries
     /// the whole capture including a base64 pulsation PDF, so a page of them would be hundreds of
@@ -105,6 +123,23 @@ public class TestsController : ControllerBase
             ? PulsationPayload.WithoutBytes(test.PayloadJson)
             : await _attachments.RehydrateAsync(test.PayloadJson, test.TesterId, PulsationAttachments.ClientIdOf(test), ct);
 
+        // An administrator's view says whether — and how far — they can edit this as a new version.
+        // The same scoping as the read: a Company Administrator only ever reaches their own company's.
+        string? editScope = null, editBlocked = null;
+        MachineTest? latest = null;
+        DraftDto? draft = null;
+        var superAdmin = User.IsInRole(Roles.SuperAdministrator);
+        if (superAdmin || User.IsInRole(Roles.CompanyAdministrator))
+        {
+            var state = await _versioning.StateAsync(test, ct);
+            editBlocked = state.Blocked;
+            editScope = state.Blocked is null
+                ? superAdmin ? AdminVersioning.EditScope.Full : AdminVersioning.EditScope.Summary
+                : null;
+            if (state.Head is { } head && head.Id != test.Id) latest = head;
+            if (state.Draft is { } d) draft = new DraftDto(d.Version, d.CreatedAt);
+        }
+
         Response.Headers.CacheControl = "no-store";
         return Ok(new TestViewDto(
             test.Id,
@@ -117,7 +152,13 @@ public class TestsController : ControllerBase
             test.TesterId == me,
             company?.Name,
             LogoImage.DataUrl(company?.LogoData, company?.LogoContentType),
-            finalReport));
+            finalReport,
+            test.Version,
+            editScope,
+            editBlocked,
+            latest?.Id,
+            latest?.Version,
+            draft));
     }
 
     // The Final Report as the tester signed it off — what the farmer was given — for anyone who can
