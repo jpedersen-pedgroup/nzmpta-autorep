@@ -36,8 +36,9 @@ public class IndexModel : PageModel
         // Due before today. A company admin without a company has no tests to be overdue.
         if (isSuper || me?.TestingCompanyId is not null)
         {
-            var overdue = Tests.UpcomingModel.Query(_db, me?.TestingCompanyId, NzTime.Today.AddDays(-1));
-            OverdueTestCount = await overdue.Select(r => r.FarmId).Distinct().CountAsync();
+            OverdueTestCount = await Tests.UpcomingModel
+                .DueFarmIds(_db, me?.TestingCompanyId, NzTime.Today.AddDays(-1))
+                .Distinct().CountAsync();
         }
     }
 }
