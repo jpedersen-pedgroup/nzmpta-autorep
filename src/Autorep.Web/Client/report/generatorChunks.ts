@@ -26,18 +26,43 @@ export interface PdfMakeModules {
   vfs: unknown;
 }
 
+/** pdfmake and its fonts have loaded in this page — importing them again needs no network. */
+let pdfMakeLoaded = false;
+
 export async function loadPdfMake(): Promise<PdfMakeModules> {
   try {
     const [pdfMakeModule, vfsModule] = await Promise.all([
       import("pdfmake/build/pdfmake"),
       import("pdfmake/build/vfs_fonts"),
     ]);
+    pdfMakeLoaded = true;
     return {
       pdfMake: (pdfMakeModule as { default?: unknown }).default ?? pdfMakeModule,
       vfs: (vfsModule as { default?: unknown }).default ?? vfsModule,
     };
   } catch {
     throw new ReportGeneratorUnavailableError();
+  }
+}
+
+/**
+ * Whether a report can be laid out now without touching the network: pdfmake and its fonts are
+ * loaded in this page already, or the service worker holds their chunks. For work nobody asked for
+ * at that moment (capturing the Final Report at sign-off), ask this first: a dynamic import that
+ * fails — no signal, chunks never cached — stays failed for the life of the page, so trying would
+ * leave Download report broken here even after the signal came back.
+ */
+export async function reportGeneratorOnDevice(): Promise<boolean> {
+  if (pdfMakeLoaded) return true;
+  try {
+    if (typeof caches === "undefined") return false;
+    const paths: string[] = [];
+    for (const name of await caches.keys()) {
+      for (const request of await (await caches.open(name)).keys()) paths.push(new URL(request.url).pathname);
+    }
+    return ["/chunks/pdfmake-", "/chunks/vfs_fonts-"].every((chunk) => paths.some((p) => p.includes(chunk)));
+  } catch {
+    return false;
   }
 }
 
@@ -70,6 +95,7 @@ export async function warmReportGenerator(): Promise<boolean> {
       import("pdfmake/build/vfs_fonts"),
       import("pdf-lib"),
     ]);
+    pdfMakeLoaded = true;
     return true;
   } catch {
     // Offline, or the fetch failed. Nothing to do — the next successful sync tries again.

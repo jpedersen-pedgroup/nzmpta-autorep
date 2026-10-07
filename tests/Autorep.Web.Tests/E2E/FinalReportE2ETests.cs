@@ -157,6 +157,80 @@ public class FinalReportE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAsyn
         Assert.Empty(await CacheProblemsAsync(admin, [OfflineE2EWebAppFactory.TesterName, OfflineE2EWebAppFactory.RimuFarm]));
     }
 
+    /// <summary>The report the device captured at sign-off for a test, base64 (null when none).</summary>
+    private static Task<string?> CapturedOnDeviceAsync(IPage page, string testerId, string testId) =>
+        page.EvaluateAsync<string?>(@"async ([testerId, testId]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(null);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    const get = db.transaction('reference').objectStore('reference').get('finalReport:' + testId);
+                    get.onsuccess = () => {
+                        db.close();
+                        const bytes = get.result?.rows?.captured;
+                        if (!bytes) { resolve(null); return; }
+                        let binary = '';
+                        for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+                        resolve(btoa(binary));
+                    };
+                    get.onerror = () => { db.close(); resolve(null); };
+                };
+            })", new[] { testerId, testId });
+
+    // The device that has synced before holds the generator, so signing off with no signal captures
+    // the report there and then — from the standards and letterhead of that moment — and that copy,
+    // not one made after reconnecting, is what the server keeps.
+    [Fact]
+    public async Task A_report_signed_off_with_no_signal_is_captured_there_and_that_copy_is_what_lands()
+    {
+        var (context, page) = await TesterOnlineAndReadyAsync();
+        await using var _ = context;
+        await page.GotoAsync("/App/Tests");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Sync now" }).ClickAsync();
+        Assert.True(await PollAsync(page, @"async () => {
+                const keys = [];
+                for (const name of await caches.keys()) {
+                    for (const r of await (await caches.open(name)).keys()) keys.push(new URL(r.url).pathname);
+                }
+                return ['/chunks/pdfmake-', '/chunks/vfs_fonts-'].every((c) => keys.some((k) => k.includes(c)));
+            }", timeoutMs: 60_000), "the report generator was never warmed after the sync");
+        Assert.True(await PollAsync(page, @"async ([testerId, farm]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains('reference')) { db.close(); resolve(false); return; }
+                    const get = db.transaction('reference').objectStore('reference').get('farms');
+                    get.onsuccess = () => { db.close(); resolve((get.result?.rows ?? []).some((f) => f.name === farm)); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })", new[] { _factory.TesterId, OfflineE2EWebAppFactory.RimuFarm }), "the farm book never reached the device");
+
+        await context.SetOfflineAsync(true);
+        _factory.NetworkDown = true;
+        var testId = await StartTestAsync(page);
+        await SignOffAsync(page);
+
+        string? captured = null;
+        for (var i = 0; i < 150 && captured is null; i++)
+        {
+            captured = await CapturedOnDeviceAsync(page, _factory.TesterId, testId);
+            if (captured is null) await Task.Delay(200);
+        }
+        Assert.True(captured is not null, "signing off offline didn't capture the report on the device");
+
+        _factory.NetworkDown = false;
+        await context.SetOfflineAsync(false);
+
+        var stored = await StoredReportAsync(testId);
+        Assert.True(stored is not null, "the captured report never reached the server after reconnecting");
+        // No analyser PDF on this test, so the captured pages are the whole report.
+        Assert.Equal(Convert.FromBase64String(captured!), StoredBytes(stored!.Value.Record));
+    }
+
+    // A device that has never synced doesn't hold the generator, and sign-off never downloads it
+    // (with no signal that would break it for the rest of the page): the report is made when it's
+    // sent instead, and still lands.
     [Fact]
     public async Task A_report_signed_off_with_no_signal_waits_on_the_device_and_lands_after_reconnecting()
     {
