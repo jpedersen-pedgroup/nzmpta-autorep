@@ -180,7 +180,7 @@ describe("buildTestSummaryDoc", () => {
       {
         version: 2,
         amendedAt: "2026-10-06T00:00:00.000Z",
-        amendedBy: "sam@nzmpta",
+        amendedBy: "sam@milkpumping.co.nz",
         amendedByName: "Sam Superadmin",
         amendedByRole: "Super Administrator",
         reason: "Wording corrected for the farmer",
@@ -551,7 +551,7 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(json).toContain("Alan Tester");
     expect(json).toContain("Sample Testing Co. Ltd");
     expect(json).toContain("Phone 021 752 097");
-    expect(json).toContain("NZMPTA registration 594 · expires 31/10/2026");
+    expect(json).toContain("MPNZ registration 594 · expires 31/10/2026");
   });
 
   it("prefers the tester stamped on the test over any fallback, and leaves unknown lines off", () => {
@@ -561,7 +561,7 @@ describe("buildTestSummaryDoc — layout", () => {
     expect(json).toContain("Original Tester");
     expect(json).not.toContain("Someone Else");
     expect(json).not.toContain("Phone ");
-    expect(json).not.toContain("NZMPTA registration");
+    expect(json).not.toContain("MPNZ registration");
 
     // Unstamped: the fallback names them.
     expect(JSON.stringify(buildTestSummaryDoc(sampleTest(), undefined, undefined, { name: "Fallback Tester" }).content))
@@ -615,9 +615,9 @@ describe("buildTestSummaryDoc — layout", () => {
     for (const page of [1, 2, 4]) {
       const json = JSON.stringify(footer(page, 4));
       expect(json).toContain(`Page ${page} of 4`);
-      expect(json).toContain("New Zealand Milking and Pumping Trade Association");
+      expect(json).toContain("MPNZ. All rights reserved.");
     }
-    expect(copyrightNotice(2026)).toBe("© 2026 New Zealand Milking and Pumping Trade Association. All rights reserved.");
+    expect(copyrightNotice(2026)).toBe("© 2026 MPNZ. All rights reserved.");
   });
 
   it("prints the disclaimer on every report: clean, draft and migrated", () => {

@@ -6,10 +6,12 @@ param environment = 'staging'
 // `az account list-locations --query "[?metadata.regionCategory=='Recommended'].name" -o tsv | grep -i zealand`
 param location = 'newzealandnorth'
 
+// Staging was built before NZMPTA became MPNZ and keeps its nzmpta resource names and URL for now.
+// Changing this would deploy a second, empty set of resources, not rename the existing ones.
 param namingPrefix = 'nzmpta-autorep'
 
 param tags = {
-  Project: 'NZMPTA AutoRep'
+  Project: 'MPNZ AutoRep'
   Environment: 'staging'
   Owner: 'Pedersen Group'
   ManagedBy: 'Bicep'

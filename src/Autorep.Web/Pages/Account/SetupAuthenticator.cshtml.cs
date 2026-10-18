@@ -145,7 +145,7 @@ public class SetupAuthenticatorModel : PageModel
         SharedKey = FormatKey(key!);
         AuthenticatorUri = string.Format(
             AuthenticatorUriFormat,
-            _urlEncoder.Encode("NZMPTA AutoRep"),
+            _urlEncoder.Encode("MPNZ AutoRep"),
             _urlEncoder.Encode(user.Email!),
             key);
 

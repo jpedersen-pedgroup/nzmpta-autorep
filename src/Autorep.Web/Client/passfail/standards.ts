@@ -1,5 +1,5 @@
 // Test-Record reading definitions + the standards that drive their pass/fail rules.
-// Thresholds verified 10 Jun 2026 against the NZMPTA Milking Machine Testing Standards Manual
+// Thresholds verified 10 Jun 2026 against the MPNZ Milking Machine Testing Standards Manual
 // ("manual", page refs) and ISO 6690:2007 Annex D ("ISO") — see plans/reference/standards-audit.md.
 // Later phases move these standards to admin-managed reference data synced into IndexedDB.
 import type { MachineConfiguration } from "../wizard/types";
@@ -120,7 +120,7 @@ function oemHint(pump: VacuumPumpModel, rpm: number | undefined): string {
 }
 
 /** Test Record readings — the full ISO numerical workflow groups 1–9, each reading tagged with its
- * flowchart ref (1a…9b). Rules verified against the NZMPTA manual + ISO 6690 Annex D; `readings`
+ * flowchart ref (1a…9b). Rules verified against the MPNZ manual + ISO 6690 Annex D; `readings`
  * feeds the standards that depend on other entered values (manual reserve, working vacuum, the
  * atmospheric correction). Section keys mirror the WizardStepResolver. */
 export function testRecordSections(
@@ -489,7 +489,7 @@ export function airflowSections(
   return sections;
 }
 
-/** Additional Tests — the unnumbered per-ancillary checks that follow the ISO flowchart (NZMPTA's
+/** Additional Tests — the unnumbered per-ancillary checks that follow the ISO flowchart (MPNZ's
  * separate "Additional Tests" flowchart), gated by the machine's ancillaries, mirroring the
  * resolver. Limits verified against manual p41 / p61. */
 export function additionalTestSections(

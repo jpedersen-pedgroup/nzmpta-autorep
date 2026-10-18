@@ -1,5 +1,5 @@
 // =============================================================================
-// NZMPTA AutoRep — Core Azure Infrastructure
+// MPNZ AutoRep — Core Azure Infrastructure
 // =============================================================================
 //
 // Orchestrates: VNet + subnets, Private DNS Zones, Log Analytics + App Insights,
@@ -25,7 +25,7 @@ param environment string
 param location string = resourceGroup().location
 
 @description('Naming prefix for resources. Final names = {abbrev}-{namingPrefix}-{environment}.')
-param namingPrefix string = 'nzmpta-autorep'
+param namingPrefix string = 'mpnz-autorep'
 
 @description('Tags applied to every resource')
 param tags object

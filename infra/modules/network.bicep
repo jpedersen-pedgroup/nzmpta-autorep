@@ -4,7 +4,7 @@
 @description('Azure region')
 param location string
 
-@description('Resource base name (e.g. nzmpta-autorep-prod)')
+@description('Resource base name (e.g. mpnz-autorep-prod)')
 param resourceBase string
 
 @description('Tags')

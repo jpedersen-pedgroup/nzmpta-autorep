@@ -103,7 +103,7 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
 
         await page.GetByRole(AriaRole.Button, new() { Name = "Edit as a new version" }).ClickAsync();
         await Step(page, "Fault Summary & Recommendations").ClickAsync();
-        await page.FillAsync("#fault-notes", "Corrected by NZMPTA after the farmer's call");
+        await page.FillAsync("#fault-notes", "Corrected by MPNZ after the farmer's call");
         await page.FillAsync("#edit-reason", "Farmer rang with the right figures");
         await ShotAsync(page, "o2-super-admin-editing");
         await page.GetByRole(AriaRole.Button, new() { Name = "Save as version 2" }).ClickAsync();
@@ -131,7 +131,7 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         Assert.Equal(2, version.Version);
         Assert.Equal(_factory.TesterId, version.TesterId);
         Assert.Equal(_factory.AdminId, version.AuthorId);
-        Assert.Equal("Corrected by NZMPTA after the farmer's call", version.Notes);
+        Assert.Equal("Corrected by MPNZ after the farmer's call", version.Notes);
         var record = JsonNode.Parse(version.PayloadJson!)!["amendments"]!.AsArray().Single()!;
         Assert.Equal("Farmer rang with the right figures", record["reason"]!.GetValue<string>());
         Assert.Contains(record["changes"]!.AsArray(), c => c!["label"]!.GetValue<string>() == "General comments");
@@ -143,7 +143,7 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         await page.GetByText("Version 1 has been replaced by version 2").WaitForAsync();
     }
 
-    // O3's leftover: the analyser PDF that arrived after the visit, attached by NZMPTA as part of a new
+    // O3's leftover: the analyser PDF that arrived after the visit, attached by MPNZ as part of a new
     // version of the test.
     [Fact]
     public async Task A_super_admin_attaches_the_analyser_pdf_as_part_of_a_new_version()
@@ -238,7 +238,7 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         await rows.GetByRole(AriaRole.Button, new() { Name = "Edit" }).WaitForAsync();
 
         // An administrator edits the test online meanwhile.
-        var adminVersion = await SaveAdminVersionAsync(testId, p => p["notes"] = "Comment corrected by NZMPTA");
+        var adminVersion = await SaveAdminVersionAsync(testId, p => p["notes"] = "Comment corrected by MPNZ");
 
         await page.GetByRole(AriaRole.Button, new() { Name = "Sync now" }).ClickAsync();
         var original = rows.Filter(new() { HasText = "superseded" });
@@ -251,7 +251,7 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
 
         var stored = JsonDocument.Parse((await LocalTestJsonAsync(page, _factory.TesterId, adminVersion.ToString()))!).RootElement;
         Assert.Equal(clientId.ToString(), stored.GetProperty("supersedesId").GetString());
-        Assert.Equal("Comment corrected by NZMPTA", stored.GetProperty("notes").GetString());
+        Assert.Equal("Comment corrected by MPNZ", stored.GetProperty("notes").GetString());
 
         // The original opens read-only; the new version says who made it and why.
         await page.GotoAsync($"/App/Tests/Wizard?id={clientId}");
@@ -260,7 +260,7 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         await page.Locator("[data-version-note=admin]", new() { HasText = $"made by {AdminEditE2EWebAppFactory.AdminName} (Super Administrator)" }).WaitForAsync();
     }
 
-    // PRD story 70: NZMPTA deletes a test (with a reason) and it leaves the tester's device at the next
+    // PRD story 70: MPNZ deletes a test (with a reason) and it leaves the tester's device at the next
     // sync — said out loud, not silently.
     [Fact]
     public async Task A_soft_deleted_test_leaves_the_testers_device()
@@ -319,7 +319,7 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
                 ["text"] = "I have inspected all items on this page and confirm they have been seen, tested and are in order.",
             });
         });
-        // The tester has started a new version of their own (synced, unfinished) when NZMPTA saves its
+        // The tester has started a new version of their own (synced, unfinished) when MPNZ saves its
         // edit: the two collide, and the collision is on file from the save.
         await WithDbAsync(async db =>
         {

@@ -1,4 +1,4 @@
-// What this device knows about tests NZMPTA has soft-deleted (PRD story 70). A deleted test reaches
+// What this device knows about tests MPNZ has soft-deleted (PRD story 70). A deleted test reaches
 // the device as a tombstone in the pull (sync/syncClient.ts):
 //  - a copy the server already has is removed from the device, and noted here so My tests can say
 //    what went and why — a test vanishing without a word would look like lost work;
@@ -8,7 +8,7 @@
 // never rewrites the record the wizard may be saving at that same moment.
 import { getReference, putReference } from "../db/testStore";
 
-/** A test removed from this device because NZMPTA deleted it. */
+/** A test removed from this device because MPNZ deleted it. */
 export interface RemovedTest {
   id: string;
   farmName: string;
@@ -19,7 +19,7 @@ export interface RemovedTest {
   hadUnsentChanges: boolean;
 }
 
-/** When and why NZMPTA deleted a test this device still holds. */
+/** When and why MPNZ deleted a test this device still holds. */
 export interface Deletion {
   at: string | null;
   reason: string | null;
@@ -50,7 +50,7 @@ export async function clearRemoved(): Promise<void> {
   await putReference({ key: REMOVED_KEY, rows: [] });
 }
 
-/** Tests on this device that NZMPTA has deleted, kept because they hold unsent edits, by id. */
+/** Tests on this device that MPNZ has deleted, kept because they hold unsent edits, by id. */
 export function deletedOnServer(): Promise<Record<string, Deletion>> {
   return read<Record<string, Deletion>>(DELETED_KEY, {});
 }

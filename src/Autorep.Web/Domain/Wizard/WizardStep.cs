@@ -2,7 +2,7 @@ namespace Autorep.Web.Domain.Wizard;
 
 /// <summary>
 /// The top-level steps of the Tester wizard. Declaration order is NOT the wizard order — the
-/// resolver owns that (it follows the NZMPTA ISO flowchart: vacuum 1–9, airflow 10–12, individual
+/// resolver owns that (it follows the MPNZ ISO flowchart: vacuum 1–9, airflow 10–12, individual
 /// cluster 13, pulsation 14–15, then the unnumbered additional tests). Names are the contract:
 /// a test's current step is persisted by name on devices and in the payload, so never rename one.
 /// </summary>

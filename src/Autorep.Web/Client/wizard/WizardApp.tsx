@@ -212,7 +212,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
   // The other tests on this device — this test's other versions among them — for the notices about
   // an edit made elsewhere. Empty on a server view.
   const [others, setOthers] = useState<LocalTest[]>([]);
-  // On a tester's device: NZMPTA deleted this test, and it's still here because it holds unsent edits.
+  // On a tester's device: MPNZ deleted this test, and it's still here because it holds unsent edits.
   const [deletion, setDeletion] = useState<Deletion | null>(null);
   const [adminEdit, setAdminEdit] = useState<AdminEdit | null>(null);
   const [editReason, setEditReason] = useState("");

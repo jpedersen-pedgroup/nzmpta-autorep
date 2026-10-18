@@ -7,11 +7,11 @@ using Autorep.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Nzmpta.AutoRep.Migration.Mapping;
-using Nzmpta.AutoRep.Migration.Source;
-using Nzmpta.AutoRep.Migration.Util;
+using Mpnz.AutoRep.Migration.Mapping;
+using Mpnz.AutoRep.Migration.Source;
+using Mpnz.AutoRep.Migration.Util;
 
-namespace Nzmpta.AutoRep.Migration.Pipeline;
+namespace Mpnz.AutoRep.Migration.Pipeline;
 
 /// <summary>
 /// Migrates the legacy AutoRep DB into the new EF schema in FK order
@@ -170,7 +170,7 @@ public sealed class MigrationRunner
             {
                 // The logo prints on reports, which can only draw PNG, JPEG and SVG — the same rule
                 // as an admin upload. Typed by its bytes (the legacy label defaults to PNG); any
-                // other format is left off and listed, so NZMPTA knows which companies need a new one.
+                // other format is left off and listed, so MPNZ knows which companies need a new one.
                 var (bytes, _) = DecodeImage(img);
                 var type = bytes is null ? null : LogoImage.Sniff(bytes);
                 if (bytes is null) q.Add("Companies", cid.ToString(), "TestingCompany", "logo_decode_failed", "info");

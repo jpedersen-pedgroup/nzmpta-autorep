@@ -2,7 +2,7 @@ namespace Autorep.Web.Domain.Entities;
 
 /// <summary>
 /// A dairy processor that a Farm supplies (e.g. Fonterra, Synlait). Reference data,
-/// managed by the NZMPTA Super-Administrator. Distinct from a Testing Company.
+/// managed by the MPNZ Super-Administrator. Distinct from a Testing Company.
 /// </summary>
 public class MilkSupplyCompany
 {

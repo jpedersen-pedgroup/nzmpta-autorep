@@ -1,4 +1,4 @@
-// Caches the signed-in tester's own details from /api/profile/tester (name, phone, NZMPTA
+// Caches the signed-in tester's own details from /api/profile/tester (name, phone, MPNZ
 // registration number and expiry) so the report can name who did the test, and give the farmer a
 // number to call, when it's generated offline on-farm. Read-only on the device: an admin maintains
 // them. Refreshed on app load and each sync; offline, the last-known details stay in effect.

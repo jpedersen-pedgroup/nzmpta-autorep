@@ -29,7 +29,7 @@ public class GuidesController : ControllerBase
         // from that viewer suggests.
         Response.Headers[HeaderNames.ContentDisposition] = new ContentDispositionHeaderValue("inline")
         {
-            FileName = $"NZMPTA AutoRep {guide.Title} v{guide.Version}.pdf"
+            FileName = $"MPNZ AutoRep {guide.Title} v{guide.Version}.pdf"
         }.ToString();
         // Private: an admin guide must not sit in a shared proxy. no-cache: always revalidate, which
         // the ETag below turns into a cheap 304 — that is how a new version reaches devices.

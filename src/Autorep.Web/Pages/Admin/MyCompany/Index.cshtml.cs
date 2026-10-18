@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Autorep.Web.Pages.Admin.MyCompany;
 
-// "My company" — the Company Administrator's own Testing Company: its details (read-only; NZMPTA
+// "My company" — the Company Administrator's own Testing Company: its details (read-only; MPNZ
 // maintains them) and the report logo, which the Company Administrator manages themselves. The
 // logo follows the same rules as the Super-Admin company editor (LogoImage: PNG, JPEG or SVG,
 // judged by its bytes, up to 1 MB) and reaches devices through the company branding sync.

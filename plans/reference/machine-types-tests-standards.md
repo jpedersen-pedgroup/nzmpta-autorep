@@ -2,7 +2,7 @@
 
 > Snapshot 10 Jun 2026. This document is a human-readable view of data that lives in the app —
 > the **source of truth is the files/tables cited in §1**, so regenerate/update this doc when
-> they change. Standards were verified against the NZMPTA Testing Standards Manual + ISO
+> they change. Standards were verified against the MPNZ Testing Standards Manual + ISO
 > 6690:2007 on 10 Jun 2026 — full audit trail in [standards-audit.md](standards-audit.md).
 
 ## 1. Where each kind of data lives
@@ -14,7 +14,7 @@
 | Option lists (milkline sizes, configs, atmos pressures) | `Client/reference/lookups.ts` | legacy `Lookup` / `AtmosPressure` | same as above |
 | Standard fault wording per visual check | `Client/reference/faultObservations.json` | legacy `Lookup` (92 categories) | admin-managed |
 | Fault severity + recommendations | `Client/reference/faultRatings.ts` | CMM Ratings catalog (113 rows) | admin-managed |
-| Pass/fail standards (thresholds & formulas) | `Client/passfail/standards.ts` + `pulsatorStats.ts` (code, pinned by 44 tests) | NZMPTA manual + ISO 6690 | admin-managed reference data |
+| Pass/fail standards (thresholds & formulas) | `Client/passfail/standards.ts` + `pulsatorStats.ts` (code, pinned by 44 tests) | MPNZ manual + ISO 6690 | admin-managed reference data |
 | Full test capture | IndexedDB → `MachineTests.PayloadJson` (server) | tester entry | as-is |
 
 So: the **catalogs** are data (bundled JSON seeded from the legacy DB — not yet admin-editable
@@ -108,7 +108,7 @@ All verified 10 Jun 2026 (manual + ISO page refs in [standards-audit.md](standar
 | Check | Standard |
 |---|---|
 | rate spread (fastest − slowest pulsator, off the analyser) | ≤ 6 ppm |
-| ratio variation between pulsators (highest − lowest, off the analyser) | ≤ 5% — the app pools front and back as legacy did; whether NZMPTA reads it per quarter group (front vs front, back vs back — front/back may differ by design) is an open question in the tester-feedback plan |
+| ratio variation between pulsators (highest − lowest, off the analyser) | ≤ 5% — the app pools front and back as legacy did; whether MPNZ reads it per quarter group (front vs front, back vs back — front/back may differ by design) is an open question in the tester-feedback plan |
 | limping (within cluster) | ≤ 5% |
 | phase b | ≥ 30% |
 | phase d | ≥ 150 ms |
@@ -135,4 +135,4 @@ All verified 10 Jun 2026 (manual + ISO page refs in [standards-audit.md](standar
 Per-model pulsator bands · OEM pump capacity/speed/exhaust tables (manual pages are image-only
 scans) · releaser model speed/power + diaphragm dead-end ≥ 85 kPa · vented-liner CAA relief
 (−8 L/min/cluster on reserve fail) · safety-valve activation check · 6a/6b + 15b acceptance
-limits (confirm with NZMPTA) · row-table failures → Fault Summary.
+limits (confirm with MPNZ) · row-table failures → Fault Summary.

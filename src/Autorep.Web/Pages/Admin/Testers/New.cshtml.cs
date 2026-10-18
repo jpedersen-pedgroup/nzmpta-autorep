@@ -78,9 +78,9 @@ public class NewModel : PageModel
         var resetUrl = Url.Page("/Account/ResetPassword", null,
             new { email = user.Email, token }, Request.Scheme);
         await _email.SendEmailAsync(user.Email!,
-            "Welcome to NZMPTA AutoRep — set your password",
+            "Welcome to MPNZ AutoRep — set your password",
             $"<p>Hi {user.DisplayName},</p>" +
-            $"<p>An NZMPTA AutoRep account has been created for you. Click the link below to set your password and sign in.</p>" +
+            $"<p>An MPNZ AutoRep account has been created for you. Click the link below to set your password and sign in.</p>" +
             $"<p><a href=\"{resetUrl}\">Set your password</a></p>");
 
         return RedirectToPage("/Admin/Testers/Index");

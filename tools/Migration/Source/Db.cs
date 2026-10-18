@@ -1,7 +1,7 @@
 using System.Globalization;
 using Microsoft.Data.SqlClient;
 
-namespace Nzmpta.AutoRep.Migration.Source;
+namespace Mpnz.AutoRep.Migration.Source;
 
 /// <summary>Minimal read-only ADO helpers for the legacy source DB. DBNull is normalised to null
 /// at read time, so callers work with plain <c>object?</c> values.</summary>

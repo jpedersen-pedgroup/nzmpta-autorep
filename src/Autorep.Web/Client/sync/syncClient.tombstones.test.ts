@@ -5,7 +5,7 @@ import { syncAll } from "./syncClient";
 import { deletedOnServer, removedTests } from "./removals";
 import { defaultMachineConfiguration } from "../wizard/types";
 
-// PRD story 70 on the device: a test NZMPTA soft-deleted arrives as a tombstone in the pull. A copy the
+// PRD story 70 on the device: a test MPNZ soft-deleted arrives as a tombstone in the pull. A copy the
 // server already has is removed (and the tester told); a copy holding unsent edits is never deleted —
 // it's flagged, still sent (the server keeps it with the deleted test), and removed once it's clean.
 

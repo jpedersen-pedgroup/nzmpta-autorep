@@ -85,7 +85,7 @@ export function renderShellPage(identity: IdentityRecord | null): ShellRoute | n
   if (!main) return null;
   main.replaceChildren();
   const show = (title: string, notice: JSX.Element) => {
-    document.title = `${title} · NZMPTA AutoRep`;
+    document.title = `${title} · MPNZ AutoRep`;
     render(notice, main);
     return null;
   };
@@ -112,12 +112,12 @@ export function renderShellPage(identity: IdentityRecord | null): ShellRoute | n
         </Notice>,
       );
     case "sync-only": {
-      document.title = "Send your tests · NZMPTA AutoRep";
+      document.title = "Send your tests · MPNZ AutoRep";
       render(
         <div class="card" style="max-width:640px;margin:0 auto">
           <h1 style="margin-top:0">Your licence has expired</h1>
           <p>
-            You can't start new tests until NZMPTA renews your licence. Tests already saved on this device are
+            You can't start new tests until MPNZ renews your licence. Tests already saved on this device are
             listed below — connect to send them.
           </p>
         </div>,
@@ -159,6 +159,6 @@ export function renderShellPage(identity: IdentityRecord | null): ShellRoute | n
         </Notice>,
       );
   }
-  document.title = `${TITLES[route]} · NZMPTA AutoRep`;
+  document.title = `${TITLES[route]} · MPNZ AutoRep`;
   return route;
 }

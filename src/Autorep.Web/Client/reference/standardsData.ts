@@ -49,7 +49,7 @@ export interface MilkPumpModel {
 
 /** Required receiver reserve by milkline diameter × working-vacuum band (legacy `ReserveReceiver`).
  * Not wired: this looks like the 6b (reserve off cluster) standard, but the audit's open question
- * on 6a/6b acceptance limits is unresolved — confirm with NZMPTA before turning it into a rule. */
+ * on 6a/6b acceptance limits is unresolved — confirm with MPNZ before turning it into a rule. */
 export interface ReceiverReserveRow {
   milklineDiameter: number;
   workingVacuum: string;

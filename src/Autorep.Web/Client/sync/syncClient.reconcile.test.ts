@@ -41,7 +41,7 @@ function adminVersion(id: string, version: number, supersedes: string, notes: st
     supersedesId: supersedes,
     notes,
     markedCompleteAt: "2026-10-06T00:00:00.000Z",
-    amendments: [{ version, amendedAt: "2026-10-06T00:00:00.000Z", amendedByRole: "Super Administrator", amendedBy: "sam@nzmpta", baseVersion: version - 1, changes: [] }],
+    amendments: [{ version, amendedAt: "2026-10-06T00:00:00.000Z", amendedByRole: "Super Administrator", amendedBy: "sam@milkpumping.co.nz", baseVersion: version - 1, changes: [] }],
   };
 }
 

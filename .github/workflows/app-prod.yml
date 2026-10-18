@@ -217,13 +217,13 @@ jobs:
       - name: Deploy to App Service (prod)
         uses: azure/webapps-deploy@v3
         with:
-          app-name: app-nzmpta-autorep-prod
+          app-name: app-mpnz-autorep-prod
           package: ./publish
 
       - name: Health check
         run: |
           sleep 30
-          URL="https://app-nzmpta-autorep-prod.azurewebsites.net/health"
+          URL="https://app-mpnz-autorep-prod.azurewebsites.net/health"
           for i in 1 2 3 4 5 6; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
             echo "Attempt $i: $URL → $STATUS"

@@ -589,7 +589,7 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         {
             await page.GotoAsync(path);
             Assert.False(await IsShellAsync(page), $"{path} must not be served from the shell");
-            Assert.Equal("Offline · NZMPTA AutoRep", await page.TitleAsync());
+            Assert.Equal("Offline · MPNZ AutoRep", await page.TitleAsync());
         }
     }
 }
