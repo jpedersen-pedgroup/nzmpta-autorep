@@ -39,6 +39,9 @@ param sqlServerFqdn string
 @description('SQL database name')
 param sqlDatabaseName string
 
+@description('Mailbox the app sends email from via Microsoft Graph (Graph:SendingMailbox). Empty leaves the setting out: prod reads it from Key Vault.')
+param graphSendingMailbox string = ''
+
 var planConfig = {
   staging: {
     skuName: 'B1'
@@ -91,7 +94,9 @@ resource appService 'Microsoft.Web/sites@2024-04-01' = {
       vnetRouteAllEnabled: true
       use32BitWorkerProcess: false
       healthCheckPath: '/health'
-      appSettings: [
+      // This list replaces the site's app settings on every deploy, so a setting added by hand in
+      // the portal is removed by the next infra run. Anything the app needs belongs here.
+      appSettings: concat([
         {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: appInsightsConnectionString
@@ -124,7 +129,12 @@ resource appService 'Microsoft.Web/sites@2024-04-01' = {
           name: 'ConnectionStrings__SqlDatabase'
           value: 'Server=tcp:${sqlServerFqdn},1433;Database=${sqlDatabaseName};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
         }
-      ]
+      ], empty(graphSendingMailbox) ? [] : [
+        {
+          name: 'Graph__SendingMailbox'
+          value: graphSendingMailbox
+        }
+      ])
     }
   }
 }
