@@ -21,5 +21,5 @@ param sqlAdminLogin = 'autorep-sqladmin'
 param sqlAdminPassword = readEnvironmentVariable('SQL_ADMIN_PASSWORD')
 
 // Password reset and farm review emails. The app's managed identity holds Graph Mail.Send in the
-// Pedersen Group tenant. Interim: moves to an NZMPTA mailbox once their tenant is set up.
+// Pedersen Group tenant. Interim: moves to noreply@milkpumping.co.nz once MPNZ's tenant is set up.
 param graphSendingMailbox = 'noreply@pedersengroup.co.nz'
