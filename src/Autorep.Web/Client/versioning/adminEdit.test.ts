@@ -68,9 +68,9 @@ describe("an administrator's edit", () => {
     const base = draftFromPayload(stored(), view());
     const edited: LocalTest = { ...base, version: 3, recommendations: { "vp.wick": "Replace the wicks" } };
 
-    const record = { ...buildAmendmentRecord(base, edited, "2026-10-07T01:00:00.000Z", "sam@milkpumping.co.nz"), reason: "Wording" };
+    const record = { ...buildAmendmentRecord(base, edited, "2026-10-07T01:00:00.000Z", "sam@milkingpumping.co.nz"), reason: "Wording" };
 
-    expect(record).toMatchObject({ version: 3, baseVersion: 2, baseCompletedAt: SIGNED, amendedBy: "sam@milkpumping.co.nz", reason: "Wording" });
+    expect(record).toMatchObject({ version: 3, baseVersion: 2, baseCompletedAt: SIGNED, amendedBy: "sam@milkingpumping.co.nz", reason: "Wording" });
     expect(record.changes).toEqual([
       { section: "Recommendations", label: "Vacuum pumps (remove guard) · Wick condition", from: "Clean the wicks", to: "Replace the wicks" },
     ]);

@@ -180,7 +180,7 @@ describe("buildTestSummaryDoc", () => {
       {
         version: 2,
         amendedAt: "2026-10-06T00:00:00.000Z",
-        amendedBy: "sam@milkpumping.co.nz",
+        amendedBy: "sam@milkingpumping.co.nz",
         amendedByName: "Sam Superadmin",
         amendedByRole: "Super Administrator",
         reason: "Wording corrected for the farmer",

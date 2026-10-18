@@ -73,7 +73,7 @@
 - [ ] Resource locks on prod RG (prevent accidental deletion)
 
 ## 9. Custom domain, DNS & certificates
-- [ ] ⬜ Bind prod custom domain (e.g. `autorep.milkpumping.co.nz`) + DNS validation (README post-deploy step 3)
+- [ ] ⬜ Bind prod custom domain (e.g. `autorep.milkingpumping.co.nz`) + DNS validation (README post-deploy step 3)
 - [ ] App Service Managed Certificate issued + SNI-bound; auto-renew confirmed
 - [ ] PWA `start_url`/`scope` and manifest match the final domain; service worker re-validated on the real host
 

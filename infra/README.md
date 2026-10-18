@@ -144,12 +144,12 @@ Then connect via `sqlcmd` or Azure Data Studio over VPN/Bastion, run the SQL abo
 
 ### 3. (Prod, when ready) Add the custom domain to App Service
 
-When you've got the prod domain decided (e.g. `autorep.milkpumping.co.nz`):
+When you've got the prod domain decided (e.g. `autorep.milkingpumping.co.nz`):
 
 ```bash
 APP_NAME="app-mpnz-autorep-prod"
 RG="rg-mpnz-autorep-prod"
-DOMAIN="autorep.milkpumping.co.nz"
+DOMAIN="autorep.milkingpumping.co.nz"
 
 # 1. Add the verification TXT record on your DNS:
 #      asuid.${DOMAIN}  TXT  <value from `az webapp config hostname get-external-ip`>

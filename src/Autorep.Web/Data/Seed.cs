@@ -104,9 +104,9 @@ public static class Seed
                 + "information. Please make sure the farmer is aware of this. [DRAFT]",
             ReportFooterText =
                 "Personal information in this report is held under the Privacy Act 2020 for milking-machine "
-                + "test reporting and compliance. To access or correct it, contact privacy@milkpumping.co.nz. [DRAFT]",
-            PrivacyContactEmail = "privacy@milkpumping.co.nz",
-            PrivacyStatementUrl = "https://www.milkpumping.co.nz/privacy",
+                + "test reporting and compliance. To access or correct it, contact privacy@milkingpumping.co.nz. [DRAFT]",
+            PrivacyContactEmail = "privacy@milkingpumping.co.nz",
+            PrivacyStatementUrl = "https://www.milkingpumping.co.nz/privacy",
         });
         await db.SaveChangesAsync();
     }
