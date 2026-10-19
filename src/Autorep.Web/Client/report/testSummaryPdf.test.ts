@@ -3,6 +3,7 @@ import type { TDocumentDefinitions } from "pdfmake/interfaces";
 import {
   ANNUAL_TEST_NOTE,
   COMPLIANCE_DISCLAIMER,
+  NO_FAULTS_HEADLINE,
   NO_GENERAL_COMMENTS,
   REPORT_PARTS,
   SEVERITY_MEANING,
@@ -81,13 +82,12 @@ describe("reportDateStamp", () => {
 
   it("defaults to New Zealand time whatever the device is set to", () => {
     // The default parameter, not the device zone: a laptop left on UTC still names the file for
-    // the NZ day, and the report's Completed line agrees with it.
+    // the NZ day, and the report's Date of Test agrees with it.
     expect(reportDateStamp("2026-09-14T20:41:48.000Z")).toBe("2026-09-15");
     const t = sampleTest();
     t.markedCompleteAt = "2026-09-14T20:41:48.000Z";
     const json = JSON.stringify(buildTestSummaryDoc(t).content);
-    expect(json).toContain("Tested 15 September 2026");
-    expect(json).toContain("15/09/2026");
+    expect(json).toContain("Date of Test 15 September 2026");
   });
 
   it("falls back to the raw date for an unparseable timestamp", () => {
@@ -348,7 +348,7 @@ describe("buildTestSummaryDoc", () => {
     // A clean machine too: under its banner.
     const clean = { ...sampleTest(), visualFaults: {}, readings: {} };
     const json = JSON.stringify(buildTestSummaryDoc(clean).content);
-    expect(json.indexOf(NO_GENERAL_COMMENTS)).toBeGreaterThan(json.indexOf("No faults found"));
+    expect(json.indexOf(NO_GENERAL_COMMENTS)).toBeGreaterThan(json.indexOf(NO_FAULTS_HEADLINE));
   });
 
   it("prints a migrated test's comment in the same box, and says so when it has none", () => {
@@ -491,7 +491,7 @@ describe("buildTestSummaryDoc — layout", () => {
     t.visualFaults = { "vp.oilWater": { status: "ok" } };
     t.readings = { "tr.workingVacuum": 48 };
     const json = JSON.stringify(buildTestSummaryDoc(t).content);
-    expect(json).toContain("No faults found");
+    expect(json).toContain(NO_FAULTS_HEADLINE);
     expect(json).not.toContain("Fault summary");
   });
 
@@ -502,7 +502,7 @@ describe("buildTestSummaryDoc — layout", () => {
     const content = doc.content as unknown[];
     const pageOne = JSON.stringify(content.slice(0, content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"))));
     expect(pageOne).toContain("NEXT TEST DUE");
-    expect(pageOne).toContain("11 June 2027");
+    expect(pageOne).toContain("06/27");
     expect(pageOne).not.toContain("proposed");
   });
 
@@ -516,7 +516,7 @@ describe("buildTestSummaryDoc — layout", () => {
     // A draft amendment carries the original test's date: settled, not proposed.
     const amending = { ...draft, supersedesId: "t0", version: 2, nextTestDate: "2027-06-11" };
     const amendJson = JSON.stringify(buildTestSummaryDoc(amending).content);
-    expect(amendJson).toContain("11 June 2027");
+    expect(amendJson).toContain("06/27");
     expect(amendJson).not.toContain("proposed");
 
     // Completed with no recorded date: nothing is invented.
@@ -636,8 +636,77 @@ describe("buildTestSummaryDoc — layout", () => {
     const t = sampleTest();
     t.markedCompleteAt = null;
     const json = JSON.stringify(buildTestSummaryDoc(t).content);
-    expect(json).toContain("DRAFT");
-    expect(json).toContain("Not yet signed off");
+    expect(json).toContain("DRAFT — not yet signed off");
+    expect(json).not.toContain("Date of Test");
+  });
+
+  it("dates the test by the original test, not when it was completed or amended", () => {
+    // No separate completed date and time any more: the title line's Date of Test is the one date.
+    const t = sampleTest();
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(json).toContain("Date of Test 11 June 2026");
+    expect(json).not.toContain("COMPLETED");
+
+    // Version 2, signed off months later: still the day the machine was tested.
+    const amended: LocalTest = {
+      ...sampleTest(),
+      version: 2,
+      supersedesId: "t0",
+      markedCompleteAt: "2026-09-01T00:00:00.000Z",
+      amendments: [{ version: 2, amendedAt: "2026-09-01T00:00:00.000Z", baseVersion: 1, baseCompletedAt: "2026-06-11T00:00:00.000Z", changes: [] }],
+    };
+    const amendedJson = JSON.stringify((buildTestSummaryDoc(amended).content as unknown[]).slice(0, 2));
+    expect(amendedJson).toContain("Date of Test 11 June 2026");
+    expect(amendedJson).toContain("Version 2");
+  });
+
+  it("closes the Test panel with the next test due, small, after the calibration dates", () => {
+    const t = sampleTest();
+    t.nextTestDate = "2027-06-11";
+    const content = buildTestSummaryDoc(t).content as unknown[];
+    const pageOne = JSON.stringify(content.slice(0, content.findIndex((n) => JSON.stringify(n).includes("Machine configuration"))));
+    expect(pageOne.indexOf("NEXT TEST DUE")).toBeGreaterThan(pageOne.indexOf("CALIBRATION EXPIRY"));
+    expect(pageOne).not.toContain("11 June 2027");
+    // No bigger than the panel's other values.
+    expect(pageOne).toMatch(/"text":"06\/27","fontSize":9\.9,/);
+  });
+
+  it("gives the farm's name, then its owner or operator and how to reach them, without region or RAPID", () => {
+    const t = sampleTest();
+    t.farm = {
+      name: "Sunny Acres", supplyNumber: "12345", milkCompanyName: "Fonterra", farmerName: "Pat Owner",
+      contactPhone: "07 555 0101", contactEmail: "pat@sunnyacres.example", regionName: "Waikato", rapidNumber: "RAPID-77",
+    };
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    for (const label of ["FARM NAME", "OWNER / OPERATOR", "EMAIL", "DAIRY PROCESSING COMPANY"]) expect(json).toContain(label);
+    expect(json).toContain("Pat Owner");
+    expect(json).toContain("pat@sunnyacres.example");
+    expect(json).not.toContain("Waikato");
+    expect(json).not.toContain("RAPID");
+  });
+
+  it("prints the registration as large as the other details, and in red once the licence had expired", () => {
+    const t = sampleTest(); // tested 11 June 2026
+    t.testedBy = { name: "Alan Tester", registrationNumber: "594", registrationExpiry: "2026-06-11" };
+    const current = JSON.stringify(buildTestSummaryDoc(t).content);
+    // The expiry day itself is still a valid day.
+    expect(current).toContain(`"text":"MPNZ registration 594 · expires 11/06/2026","fontSize":9.4,"color":"#1e293b","bold":false`);
+
+    t.testedBy = { ...t.testedBy, registrationExpiry: "2026-06-10" };
+    const lapsed = JSON.stringify(buildTestSummaryDoc(t).content);
+    expect(lapsed).toContain(`"text":"MPNZ registration 594 · expired 10/06/2026","fontSize":9.4,"color":"#dc2626","bold":true`);
+  });
+
+  it("lists a regulator that isn't big enough, and a pulsator outside its model band, with the faults", () => {
+    const t = sampleTest();
+    t.config = { ...t.config, regulatorsSuitable: false };
+    const json = JSON.stringify(buildTestSummaryDoc(t).content);
+    const faults = json.slice(json.indexOf("Fault summary"), json.indexOf("SEVERITY RATINGS"));
+    expect(faults).toContain("Regulators are not correct or not big enough for this plant");
+  });
+
+  it("declares PDF 1.7, as the transparency it draws needs", () => {
+    expect(buildTestSummaryDoc(sampleTest()).version).toBe("1.7");
   });
 
   it("spells out the arrow the bundled font cannot draw", () => {
@@ -800,9 +869,11 @@ describe("page two, laid out", () => {
   const summaryAndMachine = (t: LocalTest) => buildTestSummaryDoc(t, undefined, undefined, undefined, ["summary", "machine"]);
 
   it("starts the working on page two when the summary fits page one", async () => {
-    expect(await pageCount(summaryAndMachine(sampleTest()))).toBe(2);
+    // A clean machine: the shortest summary, with room left under it on page one.
+    const clean = () => ({ ...sampleTest(), visualFaults: {}, readings: {} });
+    expect(await pageCount(summaryAndMachine(clean()))).toBe(2);
     // The machine configuration would otherwise have fitted under it on page one.
-    expect(await pageCount({ ...summaryAndMachine(sampleTest()), pageBreakBefore: () => false })).toBe(1);
+    expect(await pageCount({ ...summaryAndMachine(clean()), pageBreakBefore: () => false })).toBe(1);
   });
 
   it("carries the working on under a summary that has run onto page two", async () => {

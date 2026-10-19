@@ -36,7 +36,7 @@ import { attachmentBase64 } from "../sync/pulsationAttachment";
 import { PLANT_LABELS, PUMP_LUBRICATION_LABELS } from "../wizard/configLabels";
 import { recordedRows } from "../ui/measurementRows";
 import { isBlankPumpRow, isBlankRegulatorRow, regulatorRows, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
-import { nzDate, proposedNextTestDate } from "../wizard/nextTestDate";
+import { nzDate, originalCompletedAt, proposedNextTestDate } from "../wizard/nextTestDate";
 import {
   BRAND_DARK,
   BRAND_LIGHT,
@@ -58,6 +58,12 @@ const PASS = "#15803d";
 const FAIL = "#dc2626";
 const FAIL_ROW = "#fdf1f1";
 
+/** Every font size in the report's content runs through here, a tenth larger than it was first
+ * laid out (MPNZ, Oct 2026: "make text size a little bit bigger"). The footer, the running header
+ * and the compliance disclaimer keep their sizes: they sit in fixed bands of the page margins. */
+const TEXT_SCALE = 1.1;
+const fs = (pt: number) => Math.round(pt * TEXT_SCALE * 10) / 10;
+
 /** The mandatory Compliance Disclaimer (PRD story 43), printed on page one of every report. The
  * wording is fixed by the signed-off Requirements & Scope v1.1, section 7.3: change it only when
  * MPNZ changes that text. */
@@ -69,6 +75,9 @@ export const COMPLIANCE_DISCLAIMER =
 /** The reminder that sits under the next test date on page one. */
 export const ANNUAL_TEST_NOTE =
   "Milking machines should be fully tested at least once a year by an MPNZ Registered Milking Machine Tester.";
+
+/** The result banner's headline on a test with no faults (MPNZ wording, Oct 2026). */
+export const NO_FAULTS_HEADLINE = "Well done – No faults recorded";
 
 /** What the general comments box says when the tester left none. */
 export const NO_GENERAL_COMMENTS = "No general comments were recorded for this test.";
@@ -167,13 +176,11 @@ function fmtDay(iso?: string | null): string {
     : d.toLocaleDateString("en-NZ", { day: "numeric", month: "long", year: "numeric", timeZone: NZ_TIME_ZONE });
 }
 
-/** A stored calendar day (yyyy-mm-dd) spelled out — "15 September 2027". Built from the parts, not
- * through Date, so no time zone can shift it by a day. */
-function fmtCalendarDay(ymd: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
-  if (!m) return ymd;
-  const month = new Date(Date.UTC(2000, Number(m[2]) - 1, 1)).toLocaleString("en-NZ", { month: "long", timeZone: "UTC" });
-  return `${Number(m[3])} ${month} ${m[1]}`;
+/** A stored calendar day (yyyy-mm-dd) as its month and year, MM/YY — "09/27" — the way MPNZ
+ * writes a next test due. Built from the parts, not through Date, so no time zone can shift it. */
+function fmtMonthYear(ymd: string): string {
+  const m = /^\d{2}(\d{2})-(\d{2})-\d{2}/.exec(ymd);
+  return m ? `${m[2]}/${m[1]}` : ymd;
 }
 
 /** A calibration expiry as dd/mm/yyyy — the stamped snapshot, else the tester's live profile. */
@@ -182,7 +189,7 @@ function calDate(stamped?: string | null, fallback?: string | null): string {
   return iso ? formatDisplayDate(iso) : "—";
 }
 
-const th = (text: string): TableCell => ({ text, bold: true, fontSize: 7.5, color: BRAND });
+const th = (text: string): TableCell => ({ text, bold: true, fontSize: fs(7.5), color: BRAND });
 
 /** The table style every grid on the report shares: tinted header row, hairline rules between
  * rows, no verticals. */
@@ -218,7 +225,7 @@ function printable(cell: TableCell): TableCell {
 }
 
 function grid(widths: (string | number)[], body: TableCell[][], margin?: [number, number, number, number]): Content {
-  return { table: { headerRows: 1, widths, body: body.map((row) => row.map(printable)) }, layout: GRID, fontSize: 9, color: INK, margin } as Content;
+  return { table: { headerRows: 1, widths, body: body.map((row) => row.map(printable)) }, layout: GRID, fontSize: fs(9), color: INK, margin } as Content;
 }
 
 /** Motor size as the tester typed it - a bare number is kW, anything else stands as written. */
@@ -233,7 +240,7 @@ function motorText(v?: string | null): string {
 function sectionHeader(text: string): Content {
   return {
     stack: [
-      { text, fontSize: 12.5, bold: true, color: BRAND, headlineLevel: 1 },
+      { text, fontSize: fs(12.5), bold: true, color: BRAND, headlineLevel: 1 },
       {
         canvas: [
           { type: "rect", x: 0, y: 3, w: 30, h: 2.4, color: BRAND },
@@ -261,15 +268,15 @@ function startsWorking(node: Content): Content {
 }
 
 function subHeader(text: string): Content {
-  return { text, fontSize: 9.5, bold: true, color: INK, margin: [0, 8, 0, 3], headlineLevel: 2 } as Content;
+  return { text, fontSize: fs(9.5), bold: true, color: INK, margin: [0, 8, 0, 3], headlineLevel: 2 } as Content;
 }
 
 /** A small caps label over a value, for the detail panels. */
 function field(label: string, value: string | null | undefined, bold = false): Content {
   return {
     stack: [
-      { text: label.toUpperCase(), fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
-      { text: value?.trim() || "—", fontSize: 9, bold, color: INK, margin: [0, 1, 0, 0] },
+      { text: label.toUpperCase(), fontSize: fs(6.5), color: MUTED, characterSpacing: 0.6 },
+      { text: value?.trim() || "—", fontSize: fs(9), bold, color: INK, margin: [0, 1, 0, 0] },
     ],
     margin: [0, 0, 0, 7],
   } as Content;
@@ -338,20 +345,24 @@ function logoNode(dataUrl: string | null | undefined, fit: [number, number]): Co
 
 /** "Tested by" in the Test panel: who did the test and how to reach them, as the farmer needs it
  * — name, company, phone, and MPNZ registration number with its expiry. Each line only when known;
- * nothing at all when neither a tester nor a company is known. */
-function testedByBlock(tester: TesterDetails | null, companyName?: string | null): Content[] {
+ * nothing at all when neither a tester nor a company is known. A licence that had already expired
+ * on `testDay` (yyyy-mm-dd) is printed in red: an expired licence doesn't stop a test, but the
+ * report says so (Josh, 19 Oct 2026). The expiry day itself is still a valid day. */
+function testedByBlock(tester: TesterDetails | null, companyName: string | null | undefined, testDay: string): Content[] {
   const company = companyName?.trim();
   if (!tester && !company) return [];
+  const expiry = tester?.registrationExpiry ?? null;
+  const expired = !!expiry && expiry.slice(0, 10) < testDay;
   const reg = tester?.registrationNumber
-    ? `MPNZ registration ${tester.registrationNumber}${tester.registrationExpiry ? ` · expires ${formatDisplayDate(tester.registrationExpiry)}` : ""}`
+    ? `MPNZ registration ${tester.registrationNumber}${expiry ? ` · ${expired ? "expired" : "expires"} ${formatDisplayDate(expiry)}` : ""}`
     : null;
   const lines: Content[] = [
-    ...(tester ? [{ text: tester.name, fontSize: 9, bold: true, color: INK, margin: [0, 1, 0, 0] } as Content] : []),
-    ...(company ? [{ text: company, fontSize: 8.5, color: INK, margin: [0, tester ? 0 : 1, 0, 0] } as Content] : []),
-    ...(tester?.phone ? [{ text: `Phone ${tester.phone}`, fontSize: 8.5, color: INK } as Content] : []),
-    ...(reg ? [{ text: reg, fontSize: 7.5, color: MUTED } as Content] : []),
+    ...(tester ? [{ text: tester.name, fontSize: fs(9), bold: true, color: INK, margin: [0, 1, 0, 0] } as Content] : []),
+    ...(company ? [{ text: company, fontSize: fs(8.5), color: INK, margin: [0, tester ? 0 : 1, 0, 0] } as Content] : []),
+    ...(tester?.phone ? [{ text: `Phone ${tester.phone}`, fontSize: fs(8.5), color: INK } as Content] : []),
+    ...(reg ? [{ text: reg, fontSize: fs(8.5), color: expired ? FAIL : INK, bold: expired } as Content] : []),
   ];
-  return [{ stack: [{ text: "TESTED BY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 }, ...lines], margin: [0, 0, 0, 7] } as Content];
+  return [{ stack: [{ text: "TESTED BY", fontSize: fs(6.5), color: MUTED, characterSpacing: 0.6 }, ...lines], margin: [0, 0, 0, 7] } as Content];
 }
 
 /** What each rating means, for the legend under the fault table (the association's rating scheme,
@@ -366,13 +377,13 @@ export const SEVERITY_MEANING: Record<FaultSeverity, string> = {
 function severityLegend(): Content {
   return {
     stack: [
-      { text: "SEVERITY RATINGS", fontSize: 6.5, bold: true, color: MUTED, characterSpacing: 0.8, margin: [0, 0, 0, 3] },
+      { text: "SEVERITY RATINGS", fontSize: fs(6.5), bold: true, color: MUTED, characterSpacing: 0.8, margin: [0, 0, 0, 3] },
       {
         table: {
           widths: [52, "*"],
           body: (["Critical", "Major", "Minor"] as FaultSeverity[]).map((sev) => [
             severityCell(sev),
-            { text: SEVERITY_MEANING[sev], fontSize: 7.5, color: INK },
+            { text: SEVERITY_MEANING[sev], fontSize: fs(7.5), color: INK },
           ]),
         },
         layout: {
@@ -388,7 +399,7 @@ function severityLegend(): Content {
 
 function severityCell(severity: FaultSeverity): TableCell {
   const s = SEVERITY_STYLE[severity] ?? SEVERITY_STYLE.Major;
-  return { text: severity.toUpperCase(), fontSize: 7, bold: true, color: s.ink, fillColor: s.fill, alignment: "center", characterSpacing: 0.4 };
+  return { text: severity.toUpperCase(), fontSize: fs(7), bold: true, color: s.ink, fillColor: s.fill, alignment: "center", characterSpacing: 0.4 };
 }
 
 /** The compliance disclaimer, boxed at the foot of page one of every report (migrated ones and
@@ -451,6 +462,12 @@ function reportParts(
     ],
     margin: [0, -LETTERHEAD_LIFT, 0, LETTERHEAD_CLEARANCE],
   };
+  // The date of the test is the day the original test was signed off: an amendment records work
+  // done or a correction after the test, so a version 2 still says when the machine was tested.
+  const testDate = test.markedCompleteAt
+    ? (version > 1 ? originalCompletedAt(test.amendments) : null) ?? test.markedCompleteAt
+    : null;
+  // The title keeps its size (the one heading not scaled by fs): bigger, it ran into the date.
   const titleLine: Content = {
     columns: [
       { width: "*", text: "Milking Machine Test Summary", fontSize: 17, bold: true, color: BRAND },
@@ -458,60 +475,62 @@ function reportParts(
         width: "auto",
         alignment: "right",
         margin: [0, 5, 0, 0],
-        text: test.markedCompleteAt
+        text: testDate
           ? [
-              { text: `Tested ${fmtDay(test.markedCompleteAt)}`, color: INK },
+              { text: `Date of Test ${fmtDay(testDate)}`, color: INK },
               ...(version > 1 ? [{ text: `   Version ${version}`, bold: true, color: BRAND }] : []),
             ]
           : [{ text: "DRAFT — not yet signed off", bold: true, color: SEVERITY_STYLE.Major.ink }],
-        fontSize: 9.5,
+        fontSize: fs(9.5),
       },
     ],
     margin: [0, 0, 0, 10],
   };
 
   // --- Farm + test details -----------------------------------------------------------------------
+  // The farm's name, then who owns or runs it and how to reach them (MPNZ, Oct 2026). Region and
+  // RAPID number are left off: the address is enough.
   const address = [farm?.addressLine1, farm?.addressLine2, farm?.town, farm?.postCode].filter(Boolean).join(", ");
   const farmPanel = panel([
-    { text: "FARM", fontSize: 7, bold: true, color: BRAND, characterSpacing: 1.2, margin: [0, 0, 0, 3] },
-    { text: farmName, fontSize: 13, bold: true, color: INK },
-    { text: address || "—", fontSize: 8.5, color: MUTED, margin: [0, 1, 0, 8] },
+    { text: "FARM", fontSize: fs(7), bold: true, color: BRAND, characterSpacing: 1.2, margin: [0, 0, 0, 3] },
+    { text: "FARM NAME", fontSize: fs(6.5), color: MUTED, characterSpacing: 0.6 },
+    { text: farmName, fontSize: fs(13), bold: true, color: INK, margin: [0, 1, 0, 0] },
+    { text: address || "—", fontSize: fs(8.5), color: MUTED, margin: [0, 1, 0, 8] },
     {
       columns: [
-        { width: "*", stack: [field("Supply number", farm?.supplyNumber), field("Milk company", farm?.milkCompanyName), field("Farmer", farm?.farmerName)] },
-        { width: "*", stack: [field("Region", farm?.regionName), field("RAPID number", farm?.rapidNumber), field("Phone", farm?.contactPhone)] },
+        { width: "*", stack: [field("Supply number", farm?.supplyNumber), field("Dairy processing company", farm?.milkCompanyName)] },
+        { width: "*", stack: [field("Owner / operator", farm?.farmerName), field("Phone", farm?.contactPhone), field("Email", farm?.contactEmail)] },
       ],
       columnGap: 10,
     },
   ]);
-  // The next test date is what the farmer most needs from this panel, so it leads it, larger. A
-  // signed-off test prints what was recorded (nothing for one signed off before the date existed,
-  // rather than inventing one); a draft prints what sign-off would record, marked as proposed. A
-  // draft amendment already carries the original test's date, which is settled, not proposed.
+  // The next test date closes the Test panel, small, as MM/YY (MPNZ, Oct 2026: it was too prominent
+  // leading the panel). A signed-off test prints what was recorded (nothing for one signed off
+  // before the date existed, rather than inventing one); a draft prints what sign-off would record,
+  // marked as proposed. A draft amendment already carries the original test's date, which is
+  // settled, not proposed.
   const nextTestProposed = !test.markedCompleteAt && !test.supersedesId;
   const nextTestDate = nextTestProposed
     ? proposedNextTestDate(test, new Date().toISOString())
     : test.nextTestDate ?? null;
   const nextTestBlock: Content[] = nextTestDate
     ? [
-        { text: "NEXT TEST DUE", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
         {
           text: [
-            { text: fmtCalendarDay(nextTestDate), fontSize: 12, bold: true, color: BRAND },
-            ...(nextTestProposed ? [{ text: "  proposed", fontSize: 8, color: MUTED }] : []),
+            { text: "NEXT TEST DUE  ", fontSize: fs(6.5), color: MUTED, characterSpacing: 0.6 },
+            { text: fmtMonthYear(nextTestDate), fontSize: fs(9), bold: true, color: BRAND },
+            ...(nextTestProposed ? [{ text: "  proposed", fontSize: fs(7.5), color: MUTED }] : []),
           ],
-          margin: [0, 1, 0, 2],
+          margin: [0, 4, 0, 1],
         } as Content,
       ]
     : [];
-  const annualNote: Content = { text: ANNUAL_TEST_NOTE, fontSize: 7, color: MUTED, lineHeight: 1.1, margin: [0, 0, 0, 8] };
+  const annualNote: Content = { text: ANNUAL_TEST_NOTE, fontSize: fs(7), color: MUTED, lineHeight: 1.1, margin: [0, nextTestDate ? 0 : 4, 0, 2] };
+  const testDay = nzDate(testDate ?? new Date().toISOString());
   const testPanel = panel([
-    { text: "TEST", fontSize: 7, bold: true, color: BRAND, characterSpacing: 1.2, margin: [0, 0, 0, 3] },
-    ...nextTestBlock,
-    annualNote,
-    field("Completed", test.markedCompleteAt ? fmtDate(test.markedCompleteAt) : "Not yet signed off", true),
-    ...testedByBlock(test.testedBy ?? testerFallback ?? null, branding?.companyName),
-    { text: "CALIBRATION EXPIRY", fontSize: 6.5, color: MUTED, characterSpacing: 0.6 },
+    { text: "TEST", fontSize: fs(7), bold: true, color: BRAND, characterSpacing: 1.2, margin: [0, 0, 0, 3] },
+    ...testedByBlock(test.testedBy ?? testerFallback ?? null, branding?.companyName, testDay),
+    { text: "CALIBRATION EXPIRY", fontSize: fs(6.5), color: MUTED, characterSpacing: 0.6 },
     {
       table: {
         widths: ["auto", "*"],
@@ -522,9 +541,11 @@ function reportParts(
         ].map(([k, v]) => [{ text: k, color: MUTED }, { text: v, color: INK }]),
       },
       layout: { hLineWidth: () => 0, vLineWidth: () => 0, paddingLeft: () => 0, paddingRight: () => 8, paddingTop: () => 1, paddingBottom: () => 1 },
-      fontSize: 8.5,
-      margin: [0, 2, 0, 4],
+      fontSize: fs(8.5),
+      margin: [0, 2, 0, 2],
     } as Content,
+    ...nextTestBlock,
+    annualNote,
   ]);
   const detailsBlock: Content = { columns: [{ width: "58%", stack: [farmPanel] }, { width: "*", stack: [testPanel] }], columnGap: 10 };
 
@@ -535,7 +556,7 @@ function reportParts(
     const s = SEVERITY_STYLE[sev];
     return {
       width: "auto",
-      table: { body: [[{ text: `${n}  ${sev.toUpperCase()}`, fontSize: 7.5, bold: true, color: n ? s.ink : MUTED, fillColor: n ? s.fill : "#ffffff", characterSpacing: 0.4 }]] },
+      table: { body: [[{ text: `${n}  ${sev.toUpperCase()}`, fontSize: fs(7.5), bold: true, color: n ? s.ink : MUTED, fillColor: n ? s.fill : "#ffffff", characterSpacing: 0.4 }]] },
       layout: { hLineWidth: () => 0, vLineWidth: () => 0, paddingLeft: () => 6, paddingRight: () => 6, paddingTop: () => 2, paddingBottom: () => 2 },
     } as Content;
   });
@@ -545,8 +566,8 @@ function reportParts(
     : summary.total === 0
       ? [barPanel(
           [
-            { text: "No faults found", fontSize: 12, bold: true, color: PASS },
-            { text: "No faults recorded — the machine passed every completed check.", fontSize: 9, color: INK, margin: [0, 2, 0, 2] },
+            { text: NO_FAULTS_HEADLINE, fontSize: fs(12), bold: true, color: PASS },
+            { text: "The machine passed every completed check.", fontSize: fs(9), color: INK, margin: [0, 2, 0, 2] },
           ],
           PASS, "#eef8f1", [0, 12, 0, 0],
         )]
@@ -557,8 +578,8 @@ function reportParts(
                 {
                   width: "*",
                   stack: [
-                    { text: `${plural(summary.total, "fault needs", "faults need")} attention`, fontSize: 12, bold: true, color: SEVERITY_STYLE[worst].ink },
-                    { text: "Each fault is listed below with the recommended action.", fontSize: 8.5, color: MUTED, margin: [0, 2, 0, 0] },
+                    { text: `${plural(summary.total, "fault needs", "faults need")} attention`, fontSize: fs(12), bold: true, color: SEVERITY_STYLE[worst].ink },
+                    { text: "Each fault is listed below with the recommended action.", fontSize: fs(8.5), color: MUTED, margin: [0, 2, 0, 0] },
                   ],
                 },
                 { width: "auto", columns: countChips, columnGap: 4, margin: [0, 4, 0, 0] },
@@ -591,10 +612,10 @@ function reportParts(
   const notes = test.notes?.trim();
   const notesBlock: Content = barPanel(
     [
-      { text: "General comments", fontSize: 9.5, bold: true, color: BRAND, margin: [0, 0, 0, 3] },
+      { text: "General comments", fontSize: fs(9.5), bold: true, color: BRAND, margin: [0, 0, 0, 3] },
       notes
-        ? { text: notes, fontSize: 9, color: INK, lineHeight: 1.2 }
-        : { text: NO_GENERAL_COMMENTS, fontSize: 9, color: MUTED },
+        ? { text: notes, fontSize: fs(9), color: INK, lineHeight: 1.2 }
+        : { text: NO_GENERAL_COMMENTS, fontSize: fs(9), color: MUTED },
     ],
     BRAND_LIGHT, PANEL, [0, 12, 0, 0],
   );
@@ -612,7 +633,7 @@ function reportParts(
   if (config.flushingPulsationSystem) flags.push("Flushing pulsation");
   if (!config.isoPortsAvailable) flags.push("No ISO ports (short test)");
 
-  const k = (text: string): TableCell => ({ text, bold: true, fontSize: 7.5, color: BRAND, fillColor: PANEL });
+  const k = (text: string): TableCell => ({ text, bold: true, fontSize: fs(7.5), color: BRAND, fillColor: PANEL });
   const configBlock: Content = {
     table: {
       widths: [78, "*", 78, "*"],
@@ -626,7 +647,7 @@ function reportParts(
       ],
     },
     layout: { ...GRID, hLineWidth: (i, node) => (i === 0 || i === node.table.body.length ? 0 : 0.5), fillColor: () => null },
-    fontSize: 9,
+    fontSize: fs(9),
     color: INK,
   };
 
@@ -691,7 +712,7 @@ function reportParts(
           { text: describeRule(r.rule, r.unit), color: MUTED, fillColor: fill },
           verdict === "noStandard"
             ? { text: "—", color: MUTED, fillColor: fill }
-            : { text: verdict.toUpperCase(), color: verdict === "pass" ? PASS : FAIL, bold: true, fontSize: 8, fillColor: fill },
+            : { text: verdict.toUpperCase(), color: verdict === "pass" ? PASS : FAIL, bold: true, fontSize: fs(8), fillColor: fill },
         ]);
       }
       out.push(subHeader(sec.title));
@@ -737,7 +758,7 @@ function reportParts(
         text: s.ratioBandOk ? " PASS" : " FAIL", color: s.ratioBandOk ? PASS : FAIL, bold: true,
       });
     }
-    if (bandParts.length) pulsatorTable.push({ text: bandParts, fontSize: 9, color: INK, margin: [0, 5, 0, 0] });
+    if (bandParts.length) pulsatorTable.push({ text: bandParts, fontSize: fs(9), color: INK, margin: [0, 5, 0, 0] });
   }
   const clusterTable: Content[] = [];
   const clusterRows = recordedRows(test.clusterRows);
@@ -778,7 +799,7 @@ function reportParts(
         { text: `${okCount}`, bold: true, color: PASS }, " item(s) verified OK   ·   ",
         { text: `${visualFaultRows.length - 1}`, bold: true, color: visualFaultRows.length > 1 ? FAIL : PASS }, " fault(s) logged",
       ],
-      fontSize: 9.5, color: INK, margin: [0, 0, 0, 5],
+      fontSize: fs(9.5), color: INK, margin: [0, 0, 0, 5],
     },
   ];
   if (visualFaultRows.length > 1) visualBlock.push(grid([90, "*", "*", 52], visualFaultRows));
@@ -802,7 +823,7 @@ function reportParts(
   // --- Attestations ---------------------------------------------------------------------------
   const attestRows = test.attestations.map((a) => ({
     text: `${fmtDate(a.attestedAt)} — ${a.step}${a.section ? ` · ${a.section}` : ""}: "${a.text}"`,
-    fontSize: 8,
+    fontSize: fs(8),
     color: MUTED,
     margin: [0, 1, 0, 0] as [number, number, number, number],
   }));
@@ -813,7 +834,7 @@ function reportParts(
         sectionHeader("Attachments"),
         {
           text: `Pulsation analyser report: ${test.pulsationPdf.name} (attached ${fmtDate(test.pulsationPdf.attachedAt)}) — appended to this document.`,
-          fontSize: 9,
+          fontSize: fs(9),
           color: MUTED,
         },
       ]
@@ -837,7 +858,7 @@ function reportParts(
     machine: section("machine", [configBlock, ...pumpBlock]),
     // ISO 1–9 are the core of every test, so this part always prints — if only to say that
     // nothing was entered.
-    vacuum: section("vacuum", vacuumReadings.length > 0 ? vacuumReadings : [{ text: "No readings entered.", fontSize: 9, color: MUTED }]),
+    vacuum: section("vacuum", vacuumReadings.length > 0 ? vacuumReadings : [{ text: "No readings entered.", fontSize: fs(9), color: MUTED }]),
     airflow: section("airflow", airflowReadings),
     cluster: section("cluster", [...clusterReadings, ...clusterTable]),
     pulsation: section("pulsation", [...pulsationReadings, ...pulsatorTable]),
@@ -924,6 +945,10 @@ export function buildTestSummaryDoc(
   const copyright = copyrightNotice(Number(nzDate((at ?? new Date()).toISOString()).slice(0, 4)));
 
   return {
+    // pdfmake declares PDF 1.3 by default, but the report uses transparency (the swirls, a logo's
+    // alpha), which is PDF 1.4: declared honestly, so stricter readers (Nitro Pro) take the file as
+    // it is. 1.7 is what the merged report with an analyser PDF appended declares too.
+    version: "1.7",
     pageSize: "A4",
     pageMargins: [MARGIN_X, MARGIN_TOP, MARGIN_X, MARGIN_BOTTOM],
     // Pinned, the PDF's own dates are that moment too: they (and the file id PDFKit derives from
@@ -1032,7 +1057,7 @@ function buildAmendmentBlock(test: LocalTest): Content[] {
     startsPage(sectionHeader("Amendment history")),
     {
       text: "This test has been amended since it was first completed. Each version below lists every recorded change against the version it replaced. Earlier versions remain on record.",
-      fontSize: 9, color: MUTED, margin: [0, 0, 0, 6],
+      fontSize: fs(9), color: MUTED, margin: [0, 0, 0, 6],
     },
   ];
 
@@ -1045,9 +1070,9 @@ function buildAmendmentBlock(test: LocalTest): Content[] {
     const role = a.amendedByRole && !a.merge ? ` (${a.amendedByRole})` : "";
     out.push({
       text: `Version ${a.version} — completed ${fmtDate(a.amendedAt)}${by ? ` by ${by}${role}` : ""} · ${supersedes}`,
-      fontSize: 9.5, bold: true, color: INK, margin: [0, 8, 0, 3], headlineLevel: 2,
+      fontSize: fs(9.5), bold: true, color: INK, margin: [0, 8, 0, 3], headlineLevel: 2,
     });
-    if (a.reason) out.push({ text: `Reason: ${a.reason}`, fontSize: 9, color: INK, margin: [0, 0, 0, 3] });
+    if (a.reason) out.push({ text: `Reason: ${a.reason}`, fontSize: fs(9), color: INK, margin: [0, 0, 0, 3] });
     if (a.merge) {
       const m = a.merge;
       out.push({
@@ -1056,18 +1081,18 @@ function buildAmendmentBlock(test: LocalTest): Content[] {
           `${m.fromVersion}${m.fromBy ? ` (${m.fromBy})` : ""} were both made from the same earlier version. ` +
           "What only one of them changed was combined; where both changed the same field, the version that " +
           "reached the server last was kept. Both versions remain on record.",
-        fontSize: 9, color: MUTED, margin: [0, 0, 0, 3],
+        fontSize: fs(9), color: MUTED, margin: [0, 0, 0, 3],
       });
       if (m.overlaps.length > 0) {
         out.push(
           grid(["auto", "*", "*", "*", "*"], [
             [th("Section"), th("Field (changed in both)"), th("Before"), th(`Version ${m.headVersion}`), th(`Version ${m.fromVersion}`)],
             ...m.overlaps.map((o) => [
-              { text: o.section, fontSize: 9, color: MUTED } as TableCell,
-              { text: o.label, fontSize: 9 } as TableCell,
-              { text: o.previous, fontSize: 9, color: MUTED } as TableCell,
-              { text: o.head, fontSize: 9, bold: o.kept === "head", color: o.kept === "head" ? INK : MUTED } as TableCell,
-              { text: `${o.incoming}${o.kept === "incoming" ? " (kept)" : ""}`, fontSize: 9, bold: o.kept === "incoming", color: o.kept === "incoming" ? INK : MUTED } as TableCell,
+              { text: o.section, fontSize: fs(9), color: MUTED } as TableCell,
+              { text: o.label, fontSize: fs(9) } as TableCell,
+              { text: o.previous, fontSize: fs(9), color: MUTED } as TableCell,
+              { text: o.head, fontSize: fs(9), bold: o.kept === "head", color: o.kept === "head" ? INK : MUTED } as TableCell,
+              { text: `${o.incoming}${o.kept === "incoming" ? " (kept)" : ""}`, fontSize: fs(9), bold: o.kept === "incoming", color: o.kept === "incoming" ? INK : MUTED } as TableCell,
             ]),
           ]),
         );
@@ -1077,22 +1102,22 @@ function buildAmendmentBlock(test: LocalTest): Content[] {
     if (a.baseUnavailable) {
       out.push({
         text: "The superseded version was not available on the signing device, so a field-level comparison could not be recorded.",
-        fontSize: 9, color: FAIL,
+        fontSize: fs(9), color: FAIL,
       });
       continue;
     }
     if (a.changes.length === 0) {
-      out.push({ text: "Re-completed with no data changes.", fontSize: 9, color: MUTED });
+      out.push({ text: "Re-completed with no data changes.", fontSize: fs(9), color: MUTED });
       continue;
     }
 
     const body: TableCell[][] = [
       [th("Section"), th("Field"), th("Previous"), th("Amended")],
       ...a.changes.map((c) => [
-        { text: c.section, fontSize: 9, color: MUTED } as TableCell,
-        { text: c.label, fontSize: 9 } as TableCell,
-        { text: c.from, fontSize: 9, color: MUTED } as TableCell,
-        { text: c.to, fontSize: 9, bold: true } as TableCell,
+        { text: c.section, fontSize: fs(9), color: MUTED } as TableCell,
+        { text: c.label, fontSize: fs(9) } as TableCell,
+        { text: c.from, fontSize: fs(9), color: MUTED } as TableCell,
+        { text: c.to, fontSize: fs(9), bold: true } as TableCell,
       ]),
     ];
     out.push(grid(["auto", "*", "*", "*"], body));
@@ -1106,16 +1131,16 @@ function recordedFaultBlock(test: LocalTest): Content[] {
   const recs = test.recordedRecommendations ?? [];
   const faults = test.recordedVisualFaults ?? [];
   if (faults.length === 0 && recs.length === 0) {
-    return [{ text: "No faults or recommendations were recorded for this test.", color: PASS, fontSize: 10, margin: [0, 4, 0, 0] }];
+    return [{ text: "No faults or recommendations were recorded for this test.", color: PASS, fontSize: fs(10), margin: [0, 4, 0, 0] }];
   }
   const out: Content[] = [];
   if (faults.length > 0) {
     out.push(subHeader("Recorded faults"));
-    out.push({ ul: faults, fontSize: 9, color: INK, markerColor: BRAND });
+    out.push({ ul: faults, fontSize: fs(9), color: INK, markerColor: BRAND });
   }
   for (const r of recs) {
     out.push(subHeader(r.label));
-    out.push({ text: r.text, fontSize: 9 });
+    out.push({ text: r.text, fontSize: fs(9) });
   }
   return out;
 }
@@ -1263,7 +1288,10 @@ async function appendAnalyser(
     const doc = await PDFDocument.load(report, { updateMetadata: !pinned });
     const attachDoc = await PDFDocument.load(base64ToBytes(attachment));
     for (const page of await doc.copyPages(attachDoc, attachDoc.getPageIndices())) doc.addPage(page);
-    return { merged: await doc.save(), analyser: "appended" };
+    // A classic cross-reference table, not pdf-lib's default object and cross-reference streams:
+    // the plainer structure is the one every reader opens (MPNZ couldn't open the reports in
+    // Nitro Pro, Oct 2026).
+    return { merged: await doc.save({ useObjectStreams: false }), analyser: "appended" };
   } catch {
     // Unreadable/encrypted attachment — the summary alone rather than nothing.
     return { merged: null, analyser: "unreadable" };
