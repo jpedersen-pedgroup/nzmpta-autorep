@@ -142,6 +142,25 @@ describe("wizard progress", () => {
     expect(faultsInStep(t, "Setup")).toBe(0);
   });
 
+  it("counts the machine checks on the steps they're captured on, as Fault Summary lists them", () => {
+    // A regulator judged not big enough (Machine Configuration), and one pulsator outside the
+    // Dairymaster Electronic (Simultaneous) bands, rate 59–61 and ratio 59–69 (Pulsator Test).
+    const t = makeTest(
+      { pulsatorRows: [{ id: "1", unit: "3", values: { rate: "58", ratioFront: "72" } }] },
+      { regulatorsSuitable: false, pulsatorModel: "Electronic (Simultaneous)" },
+    );
+    expect(faultsInStep(t, "MachineConfiguration")).toBe(1);
+    expect(faultsInStep(t, "PulsatorTest")).toBe(2);
+    expect(buildFaultInputs(t)).toHaveLength(3);
+
+    const fine = makeTest(
+      { pulsatorRows: [{ id: "1", unit: "3", values: { rate: "60", ratioFront: "62" } }] },
+      { regulatorsSuitable: true, pulsatorModel: "Electronic (Simultaneous)" },
+    );
+    expect(faultsInStep(fine, "MachineConfiguration")).toBe(0);
+    expect(faultsInStep(fine, "PulsatorTest")).toBe(0);
+  });
+
   it("measures overall progress over required steps only", () => {
     const empty = makeTest({ farmName: "" }, { clusterCount: 0 });
     expect(overallProgress(empty).pct).toBeLessThan(100);

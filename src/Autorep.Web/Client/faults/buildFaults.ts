@@ -65,6 +65,23 @@ export function buildFaultInputs(test: LocalTest): FaultInput[] {
     }
   }
 
+  inputs.push(...machineCheckFaults(test));
+  return inputs;
+}
+
+/** Which wizard step each machine-check fault is captured on, for the per-step fault badges. */
+export const MACHINE_CHECK_STEPS: Record<string, "MachineConfiguration" | "PulsatorTest"> = {
+  [REGULATOR_FAULT_KEY]: "MachineConfiguration",
+  [RATE_BAND_FAULT_KEY]: "PulsatorTest",
+  [RATIO_BAND_FAULT_KEY]: "PulsatorTest",
+};
+
+/** The faults from the machine checks alone: the regulators' suitability and the pulsators'
+ * model bands. Part of buildFaultInputs; also counted on their own steps (wizardProgress.ts). */
+export function machineCheckFaults(test: LocalTest): FaultInput[] {
+  const config = test.config;
+  const inputs: FaultInput[] = [];
+
   // The tester's answer to "correct and big enough for this plant?" — only an explicit No.
   if (config.regulatorsSuitable === false) {
     inputs.push({
