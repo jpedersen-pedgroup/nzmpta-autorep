@@ -1,4 +1,5 @@
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -58,10 +59,23 @@ public class ResetPasswordModel : PageModel
             return Page();
         }
 
-        var result = await _users.ResetPasswordAsync(user, Input.Token, Input.Password);
+        // A welcome email's link carries an invitation, which outlasts a reset link (see
+        // Invitation). Swap a good one for a reset token, so the first password is set by an
+        // ordinary reset.
+        var token = Input.Token;
+        if (await _users.VerifyUserTokenAsync(user, Invitation.TokenProvider, Invitation.Purpose, token))
+            token = await _users.GeneratePasswordResetTokenAsync(user);
+
+        var result = await _users.ResetPasswordAsync(user, token, Input.Password);
         if (!result.Succeeded)
         {
-            foreach (var e in result.Errors) Errors.Add(e.Description);
+            foreach (var e in result.Errors)
+            {
+                // Identity's own wording is "Invalid token.", which doesn't tell anyone what to do.
+                Errors.Add(e.Code == nameof(IdentityErrorDescriber.InvalidToken)
+                    ? "This link has expired or has already been used. Use \"Forgot your password?\" on the sign-in page to get a new one."
+                    : e.Description);
+            }
             return Page();
         }
 

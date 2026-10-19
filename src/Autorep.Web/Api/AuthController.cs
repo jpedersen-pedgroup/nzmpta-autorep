@@ -71,17 +71,7 @@ public class AuthController : ControllerBase
                 new { error = "two-factor-required" });
         }
 
-        // Licence check (pure Testers only — admins can sign in regardless).
-        var isPureTester = roles.Contains(Roles.Tester)
-            && !roles.Contains(Roles.SuperAdministrator)
-            && !roles.Contains(Roles.CompanyAdministrator);
-        if (isPureTester && user.LicenceExpiryDate is { } expiry
-            && expiry < DateOnly.FromDateTime(DateTime.UtcNow))
-        {
-            return StatusCode(StatusCodes.Status403Forbidden,
-                new { error = "licence-expired" });
-        }
-
+        // No licence check: an expired licence blocks nothing (the report shows it instead).
         await _users.ResetAccessFailedCountAsync(user);
 
         var access = await _jwt.IssueAccessTokenAsync(user);
@@ -104,8 +94,8 @@ public class AuthController : ControllerBase
         var user = await _users.FindByIdAsync(rotated.TesterId);
         if (user is null) return Unauthorized();
 
-        // Re-check lockout/licence at every refresh so an admin force-logout
-        // or licence expiry takes effect within 1h (the access-token lifetime).
+        // Re-check lockout at every refresh so an admin force-logout takes effect
+        // within 1h (the access-token lifetime).
         if (user.LockoutEnd is { } end && end > DateTimeOffset.UtcNow)
             return StatusCode(StatusCodes.Status423Locked);
 
@@ -118,17 +108,6 @@ public class AuthController : ControllerBase
             await _refresh.RevokeAllAsync(user.Id, "two-factor-required");
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { error = "two-factor-required" });
-        }
-
-        var isPureTester = roles.Contains(Roles.Tester)
-            && !roles.Contains(Roles.SuperAdministrator)
-            && !roles.Contains(Roles.CompanyAdministrator);
-        if (isPureTester && user.LicenceExpiryDate is { } expiry
-            && expiry < DateOnly.FromDateTime(DateTime.UtcNow))
-        {
-            await _refresh.RevokeAllAsync(user.Id, "licence-expired");
-            return StatusCode(StatusCodes.Status403Forbidden,
-                new { error = "licence-expired" });
         }
 
         var access = await _jwt.IssueAccessTokenAsync(user);

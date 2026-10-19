@@ -141,9 +141,6 @@ public class FarmsController : ControllerBase
     [Authorize(Roles = Roles.Tester)]
     public async Task<IActionResult> Create([FromBody] NewFarmRequest farm, CancellationToken ct)
     {
-        // A lapsed licence can't start tests, so it has no reason to add farms.
-        if (User.HasClaim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly)) return Forbid();
-
         // Idempotent by the device's id for the new farm. If the connection drops after the farm is
         // saved (the review emails are sent before the answer goes back), the tester can't tell
         // whether it was added; a retry with the same id gets that farm back instead of a duplicate.

@@ -8,7 +8,7 @@
 // the right empty root in place first.
 import { render, type ComponentChildren, type JSX } from "preact";
 import { homeFor, type IdentityRecord } from "../db/identity";
-import { licenceBanner } from "./licenceBanner";
+import { licenceBanner, MPNZ_EMAIL } from "./licenceBanner";
 import { shellRouteFor, type ShellRoute } from "./routes";
 
 export function isShellDocument(): boolean {
@@ -16,7 +16,7 @@ export function isShellDocument(): boolean {
 }
 
 /** Fills the header's user block and the licence banner. The server-rendered header gets these
- * from Razor (Pages/Shared/_Layout.cshtml) — same initials rule, same banner thresholds. */
+ * from Razor (Pages/Shared/_Layout.cshtml) — same initials rule, same banner threshold and words. */
 export function renderShellChrome(identity: IdentityRecord | null): void {
   const user = document.getElementById("shell-user");
   if (identity && user) {
@@ -31,9 +31,16 @@ export function renderShellChrome(identity: IdentityRecord | null): void {
   const bannerRoot = document.getElementById("licence-banner-root");
   const banner = identity && homeFor(identity) !== "admin" ? licenceBanner(identity.licenceExpiryDate) : null;
   if (bannerRoot && banner) {
+    const [before, after] = banner.rest.split(MPNZ_EMAIL);
     render(
-      <div class={`licence-banner${banner.urgent ? " licence-banner--urgent" : ""}`}>
-        {banner.lead && <strong>{banner.lead}</strong>} {banner.rest}
+      <div class="licence-banner">
+        <strong>{banner.lead}</strong> {before}
+        {after !== undefined && (
+          <>
+            <a href={`mailto:${MPNZ_EMAIL}`}>{MPNZ_EMAIL}</a>
+            {after}
+          </>
+        )}
       </div>,
       bannerRoot,
     );
@@ -111,21 +118,6 @@ export function renderShellPage(identity: IdentityRecord | null): ShellRoute | n
           <p>Administration only works online. Reconnect and try again.</p>
         </Notice>,
       );
-    case "sync-only": {
-      document.title = "Send your tests · MPNZ AutoRep";
-      render(
-        <div class="card" style="max-width:640px;margin:0 auto">
-          <h1 style="margin-top:0">Your licence has expired</h1>
-          <p>
-            You can't start new tests until MPNZ renews your licence. Tests already saved on this device are
-            listed below — connect to send them.
-          </p>
-        </div>,
-        main,
-      );
-      main.appendChild(root("sync-only-root"));
-      return null;
-    }
   }
 
   let route = shellRouteFor(location.pathname);

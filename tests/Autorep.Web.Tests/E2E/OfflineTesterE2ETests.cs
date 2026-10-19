@@ -500,35 +500,27 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         }
     }
 
-    // A lapsed licence lands on /Account/FinishSync, which isn't a tester page. The device must still
-    // learn the session is sync-only, or an offline launch would reopen the full tester app from an
-    // identity record written while the licence was current.
+    // An expired licence blocks nothing, offline included: the shell opens the tester app as it
+    // would for anyone, with the red reminder drawn from the identity record's licence date.
     [Fact]
-    public async Task A_lapsed_licence_stays_sync_only_offline()
+    public async Task An_expired_licence_keeps_the_whole_app_offline()
     {
         _factory.NetworkDown = false;
         var (context, page) = await NewTesterPageAsync(_browser, _factory.BaseUrl);
         await using var _ = context;
-        await SignInAsync(page, OfflineE2EWebAppFactory.LapsedTesterEmail, landsOn: "/Account/FinishSync");
+        await SignInAsync(page, OfflineE2EWebAppFactory.LapsedTesterEmail);
+        await page.Locator(".licence-banner", new() { HasText = "Your Tester licence expired on" }).WaitForAsync();
         await WaitUntilReadyForOfflineAsync(page);
-        Assert.True(await PollAsync(page, @"async () => new Promise((resolve) => {
-                const req = indexedDB.open('autorep-identity');
-                req.onerror = () => resolve(false);
-                req.onsuccess = () => {
-                    const db = req.result;
-                    const get = db.transaction('identity').objectStore('identity').get('current');
-                    get.onsuccess = () => { db.close(); resolve(get.result?.syncOnly === true); };
-                    get.onerror = () => { db.close(); resolve(false); };
-                };
-            })"), "the device never learned the session is sync-only");
 
         await GoOfflineAsync(context);
-        foreach (var path in new[] { "/", "/App/Tests/New" })
+        foreach (var (path, root) in new[] { ("/", "#home-root"), ("/App/Tests/New", "#new-test-root") })
         {
             await page.GotoAsync(path);
             Assert.True(await IsShellAsync(page));
-            await page.GetByText("Your licence has expired").WaitForAsync();
-            Assert.Equal(0, await page.Locator("#home-root, #new-test-root, #test-list-root, #wizard-root").CountAsync());
+            await page.Locator(root).WaitForAsync(new() { State = WaitForSelectorState.Attached });
+            var banner = page.Locator(".licence-banner", new() { HasText = "Your Tester licence expired on" });
+            await banner.WaitForAsync();
+            Assert.Equal(1, await banner.Locator("a[href='mailto:info@milkingpumping.co.nz']").CountAsync());
         }
     }
 

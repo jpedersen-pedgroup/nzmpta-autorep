@@ -23,7 +23,7 @@ afterEach(async () => {
 
 describe("checkSession — GET /api/session", () => {
   it("is online and refreshes the device's identity record on a good answer", async () => {
-    stubFetch(json({ testerId: "t-1", displayName: "One", userName: "one@test.local", roles: ["Tester"], syncOnly: false }));
+    stubFetch(json({ testerId: "t-1", displayName: "One", userName: "one@test.local", roles: ["Tester"] }));
 
     expect(await checkSession()).toBe("online");
     expect(cachedIdentity()?.testerId).toBe("t-1");

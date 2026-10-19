@@ -48,7 +48,7 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
     public const string MataiFarm = "Matai Meadows";
     public string OtherTesterId { get; private set; } = "";
 
-    /// <summary>A tester whose licence lapsed yesterday: sign-in gives a sync-only session.</summary>
+    /// <summary>A tester whose licence expired yesterday: they keep the whole app.</summary>
     public const string LapsedTesterEmail = "e2e-lapsed-tester@local";
 
     /// <summary>A Company Administrator at the first tester's company — the admin side of a test
