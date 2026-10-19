@@ -31,6 +31,11 @@ public class IndexModel : PageModel
 
     public IList<TesterRow> Testers { get; private set; } = [];
 
+    /// <summary>A Tester or Company Administrator with no Testing Company, which the forms no longer
+    /// allow but older accounts (or migrated ones) may have. Listed whatever the company filter.</summary>
+    public record MissingCompanyRow(string Id, string Email, string Roles);
+    public IList<MissingCompanyRow> MissingCompany { get; private set; } = [];
+
     // Company dropdown filter; also the deep-link target from the Companies
     // list's tester counts (/Admin/Testers?companyId=...).
     [BindProperty(SupportsGet = true)] public Guid? CompanyId { get; set; }
@@ -67,5 +72,20 @@ public class IndexModel : PageModel
                 u.LicenceExpiryDate));
         }
         Testers = rows;
+
+        var needCompany = new[] { Roles.Tester, Roles.CompanyAdministrator };
+        var missing = await (
+            from u in _db.Users
+            where u.TestingCompanyId == null
+            join ur in _db.UserRoles on u.Id equals ur.UserId
+            join r in _db.Roles on ur.RoleId equals r.Id
+            where needCompany.Contains(r.Name!)
+            select new { u.Id, u.Email, Role = r.Name! }).ToListAsync();
+        MissingCompany = missing
+            .GroupBy(m => (m.Id, m.Email))
+            .OrderBy(g => g.Key.Email)
+            .Select(g => new MissingCompanyRow(g.Key.Id, g.Key.Email ?? "",
+                string.Join(", ", g.Select(m => m.Role).Order().Select(Roles.Label))))
+            .ToList();
     }
 }

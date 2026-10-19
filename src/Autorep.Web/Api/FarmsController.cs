@@ -177,7 +177,7 @@ public class FarmsController : ControllerBase
         if (farm.RegionId is { } regionId && !await _db.Regions.AnyAsync(r => r.Id == regionId && r.IsActive, ct))
             return BadRequest(new { error = "That region isn't available any more. Choose another." });
         if (farm.MilkSupplyCompanyId is { } milkId && !await _db.MilkSupplyCompanies.AnyAsync(c => c.Id == milkId && c.IsActive, ct))
-            return BadRequest(new { error = "That milk supply company isn't available any more. Choose another." });
+            return BadRequest(new { error = "That dairy processing company isn't available any more. Choose another." });
 
         var entity = new Farm
         {
