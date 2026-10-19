@@ -96,6 +96,23 @@ describe("the report as bytes", () => {
     expect(same(first.bytes, later.bytes)).toBe(true);
   }, 30_000);
 
+  it("is a plain PDF 1.7 file — a classic cross-reference table, no object streams — with or without the analyser's pages", async () => {
+    // MPNZ couldn't open the reports in Nitro Pro (Oct 2026): the report declared PDF 1.3 while
+    // drawing transparency, and the merged report used compressed object streams.
+    const plain = await reportPdfBytes(signedOffTest(), { generatedAt: SIGNED_OFF });
+    const merged = await finalReportPdf(
+      signedOffTest({ pulsationPdf: { name: "pulse.pdf", base64: await analyserPdf(2), size: 1000, attachedAt: SIGNED_OFF } }),
+    );
+    expect(merged.analyser).toBe("appended");
+    for (const pdf of [plain, merged]) {
+      const text = Buffer.from(pdf.bytes).toString("latin1");
+      expect(text.startsWith("%PDF-1.7")).toBe(true);
+      expect(text).not.toContain("/ObjStm");
+      expect(text).toMatch(/\nxref\r?\n0 \d+/);
+      expect(text).toContain("trailer");
+    }
+  }, 30_000);
+
   it("says when the analyser's bytes are on the server and it can't be reached", async () => {
     globalThis.fetch = vi.fn(async () => {
       throw new TypeError("Failed to fetch");
