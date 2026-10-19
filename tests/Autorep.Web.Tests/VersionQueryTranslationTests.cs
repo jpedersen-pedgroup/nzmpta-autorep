@@ -108,4 +108,19 @@ public class VersionQueryTranslationTests
         db.MachineTests.AdministeredBy(false, Guid.NewGuid()).ToQueryString().Should().Contain("[TestingCompanyId] =");
         db.MachineTests.AdministeredBy(false, null).ToQueryString().Should().NotBeNullOrEmpty();
     }
+
+    // Farm scope follows the company stamped on each test (so a moved tester's farms stay behind),
+    // and the sync link also accepts a farm the tester has tested before.
+    [Fact]
+    public void Farm_scope_and_the_sync_link_scope_translate()
+    {
+        using var db = SqlServer();
+        var company = Guid.NewGuid();
+        db.Farms.InCompanyScope(db, company, "tester").ToQueryString()
+            .Should().Contain("[CreatedByTestingCompanyId]").And.Contain("[TestingCompanyId]").And.NotContain("AspNetUsers");
+        db.Farms.InCompanyScope(db, null, "tester").ToQueryString().Should().Contain("[TesterId]");
+        db.Farms.LinkableBySync(db, company, "tester").ToQueryString()
+            .Should().Contain("[TestingCompanyId]").And.Contain("[TesterId]");
+        db.Farms.LinkableBySync(db, null, "tester").ToQueryString().Should().Contain("[TesterId]");
+    }
 }

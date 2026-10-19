@@ -190,8 +190,8 @@ public class AuthIntegrationTests : IClassFixture<AuthedWebAppFactory>
             var myFarm = new Farm { Name = "MyFarm " + Guid.NewGuid() };
             var otherFarm = new Farm { Name = "OtherFarm " + Guid.NewGuid() };
             db.Farms.AddRange(myFarm, otherFarm);
-            db.MachineTests.Add(new MachineTest { TesterId = testerA.Id, FarmId = myFarm.Id, MarkedCompleteAt = DateTimeOffset.UtcNow });
-            db.MachineTests.Add(new MachineTest { TesterId = testerB.Id, FarmId = otherFarm.Id, MarkedCompleteAt = DateTimeOffset.UtcNow });
+            db.MachineTests.Add(new MachineTest { TesterId = testerA.Id, FarmId = myFarm.Id, TestingCompanyId = companyA.Id, MarkedCompleteAt = DateTimeOffset.UtcNow });
+            db.MachineTests.Add(new MachineTest { TesterId = testerB.Id, FarmId = otherFarm.Id, TestingCompanyId = companyB.Id, MarkedCompleteAt = DateTimeOffset.UtcNow });
             await db.SaveChangesAsync();
             adminId = admin.Id; myFarmId = myFarm.Id; otherFarmId = otherFarm.Id;
         }

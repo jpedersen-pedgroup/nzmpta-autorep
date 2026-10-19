@@ -40,14 +40,14 @@ public class IndexModel : PageModel
         // Farms awaiting review float to the top — this list doubles as the review queue.
         q = q.OrderBy(f => f.PendingReviewSince == null).ThenBy(f => f.Name);
 
-        // The Tests count matches the viewer's reach: a Company Administrator sees their own
-        // company's tests on the farm (multi-company farms carry other companies' history too),
-        // a Super-Administrator sees the total.
+        // The Tests count matches the viewer's reach: a Company Administrator sees the tests done
+        // for their company on the farm (by the company stamped on each test, as the Tests list
+        // scopes them; multi-company farms carry other companies' history too), a
+        // Super-Administrator sees the total.
         Farms = ScopedView
             ? await q.Select(f => new Row(
                 f.Id, f.Name, f.Region!.Name, f.MilkSupplyCompany!.Name, f.Town, f.IsActive,
-                _db.MachineTests.Count(t => t.FarmId == f.Id
-                    && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId)),
+                _db.MachineTests.Count(t => t.FarmId == f.Id && companyId != null && t.TestingCompanyId == companyId),
                 f.PendingReviewSince))
                 .ToListAsync()
             : await q.Select(f => new Row(

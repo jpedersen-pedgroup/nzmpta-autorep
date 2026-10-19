@@ -63,8 +63,9 @@ public class UserAdminPageTests : IClassFixture<AuthedWebAppFactory>
         (await FindUserAsync(email))!.TestingCompanyId.Should().BeNull();
     }
 
+    // The company isn't part of Details any more: a stray field can't move or strip anyone.
     [Fact]
-    public async Task Saving_details_wont_take_a_company_administrators_company_away()
+    public async Task Saving_details_leaves_the_company_alone()
     {
         var companyId = await SeedCompanyAsync();
         var userId = await SeedUserAsync(companyId, Roles.CompanyAdministrator);
@@ -77,9 +78,95 @@ public class UserAdminPageTests : IClassFixture<AuthedWebAppFactory>
         ]);
 
         res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var saved = (await FindUserByIdAsync(userId))!;
+        saved.DisplayName.Should().Be("Still an admin");
+        saved.TestingCompanyId.Should().Be(companyId);
+    }
+
+    [Fact]
+    public async Task A_company_role_cant_be_added_until_the_user_has_a_company()
+    {
+        var userId = await SeedUserAsync(null, Roles.SuperAdministrator);
+
+        var res = await PostAsync($"/Admin/Testers/Edit/{userId}?handler=Details",
+        [
+            new("Details.DisplayName", "Super"),
+            new("Details.SelectedRoles", Roles.SuperAdministrator),
+            new("Details.SelectedRoles", Roles.CompanyAdministrator),
+        ]);
+
         WebUtility.HtmlDecode(await res.Content.ReadAsStringAsync())
-            .Should().Contain("Company Administrators must be assigned to a Testing Company.");
-        (await FindUserByIdAsync(userId))!.TestingCompanyId.Should().Be(companyId);
+            .Should().Contain("Company Administrators must be assigned to a Testing Company. Give them one with Change company first.");
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<Tester>>();
+        (await users.GetRolesAsync((await users.FindByIdAsync(userId))!)).Should().Equal(Roles.SuperAdministrator);
+    }
+
+    // ---- Change company -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Edit_page_offers_change_company_and_says_what_happens()
+    {
+        var companyId = await SeedCompanyAsync();
+        var userId = await SeedUserAsync(companyId, Roles.Tester);
+
+        var html = WebUtility.HtmlDecode(await SuperAdminClient().GetStringAsync($"/Admin/Testers/Edit/{userId}"));
+
+        html.Should().Contain("data-open-change-company").And.Contain("Change company");
+        html.Should().Contain("The farms they've tested stay with");
+        html.Should().NotContain("name=\"Details.TestingCompanyId\"", "the company is changed only through the dialog");
+    }
+
+    [Fact]
+    public async Task Change_company_moves_a_tester_and_says_their_history_stays()
+    {
+        var from = await SeedCompanyAsync();
+        var to = await SeedCompanyAsync();
+        var userId = await SeedUserAsync(from, Roles.Tester);
+
+        var res = await PostAsync($"/Admin/Testers/Edit/{userId}?handler=ChangeCompany", [new("NewCompanyId", to.ToString())]);
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        WebUtility.HtmlDecode(await res.Content.ReadAsStringAsync()).Should().Contain("Moved to ").And.Contain("stay with");
+        (await FindUserByIdAsync(userId))!.TestingCompanyId.Should().Be(to);
+    }
+
+    [Fact]
+    public async Task Change_company_wont_leave_a_tester_without_one()
+    {
+        var from = await SeedCompanyAsync();
+        var userId = await SeedUserAsync(from, Roles.Tester);
+
+        var res = await PostAsync($"/Admin/Testers/Edit/{userId}?handler=ChangeCompany", [new("NewCompanyId", "")]);
+
+        WebUtility.HtmlDecode(await res.Content.ReadAsStringAsync()).Should().Contain("Testers must be assigned to a Testing Company.");
+        (await FindUserByIdAsync(userId))!.TestingCompanyId.Should().Be(from);
+    }
+
+    [Fact]
+    public async Task Change_company_refuses_a_deactivated_company()
+    {
+        var from = await SeedCompanyAsync();
+        var closed = await SeedCompanyAsync(active: false);
+        var userId = await SeedUserAsync(from, Roles.Tester);
+
+        var res = await PostAsync($"/Admin/Testers/Edit/{userId}?handler=ChangeCompany", [new("NewCompanyId", closed.ToString())]);
+
+        WebUtility.HtmlDecode(await res.Content.ReadAsStringAsync()).Should().Contain("Choose an active Testing Company.");
+        (await FindUserByIdAsync(userId))!.TestingCompanyId.Should().Be(from);
+    }
+
+    [Fact]
+    public async Task Change_company_can_set_and_clear_a_super_administrators_company()
+    {
+        var company = await SeedCompanyAsync();
+        var userId = await SeedUserAsync(null, Roles.SuperAdministrator);
+
+        await PostAsync($"/Admin/Testers/Edit/{userId}?handler=ChangeCompany", [new("NewCompanyId", company.ToString())]);
+        (await FindUserByIdAsync(userId))!.TestingCompanyId.Should().Be(company);
+
+        await PostAsync($"/Admin/Testers/Edit/{userId}?handler=ChangeCompany", [new("NewCompanyId", "")]);
+        (await FindUserByIdAsync(userId))!.TestingCompanyId.Should().BeNull();
     }
 
     // Older or migrated accounts may break the rule; the list says who, without changing anything.
@@ -169,11 +256,11 @@ public class UserAdminPageTests : IClassFixture<AuthedWebAppFactory>
             if (!await roles.RoleExistsAsync(role)) await roles.CreateAsync(new IdentityRole(role));
     }
 
-    private async Task<Guid> SeedCompanyAsync()
+    private async Task<Guid> SeedCompanyAsync(bool active = true)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
-        var company = new TestingCompany { Name = "Users Co " + Guid.NewGuid().ToString("N")[..6] };
+        var company = new TestingCompany { Name = "Users Co " + Guid.NewGuid().ToString("N")[..6], IsActive = active };
         db.TestingCompanies.Add(company);
         await db.SaveChangesAsync();
         return company.Id;
