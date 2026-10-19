@@ -60,7 +60,7 @@ const FAIL_ROW = "#fdf1f1";
 
 /** The mandatory Compliance Disclaimer (PRD story 43), printed on page one of every report. The
  * wording is fixed by the signed-off Requirements & Scope v1.1, section 7.3: change it only when
- * NZMPTA changes that text. */
+ * MPNZ changes that text. */
 export const COMPLIANCE_DISCLAIMER =
   "This Machine Test may identify numerous hazards, however it in no way guarantees safety compliance " +
   "for all or any hazard/s. It is the farm owner’s responsibility to ensure that all hazards comply " +
@@ -68,14 +68,14 @@ export const COMPLIANCE_DISCLAIMER =
 
 /** The reminder that sits under the next test date on page one. */
 export const ANNUAL_TEST_NOTE =
-  "Milking machines should be fully tested at least once a year by an NZMPTA Registered Milking Machine Tester.";
+  "Milking machines should be fully tested at least once a year by an MPNZ Registered Milking Machine Tester.";
 
 /** What the general comments box says when the tester left none. */
 export const NO_GENERAL_COMMENTS = "No general comments were recorded for this test.";
 
 /** The copyright line, for the year the report is generated (a New Zealand year). */
 export function copyrightNotice(year: number): string {
-  return `© ${year} New Zealand Milking and Pumping Trade Association. All rights reserved.`;
+  return `© ${year} MPNZ. All rights reserved.`;
 }
 
 /** The parts of the report, in print order. The full report is every part that has something in
@@ -337,13 +337,13 @@ function logoNode(dataUrl: string | null | undefined, fit: [number, number]): Co
 }
 
 /** "Tested by" in the Test panel: who did the test and how to reach them, as the farmer needs it
- * — name, company, phone, and NZMPTA registration number with its expiry. Each line only when known;
+ * — name, company, phone, and MPNZ registration number with its expiry. Each line only when known;
  * nothing at all when neither a tester nor a company is known. */
 function testedByBlock(tester: TesterDetails | null, companyName?: string | null): Content[] {
   const company = companyName?.trim();
   if (!tester && !company) return [];
   const reg = tester?.registrationNumber
-    ? `NZMPTA registration ${tester.registrationNumber}${tester.registrationExpiry ? ` · expires ${formatDisplayDate(tester.registrationExpiry)}` : ""}`
+    ? `MPNZ registration ${tester.registrationNumber}${tester.registrationExpiry ? ` · expires ${formatDisplayDate(tester.registrationExpiry)}` : ""}`
     : null;
   const lines: Content[] = [
     ...(tester ? [{ text: tester.name, fontSize: 9, bold: true, color: INK, margin: [0, 1, 0, 0] } as Content] : []),

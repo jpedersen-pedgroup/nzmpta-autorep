@@ -26,7 +26,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@(ViewData["Title"] ?? "AutoRep") · NZMPTA AutoRep</title>
+    <title>@(ViewData["Title"] ?? "AutoRep") · MPNZ AutoRep</title>
 
     <!-- Font Awesome: vendored Free webfonts as the offline baseline; the Pro kit upgrades the
          same fa-solid classes when it loads (the service worker caches it for offline reuse). -->
@@ -105,14 +105,14 @@
             {
                 <div class="licence-banner licence-banner--urgent">
                     <strong>Your tester licence has expired.</strong>
-                    You can still sign in to send tests already saved on this device, but can't start new ones until it's renewed. Contact NZMPTA.
+                    You can still sign in to send tests already saved on this device, but can't start new ones until it's renewed. Contact MPNZ.
                 </div>
             }
             else if (daysToExpiry <= 60)
             {
                 <div class="licence-banner licence-banner--urgent">
                     <strong>Your tester licence expires in @daysToExpiry day@(daysToExpiry == 1 ? "" : "s")</strong>
-                    (@expiry?.ToString("dd MMM yyyy")). Contact NZMPTA to renew.
+                    (@expiry?.ToString("dd MMM yyyy")). Contact MPNZ to renew.
                 </div>
             }
             else if (daysToExpiry <= 180)
@@ -127,7 +127,7 @@
         @RenderBody()
     </main>
     <footer class="app-footer">
-        &copy; 2026 NZMPTA · Built by Pedersen Group
+        &copy; 2026 MPNZ · Built by Pedersen Group
     </footer>
 
     <script src="~/js/pwa-register.js" asp-append-version="true"></script>

@@ -1,5 +1,5 @@
-using Nzmpta.AutoRep.Migration.Pipeline;
-using Nzmpta.AutoRep.Migration.Source;
+using Mpnz.AutoRep.Migration.Pipeline;
+using Mpnz.AutoRep.Migration.Source;
 
 // autorep-migrate — AutoRep O1 legacy data-migration tool. See README.md for the full option list.
 //   validate-source [--conn "<legacy>"]                         read-only pre-flight integrity report

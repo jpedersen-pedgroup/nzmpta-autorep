@@ -1,6 +1,6 @@
 using Microsoft.Data.SqlClient;
 
-namespace Nzmpta.AutoRep.Migration.Pipeline;
+namespace Mpnz.AutoRep.Migration.Pipeline;
 
 /// <summary>
 /// Guards the single-shot production cutover. Refuses unless the target is empty of migrated tests,

@@ -1,4 +1,4 @@
-// Pins the standards against the NZMPTA Testing Standards Manual + ISO 6690:2007 values
+// Pins the standards against the MPNZ Testing Standards Manual + ISO 6690:2007 values
 // (10 Jun 2026 audit — see plans/reference/standards-audit.md). The cleaning-reserve and
 // effective-reserve cases reproduce the manual's own worked examples.
 import { describe, it, expect, afterEach } from "vitest";

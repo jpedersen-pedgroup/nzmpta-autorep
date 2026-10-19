@@ -4,7 +4,7 @@ namespace Autorep.Web.Domain.Entities;
 /// An admin-editable test standard: either a pass/fail rule for one wizard reading (Kind =
 /// atMost / atLeast / between / tolerance, keyed by the reading key, e.g. "tr.airlineDropRR"),
 /// or a named parameter inside a formula the app computes (Kind = param, keyed "param.*", e.g.
-/// the 10% regulation-loss percentage). Seeded from the NZMPTA manual / ISO 6690 values; the
+/// the 10% regulation-loss percentage). Seeded from the MPNZ manual / ISO 6690 values; the
 /// SuperAdmin edits rows here and Devices sync them down — the formulas themselves stay in code,
 /// every number in them lives in this table.
 /// </summary>

@@ -27,7 +27,7 @@ function version(id: string, patch: Partial<LocalTest> = {}): LocalTest {
 const adminV2 = version("admin-v2", {
   version: 2,
   supersedesId: "v1",
-  amendments: [{ version: 2, amendedAt: "2026-10-06T00:00:00.000Z", amendedBy: "sam@nzmpta", amendedByName: "Sam Superadmin", amendedByRole: "Super Administrator", baseVersion: 1, changes: [] }],
+  amendments: [{ version: 2, amendedAt: "2026-10-06T00:00:00.000Z", amendedBy: "sam@milkingpumping.co.nz", amendedByName: "Sam Superadmin", amendedByRole: "Super Administrator", baseVersion: 1, changes: [] }],
 });
 
 describe("a test's versions on the device", () => {

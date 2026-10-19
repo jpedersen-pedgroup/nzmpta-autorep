@@ -2,9 +2,9 @@
 // reaches the report with a blank action. The tester can still overwrite it on Fault Summary
 // (test.recommendations wins, see buildFaults.ts).
 //
-// Wording is taken from NZMPTA's CMM ratings sheet (plans/reference/cmm-fault-ratings.csv) where
+// Wording is taken from MPNZ's CMM ratings sheet (plans/reference/cmm-fault-ratings.csv) where
 // it has a row for the failure; those are marked "CMM". The rest are drafted in the same style for
-// NZMPTA to review, since the sheet has no row (or an empty recommendation) for them.
+// MPNZ to review, since the sheet has no row (or an empty recommendation) for them.
 import type { ReadingDef } from "../passfail/standards";
 
 type Recommend = string | ((reading: ReadingDef, value: number) => string);

@@ -35,14 +35,14 @@ export function licenceBanner(expiry: string | null | undefined, today = new Dat
     return {
       urgent: true,
       lead: "Your tester licence has expired.",
-      rest: "You can still sign in to send tests already saved on this device, but can't start new ones until it's renewed. Contact NZMPTA.",
+      rest: "You can still sign in to send tests already saved on this device, but can't start new ones until it's renewed. Contact MPNZ.",
     };
   }
   if (days <= 60) {
     return {
       urgent: true,
       lead: `Your tester licence expires in ${days} day${days === 1 ? "" : "s"}`,
-      rest: `(${date}). Contact NZMPTA to renew.`,
+      rest: `(${date}). Contact MPNZ to renew.`,
     };
   }
   if (days <= 180) {

@@ -24,7 +24,7 @@ param logAnalyticsWorkspaceId string
 // Ten years (Josh, 8 Oct 2026 — beyond the PRD's seven-year audit window): 10 × 365 + 3, the most
 // leap days any ten years can hold. Every version of a Final Report or a pulsation analyser PDF is
 // immutable (WORM) for this long after it is written: it can't be deleted, and an overwrite keeps
-// the old version. The policy is UNLOCKED — an Owner can still shorten or remove it — until NZMPTA
+// the old version. The policy is UNLOCKED — an Owner can still shorten or remove it — until MPNZ
 // confirms the period; locking it is a separate, irreversible step.
 @description('Days each version of a PDF in final-reports and pulsation-data stays immutable (WORM).')
 @minValue(1)

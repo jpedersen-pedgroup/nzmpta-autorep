@@ -54,7 +54,7 @@ dotnet run --project tools/Migration -- cutover --target-conn "Server=...prod...
 
 - `data-quality.csv` — row-level quarantine: `LegacyTable,LegacyKey,TargetEntity,Reason,Severity`.
   **PII-redacted by design** (`Pipeline/Quarantine.cs`): only the legacy key and a reason code, never
-  names, emails, addresses or phone numbers, so it is safe to share with NZMPTA. Sorted, so an
+  names, emails, addresses or phone numbers, so it is safe to share with MPNZ. Sorted, so an
   unchanged source produces an identical file on re-run **into a cleared target**. On a populated
   target the skip checks run before most findings are recorded (invalid logos, inactive testers,
   defaulted configurations are only found while a row is being migrated), so a re-run's CSV is
@@ -82,7 +82,7 @@ the admin "deactivate", so a password reset does not quietly reactivate them.
 
 - Tool complete; full dry-run of all 22,797 tests into staging done 18 Jun 2026, four review
   findings fixed 19 Jun.
-- Still to do before cutover, tracked in `plans/build-checklist.md` (O1): NZMPTA review of
+- Still to do before cutover, tracked in `plans/build-checklist.md` (O1): MPNZ review of
   `data-quality.csv`, report-parity review of sample migrated tests against legacy prints, a fresh
   dry-run on the final schema, the cutover runbook (pre-checks, run, post-checks, rollback), and the
   decision on mapping legacy `TestVaccumPumpDetails` into the new pump fields.

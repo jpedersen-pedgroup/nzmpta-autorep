@@ -87,7 +87,7 @@ public class LoginModel : PageModel
             if (user is not null && await _users.CheckPasswordAsync(user, Input.Password))
             {
                 ErrorMessage = AccountLockout.IsDeactivated(user.LockoutEnd)
-                    ? "This account isn't active. Contact NZMPTA."
+                    ? "This account isn't active. Contact MPNZ."
                     : "Too many attempts — your account is temporarily locked. Try again shortly.";
             }
             else

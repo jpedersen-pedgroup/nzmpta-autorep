@@ -1,4 +1,4 @@
-# Plan: NZMPTA AutoRep Rebuild — Committed Scope (M2–M5 + O1–O3)
+# Plan: MPNZ AutoRep Rebuild — Committed Scope (M2–M5 + O1–O3)
 
 > Source PRD: `PRD.md` (this repo) — derived from `docs/NZMPTA_AutoRep_Rebuild_Requirements_v1_1.docx`.
 > Ubiquitous language: `UBIQUITOUS_LANGUAGE.md`.
@@ -283,7 +283,7 @@ The Admin Portal grows the full identity-management surface. Super-Administrator
 
 ### What to build
 
-NZMPTA gains full self-service over Reference Data. Super-Administrator manages Equipment Catalogues per equipment type, Vendor Specifications with an **EffectiveDate** picker (defaulting to today, with future dates supported), uploads new versions of the Test Standard Manual (every prior version retained and downloadable), and edits the Standard Recommendation Wording list. The PWA sync delta endpoint now correctly serves these admin-driven changes.
+MPNZ gains full self-service over Reference Data. Super-Administrator manages Equipment Catalogues per equipment type, Vendor Specifications with an **EffectiveDate** picker (defaulting to today, with future dates supported), uploads new versions of the Test Standard Manual (every prior version retained and downloadable), and edits the Standard Recommendation Wording list. The PWA sync delta endpoint now correctly serves these admin-driven changes.
 
 Company Administrators gain their first edit capability: Farm Details and the final summary / Recommendations on Tests by their team's Testers. These edits create TestVersion rows just like Tester edits.
 

@@ -36,7 +36,7 @@ interface TestSummaryDto {
   config: MachineConfiguration | null;
   /** Full offline capture payload (the serialised LocalTest) for exact rehydration. */
   payloadJson: string | null;
-  /** A tombstone: NZMPTA soft-deleted this test (sync/removals.ts). */
+  /** A tombstone: MPNZ soft-deleted this test (sync/removals.ts). */
   deleted?: boolean;
   deletedAt?: string | null;
   deletedReason?: string | null;
@@ -73,7 +73,7 @@ export interface SyncResult {
   /** Pushed tests that arrived after another edit of the same test and were combined with it.
    * Present only when there were some. */
   merged?: number;
-  /** Tests removed from this device because NZMPTA deleted them. Present only when there were some. */
+  /** Tests removed from this device because MPNZ deleted them. Present only when there were some. */
   removed?: number;
 }
 
@@ -191,7 +191,7 @@ async function pushTest(t: LocalTest): Promise<boolean> {
     }
   }
   if (!res.ok) throw new Error(`Push failed (${res.status})`);
-  // NZMPTA deleted this test: the server kept what was sent with the deleted test. Flag the copy here
+  // MPNZ deleted this test: the server kept what was sent with the deleted test. Flag the copy here
   // — it's removed once a pull confirms the deletion — so the tester is told rather than surprised.
   const answer = (await res.json().catch(() => null)) as { status?: string; deletedAt?: string | null; reason?: string | null } | null;
   if (answer?.status === "deleted") {
@@ -393,7 +393,7 @@ async function storePulled(remote: readonly TestSummaryDto[]): Promise<{ added: 
     const existing = await getTest(r.clientId);
 
     if (r.deleted) {
-      // NZMPTA deleted this test. A copy the server already has goes; one with unsent edits never
+      // MPNZ deleted this test. A copy the server already has goes; one with unsent edits never
       // does — it's flagged, still goes up, and goes once a later pull finds it clean.
       if (!existing) continue;
       if (existing.syncState !== "uploaded") {

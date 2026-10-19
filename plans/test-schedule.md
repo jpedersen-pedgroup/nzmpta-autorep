@@ -1,17 +1,17 @@
-# NZMPTA AutoRep — Test Schedule
+# MPNZ AutoRep — Test Schedule
 
 > **Status: LIVING DOCUMENT — v0.1 (5 Jun 2026).** Two sections are deliberately stubbed and will be filled in when the inputs arrive:
 > - 🔓 **Wizard test cases** — pending the half-day workshop with 2–3 experienced testers (validates Section 7.2 wizard steps).
 > - 🔓 **Migration test cases** — pending read access to the legacy Azure SQL database + schema copy.
 >
-> Source of truth for *what* to test: `PRD.md` (§Testing Decisions) and `plans/build-checklist.md`. This schedule maps testing to the **4 contract delivery phases** and defines the **test gate** each must pass before NZMPTA Acceptance.
+> Source of truth for *what* to test: `PRD.md` (§Testing Decisions) and `plans/build-checklist.md`. This schedule maps testing to the **4 contract delivery phases** and defines the **test gate** each must pass before MPNZ Acceptance.
 
 ## 1. Current state
 The test **harness is stood up** (5 Jun 2026): xUnit unit tests + a `WebApplicationFactory` integration fixture on an InMemory store (`tests/Autorep.Web.Tests`), **10 tests green** — address parsing (T1), `/health`, anonymous auth-gating on `/Admin/Farms` and the address proxy, and reference-data seeding (T3). `Program` skips the SQL Server provider in the `Testing` environment so tests run on InMemory. Still to build out: golden-file PDF (T4), Playwright (T5), and broader coverage as features land.
 
 ## Test execution record — evidence of completed testing
 
-> A dated record of test runs, kept as evidence for NZMPTA that testing is performed throughout the build. Grouped by **delivery phase** and tagged with the **test type** (T-numbers from §2). Reproducible with `dotnet test`; CI publishes a results summary (job summary) and a machine-readable TRX artifact on every run. This record grows as coverage is added each phase.
+> A dated record of test runs, kept as evidence for MPNZ that testing is performed throughout the build. Grouped by **delivery phase** and tagged with the **test type** (T-numbers from §2). Reproducible with `dotnet test`; CI publishes a results summary (job summary) and a machine-readable TRX artifact on every run. This record grows as coverage is added each phase.
 
 **Latest run**
 
@@ -74,7 +74,7 @@ A reusable **test-auth harness** (`TestAuthHandler` + `AuthedWebAppFactory`) now
 | T7 | Migration validation | Legacy → new mapping, quarantine, idempotent dry-run, sample-report parity | Golden-record + manual review | Partial |
 | T8 | Security review | TLS, private endpoint, secrets, authZ, headers, lockout, token lifecycle | Manual + checklist (M6) | No |
 | T9 | Performance | 20–30 concurrent sessions, sync under load | Load script (M6) | No |
-| T10 | UAT | Scripted tester + admin scenarios; Maria Scott sign-off | Manual (NZMPTA) | No |
+| T10 | UAT | Scripted tester + admin scenarios; Maria Scott sign-off | Manual (MPNZ) | No |
 
 ## 3. Schedule by delivery phase (test gates)
 
@@ -104,7 +104,7 @@ A reusable **test-auth harness** (`TestAuthHandler` + `AuthedWebAppFactory`) now
 
 ### Phase 4 — Hardening & cutover (M6, O1) — *gate before Go-Live*
 - [ ] T7: migration golden-record (known legacy snapshot ⇒ expected schema + data-quality CSV); idempotent re-run
-- [ ] T7: sample migrated tests regenerate reports matching legacy originals (NZMPTA review)
+- [ ] T7: sample migrated tests regenerate reports matching legacy originals (MPNZ review)
 - [ ] T8: security review checklist signed off
 - [ ] T9: performance at 20–30 concurrent sessions within targets
 - [ ] T3: full integration suite green across delivered scope
@@ -153,10 +153,10 @@ Once the legacy Azure SQL schema + sample data are available, expand here:
 ## 6. Open items blocking full test definition
 | Blocker | Needed for | Owner |
 |---|---|---|
-| Wizard workshop with testers | §4 wizard cases, M3 gate | NZMPTA to nominate testers |
-| Legacy SQL read access + schema | §5 migration cases, O1 gate | NZMPTA |
+| Wizard workshop with testers | §4 wizard cases, M3 gate | MPNZ to nominate testers |
+| Legacy SQL read access + schema | §5 migration cases, O1 gate | MPNZ |
 | ~~Report engine~~ — **RESOLVED 5 Jun: client-side** pdfmake/pdf-lib (offline print) | T4 golden-file approach | ✔ |
-| Brand assets | report golden-file baselines | NZMPTA |
+| Brand assets | report golden-file baselines | MPNZ |
 
 ## 7. Conventions
 - Golden files normalised (strip generation timestamps; embed fonts) before byte comparison.

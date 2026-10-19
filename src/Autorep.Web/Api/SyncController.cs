@@ -248,7 +248,7 @@ public class SyncController : ControllerBase
         // device about a deletion).
         if (await FrozenAsync(testerId, req, ct) is { } frozen) return frozen;
 
-        // A test NZMPTA has soft-deleted stays deleted. What the device sends is still kept with it —
+        // A test MPNZ has soft-deleted stays deleted. What the device sends is still kept with it —
         // it may be the only copy of the tester's latest edits — and the answer says so, so the device
         // can tell the tester. There's nothing to reconcile with.
         var deleted = await DeletedLineageAsync(testerId, req.ClientId, req.SupersedesClientId, ct);

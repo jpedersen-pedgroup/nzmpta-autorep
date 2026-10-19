@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Nzmpta.AutoRep.Migration.Pipeline;
+namespace Mpnz.AutoRep.Migration.Pipeline;
 
 /// <summary>
 /// Row-level quarantine + data-quality log. PII-redacted by design: only the legacy key and a

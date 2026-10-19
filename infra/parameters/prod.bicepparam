@@ -6,10 +6,10 @@ param environment = 'prod'
 // PRD §Hosting requires NZ data residency for prod; this is the deciding parameter.
 param location = 'newzealandnorth'
 
-param namingPrefix = 'nzmpta-autorep'
+param namingPrefix = 'mpnz-autorep'
 
 param tags = {
-  Project: 'NZMPTA AutoRep'
+  Project: 'MPNZ AutoRep'
   Environment: 'prod'
   Owner: 'Pedersen Group'
   ManagedBy: 'Bicep'

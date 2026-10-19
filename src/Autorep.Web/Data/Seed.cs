@@ -25,7 +25,7 @@ public static class Seed
     }
 
     // Seeds the reference-data lookups (NZ regions, dairy processors). Idempotent
-    // (insert-if-absent by name) and run in every environment. NZMPTA can add or
+    // (insert-if-absent by name) and run in every environment. MPNZ can add or
     // deactivate rows later via the admin portal without conflicting with this.
     public static async Task ReferenceDataAsync(IServiceProvider services)
     {
@@ -58,7 +58,7 @@ public static class Seed
             }
         }
 
-        // Main NZ dairy processors — seeded once as defaults, then NZMPTA owns the
+        // Main NZ dairy processors — seeded once as defaults, then MPNZ owns the
         // list via the admin portal. Seed only when the table is empty so admin
         // renames/deletes aren't resurrected on the next startup. (Regions above are
         // a fixed national list, so they stay always-ensured.)
@@ -83,7 +83,7 @@ public static class Seed
         await PrivacyContentAsync(db);
     }
 
-    // Seeds the single PrivacyContent row with DRAFT wording (NZMPTA/legal finalise it in the admin
+    // Seeds the single PrivacyContent row with DRAFT wording (MPNZ/legal finalise it in the admin
     // portal). Seed-only-when-empty so admin edits are never overwritten on restart.
     private static async Task PrivacyContentAsync(AutorepDbContext db)
     {
@@ -93,20 +93,20 @@ public static class Seed
             TermsVersion = DefaultTermsVersion,
             TermsBody =
                 "By using AutoRep you agree to: (1) carry out milking-machine tests in accordance with "
-                + "NZMPTA standards; (2) handle the farm and farmer personal information you collect only for "
+                + "MPNZ standards; (2) handle the farm and farmer personal information you collect only for "
                 + "testing, reporting and compliance, keep it secure, and not use or disclose it for any other "
                 + "purpose; and (3) keep your login credentials confidential. "
-                + "[DRAFT wording — NZMPTA to finalise.]",
+                + "[DRAFT wording — MPNZ to finalise.]",
             CollectionNotice =
                 "The farm and farmer contact details entered here are collected by your testing company and "
-                + "NZMPTA to perform and report this milking-machine test and for compliance records, and are "
+                + "MPNZ to perform and report this milking-machine test and for compliance records, and are "
                 + "stored securely in New Zealand. The farmer may request access to or correction of their "
                 + "information. Please make sure the farmer is aware of this. [DRAFT]",
             ReportFooterText =
                 "Personal information in this report is held under the Privacy Act 2020 for milking-machine "
-                + "test reporting and compliance. To access or correct it, contact privacy@nzmpta.co.nz. [DRAFT]",
-            PrivacyContactEmail = "privacy@nzmpta.co.nz",
-            PrivacyStatementUrl = "https://www.nzmpta.co.nz/privacy",
+                + "test reporting and compliance. To access or correct it, contact privacy@milkingpumping.co.nz. [DRAFT]",
+            PrivacyContactEmail = "privacy@milkingpumping.co.nz",
+            PrivacyStatementUrl = "https://www.milkingpumping.co.nz/privacy",
         });
         await db.SaveChangesAsync();
     }
@@ -204,7 +204,7 @@ public static class Seed
     private sealed record BrandedSeed(string Name, string Brand);
 
     // Seeds the editable test standards (pass/fail thresholds + formula parameters) with the
-    // values verified against the NZMPTA Testing Standards Manual + ISO 6690:2007 (see
+    // values verified against the MPNZ Testing Standards Manual + ISO 6690:2007 (see
     // plans/reference/standards-audit.md). Insert-if-absent BY KEY so SuperAdmin edits are never
     // overwritten on restart, while new keys added in later releases still appear.
     private static async Task TestStandardsAsync(AutorepDbContext db)
@@ -250,7 +250,7 @@ public static class Seed
             Param("param.ancillary.perUnit", "ACR / milk-meter allowance per unit", "Ancillary", 7.5, "L/min", "Manual p41"),
             Param("param.ancillary.minTotal", "ACR / milk-meter minimum total allowance", "Ancillary", 30, "L/min", "Manual p41"),
             Param("param.perCluster.tenLpm", "Teat spray / vacuum-gate allowance per cluster", "Ancillary", 10, "L/min", "Manual p41"),
-            Rule("puls.pulsatorConsumption", "Pulsator consumption per cluster — max", "Ancillary", "atMost", "L/min", "NZMPTA (J. Rowlands, Sep 2026)", limit: 35),
+            Rule("puls.pulsatorConsumption", "Pulsator consumption per cluster — max", "Ancillary", "atMost", "L/min", "MPNZ (J. Rowlands, Sep 2026)", limit: 35),
             Rule("add.regulatorLoad", "Peak regulator load — max increase", "Ancillary", "atMost", "kPa", "Manual p61", limit: 2),
 
             // — Cluster air —
@@ -283,7 +283,7 @@ public static class Seed
         await db.SaveChangesAsync();
     }
 
-    // Creates the initial NZMPTA Super-Administrator from configuration, when no account with
+    // Creates the initial MPNZ Super-Administrator from configuration, when no account with
     // that email exists yet. No password lives in source: set Bootstrap:AdminEmail and
     // Bootstrap:AdminPassword (the password via Key Vault / an App Service secret). The
     // account is flagged for a forced password change on first login, so the bootstrap
@@ -305,7 +305,7 @@ public static class Seed
             UserName = email,
             Email = email,
             EmailConfirmed = true,
-            DisplayName = "NZMPTA Administrator",
+            DisplayName = "MPNZ Administrator",
             ForcedPasswordResetRequired = true,
         };
         var result = await userManager.CreateAsync(user, password);

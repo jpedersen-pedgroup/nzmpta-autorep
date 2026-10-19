@@ -41,7 +41,7 @@ function adminV2(patch: Partial<LocalTest>): LocalTest {
     version: 2,
     supersedesId: "v1",
     markedCompleteAt: "2026-10-06T00:00:00.000Z",
-    amendments: [record(2, { amendedBy: "sam@nzmpta", amendedByName: "Sam Superadmin", amendedByRole: "Super Administrator", reason: "Wording" })],
+    amendments: [record(2, { amendedBy: "sam@milkingpumping.co.nz", amendedByName: "Sam Superadmin", amendedByRole: "Super Administrator", reason: "Wording" })],
   };
 }
 

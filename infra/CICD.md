@@ -11,7 +11,7 @@ One-time setup to wire the GitHub Actions workflows so they can deploy on your b
 | `.github/workflows/infra.yml` | PR touching `infra/**`, push to `main`, manual | Bicep build + `what-if` against staging. On main push, also deploys staging. |
 | `.github/workflows/infra-prod.yml` | Manual only (`workflow_dispatch`) | `what-if` then deploy against prod, gated by the `prod` GitHub Environment (require reviewers). |
 | `.github/workflows/app.yml` | PR touching `src/**`/`tests/**`, push to `main`, manual | `dotnet build` + `dotnet test` + `dotnet publish`. On main push, deploys to App Service `app-nzmpta-autorep-staging` and runs a health check against `/health`. |
-| `.github/workflows/app-prod.yml` | Manual only (`workflow_dispatch`) | Builds from `main`, deploys to App Service `app-nzmpta-autorep-prod`, gated by the `prod` GitHub Environment. Requires typing "deploy to production" as a confirmation input. |
+| `.github/workflows/app-prod.yml` | Manual only (`workflow_dispatch`) | Builds from `main`, deploys to App Service `app-mpnz-autorep-prod`, gated by the `prod` GitHub Environment. Requires typing "deploy to production" as a confirmation input. |
 
 The same federated identity covers all four workflows — no additional setup needed if the infra one-time setup (below) is already done.
 
@@ -79,7 +79,7 @@ az role assignment create `
 az role assignment create `
   --assignee $SP_OBJECT_ID `
   --role Owner `
-  --scope "/subscriptions/$SUB_ID/resourceGroups/rg-nzmpta-autorep-prod"
+  --scope "/subscriptions/$SUB_ID/resourceGroups/rg-mpnz-autorep-prod"
 ```
 
 Owner is scoped to the RGs only — not the whole subscription. Better still, give prod its own identity so nothing that can reach staging can reach prod: [Recommended hardening](#recommended-hardening), item 2.
@@ -164,7 +164,7 @@ The permissions keep compromised dependencies out, not people with write access:
 2. **Give prod its own identity.** Step 3 makes one service principal Owner on both resource groups, and `staging` can't be limited to `main` because `infra.yml` runs PR what-ifs in it — so anyone who can push a branch can get an `environment:staging` token and, through it, Owner on the prod resource group. (Staging's `SQL_ADMIN_PASSWORD` is exposed the same way — don't reuse it for prod.) Move prod to a second App Registration that trusts only the `prod` environment. With the variables from steps 1–3 still set:
 
    ```powershell
-   $PROD_APP_NAME = "github-actions-nzmpta-autorep-prod"
+   $PROD_APP_NAME = "github-actions-mpnz-autorep-prod"
    az ad app create --display-name $PROD_APP_NAME
    $PROD_APP_ID = az ad app list --display-name $PROD_APP_NAME --query "[0].appId" -o tsv
    az ad sp create --id $PROD_APP_ID
@@ -177,7 +177,7 @@ The permissions keep compromised dependencies out, not people with write access:
    az role assignment create `
      --assignee $PROD_SP_OBJECT_ID `
      --role Owner `
-     --scope "/subscriptions/$SUB_ID/resourceGroups/rg-nzmpta-autorep-prod"
+     --scope "/subscriptions/$SUB_ID/resourceGroups/rg-mpnz-autorep-prod"
 
    # An environment variable overrides the repo-level one, so prod jobs switch
    # identity without any workflow change.
@@ -188,7 +188,7 @@ The permissions keep compromised dependencies out, not people with write access:
    az role assignment delete `
      --assignee $SP_OBJECT_ID `
      --role Owner `
-     --scope "/subscriptions/$SUB_ID/resourceGroups/rg-nzmpta-autorep-prod"
+     --scope "/subscriptions/$SUB_ID/resourceGroups/rg-mpnz-autorep-prod"
    ```
 
 3. **Lock down `prod` and `main`.** Give the `prod` environment required reviewers *and* limit its deployment branches to `main` (step 5). The branch rule matters because a run dispatched from another branch uses that branch's copy of the workflow — `app-prod.yml`'s `ref: main` checkout doesn't help if the workflow itself was edited. The rule is only as strong as `main`, so protect `main` too (require a pull request before merging).

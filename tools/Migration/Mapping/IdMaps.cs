@@ -1,4 +1,4 @@
-namespace Nzmpta.AutoRep.Migration.Mapping;
+namespace Mpnz.AutoRep.Migration.Mapping;
 
 /// <summary>In-memory legacy-id -> new-id maps, populated in FK order and consumed downstream.</summary>
 public sealed class IdMaps

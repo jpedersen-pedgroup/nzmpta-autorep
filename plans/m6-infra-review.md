@@ -1,4 +1,4 @@
-# NZMPTA AutoRep — M6 Infrastructure & Security Review
+# MPNZ AutoRep — M6 Infrastructure & Security Review
 
 > **When:** during **M6 (Hardening, security review & go-live)**, before production cutover and before the O1 data migration loads real data.
 > **Owner:** Pedersen Group. **Sign-off:** required before Go-Live.
@@ -73,13 +73,13 @@
 - [ ] Resource locks on prod RG (prevent accidental deletion)
 
 ## 9. Custom domain, DNS & certificates
-- [ ] ⬜ Bind prod custom domain (e.g. `autorep.nzmpta.org.nz`) + DNS validation (README post-deploy step 3)
+- [ ] ⬜ Bind prod custom domain (e.g. `autorep.milkingpumping.co.nz`) + DNS validation (README post-deploy step 3)
 - [ ] App Service Managed Certificate issued + SNI-bound; auto-renew confirmed
 - [ ] PWA `start_url`/`scope` and manifest match the final domain; service worker re-validated on the real host
 
 ## 10. Operational readiness & cutover
 - [ ] ⬜ **Cutover runbook**: pre-checks, migration run command, post-checks, **rollback procedure** (also an O1 deliverable)
-- [ ] Parallel-run period agreed with NZMPTA; legacy decommission plan + date
+- [ ] Parallel-run period agreed with MPNZ; legacy decommission plan + date
 - [ ] DNS cutover steps + TTL lowered ahead of switch
 - [ ] On-call / incident channel live (ties to MSA SLA); contacts confirmed
 - [ ] Tester onboarding comms + docs ready (install PWA, first-login password reset)
@@ -87,4 +87,4 @@
 ## Sign-off
 - [ ] All ⬜/⚠️ items resolved or risk-accepted in writing
 - [ ] Security review outcome documented
-- [ ] Pedersen Group + NZMPTA (Maria Scott) go-live approval recorded
+- [ ] Pedersen Group + MPNZ (Maria Scott) go-live approval recorded

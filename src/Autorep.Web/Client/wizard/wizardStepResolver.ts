@@ -70,7 +70,7 @@ function airflowSections(c: MachineConfiguration): string[] {
 }
 
 // Additional Tests: the unnumbered per-ancillary consumption/leakage checks that follow the ISO
-// flowchart — NZMPTA's "Additional Tests" flowchart, so this step must hold nothing else.
+// flowchart — MPNZ's "Additional Tests" flowchart, so this step must hold nothing else.
 function additionalSections(c: MachineConfiguration): string[] {
   const s: string[] = [];
   if (c.hasMilkMeters) s.push("MilkMeter");
@@ -81,7 +81,7 @@ function additionalSections(c: MachineConfiguration): string[] {
   return s;
 }
 
-// Step order follows the NZMPTA ISO flowchart: vacuum (1–9) → airflow (10–12) → individual
+// Step order follows the MPNZ ISO flowchart: vacuum (1–9) → airflow (10–12) → individual
 // cluster (13, optional; the wizard shows it only when 12b fails) → pulsation (14–15) → the
 // additional tests. Decided with Josh, 15 Sep 2026, after a tester skipped 10–12 because they sat
 // under "Additional Tests".
