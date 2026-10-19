@@ -1,5 +1,7 @@
 @page "{id:guid}"
 @model Autorep.Web.Pages.Admin.Tests.ViewModel
+@inject IConfiguration Config
+@using Autorep.Web.Services
 @{
     ViewData["Title"] = "View test";
 }
@@ -7,7 +9,7 @@
 @* Admin viewer: the offline wizard bundle (autorep.js) sees data-server-test and fetches the test from
    /api/tests/{id} instead of IndexedDB. data-admin offers an administrator the edit-as-a-new-version
    controls, within what that endpoint says their role allows; the save goes to /api/admin/tests. *@
-<div id="wizard-root" data-bundle-root data-server-test="@Model.Id" data-back="/Admin/Tests" data-admin></div>
+<div id="wizard-root" data-bundle-root data-server-test="@Model.Id" data-back="/Admin/Tests" data-admin data-migrated-cutoff="@MigratedTests.CutoffAttribute(Config)"></div>
 
 @section Scripts {
     <script type="module" src="~/js/dist/autorep.js"></script>

@@ -39,18 +39,26 @@ public class EditModel : PageModel
     [BindProperty]
     public DateOnly? LicenceExpiryDate { get; set; }
 
+    /// <summary>The Change company dialog's choice; null moves the user out of any company (allowed
+    /// only for roles that don't need one).</summary>
+    [BindProperty]
+    public Guid? NewCompanyId { get; set; }
+
     // Named EditingUser to avoid shadowing PageModel.User (the current principal).
     public Tester? EditingUser { get; private set; }
     public string RolesDisplay { get; private set; } = "—";
     public string? CompanyName { get; private set; }
+    /// <summary>The user's stored roles need a Testing Company (Tester, Company Administrator).</summary>
+    public bool NeedsCompany { get; private set; }
+    /// <summary>Active companies the user could move to (their current one left out).</summary>
     public List<SelectListItem> Companies { get; private set; } = [];
     public List<string> Errors { get; } = new();
     public string? Message { get; set; }
 
+    // The company isn't part of Details: changing it is its own, confirmed step (ChangeCompany).
     public class DetailsModel
     {
         public string DisplayName { get; set; } = string.Empty;
-        public Guid? TestingCompanyId { get; set; }
         // A user may hold more than one role (e.g. Company Administrator + Tester).
         public List<string> SelectedRoles { get; set; } = new();
         public string? CertificateNo { get; set; }
@@ -69,8 +77,8 @@ public class EditModel : PageModel
         var roles = Details.SelectedRoles.Distinct().ToList();
         if (roles.Count == 0) Errors.Add("Select at least one role.");
         if (roles.Any(r => !Roles.All.Contains(r))) Errors.Add("Role is invalid.");
-        if (roles.Contains(Roles.Tester) && Details.TestingCompanyId is null)
-            Errors.Add("Testers must be assigned to a Testing Company.");
+        if (Roles.CompanyRequiredError(roles, EditingUser!.TestingCompanyId) is { } noCompany)
+            Errors.Add($"{noCompany} Give them one with Change company first.");
         if (Errors.Any()) return Page(); // LoadAsync populated Companies; Details keeps the posted values
 
         var currentRoles = await _users.GetRolesAsync(EditingUser!);
@@ -87,7 +95,6 @@ public class EditModel : PageModel
         }
 
         EditingUser!.DisplayName = Details.DisplayName.Trim();
-        EditingUser.TestingCompanyId = Details.TestingCompanyId;
         EditingUser.CertificateNo = string.IsNullOrWhiteSpace(Details.CertificateNo) ? null : Details.CertificateNo.Trim();
         await _users.UpdateAsync(EditingUser);
 
@@ -95,6 +102,50 @@ public class EditModel : PageModel
         await _users.AddToRolesAsync(EditingUser, roles);
 
         Message = "Details saved.";
+        await LoadAsync(hydrateForGet: true);
+        return Page();
+    }
+
+    /// <summary>Moves the user to another Testing Company (or, when their roles allow it, out of one).
+    /// What they did for the old company stays with it: each test keeps the company stamped when it
+    /// was first sent, and farms are in a company's scope through those stamps (FarmScope), so the
+    /// farms they tested stay behind. Takes effect at once: there's no company claim to go stale.</summary>
+    public async Task<IActionResult> OnPostChangeCompanyAsync()
+    {
+        if (!await LoadAsync(hydrateForGet: true)) return NotFound();
+
+        var fromName = CompanyName;
+        if (NewCompanyId == EditingUser!.TestingCompanyId)
+        {
+            Errors.Add(fromName is null ? "They aren't in a company already." : $"They're already with {fromName}.");
+            return Page();
+        }
+        string? toName = null;
+        if (NewCompanyId is not null)
+        {
+            toName = await _db.TestingCompanies.Where(c => c.Id == NewCompanyId && c.IsActive)
+                .Select(c => c.Name).FirstOrDefaultAsync();
+            if (toName is null)
+            {
+                Errors.Add("Choose an active Testing Company.");
+                return Page();
+            }
+        }
+        if (Roles.CompanyRequiredError(await _users.GetRolesAsync(EditingUser), NewCompanyId) is { } noCompany)
+        {
+            Errors.Add(noCompany);
+            return Page();
+        }
+
+        EditingUser.TestingCompanyId = NewCompanyId;
+        await _users.UpdateAsync(EditingUser);
+
+        Message = (fromName, toName) switch
+        {
+            (null, _) => $"Added to {toName}.",
+            (_, null) => $"Removed from {fromName}. The tests and farms they did for {fromName} stay with it.",
+            _ => $"Moved to {toName}. The tests and farms they did for {fromName} stay with {fromName}.",
+        };
         await LoadAsync(hydrateForGet: true);
         return Page();
     }
@@ -183,18 +234,19 @@ public class EditModel : PageModel
         var roles = await _users.GetRolesAsync(EditingUser);
         RolesDisplay = roles.Count == 0 ? "—" : string.Join(", ", roles.Select(Roles.Label));
         CompanyName = EditingUser.TestingCompany?.Name;
+        NeedsCompany = Roles.CompanyRequiredError(roles, testingCompanyId: null) is not null;
 
         if (hydrateForGet)
         {
             Details.DisplayName = EditingUser.DisplayName;
-            Details.TestingCompanyId = EditingUser.TestingCompanyId;
             Details.SelectedRoles = roles.Count > 0 ? roles.ToList() : new List<string> { Roles.Tester };
             Details.CertificateNo = EditingUser.CertificateNo;
             LicenceExpiryDate = EditingUser.LicenceExpiryDate;
         }
 
+        var currentCompanyId = EditingUser.TestingCompanyId;
         Companies = await _db.TestingCompanies
-            .Where(c => c.IsActive)
+            .Where(c => c.IsActive && c.Id != currentCompanyId)
             .OrderBy(c => c.Name)
             .Select(c => new SelectListItem(c.Name, c.Id.ToString()))
             .ToListAsync();
