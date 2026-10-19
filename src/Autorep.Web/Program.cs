@@ -112,8 +112,9 @@ builder.Services.ConfigureApplicationCookie(opts =>
 
 // Email sender: Graph when a sending mailbox is configured; otherwise the log-only sender is
 // permitted outside Production. In Production a missing mailbox is a hard startup error rather than
-// silently falling back to a sender that would write password-reset links to the logs. (Staging has
-// no mail transport provisioned, so it legitimately uses the log-only sender.)
+// silently falling back to a sender that would write password-reset links to the logs. (Staging gets
+// its mailbox from the graphSendingMailbox Bicep parameter; if that's ever missing it quietly drops
+// to the log-only sender and stops sending real email.)
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Graph:SendingMailbox"]))
 {
     builder.Services.AddSingleton<IEmailSender, GraphEmailSender>();

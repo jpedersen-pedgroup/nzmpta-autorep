@@ -37,6 +37,9 @@ param sqlAdminLogin string = 'autorep-sqladmin'
 @description('SQL administrator password. Provide via env var at deploy time; store in Key Vault after deploy.')
 param sqlAdminPassword string
 
+@description('Mailbox the app sends email from via Microsoft Graph. Empty leaves the app setting out (prod reads Graph--SendingMailbox from Key Vault).')
+param graphSendingMailbox string = ''
+
 var resourceBase = '${namingPrefix}-${environment}'
 
 // -----------------------------------------------------------------------------
@@ -139,6 +142,7 @@ module appService 'modules/app-service.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     sqlServerFqdn: sql.outputs.sqlServerFqdn
     sqlDatabaseName: sql.outputs.sqlDatabaseName
+    graphSendingMailbox: graphSendingMailbox
   }
 }
 

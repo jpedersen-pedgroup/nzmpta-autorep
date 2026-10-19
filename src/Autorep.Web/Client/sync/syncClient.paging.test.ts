@@ -122,7 +122,15 @@ describe("the paged pull", () => {
   });
 
   it("doesn't throw away analyser PDF bytes the device still holds when the server's copy replaces its own", async () => {
-    const held = { name: "pulse.pdf", base64: "JVBERi0=", size: 6, attachedAt: "2026-10-06T00:00:00.000Z" };
+    // Held since now: syncAll lets go of bytes held past RETAIN_DAYS by the real clock, so a fixed
+    // date here turns this into a different test (and a failing one) a week later.
+    const held = {
+      name: "pulse.pdf",
+      base64: "JVBERi0=",
+      size: 6,
+      attachedAt: "2026-10-06T00:00:00.000Z",
+      heldSince: new Date().toISOString(),
+    };
     await putTest({
       ...JSON.parse(summary("a", {}).payloadJson!),
       syncState: "uploaded",
