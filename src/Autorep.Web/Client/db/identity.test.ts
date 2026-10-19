@@ -20,7 +20,6 @@ const SAM: IdentityRecord = {
   roles: ["Tester"],
   certificateNo: "NZ-1",
   licenceExpiryDate: "2027-03-01",
-  syncOnly: false,
   confirmedAt: "2026-10-07T00:00:00.000Z",
 };
 
@@ -80,7 +79,7 @@ describe("identity record", () => {
         roles: ["Tester", 7],
         certificateNo: null,
         licenceExpiryDate: null,
-        syncOnly: true,
+        syncOnly: true, // retired field: a record from an older build drops it
         serverTime: "ignored",
       },
       now,
@@ -92,7 +91,6 @@ describe("identity record", () => {
       roles: ["Tester"],
       certificateNo: null,
       licenceExpiryDate: null,
-      syncOnly: true,
       confirmedAt: now.toISOString(),
     });
   });
@@ -100,10 +98,7 @@ describe("identity record", () => {
 
 describe("homeFor — the offline twin of Pages/Index.cshtml.cs", () => {
   it("sends a tester to the tester app", () => {
-    expect(homeFor(SAM, new Date(2026, 9, 7))).toBe("tester");
-  });
-  it("sends a lapsed licence to the sync-only page", () => {
-    expect(homeFor({ ...SAM, syncOnly: true })).toBe("sync-only");
+    expect(homeFor(SAM)).toBe("tester");
   });
   it("has nowhere offline for a pure administrator — the portal is online-only", () => {
     expect(homeFor({ ...SAM, roles: ["CompanyAdministrator"] })).toBe("admin");
@@ -111,18 +106,12 @@ describe("homeFor — the offline twin of Pages/Index.cshtml.cs", () => {
   it("sends an administrator who also tests to the tester app (it's all that works offline)", () => {
     expect(homeFor({ ...SAM, roles: ["SuperAdministrator", "Tester"] })).toBe("tester");
   });
-  // Codex review of #73: the record is written online, and a licence can lapse while the device is
-  // offline — so the shell decides sync-only from the date too, by the server's own rule.
-  it("treats a pure tester whose licence has lapsed as sync-only, whatever the record says", () => {
-    const today = new Date(2026, 9, 7);
-    expect(homeFor({ ...SAM, licenceExpiryDate: "2026-10-06" }, today)).toBe("sync-only");
-    expect(homeFor({ ...SAM, licenceExpiryDate: "2026-10-07" }, today)).toBe("tester"); // the last day still counts
-    expect(homeFor({ ...SAM, licenceExpiryDate: null }, today)).toBe("tester");
-  });
-
-  it("never makes an administrator who also tests sync-only — the server doesn't either", () => {
-    const today = new Date(2026, 9, 7);
-    expect(homeFor({ ...SAM, roles: ["CompanyAdministrator", "Tester"], licenceExpiryDate: "2026-01-01" }, today)).toBe("tester");
+  // An expired licence blocks nothing, so it changes nothing here either: the banner says so.
+  it("sends a tester whose licence has expired to the tester app too", () => {
+    expect(homeFor({ ...SAM, licenceExpiryDate: "2020-01-01" })).toBe("tester");
+    expect(homeFor({ ...SAM, licenceExpiryDate: null })).toBe("tester");
+    // A record stored by an older build, from a sync-only session.
+    expect(homeFor(normaliseIdentity({ ...SAM, syncOnly: true }))).toBe("tester");
   });
 
   it("knows nobody when no one has signed in here", () => {

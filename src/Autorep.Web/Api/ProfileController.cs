@@ -27,10 +27,10 @@ public class ProfileController : ControllerBase
     public ProfileController(AutorepDbContext db) => _db = db;
 
     /// <summary>The signed-in tester as the offline shell needs them. <c>LicenceExpiryDate</c> is
-    /// ISO yyyy-MM-dd (null = never set); <c>SyncOnly</c> is the lapsed-licence session scope.</summary>
+    /// ISO yyyy-MM-dd (null = never set), for the licence banner.</summary>
     public record SessionDto(
         string TesterId, string DisplayName, string? UserName, IReadOnlyList<string> Roles,
-        string? CertificateNo, DateOnly? LicenceExpiryDate, bool SyncOnly, DateTimeOffset ServerTime);
+        string? CertificateNo, DateOnly? LicenceExpiryDate, DateTimeOffset ServerTime);
 
     // Who is signed in. The device writes this to its identity record (an IndexedDB database of its
     // own, never the Cache API — the shell document is shared by every account on the device and
@@ -40,7 +40,7 @@ public class ProfileController : ControllerBase
     // redirect — see Program.cs) means "online, but signed out", which needs a different prompt.
     //
     // Absolute route so it reads as the session, not a profile sub-resource; the class-level
-    // Tester-role gate still applies, which also covers a lapsed licence's sync-only session.
+    // Tester-role gate still applies.
     [HttpGet("/api/session")]
     public async Task<IActionResult> GetSession(CancellationToken ct)
     {
@@ -61,7 +61,6 @@ public class ProfileController : ControllerBase
             User.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct().Order().ToList(),
             user.CertificateNo,
             user.LicenceExpiryDate,
-            User.HasClaim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly),
             DateTimeOffset.UtcNow));
     }
 

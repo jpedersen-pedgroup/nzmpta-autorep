@@ -77,7 +77,7 @@
             <div class="form-field">
                 <label asp-for="LicenceExpiryDate">Licence expiry date</label>
                 <input asp-for="LicenceExpiryDate" type="date" />
-                <p class="form-field__hint">Leave blank to clear. Testers can't sign in once expired (admins still can).</p>
+                <p class="form-field__hint">Leave blank to clear. An expired licence doesn't stop the tester using AutoRep: they see a reminder from 60 days before, and their reports show it had expired.</p>
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn">Save licence</button>

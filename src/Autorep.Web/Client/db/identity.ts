@@ -27,10 +27,8 @@ export interface IdentityRecord {
   userName: string | null;
   roles: string[];
   certificateNo: string | null;
-  /** Tester licence expiry, ISO yyyy-mm-dd; null when never set. */
+  /** Tester licence expiry, ISO yyyy-mm-dd; null when never set. Drives the licence banner only. */
   licenceExpiryDate: string | null;
-  /** A lapsed licence's session: may only send work already on the device. */
-  syncOnly: boolean;
   /** When the server last confirmed this record (device clock). */
   confirmedAt: string;
 }
@@ -106,7 +104,6 @@ export function normaliseIdentity(value: unknown): IdentityRecord | null {
     roles: Array.isArray(v.roles) ? v.roles.filter((r): r is string => typeof r === "string") : [],
     certificateNo: str(v.certificateNo),
     licenceExpiryDate: /^\d{4}-\d{2}-\d{2}$/.test(String(v.licenceExpiryDate ?? "")) ? String(v.licenceExpiryDate) : null,
-    syncOnly: v.syncOnly === true,
     confirmedAt: str(v.confirmedAt) ?? new Date(0).toISOString(),
   };
 }
@@ -120,30 +117,15 @@ export function identityFromSession(dto: unknown, now = new Date()): IdentityRec
 export const TESTER_ROLE = "Tester";
 const ADMIN_ROLES = ["SuperAdministrator", "CompanyAdministrator"];
 
-/** Local calendar date as ISO yyyy-mm-dd. */
-function isoDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 /**
  * Where `/` sends this identity — the client-side twin of Pages/Index.cshtml.cs, for a cold launch
- * the server can't answer. Admins are online-only, so they get no offline destination.
- *
- * A pure tester whose licence has lapsed is sync-only even if the record says otherwise: the record
- * is written online, and a licence can expire while the device is offline (or the tester may never
- * have opened a page that refreshed it). Same rule as Domain/LicenceScope.IsSyncOnly — expired
- * before today, Tester role, no administrator role; an administrator's access doesn't hang off a
- * testing licence, so a dual-role account is never sync-only (the server never marks one either).
+ * the server can't answer. Admins are online-only, so they get no offline destination. A tester
+ * gets the tester app whatever their licence date says: an expired licence blocks nothing.
  */
-export function homeFor(
-  identity: IdentityRecord | null,
-  today: Date = new Date(),
-): "tester" | "sync-only" | "admin" | "nobody" {
+export function homeFor(identity: IdentityRecord | null): "tester" | "admin" | "nobody" {
   if (!identity) return "nobody";
   if (identity.roles.some((r) => ADMIN_ROLES.includes(r))) {
     return identity.roles.includes(TESTER_ROLE) ? "tester" : "admin";
   }
-  if (!identity.roles.includes(TESTER_ROLE)) return "nobody";
-  const lapsed = identity.licenceExpiryDate !== null && identity.licenceExpiryDate < isoDate(today);
-  return identity.syncOnly || lapsed ? "sync-only" : "tester";
+  return identity.roles.includes(TESTER_ROLE) ? "tester" : "nobody";
 }

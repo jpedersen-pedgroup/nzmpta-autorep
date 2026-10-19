@@ -15,7 +15,7 @@ public class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> option
     public const string SchemeName = "Test";
     public const string UserHeader = "X-Test-User";
     public const string RoleHeader = "X-Test-Role";
-    /// <summary>Extra "type=value" claims, semicolon-separated — e.g. the sync-only licence scope.</summary>
+    /// <summary>Extra "type=value" claims, semicolon-separated.</summary>
     public const string ClaimsHeader = "X-Test-Claims";
     /// <summary>Round-trip timestamp for the session's last second-factor proof, stored in the
     /// ticket's properties under <c>MfaPolicy.SessionStampKey</c> as TesterSignInManager does.</summary>

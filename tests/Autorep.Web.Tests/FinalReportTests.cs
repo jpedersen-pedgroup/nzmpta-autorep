@@ -198,15 +198,6 @@ public class FinalReportTests : IClassFixture<AuthedWebAppFactory>
     }
 
     [Fact]
-    public async Task A_lapsed_licence_can_still_send_the_report_for_work_already_done()
-    {
-        var s = await SeedAsync("lapsed");
-        var client = _factory.CreateClientAs(Roles.Tester, s.TesterId, claims: $"{LicenceScope.ScopeClaim}={LicenceScope.SyncOnly}");
-
-        (await client.PutAsync($"/api/sync/final-report/{s.ClientId}", Pdf(Report))).StatusCode.Should().Be(HttpStatusCode.Created);
-    }
-
-    [Fact]
     public async Task Administrators_cannot_upload_through_the_tester_sync_surface()
     {
         var s = await SeedAsync("adminup");
