@@ -45,7 +45,7 @@
         <div class="tabs" id="farm-tabs" role="tablist">
             <button type="button" class="tab is-active" data-panel="farm-panel-identity">Identity</button>
             <button type="button" class="tab" data-panel="farm-panel-location">Location</button>
-            <button type="button" class="tab" data-panel="farm-panel-contact">Farmer contact</button>
+            <button type="button" class="tab" data-panel="farm-panel-contact">Owner / operator</button>
             <button type="button" class="tab" data-panel="farm-panel-notes">Notes &amp; status</button>
         </div>
 
@@ -59,7 +59,7 @@
                 <input asp-for="Input.SupplyNumber" />
             </div>
             <div class="form-field">
-                <label asp-for="Input.MilkSupplyCompanyId">Milk supply company</label>
+                <label asp-for="Input.MilkSupplyCompanyId">Dairy processing company</label>
                 <select asp-for="Input.MilkSupplyCompanyId" asp-items="Model.MilkCompanyOptions">
                     <option value="">— Not set —</option>
                 </select>
@@ -100,7 +100,7 @@
 
         <div class="tab-panel form-tabs-card__panel" id="farm-panel-contact" hidden>
             <div class="form-field">
-                <label asp-for="Input.FarmerName">Farmer name</label>
+                <label asp-for="Input.FarmerName">Owner / operator</label>
                 <input asp-for="Input.FarmerName" />
             </div>
             <div class="form-field">

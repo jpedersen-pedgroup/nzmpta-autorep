@@ -69,8 +69,7 @@ public class EditModel : PageModel
         var roles = Details.SelectedRoles.Distinct().ToList();
         if (roles.Count == 0) Errors.Add("Select at least one role.");
         if (roles.Any(r => !Roles.All.Contains(r))) Errors.Add("Role is invalid.");
-        if (roles.Contains(Roles.Tester) && Details.TestingCompanyId is null)
-            Errors.Add("Testers must be assigned to a Testing Company.");
+        if (Roles.CompanyRequiredError(roles, Details.TestingCompanyId) is { } noCompany) Errors.Add(noCompany);
         if (Errors.Any()) return Page(); // LoadAsync populated Companies; Details keeps the posted values
 
         var currentRoles = await _users.GetRolesAsync(EditingUser!);
