@@ -29,6 +29,7 @@ import {
   vacuumPumpMakeOptions,
   vacuumPumpModelOptionsForMake,
 } from "../reference/lookups";
+import { pulsatorEquipmentId, vacuumPumpEquipmentId } from "../reference/oemSpecs";
 
 interface Props {
   config: MachineConfiguration;
@@ -158,7 +159,10 @@ function VacuumPumpRowsEditor({ config, onChange }: Props) {
           <Field label="Make">
             <Combobox
               value={row.make}
-              onChange={(v) => set(i, { make: v, model: modelForMake(vacuumPumpModelOptionsForMake(v), row.model) })}
+              onChange={(v) => {
+                const model = modelForMake(vacuumPumpModelOptionsForMake(v), row.model);
+                set(i, { make: v, model, equipmentId: vacuumPumpEquipmentId(v, model) });
+              }}
               options={vacuumPumpMakeOptions()}
               listId={`cfg-vp-make-${i}`}
             />
@@ -166,7 +170,7 @@ function VacuumPumpRowsEditor({ config, onChange }: Props) {
           <Field label="Model">
             <Combobox
               value={row.model}
-              onChange={(v) => set(i, { model: v })}
+              onChange={(v) => set(i, { model: v, equipmentId: vacuumPumpEquipmentId(row.make, v) })}
               options={vacuumPumpModelOptionsForMake(row.make)}
               listId={`cfg-vp-model-${i}`}
             />
@@ -358,7 +362,8 @@ export function MachineConfigStep({ config, onChange }: Props) {
               onChange={(v) => {
                 // Auto-select the type when the chosen brand has only one model.
                 const models = pulsatorModelOptionsForBrand(v);
-                onChange({ pulsatorBrand: v, pulsatorModel: models.length === 1 ? models[0] : null });
+                const model = models.length === 1 ? models[0] : null;
+                onChange({ pulsatorBrand: v, pulsatorModel: model, pulsatorEquipmentId: pulsatorEquipmentId(v, model) });
               }}
               options={pulsatorBrandOptions()}
               listId="cfg-pulsator-brand"
@@ -367,7 +372,9 @@ export function MachineConfigStep({ config, onChange }: Props) {
           <Field label="Pulsator type">
             <Combobox
               value={config.pulsatorModel}
-              onChange={(v) => onChange({ pulsatorModel: v })}
+              onChange={(v) =>
+                onChange({ pulsatorModel: v, pulsatorEquipmentId: pulsatorEquipmentId(config.pulsatorBrand, v) })
+              }
               options={pulsatorModelOptionsForBrand(config.pulsatorBrand)}
               listId="cfg-pulsator-type"
             />

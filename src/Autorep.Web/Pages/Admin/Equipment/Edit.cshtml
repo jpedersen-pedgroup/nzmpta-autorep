@@ -3,12 +3,13 @@
 @{
     ViewData["Title"] = "Edit equipment item";
     var hasBrand = Autorep.Web.Domain.Entities.EquipmentItem.HasBrand(Model.Type);
+    var hasSpec = Autorep.Web.Domain.Entities.OemSpecs.HasSpec(Model.Type);
 }
 
 <div class="page-header">
     <div class="page-header__heading">
         <h1>Edit @Autorep.Web.Pages.Admin.Equipment.IndexModel.TitleFor(Model.Type).TrimEnd('s').ToLowerInvariant()</h1>
-        <p>Catalog: @Autorep.Web.Pages.Admin.Equipment.IndexModel.TitleFor(Model.Type)</p>
+        <p>OEM Specs · @Autorep.Web.Pages.Admin.Equipment.IndexModel.TitleFor(Model.Type)</p>
     </div>
 </div>
 
@@ -21,7 +22,7 @@
     <div class="alert alert--success">@Model.Message</div>
 }
 
-<div class="card" style="max-width:640px">
+<div class="card" style="max-width:760px">
     <form method="post">
         <div class="form-grid">
             @if (hasBrand)
@@ -36,6 +37,10 @@
                 <input asp-for="Name" type="text" />
             </div>
         </div>
+        @if (hasSpec)
+        {
+            <partial name="_SpecFields" for="Spec" view-data='new ViewDataDictionary(ViewData) { ["SpecType"] = Model.Type }' />
+        }
         <div class="form-actions">
             <button type="submit" class="btn">Save</button>
             <button type="submit" class="btn btn--secondary" asp-page-handler="ToggleActive">

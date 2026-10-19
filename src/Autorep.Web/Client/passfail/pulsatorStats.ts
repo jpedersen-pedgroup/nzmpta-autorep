@@ -3,12 +3,14 @@
 // ≤ 6 ppm between fastest and slowest pulsator, ratio variation ≤ 5% between pulsators) are NOT
 // judged here — they are readings off the analyser's own extremes, see pulsatorSections() in
 // standards.ts. What the rows do carry: limping ≤ 5% within a cluster (the analyser's per-row
-// limp value) and the per-model rate/ratio bands from the legacy Pulsator catalogue
-// (reference/pulsatorBands.json) — every pulsator must run inside its model's band, the legacy
-// app's PulsationSystemResultRange tick/cross.
+// limp value) and the per-model rate/ratio bands from the model's OEM spec (the OEM Specs pages,
+// seeded from the legacy Pulsator table) — every pulsator must run inside its model's band, the
+// legacy app's PulsationSystemResultRange tick/cross.
 import type { MeasurementRow } from "../db/testStore";
+import type { MachineConfiguration } from "../wizard/types";
 import { paramFor } from "./standardsOverrides";
 import { pulsatorBandFor } from "../reference/standardsData";
+import { pulsatorSpecFor } from "../reference/oemSpecs";
 
 // Built-in defaults; the synced admin-managed standards override them (param.pulsation.*).
 export const RATE_SPREAD_MAX = 6; // ppm
@@ -31,7 +33,7 @@ export interface PulsatorSummary {
   lowestRatio: number | null;
   worstLimp: number | null;
   limpOk: boolean | null;
-  /** The configured model's bands (null when the model is unset or has no catalogue entry). */
+  /** The configured model's bands (null when the model is unset or has no OEM spec band). */
   rateBand: { min: number; max: number } | null;
   ratioBand: { min: number; max: number } | null;
   /** Slowest AND fastest pulsator inside the model's rate band (null = no band or no rows). */
@@ -46,7 +48,13 @@ function nums(values: (string | undefined)[]): number[] {
     .filter((n) => !Number.isNaN(n));
 }
 
-export function pulsatorSummary(rows: MeasurementRow[], pulsatorModel?: string | null): PulsatorSummary {
+/** `pulsator` is the test's configuration - which carries the model, the OEM Specs item it was picked
+ * as and the specs it was signed off against (see reference/oemSpecs.ts) - or just a model name,
+ * which reads that model's current spec by name. */
+export function pulsatorSummary(
+  rows: MeasurementRow[],
+  pulsator?: MachineConfiguration | string | null,
+): PulsatorSummary {
   const rates = nums(rows.map((r) => r.values.rate));
   const allRatios = nums([...rows.map((r) => r.values.ratioFront), ...rows.map((r) => r.values.ratioBack)]);
   const limps = nums(rows.map((r) => r.values.limp));
@@ -58,9 +66,11 @@ export function pulsatorSummary(rows: MeasurementRow[], pulsatorModel?: string |
   const worstLimp = limps.length ? Math.max(...limps) : null;
   const limits = pulsationLimits();
 
-  const band = pulsatorBandFor(pulsatorModel);
-  const rateBand = band && band.rateMax > 0 ? { min: band.rateMin, max: band.rateMax } : null;
-  const ratioBand = band && band.ratioMax > 0 ? { min: band.ratioMin, max: band.ratioMax } : null;
+  const band = typeof pulsator === "object" && pulsator != null ? pulsatorSpecFor(pulsator) : pulsatorBandFor(pulsator);
+  const rateBand =
+    band?.rateMin != null && band.rateMax != null && band.rateMax > 0 ? { min: band.rateMin, max: band.rateMax } : null;
+  const ratioBand =
+    band?.ratioMin != null && band.ratioMax != null && band.ratioMax > 0 ? { min: band.ratioMin, max: band.ratioMax } : null;
   const rateBandOk =
     rateBand && fastestRate != null && slowestRate != null
       ? slowestRate >= rateBand.min && fastestRate <= rateBand.max

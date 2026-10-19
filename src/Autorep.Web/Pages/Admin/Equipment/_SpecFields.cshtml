@@ -1,0 +1,98 @@
+@model Autorep.Web.Pages.Admin.Equipment.SpecInput
+@{
+    // Edit passes its item's type to render just that block; New passes none and toggles them.
+    var only = ViewData["SpecType"] as string;
+}
+
+@* The OEM spec fields for New/Edit, one block per type that carries a spec. New shows the block for
+   the type selected (data-spec-type); Edit renders only its item's type. Every field is optional. *@
+@if (only is null || only == "Pulsator")
+{
+<div class="spec-fields" data-spec-type="Pulsator" style="margin-top:1.5rem">
+    <h2 class="card__title">OEM spec</h2>
+    <div class="form-field__hint">
+        Every pulsator a tester records is judged against this model's rate and ratio bands. Leave a
+        band blank and the model gets no verdict for it. Tests already signed off keep the spec they
+        were judged against.
+    </div>
+    <div class="form-grid">
+        <div class="form-field">
+            <label asp-for="RateMin">Rate — minimum (ppm)</label>
+            <input asp-for="RateMin" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="RateMax">Rate — maximum (ppm)</label>
+            <input asp-for="RateMax" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="RatioMin">Ratio — minimum (%)</label>
+            <input asp-for="RatioMin" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="RatioMax">Ratio — maximum (%)</label>
+            <input asp-for="RatioMax" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="RecommendedRate">Recommended rate (ppm)</label>
+            <input asp-for="RecommendedRate" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="RecommendedRatio">Recommended ratio (%)</label>
+            <input asp-for="RecommendedRatio" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="PhaseB">Phase b (%)</label>
+            <input asp-for="PhaseB" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="PhaseD">Phase d (%)</label>
+            <input asp-for="PhaseD" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="MaxChamberVacuum">Max chamber vacuum</label>
+            <input asp-for="MaxChamberVacuum" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="MaxClustersPerPulsator">Max clusters per pulsator</label>
+            <input asp-for="MaxClustersPerPulsator" type="text" placeholder="e.g. 2, or 1 or 2" />
+        </div>
+    </div>
+    <div class="form-field__hint">
+        Phase b, phase d and chamber vacuum are held for reference. Tests judge those against the ISO
+        limits on the Test standards page.
+    </div>
+</div>
+}
+
+@if (only is null || only == "VacuumPump")
+{
+<div class="spec-fields" data-spec-type="VacuumPump" style="margin-top:1.5rem">
+    <h2 class="card__title">OEM spec</h2>
+    <div class="form-field__hint">
+        The tester sees the OEM capacity beside 8a: air flow per rpm × the speed they measured. It is a
+        guide and carries no verdict. Tests already signed off keep the spec they were worked out from.
+    </div>
+    <div class="form-grid">
+        <div class="form-field">
+            <label asp-for="AirFlow">Air flow per rpm (L/min at 50 kPa)</label>
+            <input asp-for="AirFlow" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="MotorSizeFactor">Motor size factor</label>
+            <input asp-for="MotorSizeFactor" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="MinRpm">Speed — minimum (rpm)</label>
+            <input asp-for="MinRpm" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="MaxRpm">Speed — maximum (rpm)</label>
+            <input asp-for="MaxRpm" type="number" step="any" min="0" />
+        </div>
+        <div class="form-field">
+            <label asp-for="WaterFlowRate">Water flow rate</label>
+            <input asp-for="WaterFlowRate" type="number" step="any" min="0" />
+        </div>
+    </div>
+</div>
+}

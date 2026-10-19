@@ -58,7 +58,8 @@ public class IndexModel : PageModel
         new("ACR / milk-meter allowance — rounding", "round the total up to the nearest 10 L/min", "Manual p41"),
         new("ACR / milk-meter allowance — bail gates", "allowance doubled when bail-gate rams are present", "Manual p41"),
         new("Pulsator consumption — structure", "allowance per started block of 10 units", "Manual p41"),
-        new("Vacuum pump capacity / speed", "per OEM performance curve and speed range (model lookup — pending)", "Manual pp8–30, 60"),
+        new("Vacuum pump capacity / speed", "OEM capacity = the pump's air flow per rpm (OEM Specs page) × 8c, shown beside 8a as a guide with no verdict", "Manual pp8–30, 60"),
+        new("Pulsator rate and ratio", "every recorded pulsator inside its model's bands (OEM Specs page)", "OEM spec (legacy Pulsator table)"),
     ];
 
     /// <summary>Manual p42 effective-reserve table (even cluster counts; 1 is the 2-cluster row).</summary>

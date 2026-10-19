@@ -15,6 +15,10 @@
   <ItemGroup>
     <!-- Equipment catalog seed data (shells/liners/pulsators pulled from the legacy DB). -->
     <EmbeddedResource Include="Data\SeedData\*.json" />
+    <!-- The OEM spec rows the device bundles as its offline fallback, embedded straight from the
+         client so the one-off OEM Specs seed (Data/Seed.cs) and the fallback can't drift apart. -->
+    <EmbeddedResource Include="Client\reference\pulsatorBands.json" LogicalName="Autorep.Web.Data.SeedData.Client.pulsatorBands.json" />
+    <EmbeddedResource Include="Client\reference\vacuumPumps.json" LogicalName="Autorep.Web.Data.SeedData.Client.vacuumPumps.json" />
   </ItemGroup>
 
   <ItemGroup>

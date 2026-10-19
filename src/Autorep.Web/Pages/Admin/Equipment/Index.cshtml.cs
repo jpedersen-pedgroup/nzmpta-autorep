@@ -10,9 +10,15 @@ public class IndexModel : PageModel
     private readonly AutorepDbContext _db;
     public IndexModel(AutorepDbContext db) => _db = db;
 
-    public record Row(Guid Id, string Name, string? Brand, bool IsActive);
+    /// <summary>One item. <see cref="Spec"/> is its OEM spec in a line, or null when it has none.</summary>
+    public record Row(Guid Id, string Name, string? Brand, bool IsActive, string? Spec);
     public record BrandGroup(string Title, IList<Row> Rows);
-    public record Group(string Type, string Title, IList<Row> Rows, IList<BrandGroup> Brands);
+    public record Group(string Type, string Title, IList<Row> Rows, IList<BrandGroup> Brands)
+    {
+        public bool HasSpec => OemSpecs.HasSpec(Type);
+        /// <summary>Active items with no spec: the models testers can pick that get no spec verdict.</summary>
+        public int ActiveWithoutSpec => HasSpec ? Rows.Count(r => r.IsActive && r.Spec is null) : 0;
+    }
 
     public IList<Group> Groups { get; private set; } = [];
 
@@ -37,7 +43,9 @@ public class IndexModel : PageModel
         Groups = EquipmentItem.Types
             .Select(t =>
             {
-                var typeRows = rows.Where(e => e.Type == t).Select(e => new Row(e.Id, e.Name, e.Brand, e.IsActive)).ToList();
+                var typeRows = rows.Where(e => e.Type == t)
+                    .Select(e => new Row(e.Id, e.Name, e.Brand, e.IsActive, SpecInput.Summary(e)))
+                    .ToList();
                 return new Group(t, TitleFor(t), typeRows, BrandsFor(typeRows));
             })
             .ToList();

@@ -44,7 +44,7 @@ export function PulsatorStep({ config, rows, onRows, readings, onSetReading, rea
   const sections = pulsatorSections(config, readings);
   // A just-added, still-blank row is not a result: keep it out of the figures.
   const recorded = recordedRows(rows);
-  const s = pulsatorSummary(recorded, config.pulsatorModel);
+  const s = pulsatorSummary(recorded, config);
   const limits = pulsationLimits();
   // The table is for the units that failed, so it earns its place once a pulsation reading is
   // over its limit (Josh: "show based on the 14 answers"). A single bad unit doesn't always move

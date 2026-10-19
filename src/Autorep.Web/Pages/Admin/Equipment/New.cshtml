@@ -7,7 +7,11 @@
 <div class="page-header">
     <div class="page-header__heading">
         <h1>New equipment item</h1>
-        <p>Add a shell, liner, pulsator model, vacuum or releaser pump (those three carry a brand/make), milkline size, pulsator configuration or regulator type.</p>
+        <p>
+            Add a shell, liner, pulsator model, vacuum or releaser pump (those three carry a brand/make),
+            milkline size, pulsator configuration or regulator type. Pulsator models and vacuum pumps also
+            take their OEM spec.
+        </p>
     </div>
 </div>
 
@@ -16,11 +20,11 @@
     <div class="alert alert--danger"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
 }
 
-<div class="card" style="max-width:640px">
+<div class="card" style="max-width:760px">
     <form method="post">
         <div class="form-grid">
             <div class="form-field">
-                <label asp-for="Type">Catalog</label>
+                <label asp-for="Type">Equipment type</label>
                 <select asp-for="Type" id="eq-type">
                     @foreach (var t in Autorep.Web.Domain.Entities.EquipmentItem.Types)
                     {
@@ -37,6 +41,7 @@
                 <input asp-for="Name" type="text" />
             </div>
         </div>
+        <partial name="_SpecFields" for="Spec" />
         <div class="form-actions">
             <button type="submit" class="btn">Create</button>
             <a class="btn btn--secondary" asp-page="/Admin/Equipment/Index">Cancel</a>
@@ -48,8 +53,12 @@
     (function () {
         var type = document.getElementById('eq-type');
         var brand = document.getElementById('eq-brand-field');
+        var specs = document.querySelectorAll('[data-spec-type]');
         var branded = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Autorep.Web.Domain.Entities.EquipmentItem.BrandedTypes));
-        function refresh() { brand.style.display = branded.indexOf(type.value) >= 0 ? '' : 'none'; }
+        function refresh() {
+            brand.style.display = branded.indexOf(type.value) >= 0 ? '' : 'none';
+            specs.forEach(function (s) { s.style.display = s.getAttribute('data-spec-type') === type.value ? '' : 'none'; });
+        }
         type.addEventListener('change', refresh);
         refresh();
     })();
