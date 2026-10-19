@@ -1,11 +1,12 @@
 namespace Autorep.Web.Domain.Entities;
 
 /// <summary>
-/// An entry in an equipment catalog the Machine Configuration dropdowns are built from:
-/// shells, liners, pulsator models, vacuum and releaser pumps (those three carry a brand),
-/// milkline sizes, pulsator configurations and regulator types.
-/// Seeded from the legacy catalogs; the SuperAdmin adds/renames/deactivates rows and Devices
-/// sync the active set down (bundled defaults are the offline fallback). Deactivating hides an
+/// An entry in the OEM Specs (formerly the equipment catalogs) the Machine Configuration dropdowns
+/// are built from: shells, liners, pulsator models, vacuum and releaser pumps (those three carry a
+/// brand), milkline sizes, pulsator configurations and regulator types. Pulsator models and vacuum
+/// pumps also carry the OEM spec their tests are judged against (<see cref="SpecJson"/>).
+/// Seeded from the legacy catalogs; the SuperAdmin adds/renames/deactivates rows and edits specs, and
+/// Devices sync the set down (bundled defaults are the offline fallback). Deactivating hides an
 /// item from new tests without disturbing historical tests that reference its name.
 /// </summary>
 public class EquipmentItem
@@ -39,6 +40,12 @@ public class EquipmentItem
     public string? Brand { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>The model's OEM spec as JSON, for the types that have one (<see cref="OemSpecs.HasSpec"/>):
+    /// a <see cref="PulsatorSpec"/> or a <see cref="VacuumPumpSpec"/>. Null when no spec has been
+    /// entered — the Device then gives that model no spec verdict. Read and written through
+    /// <see cref="OemSpecs"/>.</summary>
+    public string? SpecJson { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
