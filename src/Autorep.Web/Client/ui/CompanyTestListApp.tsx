@@ -116,7 +116,7 @@ function CompanyTestListApp() {
         <div class="empty">
           <div class="empty__title">You're not linked to a testing company</div>
           <p class="empty__text">
-            Ask your company administrator, or NZMPTA, to add you to your testing company — then
+            Ask your company administrator, or MPNZ, to add you to your testing company — then
             completed tests from your colleagues will show up here. Your own tests aren't affected.
           </p>
           <a class="btn btn--secondary" href="/App/Tests/Index">Go to My tests</a>

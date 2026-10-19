@@ -98,7 +98,7 @@ public class ProfileController : ControllerBase
     }
 
     /// <summary>The tester as the report names them, so the farmer knows who to call: name, phone,
-    /// NZMPTA registration (certificate) number and its expiry. The device caches it and stamps it
+    /// MPNZ registration (certificate) number and its expiry. The device caches it and stamps it
     /// into each test at sign-off.</summary>
     public record TesterDetailsDto(string Name, string? Phone, string? RegistrationNumber, DateOnly? RegistrationExpiry);
 

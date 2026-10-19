@@ -20,7 +20,7 @@ public static class WizardStepResolver
             Step(WizardStep.MachineConfiguration, "Machine Configuration & Ancillary"),
             Step(WizardStep.VisualFaultsPreStart, "Visual Faults — Pre-Start"),
             Step(WizardStep.VisualFaultsRunning, "Visual Faults — Running", sections: RunningSections(config)),
-            // Order follows the NZMPTA ISO flowchart: vacuum (1–9) → airflow (10–12) → individual
+            // Order follows the MPNZ ISO flowchart: vacuum (1–9) → airflow (10–12) → individual
             // cluster (13, optional; the wizard shows it only when 12b fails) → pulsation (14–15) →
             // the additional tests. Decided with Josh, 15 Sep 2026, after a tester skipped 10–12
             // because they sat under "Additional Tests".
@@ -98,7 +98,7 @@ public static class WizardStepResolver
     }
 
     // Additional Tests: the unnumbered per-ancillary consumption/leakage checks that follow the
-    // ISO flowchart — NZMPTA's "Additional Tests" flowchart, so this step must hold nothing else.
+    // ISO flowchart — MPNZ's "Additional Tests" flowchart, so this step must hold nothing else.
     private static IReadOnlyList<string> AdditionalSections(MachineConfiguration c)
     {
         var s = new List<string>();

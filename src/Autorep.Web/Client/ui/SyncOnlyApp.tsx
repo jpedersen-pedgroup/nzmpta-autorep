@@ -32,7 +32,7 @@ function SyncOnlyApp() {
         setMessage({
           text:
             `Sent ${r.pushed}. ${r.failed} couldn't be sent and ${r.failed === 1 ? "is" : "are"} ` +
-            "still here — try again, and contact NZMPTA if it keeps failing.",
+            "still here — try again, and contact MPNZ if it keeps failing.",
           kind: "error",
         });
       } else {

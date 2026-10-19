@@ -57,7 +57,7 @@ public class FarmReviewNotifier
             // goes to the Super-Administrators and should say why they're the ones getting it.
             var orphanNote = farm.CreatedByTestingCompanyId is null
                 ? "<p>This tester isn't linked to a Testing Company, so no Company Administrator " +
-                  "can see this farm — it needs an NZMPTA administrator to review it.</p>"
+                  "can see this farm — it needs an MPNZ administrator to review it.</p>"
                 : "";
 
             foreach (var admin in admins)

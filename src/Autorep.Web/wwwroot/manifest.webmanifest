@@ -1,7 +1,7 @@
 {
-  "name": "NZMPTA AutoRep",
+  "name": "MPNZ AutoRep",
   "short_name": "AutoRep",
-  "description": "NZMPTA milking machine testing platform",
+  "description": "MPNZ milking machine testing platform",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

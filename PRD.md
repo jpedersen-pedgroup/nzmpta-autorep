@@ -1,16 +1,16 @@
-# PRD: NZMPTA AutoRep Rebuild — Tester PWA, Wizard, Reports, Admin Portal, Data Migration & Admin Edit (M2–M5 + O1–O3)
+# PRD: MPNZ AutoRep Rebuild — Tester PWA, Wizard, Reports, Admin Portal, Data Migration & Admin Edit (M2–M5 + O1–O3)
 
 ## Problem Statement
 
-NZMPTA testers currently use AutoRep Plus, a Windows-only desktop application built by a prior vendor with whom NZMPTA has no ongoing relationship. The current application:
+MPNZ testers currently use AutoRep Plus, a Windows-only desktop application built by a prior vendor with whom MPNZ has no ongoing relationship. The current application:
 
 - Cannot be installed on iPads, macOS or Android. Testers either carry a Windows laptop on-farm or wait until they're back at a workstation to enter their results.
 - Walks every Tester through every test section regardless of whether the equipment is present on the machine, producing Reports cluttered with N/A regions and creating opportunities for mis-entry.
 - Ships with hardcoded database credentials, has unresolved bugs in the sync and reporting pipeline (Vacuum Pump Speed/Capacity fields not populated, broken admin-edits-not-reaching-Testers flow), and carries only group-level fault severity.
 - Requires developer involvement to update Reference Data (Equipment Catalogues, Vendor Specifications) and the Test Standard Manual, even though these change only once or twice a year.
-- Has no NZMPTA-wide reporting and no per-Testing-Company administrator visibility.
+- Has no MPNZ-wide reporting and no per-Testing-Company administrator visibility.
 
-NZMPTA needs a modern web-based platform that works offline on any device a Tester carries to the farm, with Reference Data managed by NZMPTA themselves, and Reports that reflect the Machine actually under test. The upstream **Requirements & Scope** document (v1.1, 26 May 2026, in `docs/NZMPTA_AutoRep_Rebuild_Requirements_v1_1.docx`) defines *what* the rebuild does; this PRD specifies *how* the committed scope (M2 + M3 + M4 + M5 + O1 + O2 + O3 — $43,750 ex GST) will be implemented.
+MPNZ needs a modern web-based platform that works offline on any device a Tester carries to the farm, with Reference Data managed by MPNZ themselves, and Reports that reflect the Machine actually under test. The upstream **Requirements & Scope** document (v1.1, 26 May 2026, in `docs/NZMPTA_AutoRep_Rebuild_Requirements_v1_1.docx`) defines *what* the rebuild does; this PRD specifies *how* the committed scope (M2 + M3 + M4 + M5 + O1 + O2 + O3 — $43,750 ex GST) will be implemented.
 
 ## Solution
 
@@ -18,7 +18,7 @@ A web-based platform built on .NET 10 / ASP.NET Core Razor Pages + API controlle
 
 - **Tester PWA** — installable on Windows, macOS, iPad and Android; fully offline-capable; the Tester walks through a **Wizard** that shows only the **Wizard Steps** relevant to the **Machine Configuration** declared upfront; live pass/fail computed from cached **Vendor Specifications**; **Final Reports** generated on-device on Mark-as-Complete so the Tester can print/download with no connectivity; completed **Machine Tests** sync when the **Device** is next online.
 
-- **Admin Portal** — online-only NZMPTA administration surface for **Tester** / **Testing Company** / **Equipment Catalogue** / **Vendor Specification** / **Test Standard Manual** / **Standard Recommendation Wording** management. **NZMPTA Super-Administrator** can also browse, view and edit any **Machine Test** with full audit trail (O2).
+- **Admin Portal** — online-only MPNZ administration surface for **Tester** / **Testing Company** / **Equipment Catalogue** / **Vendor Specification** / **Test Standard Manual** / **Standard Recommendation Wording** management. **MPNZ Super-Administrator** can also browse, view and edit any **Machine Test** with full audit trail (O2).
 
 A standalone **Migration Tool** (O1) ports historical **Machine Tests** and **Vendor Specifications** from the legacy Azure SQL database into the new schema, with per-row data-quality reports and dry-run cycles before cutover.
 
@@ -91,46 +91,46 @@ The architecture extracts ten deep modules — **Pass/Fail Calculator**, **Wizar
 49. As a Company Administrator, I want to edit Farm Details and the final summary / Recommendations on Tests by my Testers, so that I can correct a Farm address or polish a Recommendation before it goes to the client.
 50. As a Company Administrator, I want my edits captured as a new Test Version with a full audit trail (actor, timestamp, before/after), so that every change is traceable.
 51. As a Company Administrator, I want to view company-level reports of my team's Test activity, so that I can manage utilisation and quality.
-52. As a Company Administrator, I want to be unable to manage Users or Reference Data, so that platform administration remains NZMPTA's responsibility.
+52. As a Company Administrator, I want to be unable to manage Users or Reference Data, so that platform administration remains MPNZ's responsibility.
 
-### NZMPTA Super-Administrator — Users and Testing Companies
+### MPNZ Super-Administrator — Users and Testing Companies
 
-53. As an NZMPTA Super-Administrator, I want to create, deactivate, and reset passwords for Testers across all Testing Companies, so that I can onboard and offboard Testers as they enter and leave the industry.
-54. As an NZMPTA Super-Administrator, I want to set and renew a Tester Licence Expiry Date by simply updating a date field, so that licence renewals don't require a code change.
-55. As an NZMPTA Super-Administrator, I want to force-logout a User immediately (invalidating their tokens), so that a lost or stolen Device can be locked out within minutes.
-56. As an NZMPTA Super-Administrator, I want a list of Tester Licences expiring soon, so that I can proactively prompt renewals.
-57. As an NZMPTA Super-Administrator, I want to create, edit and deactivate Testing Companies, so that the company directory reflects current industry membership.
-58. As an NZMPTA Super-Administrator, I want two-factor authentication on my account, required every 30 days and on any new or unrecognised Device, so that an attacker who phishes my password can't access the platform.
+53. As an MPNZ Super-Administrator, I want to create, deactivate, and reset passwords for Testers across all Testing Companies, so that I can onboard and offboard Testers as they enter and leave the industry.
+54. As an MPNZ Super-Administrator, I want to set and renew a Tester Licence Expiry Date by simply updating a date field, so that licence renewals don't require a code change.
+55. As an MPNZ Super-Administrator, I want to force-logout a User immediately (invalidating their tokens), so that a lost or stolen Device can be locked out within minutes.
+56. As an MPNZ Super-Administrator, I want a list of Tester Licences expiring soon, so that I can proactively prompt renewals.
+57. As an MPNZ Super-Administrator, I want to create, edit and deactivate Testing Companies, so that the company directory reflects current industry membership.
+58. As an MPNZ Super-Administrator, I want two-factor authentication on my account, required every 30 days and on any new or unrecognised Device, so that an attacker who phishes my password can't access the platform.
 
-### NZMPTA Super-Administrator — Reference Data
+### MPNZ Super-Administrator — Reference Data
 
-59. As an NZMPTA Super-Administrator, I want to manage Equipment Catalogues (Vacuum Pumps, Pulsators, Liners, Shells, Claws, Jetters, ACRs, Milk Meters, Milk Flow Indicators, Regulators, Releaser Pumps), so that new equipment models can be added without a developer.
-60. As an NZMPTA Super-Administrator, I want each Vendor Specification to carry an Effective Date, so that I can schedule a future update without it taking effect immediately and disrupting in-progress Tests.
-61. As an NZMPTA Super-Administrator, I want to upload a new version of the Test Standard Manual (PDF) via the Admin Portal, so that the updated rulebook is pushed to every Tester on next sync without a developer.
-62. As an NZMPTA Super-Administrator, I want every prior version of the Test Standard Manual retained and downloadable, so that historical Tests remain reproducible against the manual version they were performed against.
-63. As an NZMPTA Super-Administrator, I want to manage the curated Standard Recommendation Wording dropdown options, so that Testers always have current canonical recommendations available.
+59. As an MPNZ Super-Administrator, I want to manage Equipment Catalogues (Vacuum Pumps, Pulsators, Liners, Shells, Claws, Jetters, ACRs, Milk Meters, Milk Flow Indicators, Regulators, Releaser Pumps), so that new equipment models can be added without a developer.
+60. As an MPNZ Super-Administrator, I want each Vendor Specification to carry an Effective Date, so that I can schedule a future update without it taking effect immediately and disrupting in-progress Tests.
+61. As an MPNZ Super-Administrator, I want to upload a new version of the Test Standard Manual (PDF) via the Admin Portal, so that the updated rulebook is pushed to every Tester on next sync without a developer.
+62. As an MPNZ Super-Administrator, I want every prior version of the Test Standard Manual retained and downloadable, so that historical Tests remain reproducible against the manual version they were performed against.
+63. As an MPNZ Super-Administrator, I want to manage the curated Standard Recommendation Wording dropdown options, so that Testers always have current canonical recommendations available.
 
-### NZMPTA Super-Administrator — Test browse, edit and audit (O2)
+### MPNZ Super-Administrator — Test browse, edit and audit (O2)
 
-64. As an NZMPTA Super-Administrator, I want to browse and filter Machine Tests across all Testing Companies (by Tester, Testing Company, Farm, date range, status), so that I can find any Test quickly.
-65. As an NZMPTA Super-Administrator, I want to view any Machine Test in full, so that I have complete oversight across the platform.
-66. As an NZMPTA Super-Administrator, I want to edit any field of any Machine Test, so that I can correct a Test on a Tester's behalf when needed.
-67. As an NZMPTA Super-Administrator, I want every edit captured as a new Test Version with full before/after audit, so that no change can be made without an audit record.
-68. As an NZMPTA Super-Administrator, I want an audit panel on every Machine Test showing the full version history with diffs, so that I can see who changed what and when.
-69. As an NZMPTA Super-Administrator, I want the audit panel to indicate whether each checklist item was individually verified or bulk-confirmed via "Check all as verified", so that I can see how thoroughly the original Test was completed.
-70. As an NZMPTA Super-Administrator, I want to soft-delete a completed Machine Test with a reason, so that erroneous Tests can be hidden from normal views without destroying the audit record.
-71. As an NZMPTA Super-Administrator, I want every administrative login logged, so that there's an audit trail of who accessed the platform and when.
-72. As an NZMPTA Super-Administrator, I want all administrative actions (User management, Reference Data changes, Test edits) logged with actor, timestamp and before/after state for seven years, so that any historical decision is traceable.
-73. As an NZMPTA Super-Administrator, I want my Admin Portal Test edits to regenerate the Final Report using the same engine the Tester PWA uses, so that the Admin Portal and Tester PWA always produce identical Reports for the same Test data.
+64. As an MPNZ Super-Administrator, I want to browse and filter Machine Tests across all Testing Companies (by Tester, Testing Company, Farm, date range, status), so that I can find any Test quickly.
+65. As an MPNZ Super-Administrator, I want to view any Machine Test in full, so that I have complete oversight across the platform.
+66. As an MPNZ Super-Administrator, I want to edit any field of any Machine Test, so that I can correct a Test on a Tester's behalf when needed.
+67. As an MPNZ Super-Administrator, I want every edit captured as a new Test Version with full before/after audit, so that no change can be made without an audit record.
+68. As an MPNZ Super-Administrator, I want an audit panel on every Machine Test showing the full version history with diffs, so that I can see who changed what and when.
+69. As an MPNZ Super-Administrator, I want the audit panel to indicate whether each checklist item was individually verified or bulk-confirmed via "Check all as verified", so that I can see how thoroughly the original Test was completed.
+70. As an MPNZ Super-Administrator, I want to soft-delete a completed Machine Test with a reason, so that erroneous Tests can be hidden from normal views without destroying the audit record.
+71. As an MPNZ Super-Administrator, I want every administrative login logged, so that there's an audit trail of who accessed the platform and when.
+72. As an MPNZ Super-Administrator, I want all administrative actions (User management, Reference Data changes, Test edits) logged with actor, timestamp and before/after state for seven years, so that any historical decision is traceable.
+73. As an MPNZ Super-Administrator, I want my Admin Portal Test edits to regenerate the Final Report using the same engine the Tester PWA uses, so that the Admin Portal and Tester PWA always produce identical Reports for the same Test data.
 
-### NZMPTA Super-Administrator — Migration and cutover (O1)
+### MPNZ Super-Administrator — Migration and cutover (O1)
 
-74. As an NZMPTA Super-Administrator, I want all historical Machine Tests in the legacy database migrated to the new platform, so that years of test history are not lost at cutover.
-75. As an NZMPTA Super-Administrator, I want all historical Vendor Specifications migrated, so that report regeneration of historical Tests produces the same pass/fail verdicts.
-76. As an NZMPTA Super-Administrator, I want all legacy Testing Companies, Tester accounts and Farms migrated, so that the platform is populated from day one.
-77. As an NZMPTA Super-Administrator, I want a data-quality report on every dry-run migration listing rows that failed validation and why, so that I can confirm which records will (or won't) survive cutover before go-live.
-78. As an NZMPTA Super-Administrator, I want to run the migration multiple times in a staging environment, so that I can review sample Tests and confirm Reports match originals before authorising cutover.
-79. As an NZMPTA Super-Administrator, I want all migrated Tester accounts to require a password reset on first login, so that legacy credentials cannot be used against the new platform.
+74. As an MPNZ Super-Administrator, I want all historical Machine Tests in the legacy database migrated to the new platform, so that years of test history are not lost at cutover.
+75. As an MPNZ Super-Administrator, I want all historical Vendor Specifications migrated, so that report regeneration of historical Tests produces the same pass/fail verdicts.
+76. As an MPNZ Super-Administrator, I want all legacy Testing Companies, Tester accounts and Farms migrated, so that the platform is populated from day one.
+77. As an MPNZ Super-Administrator, I want a data-quality report on every dry-run migration listing rows that failed validation and why, so that I can confirm which records will (or won't) survive cutover before go-live.
+78. As an MPNZ Super-Administrator, I want to run the migration multiple times in a staging environment, so that I can review sample Tests and confirm Reports match originals before authorising cutover.
+79. As an MPNZ Super-Administrator, I want all migrated Tester accounts to require a password reset on first login, so that legacy credentials cannot be used against the new platform.
 
 ### Cross-cutting (any User)
 
@@ -179,7 +179,7 @@ The architecture extracts ten deep modules — **Pass/Fail Calculator**, **Wizar
 ### "Check all as verified" UX (Wizard checklist steps)
 
 - On any Wizard Step containing a list of checkbox items (notably Visual Faults — Pre-Start, Visual Faults — Running Inspection, and any Machine Configuration sub-checklists), a **"Check all as verified"** control appears at the bottom of the step.
-- Activating it raises a modal confirmation requiring the Tester to attest explicit text along the lines of: *"I have inspected all items on this page and confirm they have been seen, tested and are in order."* (Exact wording finalised with NZMPTA.)
+- Activating it raises a modal confirmation requiring the Tester to attest explicit text along the lines of: *"I have inspected all items on this page and confirm they have been seen, tested and are in order."* (Exact wording finalised with MPNZ.)
 - On confirmation, every checkbox on the step is ticked. The Tester can still uncheck or amend individual items afterwards.
 - The use of "Check all as verified" is recorded as a **ChecklistAttestation** audit event on the Machine Test (separate from the individual tick state). The Admin Portal's audit panel (user story 69) shows whether each item was individually verified or bulk-attested, so that the integrity of the Test record is preserved without removing the efficiency gain for routine Tests.
 
@@ -217,7 +217,7 @@ The architecture extracts ten deep modules — **Pass/Fail Calculator**, **Wizar
 
 ### Authentication details
 
-- TOTP via authenticator app for Super-Administrator two-factor, with email-code fallback (open for NZMPTA confirmation).
+- TOTP via authenticator app for Super-Administrator two-factor, with email-code fallback (open for MPNZ confirmation).
 - Password reset: email link with one-hour TTL.
 
 ### Cross-cutting
@@ -281,11 +281,11 @@ Greenfield rebuild — no in-repo prior art. PDF golden-file pattern: render via
 - **"Check all as verified"**: standard pattern on every Wizard Step containing a list of checkbox items. Bulk-tick gated by a mandatory attestation prompt; recorded as a ChecklistAttestation audit event so historical Tests can show whether items were individually verified or bulk-confirmed.
 - **Report email**: not a platform feature in any phase. The Tester downloads the **Final Report** PDF from the PWA and emails it to the Farmer via their own email client (browser/OS share sheet on iPad, regular attachment on desktop). This eliminates the need for any server-side Report-rendering path; the server's only role with Reports is to receive and store the client-generated PDF blob on sync, for Admin Portal display.
 
-### Open items still needing NZMPTA input (from §14 of the requirements doc)
+### Open items still needing MPNZ input (from §14 of the requirements doc)
 - **Access to the legacy Azure SQL database (read-only) and sample Tester accounts** — required for the **Migration Tool (O1)** to be specified precisely and for the new schema's Vendor Specification model to be validated against real data. Blocks O1 detailed design.
 - **Brand assets (logo, colours, typography)** — required before the Admin Portal and Reports are finalised. The Report Generator consumes the brand assets as a bundled resource, so a brand swap before go-live is a single config change. Workaround: build against a placeholder brand.
-- **Two-factor mechanism confirmation** — defaulting to TOTP via authenticator app with email-code fallback; confirm with NZMPTA.
-- **Attestation wording for "Check all as verified"** — defaulting to *"I have inspected all items on this page and confirm they have been seen, tested and are in order."* — NZMPTA to confirm exact wording, which may need to differ between Visual Faults Pre-Start, Visual Faults Running, and Machine Configuration checklists.
+- **Two-factor mechanism confirmation** — defaulting to TOTP via authenticator app with email-code fallback; confirm with MPNZ.
+- **Attestation wording for "Check all as verified"** — defaulting to *"I have inspected all items on this page and confirm they have been seen, tested and are in order."* — MPNZ to confirm exact wording, which may need to differ between Visual Faults Pre-Start, Visual Faults Running, and Machine Configuration checklists.
 
 ### Cross-references
 - `docs/NZMPTA_AutoRep_Rebuild_Requirements_v1_1.docx` — the upstream scope document this PRD specifies *how* to implement.

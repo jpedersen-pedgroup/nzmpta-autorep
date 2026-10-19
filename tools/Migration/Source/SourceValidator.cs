@@ -1,6 +1,6 @@
 using Microsoft.Data.SqlClient;
 
-namespace Nzmpta.AutoRep.Migration.Source;
+namespace Mpnz.AutoRep.Migration.Source;
 
 /// <summary>
 /// Read-only pre-flight validation of the legacy AutoRep database. Re-verifies the assumptions the

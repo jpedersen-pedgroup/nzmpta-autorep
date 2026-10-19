@@ -64,7 +64,7 @@ function canDelete(t: LocalTest): boolean {
 }
 
 /** The note added to a sync's toast when tests were combined with an edit made on the server, or
- * removed because NZMPTA deleted them. */
+ * removed because MPNZ deleted them. */
 export function mergedNote(r: SyncResult): string {
   let note = "";
   if (r.merged) {
@@ -72,7 +72,7 @@ export function mergedNote(r: SyncResult): string {
       "your changes were combined with theirs as a new version. Check it before you print it again.";
   }
   if (r.removed) {
-    note += ` ${r.removed === 1 ? "1 test was" : `${r.removed} tests were`} deleted by NZMPTA and removed from this device.`;
+    note += ` ${r.removed === 1 ? "1 test was" : `${r.removed} tests were`} deleted by MPNZ and removed from this device.`;
   }
   return note;
 }
@@ -87,7 +87,7 @@ function TestListApp() {
   const [tests, setTests] = useState<LocalTest[] | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [deleting, setDeleting] = useState<LocalTest | null>(null);
-  // Tests NZMPTA deleted: those removed from this device (until the tester says OK), and those
+  // Tests MPNZ deleted: those removed from this device (until the tester says OK), and those
   // still here because they hold unsent edits.
   const [removed, setRemoved] = useState<RemovedTest[]>([]);
   const [deletions, setDeletions] = useState<Record<string, Deletion>>({});
@@ -128,7 +128,7 @@ function TestListApp() {
         showToast(
           `Synced ${r.pushed}, pulled ${r.pulled} — but ${r.failed} test${r.failed === 1 ? "" : "s"} ` +
             `couldn't be sent. ${r.failed === 1 ? "It's" : "They're"} still saved here; try again, ` +
-            "and contact NZMPTA if it keeps failing.",
+            "and contact MPNZ if it keeps failing.",
           "error",
         );
       } else {
@@ -219,7 +219,7 @@ function TestListApp() {
 
       {removed.length > 0 && (
         <div class="alert alert--warning" role="status" data-removed-tests>
-          🗑 <strong>NZMPTA deleted {removed.length === 1 ? "a test" : `${removed.length} tests`}</strong>, so{" "}
+          🗑 <strong>MPNZ deleted {removed.length === 1 ? "a test" : `${removed.length} tests`}</strong>, so{" "}
           {removed.length === 1 ? "it has" : "they have"} been removed from this device:
           <ul class="removed-tests">
             {removed.map((r) => (
@@ -277,7 +277,7 @@ function TestListApp() {
                       <>
                         {" "}
                         <span class="badge badge--danger" title={deletions[t.id].reason ?? undefined}>
-                          deleted by NZMPTA
+                          deleted by MPNZ
                         </span>
                       </>
                     )}

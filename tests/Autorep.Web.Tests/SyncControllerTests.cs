@@ -622,7 +622,7 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         var mail = _factory.Emails.All.Should()
             .ContainSingle(m => m.Subject.Contains(farmName)).Which;
         mail.Email.Should().Be(superEmail);
-        mail.HtmlMessage.Should().Contain("NZMPTA administrator",
+        mail.HtmlMessage.Should().Contain("MPNZ administrator",
             "the Super-Admin should be told why this one reached them");
     }
 

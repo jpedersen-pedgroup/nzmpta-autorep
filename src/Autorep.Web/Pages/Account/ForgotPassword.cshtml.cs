@@ -46,7 +46,7 @@ public class ForgotPasswordModel : PageModel
         var resetUrl = Url.Page("/Account/ResetPassword", null,
             new { email = user.Email, token }, Request.Scheme);
         await _email.SendEmailAsync(user.Email!,
-            "Reset your NZMPTA AutoRep password",
+            "Reset your MPNZ AutoRep password",
             $"<p>A password reset was requested for your account. " +
             $"<a href=\"{resetUrl}\">Click here to set a new password</a>. " +
             $"The link expires in 1 hour.</p>" +

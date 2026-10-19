@@ -202,7 +202,7 @@ public class PdfStoreRegistrationTests
     [InlineData("Production")]
     [InlineData("Staging")]
     public void A_shared_environment_uses_Blob_Storage(string environment) =>
-        PdfStoreRegistration.Choose(Config(("AzureStorage:AccountName", "stnzmptaautorep")), new Env(environment))
+        PdfStoreRegistration.Choose(Config(("AzureStorage:AccountName", "stmpnzautorepprod")), new Env(environment))
             .Should().Be(PdfStoreProvider.Blob);
 
     [Theory]

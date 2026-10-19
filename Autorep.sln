@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Autorep.Web.Tests", "tests\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{07C2787E-EAC7-C090-1BA3-A61EC2A24D84}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nzmpta.AutoRep.Migration", "tools\Migration\Nzmpta.AutoRep.Migration.csproj", "{628CBE8A-69CD-4647-A7BF-6761557BFA98}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mpnz.AutoRep.Migration", "tools\Migration\Mpnz.AutoRep.Migration.csproj", "{628CBE8A-69CD-4647-A7BF-6761557BFA98}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

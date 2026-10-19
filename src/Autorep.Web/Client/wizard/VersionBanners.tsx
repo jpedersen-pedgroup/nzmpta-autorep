@@ -22,7 +22,7 @@ export function when(iso?: string | null): string {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Provenance of this version, for anyone looking at it: tester, colleague or administrator. On a
- * tester's device, also a test NZMPTA has deleted that is still here because it holds unsent edits. */
+ * tester's device, also a test MPNZ has deleted that is still here because it holds unsent edits. */
 export function VersionNotices({ test, others, deletion }: {
   test: LocalTest;
   others: readonly LocalTest[];
@@ -35,7 +35,7 @@ export function VersionNotices({ test, others, deletion }: {
     <>
       {deletion && (
         <div class="alert alert--danger version-note" data-version-note="deleted">
-          🗑 <strong>NZMPTA deleted this test</strong>
+          🗑 <strong>MPNZ deleted this test</strong>
           {deletion.at ? ` on ${when(deletion.at)}` : ""}
           {deletion.reason ? <>: “{deletion.reason}”</> : "."} Your changes on this device are still sent —
           they're kept with the deleted test — and then it's removed from this device.

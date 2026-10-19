@@ -129,7 +129,7 @@ export interface TesterDetails {
   name: string;
   phone?: string | null;
   registrationNumber?: string | null;
-  /** NZMPTA registration expiry, ISO yyyy-mm-dd. */
+  /** MPNZ registration expiry, ISO yyyy-mm-dd. */
   registrationExpiry?: string | null;
 }
 

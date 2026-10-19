@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Nzmpta.AutoRep.Migration.Util;
+namespace Mpnz.AutoRep.Migration.Util;
 
 /// <summary>
 /// RFC 4122 v5 (SHA-1, name-based) GUIDs. Stable across runs for the same (namespace, name), which

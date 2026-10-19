@@ -55,7 +55,7 @@ jobs:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
         run: |
           az deployment group what-if \
-            --resource-group rg-nzmpta-autorep-prod \
+            --resource-group rg-mpnz-autorep-prod \
             --template-file infra/main.bicep \
             --parameters infra/parameters/prod.bicepparam
 
@@ -82,7 +82,7 @@ jobs:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
         run: |
           az deployment group create \
-            --resource-group rg-nzmpta-autorep-prod \
+            --resource-group rg-mpnz-autorep-prod \
             --template-file infra/main.bicep \
             --parameters infra/parameters/prod.bicepparam \
             --name "infra-prod-${{ github.run_number }}"
@@ -90,7 +90,7 @@ jobs:
       - name: Show outputs
         run: |
           az deployment group show \
-            --resource-group rg-nzmpta-autorep-prod \
+            --resource-group rg-mpnz-autorep-prod \
             --name "infra-prod-${{ github.run_number }}" \
             --query properties.outputs \
             -o table

@@ -3,7 +3,7 @@ namespace Autorep.Web.Domain.Entities;
 /// <summary>
 /// A dairy operation at a specific location, against which Machine Tests are performed.
 /// Farm Details are master data — editable by the owning Tester's Company Administrator
-/// and the NZMPTA Super-Administrator — and are independent of the wizard capture flow.
+/// and the MPNZ Super-Administrator — and are independent of the wizard capture flow.
 /// A Machine Test references the Farm by id at the time the test is created.
 /// </summary>
 public class Farm

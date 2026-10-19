@@ -44,7 +44,7 @@ Explicitly out of scope for this chunk. If any of these come back, they are a va
 - **Offline sign-out.** It is a POST to an `[Authorize]` page. Offline it is disabled, not faked.
 - **Offline address autocomplete.** `Api/AddressController.cs` is `[Authorize(Policy = "AdminArea")]` and only used by `Pages/Admin/Farms/Edit.cshtml`. The tester add-farm modal has plain text inputs. Nothing to make offline — recorded so nobody budgets for it.
 - **Background Sync / periodic sync.** Not supported on iPad Safari, which is the target device. Any use is enhancement-only and must not be load-bearing.
-- **Offline creation of a *brand-new* farm** — conditionally out of scope. See Phase 5 and Decision (f); this is still an open NZMPTA question (`plans/build-checklist.md:175`).
+- **Offline creation of a *brand-new* farm** — conditionally out of scope. See Phase 5 and Decision (f); this is still an open MPNZ question (`plans/build-checklist.md:175`).
 
 ---
 
@@ -59,7 +59,7 @@ Full reasoning in §5. The phases below assume these answers.
 | c | `asp-append-version` / stale bundle | **Drop `asp-append-version` on shell assets**, build-stamp `CACHE_VERSION`, `ignoreSearch:true`, emit a chunk manifest |
 | d | What is safe to cache | Shell + static assets + logos only. **No rendered Razor page HTML, ever.** |
 | e | Storage quota / eviction | Request persistence, surface `estimate()`, paginate the first pull, drop the local attachment copy after upload |
-| f | Offline farm creation | **Defer** pending NZMPTA answer; ship "pick from the cached book" first |
+| f | Offline farm creation | **Defer** pending MPNZ answer; ship "pick from the cached book" first |
 
 ---
 
@@ -88,7 +88,7 @@ These were live bugs. They lost tester work, and every "you have N unsynced test
 
 ### Phase 1 — Make the cache honest (build coupling + offline printing)
 
-The current precache list mostly does not work, and the biggest offline asset (the PDF generator) is never precached. Fixing this is a prerequisite for a cached shell surviving a deploy, and it independently delivers offline printing, which is an explicit NZMPTA requirement (`plans/build-checklist.md:88`).
+The current precache list mostly does not work, and the biggest offline asset (the PDF generator) is never precached. Fixing this is a prerequisite for a cached shell surviving a deploy, and it independently delivers offline printing, which is an explicit MPNZ requirement (`plans/build-checklist.md:88`).
 
 > **ORDERING CORRECTION (22 Jul 2026, verified in-browser).** The next three bullets are **one
 > atomic change**, not three independent ones. `ignoreSearch` is *not* safe on its own: the static
@@ -479,7 +479,7 @@ This is the item most likely to produce "worked in testing, failed in the field"
 
 ### (f) Offline farm creation
 
-**RECOMMENDATION: defer.** Ship "pick from the cached book" (Phase 3) and take the answer to NZMPTA. The degraded path already exists via `ResolveFarmAsync`. Full-fidelity creation is 6–10 days across two new endpoints, two syncs, a DB version bump with a migration for devices holding unsynced work, a sync-envelope change, and an unresolved id-reconciliation question. It should not ride along inside another phase.
+**RECOMMENDATION: defer.** Ship "pick from the cached book" (Phase 3) and take the answer to MPNZ. The degraded path already exists via `ResolveFarmAsync`. Full-fidelity creation is 6–10 days across two new endpoints, two syncs, a DB version bump with a migration for devices holding unsynced work, a sync-envelope change, and an unresolved id-reconciliation question. It should not ride along inside another phase.
 
 ---
 
@@ -494,7 +494,7 @@ This is the item most likely to produce "worked in testing, failed in the field"
 | Cached shell out-of-sync with an 8-hour cookie → signed-in chrome for a dead session | High (a field day exceeds 8h) | Phase 0 401 handling + a distinct "sign in again to sync" state; decide the cookie lifetime separately |
 | PII lands in the shared Cache API by accident (a future page, a careless SW rule) | Medium | Path allowlist in the SW, and a Playwright assertion that no cached body contains tester or farm strings |
 | `/App/Tests/New` rewrite is larger than "the farm picker" | Medium | Phase 3 enumerates all seven things that page supplies (picker, region/milk selects, privacy notice, role hint, error block, antiforgery token, logo `<img>`, POST handoff); the antiforgery token in particular comes from the **layout's** logout form |
-| Offline farm creation balloons | Medium if started | Gated behind an NZMPTA answer; separate phase; not bundled |
+| Offline farm creation balloons | Medium if started | Gated behind an MPNZ answer; separate phase; not bundled |
 | Warming 2.4 MB of PDF chunks on rural mobile data annoys testers / burns their plan | Medium | Warm after first successful sync, not on install; show a "ready to print offline" state; honour `saveData` where available |
 | None of this is covered by tests, so regressions are invisible | **High today** | §7 — the Playwright offline suite is a deliverable, not a footnote |
 
@@ -552,14 +552,14 @@ CI already runs Vitest + typecheck and E2E as its own job (`.github/workflows/ap
 
 **Genuinely new scope, arguably:**
 - **Phase 0** is bug-fixing on already-delivered M2 sync work. Not new scope; it is warranty.
-- **Phase 5 (offline farm creation)** is the only candidate for a variation, and only if NZMPTA answers `build-checklist.md:175` with "testers create farms on-farm". It touches the domain model (new store, DB version bump, sync envelope change) and is the one place where the honest answer is "this is bigger than the M2 line item assumed".
+- **Phase 5 (offline farm creation)** is the only candidate for a variation, and only if MPNZ answers `build-checklist.md:175` with "testers create farms on-farm". It touches the domain model (new store, DB version bump, sync envelope change) and is the one place where the honest answer is "this is bigger than the M2 line item assumed".
 - **Cookie-lifetime / offline-session policy** (Decision a) is a security decision, not a build item, and needs Josh's call before Phase 2 finishes.
 
 ---
 
 ## 9. Open questions
 
-Carry these into the next NZMPTA/Josh conversation. Each one changes a phase.
+Carry these into the next MPNZ/Josh conversation. Each one changes a phase.
 
 1. **Do testers create farms on-farm?** (`build-checklist.md:175`) Decides Phase 5 entirely.
 2. **What is the intended maximum offline stretch?** 8 hours (current cookie), a full day, or multi-day? Decides whether the cookie lifetime changes.

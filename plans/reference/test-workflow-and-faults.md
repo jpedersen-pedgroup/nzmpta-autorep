@@ -1,6 +1,6 @@
 # Test workflow & fault ratings — wizard build reference
 
-> Source: two NZMPTA docs (OneDrive `Clients/NZMPTA/`), provided 8 Jun 2026 to flesh out the wizard:
+> Source: two MPNZ docs (OneDrive `Clients/NZMPTA/`), provided 8 Jun 2026 to flesh out the wizard:
 > - `ISO flowchart A3_FINAL.pdf` — the ISO test workflow testers follow ("Test Report Part A" + "Visual Check Part 2")
 > - `CMM Ratings V2 Nov 25.xlsx` → `cmm-fault-ratings.csv` (this folder) — fault catalog: recommendations + severity
 >
@@ -27,7 +27,7 @@ From the flowchart legend. **Short test** = the red-highlighted items only, used
 | 14 | Pulsator & Ancillary Equipment | 14a-14f (milk-sys leak, pulsator consumption, vacuum-sys leak) | MMAdditionalTR |
 | 15 | Test Pulsation | 15a max pulsation chamber vac (B phase), 15b | PulsationSystemResult |
 
-After 15 → **"Go to Additional Tests Flowchart"** (teat spray, milk meters, releaser-pump heads, regulator load, etc. — the remaining `MMAdditionalTR` fields). **⚠️ We have not yet seen that second flowchart — request it from NZMPTA.**
+After 15 → **"Go to Additional Tests Flowchart"** (teat spray, milk meters, releaser-pump heads, regulator load, etc. — the remaining `MMAdditionalTR` fields). **⚠️ We have not yet seen that second flowchart — request it from MPNZ.**
 
 ## B. Decision branches the Wizard Step Resolver must encode
 - **ISO ports available?** (A1/A2/A3 air-flow; Vm/Vr/Vp vacuum) → No → install ports / **short test** (red items only) / discontinue.
@@ -40,19 +40,19 @@ After 15 → **"Go to Additional Tests Flowchart"** (teat spray, milk meters, re
 - **Vacuum pump liquid-ring vs oil-lubricated (group 9)** → oil/water flow-rate check.
 - **Milking position vs vacuum-off-cluster** is called out per group → capture a position flag per reading set.
 
-> **Numbering note:** the PRD describes "Vacuum & Reserve sections 1–7" + "Additional Tests 8–16"; the ISO flowchart uses 15 groups; the legacy app has its own sectioning. These are the same tests grouped differently — **reconcile the exact wizard step grouping with NZMPTA / the legacy UI** before finalising step boundaries. The ISO groups above are authoritative for *content & order*.
+> **Numbering note:** the PRD describes "Vacuum & Reserve sections 1–7" + "Additional Tests 8–16"; the ISO flowchart uses 15 groups; the legacy app has its own sectioning. These are the same tests grouped differently — **reconcile the exact wizard step grouping with MPNZ / the legacy UI** before finalising step boundaries. The ISO groups above are authoritative for *content & order*.
 
 ## C. Fault catalog → domain model (`cmm-fault-ratings.csv` — 113 faults / 13 components)
 Components (count): Vacuum Gauge 6, Regulator 9, Vacuum and Measurement Regulators 7, Main/Receiver Airline 2, Pulsation 13, Cluster 11, Moving Parts 1, Stationary Parts 3, Vacuum Pump 16, Pipe lines 22, Releaser 17, Rubberware 2, Misc 4.
 
 - **StandardRecommendationWording** seed = the `Recommendation` column, keyed by `Component` (+ the `Fault` it addresses). Admin-CRUD per PRD; this is the initial seed.
 - **Fault.Severity** = `Rating` → enum `{Critical, Major, Minor}`. Source casing varies ("minor"/"Minor") → normalise. **3 Critical, 59 Major, 45 Minor.**
-- **Conditional ratings (6 rows)** need a rule confirmed with NZMPTA — e.g. "Minor / Major", "Major/minor" (severity depends on whether it affects pulsation/cleaning/overload), and one **escalation**: *"Major, moving to Critical if not actioned within a month"* → model an optional escalation note/period on Fault.
+- **Conditional ratings (6 rows)** need a rule confirmed with MPNZ — e.g. "Minor / Major", "Major/minor" (severity depends on whether it affects pulsation/cleaning/overload), and one **escalation**: *"Major, moving to Critical if not actioned within a month"* → model an optional escalation note/period on Fault.
 - Replaces the legacy **group-level** severity with **per-fault** severity (PRD US 23 & 41).
 - `Component` maps onto wizard sections (Vacuum Pump → config/pump tests; Pulsation → pulsation step; Cluster → cluster steps; Pipe lines/Releaser → visual + additional; Moving/Stationary Parts → visual-faults safety items; etc.).
 
 ## D. Legacy AutoRep Plus screen structure (the canonical tester UX)
-Source: `Autorep Plus Instructions 150724.pdf` + NZMPTA training video (`youtu.be/JNQ-vHZ09Js`). This is the flow testers know today — the strongest guide to wizard step **grouping**.
+Source: `Autorep Plus Instructions 150724.pdf` + MPNZ training video (`youtu.be/JNQ-vHZ09Js`). This is the flow testers know today — the strongest guide to wizard step **grouping**.
 
 **Left-hand menu = the step list; the tester can jump to any form (non-linear). "Save" on a form opens the next.** Seven forms:
 1. **Farm & Milking Machine** — TWO pages. *Pg 1:* equipment calibration-expiry dates, farm owner (mandatory), dairy company, supply number, **plant type** (highline herringbone / lowline / rotary — mandatory), **plant size = cluster number** (mandatory; drives all standards), pulsator model + count, ACRs y/n, bail gates y/n, milk meters y/n, liners vented?, **flushing pulsation system** (→ cleaning-reserve vs effective-reserve), milkline size. *Pg 2:* vacuum pump make/model/motor, drives-milk-pump?, regulator type, releaser/milk-pump make/type/motor, **other ancillary equipment** (milk-system & vacuum-system lists + "Other" + count → standard air consumption). "Next" between pages → an "is the cluster number right?" confirm.

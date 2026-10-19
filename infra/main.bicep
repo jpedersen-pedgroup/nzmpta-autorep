@@ -1,5 +1,5 @@
 // =============================================================================
-// NZMPTA AutoRep — Core Azure Infrastructure
+// MPNZ AutoRep — Core Azure Infrastructure
 // =============================================================================
 //
 // Orchestrates: VNet + subnets, Private DNS Zones, Log Analytics + App Insights,
@@ -25,7 +25,7 @@ param environment string
 param location string = resourceGroup().location
 
 @description('Naming prefix for resources. Final names = {abbrev}-{namingPrefix}-{environment}.')
-param namingPrefix string = 'nzmpta-autorep'
+param namingPrefix string = 'mpnz-autorep'
 
 @description('Tags applied to every resource')
 param tags object
@@ -36,6 +36,9 @@ param sqlAdminLogin string = 'autorep-sqladmin'
 @secure()
 @description('SQL administrator password. Provide via env var at deploy time; store in Key Vault after deploy.')
 param sqlAdminPassword string
+
+@description('Mailbox the app sends email from via Microsoft Graph. Empty leaves the app setting out (prod reads Graph--SendingMailbox from Key Vault).')
+param graphSendingMailbox string = ''
 
 var resourceBase = '${namingPrefix}-${environment}'
 
@@ -139,6 +142,7 @@ module appService 'modules/app-service.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     sqlServerFqdn: sql.outputs.sqlServerFqdn
     sqlDatabaseName: sql.outputs.sqlDatabaseName
+    graphSendingMailbox: graphSendingMailbox
   }
 }
 

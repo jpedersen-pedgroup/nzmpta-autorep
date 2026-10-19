@@ -20,7 +20,7 @@ describe("licenceBanner", () => {
     const b = licenceBanner("2026-10-08", today)!;
     expect(b.urgent).toBe(true);
     expect(b.lead).toBe("Your tester licence expires in 1 day");
-    expect(b.rest).toBe("(08 Oct 2026). Contact NZMPTA to renew.");
+    expect(b.rest).toBe("(08 Oct 2026). Contact MPNZ to renew.");
   });
 
   it("says expired on the day and after — and keeps counting while offline", () => {

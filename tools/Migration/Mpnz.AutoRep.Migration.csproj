@@ -11,7 +11,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>Nzmpta.AutoRep.Migration</RootNamespace>
+    <RootNamespace>Mpnz.AutoRep.Migration</RootNamespace>
     <AssemblyName>autorep-migrate</AssemblyName>
   </PropertyGroup>
 

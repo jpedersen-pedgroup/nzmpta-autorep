@@ -1,4 +1,4 @@
-# Infra — NZMPTA AutoRep Core Azure Infrastructure
+# Infra — MPNZ AutoRep Core Azure Infrastructure
 
 Bicep IaC for the AutoRep platform's Azure footprint. Two environments: **staging** and **prod**. Each gets its own resource group, VNet, App Service (public ingress with managed TLS, custom domain via post-deploy), SQL DB, Key Vault, Storage, Log Analytics and App Insights. Front Door and WAF are deferred to M6 hardening — App Service alone covers everything needed for a single-region NZ-only deployment.
 
@@ -29,6 +29,10 @@ This is the infrastructure layer for **Issue [#2](https://github.com/jpedersen-p
 
 Backend services have `publicNetworkAccess = Disabled` and are only reachable from the VNet via Private Endpoints. App Service has public ingress (required — Testers reach it from the internet); defense-in-depth (WAF, rate limiting, geo-filtering) is deferred to M6 hardening, at which point a Front Door + WAF can be added in front.
 
+## Naming
+
+Resource names are `{abbrev}-{namingPrefix}-{environment}`, and the two environments use different prefixes. Staging was built before NZMPTA became MPNZ and keeps `nzmpta-autorep` for now (`rg-nzmpta-autorep-staging`, `app-nzmpta-autorep-staging`, `kv-nzmptaautorepstaging`, `sql-nzmpta-autorep-staging`). Prod hasn't been built yet and uses `mpnz-autorep` (`rg-mpnz-autorep-prod`, `app-mpnz-autorep-prod`, `kv-mpnzautorepprod`, `stmpnzautorepprod`, `sql-mpnz-autorep-prod`). Changing a deployed environment's prefix creates a second, empty set of resources rather than renaming the old ones.
+
 ## Files
 
 | Path | Purpose |
@@ -55,7 +59,7 @@ Backend services have `publicNetworkAccess = Disabled` and are only reachable fr
 - A **resource group** per environment, pre-created (Bicep targets the RG scope):
   ```bash
   az group create --name rg-nzmpta-autorep-staging --location australiaeast
-  az group create --name rg-nzmpta-autorep-prod    --location australiaeast
+  az group create --name rg-mpnz-autorep-prod    --location australiaeast
   ```
 - (For custom domain post-deploy) DNS control over the domain you intend to use, so you can add the validation TXT and target CNAME records.
 
@@ -84,7 +88,7 @@ az deployment group create \
 
 ```bash
 az deployment group create \
-  --resource-group rg-nzmpta-autorep-prod \
+  --resource-group rg-mpnz-autorep-prod \
   --template-file infra/main.bicep \
   --parameters infra/parameters/prod.bicepparam
 ```
@@ -120,7 +124,8 @@ You may need to temporarily allow your laptop IP on the Key Vault firewall first
 App Service's Managed Identity needs to be a SQL user with appropriate role. This is a one-time per-env step run from any machine with SQL connectivity (you'll need VPN/Bastion since SQL is private):
 
 ```sql
--- Connected to sqldb-nzmpta-autorep-{env} as the Azure AD admin (set below first)
+-- Connected to sqldb-nzmpta-autorep-staging as the Azure AD admin (set below first).
+-- Prod: sqldb-mpnz-autorep-prod, and the user is [app-mpnz-autorep-prod].
 CREATE USER [app-nzmpta-autorep-staging] FROM EXTERNAL PROVIDER;
 ALTER ROLE db_owner ADD MEMBER [app-nzmpta-autorep-staging];
 ```
@@ -139,12 +144,12 @@ Then connect via `sqlcmd` or Azure Data Studio over VPN/Bastion, run the SQL abo
 
 ### 3. (Prod, when ready) Add the custom domain to App Service
 
-When you've got the prod domain decided (e.g. `autorep.nzmpta.org.nz`):
+When you've got the prod domain decided (e.g. `autorep.milkingpumping.co.nz`):
 
 ```bash
-APP_NAME="app-nzmpta-autorep-prod"
-RG="rg-nzmpta-autorep-prod"
-DOMAIN="autorep.nzmpta.org.nz"
+APP_NAME="app-mpnz-autorep-prod"
+RG="rg-mpnz-autorep-prod"
+DOMAIN="autorep.milkingpumping.co.nz"
 
 # 1. Add the verification TXT record on your DNS:
 #      asuid.${DOMAIN}  TXT  <value from `az webapp config hostname get-external-ip`>

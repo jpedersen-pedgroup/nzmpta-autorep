@@ -25,7 +25,7 @@ public static class MfaPolicy
     public const string SessionStampKey = "autorep:mfa_at";
 
     /// <summary>The roles that must have two-factor (PRD story 58: Super-Administrators). Widen
-    /// here if NZMPTA extends it to Company Administrators.</summary>
+    /// here if MPNZ extends it to Company Administrators.</summary>
     public static readonly string[] RequiredRoles = [Roles.SuperAdministrator];
 
     /// <summary>How long one proof of the second factor holds - for "trust this device" and for a
