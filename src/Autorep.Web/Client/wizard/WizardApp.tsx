@@ -25,6 +25,7 @@ import { deletedOnServer, type Deletion } from "../sync/removals";
 import { AdminEditBar, VersionNotices, type SaveProblem } from "./VersionBanners";
 import { AuditPanel } from "./AuditPanel";
 import { deriveReadings } from "../passfail/derived";
+import { stampOemSpecs, withOemSpecsFrom } from "../reference/oemSpecs";
 import { useServerOnline } from "../connectivity";
 import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "../appEvents";
 import {
@@ -155,7 +156,7 @@ function localTestFromServer(dto: ServerTestDto): LocalTest {
     ...base,
     id: dto.id,
     farmName: dto.farmName || base.farmName || "",
-    config: dto.config ?? base.config ?? defaultMachineConfiguration(),
+    config: dto.config ? withOemSpecsFrom(base.config, dto.config) : (base.config ?? defaultMachineConfiguration()),
     currentStep: "Setup",
     visualFaults: base.visualFaults ?? {},
     attestations: base.attestations ?? [],
@@ -586,10 +587,15 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
       amendments = [...(test.amendments ?? []).filter((a) => a.version !== record.version), record];
     }
 
+    // Freeze the OEM Specs the test was judged against, so a later spec edit doesn't change it. An
+    // amendment keeps its original's specs for equipment it didn't change (reference/oemSpecs.ts).
+    const config = { ...test.config, oemSpecs: stampOemSpecs(test.config) };
+
     await persist({
       markedCompleteAt: now,
+      config,
       // Belt and braces: what gets frozen is the formulas' values, whatever path the test took here.
-      readings: deriveReadings(test.config, test.readings),
+      readings: deriveReadings(config, test.readings),
       amendments,
       ...calStamp,
       ...companyStamp,

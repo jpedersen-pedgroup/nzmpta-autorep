@@ -49,6 +49,27 @@ describe("computeChanges", () => {
     expect(changes).toContainEqual({ section: "Machine configuration", label: "ACRs", from: "No", to: "Yes" });
   });
 
+  it("records a model change once, not the OEM Specs id or stamped specs that follow it", () => {
+    const base = baseTest();
+    const before = { ...base, config: { ...base.config, pulsatorModel: "P1", pulsatorEquipmentId: "p-1" } };
+    const changes = computeChanges(
+      before,
+      editedCopy({
+        config: {
+          ...before.config,
+          pulsatorModel: "P2",
+          pulsatorEquipmentId: "p-2",
+          oemSpecs: { pulsator: { equipmentId: "p-2", name: "P2", spec: null }, vacuumPumps: [{ name: "X", spec: null }] },
+          vacuumPumps: [{ make: "GEA", model: "X", equipmentId: "v-1" }],
+        },
+      }),
+    );
+    expect(changes.filter((c) => c.label.startsWith("Pulsator"))).toEqual([
+      { section: "Machine configuration", label: "Pulsator model", from: "P1", to: "P2" },
+    ]);
+    expect(changes.map((c) => c.label)).toEqual(["Pulsator model", "Vacuum pump 1 · Make", "Vacuum pump 1 · Model"]);
+  });
+
   it("records a pump detail change per pump and field, not as one stringified list", () => {
     const base = baseTest();
     const changes = computeChanges(
