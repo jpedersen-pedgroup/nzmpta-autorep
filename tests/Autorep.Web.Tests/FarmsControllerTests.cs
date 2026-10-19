@@ -226,7 +226,8 @@ public class FarmsControllerTests : IClassFixture<AuthedWebAppFactory>
             db.Users.Add(new Tester { Id = "tester-history-2", UserName = "tester-history-2", TestingCompanyId = companyId });
             var farm = new Farm { Name = "Legacy History Farm" };
             db.Farms.Add(farm);
-            db.MachineTests.Add(new MachineTest { TesterId = "tester-history-2", FarmId = farm.Id });
+            // Stamped for the company, as every synced (and migrated) test is: scope follows the stamp.
+            db.MachineTests.Add(new MachineTest { TesterId = "tester-history-2", FarmId = farm.Id, TestingCompanyId = companyId });
             await db.SaveChangesAsync();
             farmId = farm.Id;
         }

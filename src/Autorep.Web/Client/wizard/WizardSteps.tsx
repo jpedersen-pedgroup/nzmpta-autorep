@@ -239,11 +239,11 @@ function SetupStep({ ctx }: { ctx: StepContext }) {
         <div class="form-grid">
           {farmField("Farm", test.farm?.name ?? test.farmName)}
           {farmField("Supply number", test.farm?.supplyNumber)}
-          {farmField("Milk supply company", test.farm?.milkCompanyName)}
+          {farmField("Dairy processing company", test.farm?.milkCompanyName)}
           {farmField("Region", test.farm?.regionName)}
           {farmField("Address", farmAddress(test.farm))}
           {farmField("RAPID number", test.farm?.rapidNumber)}
-          {farmField("Farmer", test.farm?.farmerName)}
+          {farmField("Owner / operator", test.farm?.farmerName)}
           {farmField("Phone", test.farm?.contactPhone)}
           {farmField("Email", test.farm?.contactEmail)}
         </div>

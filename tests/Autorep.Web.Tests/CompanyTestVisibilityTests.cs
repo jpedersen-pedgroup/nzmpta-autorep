@@ -215,6 +215,42 @@ public class CompanyTestVisibilityTests : IClassFixture<AuthedWebAppFactory>
             "the test stays with the company it was performed for");
     }
 
+    // The other half of a move ("farms stay behind", 19 Oct): the old company keeps the tests, and
+    // the farm, the moved tester did for it — on the tester surfaces and the admin ones alike.
+    [Fact]
+    public async Task A_moved_testers_old_tests_and_farm_stay_with_the_old_company()
+    {
+        var (companyA, _) = await SeedCompanyAsync("Stay With Co");
+        var (companyB, _) = await SeedCompanyAsync("Moved To Co");
+        var farm = await WithDbAsync(async db =>
+        {
+            var f = new Farm { Name = "Stays Behind " + Guid.NewGuid() }; // held by A only through the test
+            db.Farms.Add(f);
+            await db.SaveChangesAsync();
+            return f;
+        });
+        await SeedTesterAsync("sw-mover", companyA);
+        await SeedTesterAsync("sw-colleague", companyA);
+        await SeedTesterAsync("sw-admin", companyA);
+        await SeedTesterAsync("sw-new-admin", companyB);
+        var testId = await SeedTestAsync("sw-mover", farm.Id, companyA, complete: true);
+        await WithDbAsync(async db =>
+        {
+            (await db.Users.SingleAsync(u => u.Id == "sw-mover")).TestingCompanyId = companyB;
+            await db.SaveChangesAsync();
+            return true;
+        });
+
+        (await _factory.CreateClientAs(Roles.Tester, "sw-colleague").GetAsync($"/api/tests/{testId}"))
+            .StatusCode.Should().Be(HttpStatusCode.OK, "a colleague at the old company still reads it");
+        (await _factory.CreateClientAs(Roles.CompanyAdministrator, "sw-admin").GetStringAsync("/Admin/Tests"))
+            .Should().Contain(farm.Name);
+        (await _factory.CreateClientAs(Roles.CompanyAdministrator, "sw-admin").GetStringAsync("/Admin/Farms"))
+            .Should().Contain(farm.Name);
+        (await _factory.CreateClientAs(Roles.CompanyAdministrator, "sw-new-admin").GetStringAsync("/Admin/Farms"))
+            .Should().NotContain(farm.Name, "the farm didn't move with the tester");
+    }
+
     // A report printed from the read-only view carries the letterhead of the company the work was
     // done for, even after the owner has moved on to another company.
     [Fact]
