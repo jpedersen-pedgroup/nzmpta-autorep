@@ -749,19 +749,16 @@ main {
 }
 
 /* ----- Licence banner ------------------------------------------------------- */
+/* From 60 days before the licence expires, and after. Red throughout, as MPNZ asked. */
 .licence-banner {
   padding: var(--space-3) var(--space-6);
-  background: #fef3c7;
-  color: #92400e;
-  border-bottom: 1px solid #fde68a;
+  background: var(--danger-bg);
+  color: #991b1b;
+  border-bottom: 1px solid var(--danger-border);
   font-size: 0.9375rem;
   text-align: center;
 }
-.licence-banner--urgent {
-  background: var(--danger-bg);
-  color: #991b1b;
-  border-bottom-color: var(--danger-border);
-}
+.licence-banner a { color: inherit; text-decoration: underline; }
 
 /* ----- Connection + unsynced-work indicator (tester header) ------------------
    Outside the burger menu on purpose: on a phone the menu is collapsed, and whether the device is

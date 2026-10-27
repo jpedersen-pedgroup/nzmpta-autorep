@@ -13,8 +13,9 @@ public class Tester : IdentityUser
     public TestingCompany? TestingCompany { get; set; }
 
     // Tester Licence (Phase 8). Nullable so newly-created Testers start with
-    // no licence until a Super-Administrator sets one. Login pipeline refuses
-    // sign-in if expired.
+    // no licence until a Super-Administrator sets one. An expired licence blocks
+    // nothing: the tester sees a banner from 60 days out, and the report shows a
+    // licence that had expired by the test date.
     public DateOnly? LicenceExpiryDate { get; set; }
 
     // Set on migrated accounts so first sign-in forces a password change. Set
@@ -27,8 +28,8 @@ public class Tester : IdentityUser
     public string? CertificateNo { get; set; }
 
     // Terms of Use acceptance. The login gate requires (re-)acceptance when the accepted version
-    // differs from the current PrivacyContent.TermsVersion, OR when the licence has been renewed
-    // since acceptance (TermsAcceptedLicenceExpiry != LicenceExpiryDate).
+    // differs from the current PrivacyContent.TermsVersion. TermsAcceptedLicenceExpiry records
+    // the licence held at acceptance; renewing a licence no longer asks for the terms again.
     public string? TermsAcceptedVersion { get; set; }
     public DateTimeOffset? TermsAcceptedAt { get; set; }
     public DateOnly? TermsAcceptedLicenceExpiry { get; set; }

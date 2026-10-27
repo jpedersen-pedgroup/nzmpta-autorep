@@ -55,7 +55,8 @@ public class SessionEndpointTests : IClassFixture<AuthedWebAppFactory>
         body.GetProperty("certificateNo").GetString().Should().Be("NZ-1234");
         // DateOnly's JSON shape — the client checks for exactly yyyy-mm-dd.
         body.GetProperty("licenceExpiryDate").GetString().Should().Be("2027-03-01");
-        body.GetProperty("syncOnly").GetBoolean().Should().BeFalse();
+        // The sync-only session scope is gone: an expired licence blocks nothing.
+        body.TryGetProperty("syncOnly", out _).Should().BeFalse();
         body.GetProperty("serverTime").GetDateTimeOffset().Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
     }
 
@@ -70,16 +71,17 @@ public class SessionEndpointTests : IClassFixture<AuthedWebAppFactory>
         res.Headers.CacheControl!.NoStore.Should().BeTrue("it carries the tester's name and licence");
     }
 
+    // The device draws the expired banner from this date, offline too.
     [Fact]
-    public async Task Reports_a_lapsed_licence_session_as_sync_only()
+    public async Task Still_answers_for_an_expired_licence_with_its_date()
     {
         await SeedAsync("session-3", licence: new DateOnly(2020, 1, 1));
-        var client = _factory.CreateClientAs(Roles.Tester, "session-3",
-            claims: $"{LicenceScope.ScopeClaim}={LicenceScope.SyncOnly}");
+        var client = _factory.CreateClientAs(Roles.Tester, "session-3");
 
-        var body = await ReadJson(await client.GetAsync("/api/session"));
+        var res = await client.GetAsync("/api/session");
 
-        body.GetProperty("syncOnly").GetBoolean().Should().BeTrue();
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(res)).GetProperty("licenceExpiryDate").GetString().Should().Be("2020-01-01");
     }
 
     [Fact]

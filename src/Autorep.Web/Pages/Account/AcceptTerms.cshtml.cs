@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Autorep.Web.Pages.Account;
 
 // Anonymous, token-protected Terms-of-Use acceptance gate. Reached from Login when a tester's
-// accepted version is stale or their licence was renewed; mirrors the forced-password-reset flow
+// accepted version is stale; mirrors the forced-password-reset flow
 // (the tester is signed out first and arrives with a one-time token in the query string).
 [AllowAnonymous]
 public class AcceptTermsModel : PageModel
