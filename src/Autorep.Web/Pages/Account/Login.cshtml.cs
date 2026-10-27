@@ -64,9 +64,9 @@ public class LoginModel : PageModel
         {
             await _audit.WriteAsync(HttpContext, Input.Email, user?.Id, "success");
 
-            // Forced reset, lapsed licence, stale terms - the checks a password alone doesn't
+            // Forced reset, stale terms - the checks a password alone doesn't
             // settle. Shared with the two-factor pages, which reach the same point by the code.
-            if (user is not null && await _gates.CheckAsync(HttpContext, user) is { } gate)
+            if (user is not null && await _gates.CheckAsync(user) is { } gate)
                 return gate.Redirect(this, returnUrl);
 
             return LocalRedirect(returnUrl ?? "/");

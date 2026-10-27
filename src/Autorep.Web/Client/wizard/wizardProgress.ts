@@ -23,7 +23,7 @@ import {
 } from "../passfail/standards";
 import { evaluate } from "../passfail/passFail";
 import { recordedRows } from "../ui/measurementRows";
-import { buildFaultInputs } from "../faults/buildFaults";
+import { buildFaultInputs, MACHINE_CHECK_STEPS, machineCheckFaults } from "../faults/buildFaults";
 import { aggregate, type FaultSummary } from "../faults/faultAggregator";
 
 /** The resolver's Visual Faults — Running section keys for this machine. The resolver owns which
@@ -133,11 +133,16 @@ export function stepProgress(t: LocalTest, step: WizardStep): number {
   }
 }
 
-/** Faults logged against a step — checklist items marked Fault, plus readings failing a standard.
- * Steps that can't hold a fault return 0. */
+/** Faults logged against a step — checklist items marked Fault, readings failing a standard, and
+ * the machine checks captured on that step (a regulator judged not big enough on Machine
+ * Configuration, pulsators outside their model band on Pulsator Test), so each step's badge agrees
+ * with what Fault Summary later lists. Steps that can't hold a fault return 0. */
 export function faultsInStep(t: LocalTest, step: WizardStep): number {
   const cfg = t.config;
+  const machineChecks = () => machineCheckFaults(t).filter((f) => f.key != null && MACHINE_CHECK_STEPS[f.key] === step).length;
   switch (step) {
+    case "MachineConfiguration":
+      return machineChecks();
     case "VisualFaultsPreStart":
     case "VisualFaultsRunning": {
       const sections =
@@ -152,7 +157,8 @@ export function faultsInStep(t: LocalTest, step: WizardStep): number {
     case "PulsatorTest":
       return readingSectionsFor(t, step)
         .flatMap((s) => s.readings)
-        .filter((r) => evaluate(t.readings[r.key], r.rule) === "fail").length;
+        .filter((r) => evaluate(t.readings[r.key], r.rule) === "fail").length
+        + (step === "PulsatorTest" ? machineChecks() : 0);
     default:
       return 0;
   }

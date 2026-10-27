@@ -34,13 +34,15 @@ public class ForgotPasswordModel : PageModel
     public async Task<IActionResult> OnPostAsync()
     {
         // Always show the same generic confirmation — never disclose whether an address is
-        // registered, or whether it's active/inactive (avoids account enumeration). We simply
-        // don't send a reset link to inactive (deactivated or licence-expired) accounts.
+        // registered, or whether it's deactivated (avoids account enumeration). We simply don't
+        // send a reset link to a deactivated account. An expired licence still gets one: it
+        // blocks nothing. A short failed-attempts lockout does too, since a reset is exactly how
+        // such a user recovers.
         Sent = true;
         if (string.IsNullOrWhiteSpace(Input.Email)) return Page();
 
         var user = await _users.FindByEmailAsync(Input.Email);
-        if (user is null || await IsInactiveAsync(user)) return Page();
+        if (user is null || AccountLockout.IsDeactivated(user.LockoutEnd)) return Page();
 
         var token = await _users.GeneratePasswordResetTokenAsync(user);
         var resetUrl = Url.Page("/Account/ResetPassword", null,
@@ -53,23 +55,5 @@ public class ForgotPasswordModel : PageModel
             $"<p>If you didn't request this, you can safely ignore this email.</p>");
 
         return Page();
-    }
-
-    // An account is "inactive" if it's been deactivated (admin lockout sentinel) or — for a pure
-    // Tester — its licence has expired. A short failed-attempts lockout is NOT inactive: a reset is
-    // exactly how such a user recovers. Multi-role admins keep access even with an expired licence,
-    // mirroring the login pre-check.
-    private async Task<bool> IsInactiveAsync(Tester user)
-    {
-        if (AccountLockout.IsDeactivated(user.LockoutEnd))
-            return true;
-
-        var roles = await _users.GetRolesAsync(user);
-        var isPureTester = roles.Contains(Roles.Tester)
-            && !roles.Contains(Roles.SuperAdministrator)
-            && !roles.Contains(Roles.CompanyAdministrator);
-        return isPureTester
-            && user.LicenceExpiryDate is { } expiry
-            && expiry < DateOnly.FromDateTime(DateTime.UtcNow);
     }
 }

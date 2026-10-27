@@ -84,9 +84,10 @@ else
                             <td>@(t.CompanyName ?? "—")</td>
                             <td>@t.RolesDisplay</td>
                             <td>
+                                @* Amber from 60 days out, when the tester's own banner starts. *@
                                 @if (t.LicenceExpiryDate is null) { <span class="badge">—</span> }
                                 else if (t.LicenceExpiryDate < today) { <span class="badge badge--danger">Expired @t.LicenceExpiryDate</span> }
-                                else if (t.LicenceExpiryDate < today.AddMonths(2)) { <span class="badge badge--warning">Expires @t.LicenceExpiryDate</span> }
+                                else if (t.LicenceExpiryDate <= today.AddDays(60)) { <span class="badge badge--warning">Expires @t.LicenceExpiryDate</span> }
                                 else { <span class="badge badge--success">@t.LicenceExpiryDate</span> }
                             </td>
                             <td>

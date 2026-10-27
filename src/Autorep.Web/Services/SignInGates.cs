@@ -1,5 +1,4 @@
 using Autorep.Web.Data;
-using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -14,29 +13,26 @@ namespace Autorep.Web.Services;
 /// recovery code for one with it. Before this lived in the login page's password-success branch
 /// only, so a two-factor account went Login → challenge → signed in and met none of them: a
 /// migrated Super-Administrator with two-factor was never forced to change the legacy password.
+///
+/// An expired Tester licence is not one of them: it blocks nothing (MPNZ, Oct 2026). The tester's
+/// banner says so, and the report shows the licence had expired by the test date.
 /// </summary>
 public class SignInGates(
     SignInManager<Tester> signIn,
     UserManager<Tester> users,
-    AutorepDbContext db,
-    LoginAudit audit)
+    AutorepDbContext db)
 {
     public abstract record Gate;
 
     /// <summary>Temporary or migrated password: signed out again, sent to set a real one.</summary>
     public sealed record ResetPassword(string Email, string Token) : Gate;
 
-    /// <summary>Lapsed Tester licence: the session stands but is sync-only (see
-    /// <see cref="LicenceScope"/>), so the flush page is all that's left to offer.</summary>
-    public sealed record SyncOnly : Gate;
-
-    /// <summary>Terms of use changed, or the licence was renewed since they were accepted.</summary>
+    /// <summary>Terms of use changed since they were accepted.</summary>
     public sealed record AcceptTerms(string Email, string Token) : Gate;
 
-    /// <summary>In order of precedence. The reset gate comes first so a temporary password can
-    /// never be parlayed into a sync-only session; the licence check runs only once the password
-    /// (and code) are known good, so it can't be used to enumerate accounts.</summary>
-    public async Task<Gate?> CheckAsync(HttpContext ctx, Tester user)
+    /// <summary>In order of precedence: the reset gate comes first, so a temporary password is
+    /// never good for anything but choosing a real one.</summary>
+    public async Task<Gate?> CheckAsync(Tester user)
     {
         if (user.ForcedPasswordResetRequired)
         {
@@ -45,19 +41,12 @@ public class SignInGates(
             return new ResetPassword(user.Email!, token);
         }
 
-        var roles = await users.GetRolesAsync(user);
-        if (LicenceScope.IsSyncOnly(user.LicenceExpiryDate, roles, DateOnly.FromDateTime(DateTime.UtcNow)))
-        {
-            await audit.WriteAsync(ctx, user.Email!, user.Id, "licence-expired-sync-only");
-            return new SyncOnly();
-        }
-
+        // Only a new version of the terms asks for them again. Renewing a licence used to as well;
+        // MPNZ saw no reason for it (Oct 2026).
         var currentTermsVersion = await db.PrivacyContent
             .Select(p => p.TermsVersion)
             .FirstOrDefaultAsync();
-        if (!string.IsNullOrEmpty(currentTermsVersion)
-            && (user.TermsAcceptedVersion != currentTermsVersion
-                || user.TermsAcceptedLicenceExpiry != user.LicenceExpiryDate))
+        if (!string.IsNullOrEmpty(currentTermsVersion) && user.TermsAcceptedVersion != currentTermsVersion)
         {
             await signIn.SignOutAsync();
             var termsToken = await users.GenerateUserTokenAsync(user, TokenOptions.DefaultProvider, "AcceptTerms");
@@ -75,7 +64,6 @@ public static class SignInGateExtensions
     public static IActionResult Redirect(this SignInGates.Gate gate, PageModel page, string? returnUrl) => gate switch
     {
         SignInGates.ResetPassword r => page.RedirectToPage("/Account/ResetPassword", new { email = r.Email, token = r.Token }),
-        SignInGates.SyncOnly => page.RedirectToPage("/Account/FinishSync"),
         SignInGates.AcceptTerms t => page.RedirectToPage("/Account/AcceptTerms", new { email = t.Email, token = t.Token, returnUrl }),
         _ => throw new ArgumentOutOfRangeException(nameof(gate), gate, "Unknown sign-in gate."),
     };

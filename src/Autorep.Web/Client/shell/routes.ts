@@ -26,8 +26,7 @@ export const SHELL_PATHS = Object.keys(ROUTES);
 
 /** True on the tester app proper: the pages that keep the device's tester data fresh (farm book,
  * calibration, branding). Path-based, because in the shell the page's roots don't exist until the
- * bundle draws them. Excludes /Admin (a Super-Administrator's farm book is the national list) and
- * the lapsed-licence page. */
+ * bundle draws them. Excludes /Admin (a Super-Administrator's farm book is the national list). */
 export function isTesterPath(pathname: string): boolean {
   return /^\/app(\/|$)/i.test(pathname);
 }

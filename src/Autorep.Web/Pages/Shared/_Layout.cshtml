@@ -9,17 +9,19 @@
     var isAdmin = User.IsInRole("SuperAdministrator") || User.IsInRole("CompanyAdministrator");
     var isSuperAdmin = User.IsInRole("SuperAdministrator");
 
-    // Licence reminder banner: Testers within 180 days of expiry, prominent inside 60 days.
+    // Licence reminder banner: Testers from 60 days before expiry, and after it. Only a reminder:
+    // an expired licence blocks nothing. Same threshold and words as Client/shell/licenceBanner.ts.
+    // Counted on the NZ calendar; the expiry day itself is still licensed.
     DateOnly? expiry = null;
     if (User.Identity?.IsAuthenticated == true && isTester)
     {
         var u = await UserManager.GetUserAsync(User);
         expiry = u?.LicenceExpiryDate;
     }
-    var today = DateOnly.FromDateTime(DateTime.UtcNow);
     int? daysToExpiry = expiry.HasValue
-        ? expiry.Value.DayNumber - today.DayNumber
+        ? expiry.Value.DayNumber - Autorep.Web.Domain.NzTime.Today.DayNumber
         : (int?)null;
+    const string mpnzEmail = "info@milkingpumping.co.nz";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -101,24 +103,18 @@
 
         @if (daysToExpiry.HasValue)
         {
-            if (daysToExpiry <= 0)
+            if (daysToExpiry < 0)
             {
-                <div class="licence-banner licence-banner--urgent">
-                    <strong>Your tester licence has expired.</strong>
-                    You can still sign in to send tests already saved on this device, but can't start new ones until it's renewed. Contact MPNZ.
+                <div class="licence-banner">
+                    <strong>Your Tester licence expired on @expiry?.ToString("dd MMM yyyy").</strong>
+                    Contact MPNZ at <a href="mailto:@mpnzEmail">@mpnzEmail</a> to renew it.
                 </div>
             }
             else if (daysToExpiry <= 60)
             {
-                <div class="licence-banner licence-banner--urgent">
-                    <strong>Your tester licence expires in @daysToExpiry day@(daysToExpiry == 1 ? "" : "s")</strong>
-                    (@expiry?.ToString("dd MMM yyyy")). Contact MPNZ to renew.
-                </div>
-            }
-            else if (daysToExpiry <= 180)
-            {
                 <div class="licence-banner">
-                    Your tester licence expires on @expiry?.ToString("dd MMM yyyy") (in @daysToExpiry days). Plan your renewal.
+                    <strong>Your Tester licence expires on @expiry?.ToString("dd MMM yyyy")</strong>
+                    — email six tests to <a href="mailto:@mpnzEmail">@mpnzEmail</a> by this date.
                 </div>
             }
         }
