@@ -1,7 +1,9 @@
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,6 +23,15 @@ public class IndexModel : PageModel
     public IList<Row> Farms { get; private set; } = [];
     public bool ScopedView { get; private set; }
     public int PendingReviewCount => Farms.Count(f => f.PendingReviewSince is not null);
+
+    /// <summary>"Dismiss" on the farms-awaiting-review reminder (Pages/Shared/_AdminLayout.cshtml),
+    /// which every admin page shows: hides it for these farms, for this administrator only, then
+    /// goes back to the page they were on.</summary>
+    public async Task<IActionResult> OnPostDismissReviewAsync(List<Guid> farmIds, string? returnUrl)
+    {
+        await FarmReviewReminders.DismissAsync(_db, User, farmIds, DateTimeOffset.UtcNow);
+        return LocalRedirect(Url.IsLocalUrl(returnUrl) ? returnUrl! : Url.Page("/Admin/Farms/Index")!);
+    }
 
     public async Task OnGetAsync()
     {

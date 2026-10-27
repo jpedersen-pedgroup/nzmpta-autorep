@@ -1,0 +1,36 @@
+@model IReadOnlyList<Autorep.Web.Services.FarmReviewReminders.Item>
+@using Autorep.Web.Domain
+@{
+    // Back to this page after a dismissal.
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+    var one = Model.Count == 1;
+}
+<div class="alert alert--warning" role="region" aria-label="Farms waiting for review" data-farm-review-banner>
+    <strong>@(one ? "A farm has" : $"{Model.Count} farms have") been waiting for review for more than 48 hours.</strong>
+    A tester set @(one ? "it" : "them") up in the field. Check the details and approve @(one ? "it" : "them"); testing isn't held up meanwhile.
+    <ul style="margin:var(--space-2) 0 0">
+        @foreach (var f in Model)
+        {
+            <li data-farm-review="@f.FarmId" style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-1)">
+                <a asp-page="/Admin/Farms/Edit" asp-route-id="@f.FarmId" style="font-weight:600;text-decoration:underline">@f.FarmName</a>
+                <span>added@(f.AddedBy is null ? "" : $" by {f.AddedBy}") on @f.PendingSince.ToNz().ToString("d MMM yyyy")</span>
+                <form method="post" asp-page="/Admin/Farms/Index" asp-page-handler="DismissReview" style="margin:0">
+                    <input type="hidden" name="farmIds" value="@f.FarmId" />
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <button type="submit" class="btn btn--secondary btn--sm" aria-label="Dismiss the reminder about @f.FarmName">Dismiss</button>
+                </form>
+            </li>
+        }
+    </ul>
+    @if (!one)
+    {
+        <form method="post" asp-page="/Admin/Farms/Index" asp-page-handler="DismissReview" style="margin:var(--space-2) 0 0">
+            @foreach (var f in Model)
+            {
+                <input type="hidden" name="farmIds" value="@f.FarmId" />
+            }
+            <input type="hidden" name="returnUrl" value="@returnUrl" />
+            <button type="submit" class="btn btn--secondary btn--sm">Dismiss all</button>
+        </form>
+    }
+</div>

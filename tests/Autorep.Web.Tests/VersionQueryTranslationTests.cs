@@ -123,4 +123,19 @@ public class VersionQueryTranslationTests
             .Should().Contain("[TestingCompanyId]").And.Contain("[TesterId]");
         db.Farms.LinkableBySync(db, null, "tester").ToQueryString().Should().Contain("[TesterId]");
     }
+
+    // The farms-awaiting-review reminder runs on every admin page. A Super-Administrator's skips the
+    // company lookup, so the first query EF opens a connection for is the reminder itself.
+    [Fact]
+    public async Task The_farm_review_reminder_translates()
+    {
+        using var db = SqlServer();
+        var superAdmin = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+        [
+            new(System.Security.Claims.ClaimTypes.NameIdentifier, "admin"),
+            new(System.Security.Claims.ClaimTypes.Role, Autorep.Web.Domain.Roles.SuperAdministrator),
+        ], "Test"));
+        await db.Invoking(d => FarmReviewReminders.DueForAsync(d, superAdmin, DateTimeOffset.UtcNow))
+            .Should().ThrowAsync<Translated>();
+    }
 }

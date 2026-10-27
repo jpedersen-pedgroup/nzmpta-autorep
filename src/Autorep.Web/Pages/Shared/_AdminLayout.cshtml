@@ -1,0 +1,11 @@
+@{
+    Layout = "_Layout";
+}
+@* Every admin page (Pages/Admin/_ViewStart.cshtml): the site layout, plus the reminder about farms
+   that have been under review for 48 hours, above the page's own content. *@
+@await Component.InvokeAsync("FarmReviewBanner")
+@RenderBody()
+
+@section Scripts {
+    @await RenderSectionAsync("Scripts", required: false)
+}
