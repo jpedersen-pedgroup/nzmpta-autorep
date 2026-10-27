@@ -5,13 +5,17 @@
 //   by stampOemSpecs), the way 2g/2h are stored readings: a later edit on the OEM Specs pages
 //   doesn't change a finished test. A pin applies only while the test still records that model, so
 //   an amendment keeps the original's specs unless the tester changes the equipment.
-// - Otherwise the current spec: the synced OEM Specs, found by the item id the test recorded when
-//   the tester picked the model (so renaming the item can't lose it), else by name, else the bundled
-//   legacy spec for that name (see standardsData.ts). Tests signed off before specs were stamped
-//   (Oct 2026) have no pins and read the current spec by name; their stored as-signed-off report
-//   doesn't change.
+// - Otherwise the spec in effect on the day the test was started (config.oemSpecs.asOf, set when the
+//   test is created): each spec change on the OEM Specs pages applies from a date, so a test never
+//   changes spec part-way, and devices switch over on the day. The spec is found in the synced OEM
+//   Specs by the item id the test recorded when the tester picked the model (so renaming the item
+//   can't lose it), else by name, else it is the bundled legacy spec for that name (standardsData.ts).
+// - A test from before dated specs (Oct 2026) has no date: it is judged against the spec in effect
+//   from the start - the legacy spec it was judged against then - so its verdicts stay as they were.
+//   A change can't be dated before the day it is entered, so nothing entered later reaches it.
 import type { MachineConfiguration, OemSpecSnapshot, PinnedSpec } from "../wizard/types";
 import { vacuumPumpRows } from "../wizard/pumpRows";
+import { nzDate } from "../wizard/nextTestDate";
 import { offeredItem } from "./catalogOverrides";
 import {
   hasPulsatorBand,
@@ -31,6 +35,16 @@ interface Selection {
 }
 
 const loose = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/** The date a test's unpinned specs are taken as of; null - the spec from the start - for a test from
+ * before dated specs. */
+const asOf = (config: MachineConfiguration): string | null => config.oemSpecs?.asOf ?? null;
+
+/** The OEM Specs bookkeeping a new test starts with: the day it was started, which picks the spec
+ * versions it is judged against. */
+export function startOemSpecs(createdAt: string): OemSpecSnapshot {
+  return { asOf: nzDate(createdAt) };
+}
 
 /** Whether a pin is for the equipment the test records now: the same item when both carry an id,
  * else the same name (and brand, where both have one). */
@@ -60,7 +74,7 @@ export function pulsatorSpecFor(config: MachineConfiguration): PulsatorBand | nu
   if (pinApplies(pin, sel)) {
     return pin.spec && hasPulsatorBand(pin.spec) ? { name: pin.name, brand: pin.brand ?? "", ...pin.spec } : null;
   }
-  return pulsatorBandFor(sel.name, sel.brand, sel.equipmentId);
+  return pulsatorBandFor(sel.name, sel.brand, sel.equipmentId, asOf(config));
 }
 
 /** The OEM curve for the test's pump at `index` (0-based, in pump-row order), or null when the pump
@@ -72,7 +86,7 @@ export function vacuumPumpSpecFor(config: MachineConfiguration, index: number): 
   if (pinApplies(pin, sel)) {
     return pin.spec && hasPumpCurve(pin.spec) ? { make: pin.brand ?? sel.brand, model: pin.name, ...pin.spec } : null;
   }
-  return vacuumPumpFor(sel.brand, sel.name, sel.equipmentId);
+  return vacuumPumpFor(sel.brand, sel.name, sel.equipmentId, asOf(config));
 }
 
 function pinned<T>(sel: Selection, spec: T | null): PinnedSpec<T> {
@@ -92,7 +106,7 @@ function pumpValues(pump: VacuumPumpModel | null): VacuumPumpSpec | null {
 }
 
 /** The specs to freeze into the test at sign-off: each pin that still applies is kept as it is, and
- * the rest are taken from the current specs. An unchanged amendment so stamps exactly what its
+ * the rest are taken as of the test's date. An unchanged amendment so stamps exactly what its
  * original carried. */
 export function stampOemSpecs(config: MachineConfiguration): OemSpecSnapshot {
   const prior = config.oemSpecs;
@@ -108,7 +122,7 @@ export function stampOemSpecs(config: MachineConfiguration): OemSpecSnapshot {
     const kept = prior?.vacuumPumps?.[i];
     return pinApplies(kept, sel) ? kept : pinned(sel, pumpValues(vacuumPumpSpecFor(config, i)));
   });
-  return { pulsator, vacuumPumps };
+  return { ...(prior?.asOf !== undefined ? { asOf: prior.asOf } : {}), pulsator, vacuumPumps };
 }
 
 /** A configuration the server rebuilt from its own columns, with the OEM Specs bookkeeping put back
