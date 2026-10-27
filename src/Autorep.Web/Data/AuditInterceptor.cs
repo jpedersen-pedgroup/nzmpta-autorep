@@ -47,7 +47,11 @@ public class AuditInterceptor : SaveChangesInterceptor
 
         var actor = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system";
         var entries = context.ChangeTracker.Entries()
+            // A device's outbox report is a status it refreshes every few minutes while online, not
+            // a change to any record; auditing it would only bury the entries that matter. An
+            // administrator forgetting one (it lifts a block on moving the tester) is audited.
             .Where(e => e.Entity is not AuditEntry
+                        && !(e.Entity is DeviceOutbox && e.State != EntityState.Deleted)
                         && (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
                         && !OnlySuccessorStampChanged(e))
             .ToList();
