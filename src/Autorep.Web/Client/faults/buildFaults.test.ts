@@ -59,6 +59,20 @@ describe("buildFaultInputs · machine checks", () => {
     expect(buildFaultInputs(makeTest({ pulsatorModel: BANDED_MODEL }, []))).toEqual([]);
   });
 
+  it("judges a signed-off test against the band pinned at sign-off, not today's spec", () => {
+    // Today's band for the model is 59–61 ppm; this test was signed off against 55–65.
+    const pinned = {
+      pulsator: {
+        brand: "Dairymaster", name: BANDED_MODEL,
+        spec: { rateMin: 55, rateMax: 65, ratioMin: 59, ratioMax: 69, phaseB: null, phaseD: null, maxChamberVacuum: null, recommendedRate: null, recommendedRatio: null },
+      },
+    };
+    const t = makeTest({ pulsatorModel: BANDED_MODEL, pulsatorBrand: "Dairymaster", oemSpecs: pinned }, [row("3", "58", "62")]);
+    expect(buildFaultInputs(t).find((f) => f.key === RATE_BAND_FAULT_KEY)).toBeUndefined();
+    // Without the pin, the same unit is outside today's band.
+    expect(buildFaultInputs({ ...t, config: { ...t.config, oemSpecs: null } }).find((f) => f.key === RATE_BAND_FAULT_KEY)).toBeDefined();
+  });
+
   it("keeps the tester's own recommendation for a machine check", () => {
     const fault = buildFaultInputs(makeTest({ regulatorsSuitable: false }, undefined, { [REGULATOR_FAULT_KEY]: "Add a second regulator." }))
       .find((f) => f.key === REGULATOR_FAULT_KEY);
