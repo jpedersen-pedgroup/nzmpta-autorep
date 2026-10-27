@@ -65,7 +65,7 @@ public class TwoFactorChallengeModel : PageModel
             await _audit.WriteAsync(HttpContext, user.Email!, user.Id,
                 Input.RememberThisDevice ? "2fa-success-device-trusted" : "2fa-success");
 
-            if (await _gates.CheckAsync(HttpContext, user) is { } gate)
+            if (await _gates.CheckAsync(user) is { } gate)
                 return gate.Redirect(this, returnUrl);
 
             return LocalRedirect(returnUrl ?? "/");

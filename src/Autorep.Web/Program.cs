@@ -74,11 +74,17 @@ builder.Services
         opts.Tokens.AuthenticatorTokenProvider = TokenOptions.DefaultAuthenticatorProvider;
     })
     .AddEntityFrameworkStores<AutorepDbContext>()
-    // Marks a lapsed Tester's principal sync-only on every sign-in path (see LicenceScope).
+    // Marks an account that owes two-factor enrolment, on every sign-in path (see MfaPolicy).
     .AddClaimsPrincipalFactory<TesterClaimsPrincipalFactory>()
     // Records in each session when the second factor was last proved (see MfaPolicy.SessionStampKey).
     .AddSignInManager<TesterSignInManager>()
-    .AddDefaultTokenProviders();
+    .AddDefaultTokenProviders()
+    // The welcome email's set-your-password link, which outlasts a reset link (see Invitation).
+    .AddTokenProvider<InvitationTokenProvider<Tester>>(Invitation.TokenProvider);
+
+// Reset links last an hour, as the reset emails and the admin page say. Identity's default is a
+// day. The same provider signs the terms-acceptance link, which is used straight after sign-in.
+builder.Services.Configure<DataProtectionTokenProviderOptions>(o => o.TokenLifespan = Invitation.ResetLinkLifespan);
 
 builder.Services.ConfigureApplicationCookie(opts =>
 {
@@ -139,8 +145,8 @@ builder.Services.AddScoped<AdminVersioning>();
 // A Super-Administrator's soft-delete (and restore) of a test.
 builder.Services.AddScoped<TestDeletion>();
 
-// Sign-in: the audit row for every attempt, and the gates (forced reset, lapsed licence, stale
-// terms) that run once an account is actually in - after the password, or after the 2FA code.
+// Sign-in: the audit row for every attempt, and the gates (forced reset, stale terms) that run
+// once an account is actually in - after the password, or after the 2FA code.
 builder.Services.AddScoped<LoginAudit>();
 builder.Services.AddScoped<SignInGates>();
 
@@ -203,11 +209,8 @@ builder.Services.AddAuthentication()
 
 builder.Services.AddAuthorization(opts =>
 {
-    // The tester app proper. A lapsed licence keeps a session but not this: it can reach only
-    // /Account/FinishSync, which flushes work already captured on the device.
-    opts.AddPolicy("TesterArea", p => p
-        .RequireRole(Roles.Tester)
-        .RequireAssertion(ctx => !ctx.User.HasClaim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly)));
+    // The tester app proper. An expired licence doesn't close it: expiry blocks nothing.
+    opts.AddPolicy("TesterArea", p => p.RequireRole(Roles.Tester));
     opts.AddPolicy("AdminArea",
         p => p.RequireRole(Roles.SuperAdministrator, Roles.CompanyAdministrator));
     // Super-Administrator-only surfaces.

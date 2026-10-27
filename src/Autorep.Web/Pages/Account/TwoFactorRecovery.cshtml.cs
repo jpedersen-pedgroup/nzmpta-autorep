@@ -61,7 +61,7 @@ public class TwoFactorRecoveryModel : PageModel
             var left = await _users.CountRecoveryCodesAsync(user);
             await _audit.WriteAsync(HttpContext, user.Email!, user.Id, $"2fa-recovery-code ({left} left)");
 
-            if (await _gates.CheckAsync(HttpContext, user) is { } gate)
+            if (await _gates.CheckAsync(user) is { } gate)
                 return gate.Redirect(this, returnUrl);
 
             return RedirectToPage("/Account/Manage", new { recovered = true });
