@@ -7,8 +7,8 @@ import { correctionFactorFor } from "../reference/lookups";
 import { releaserRequirement } from "../reference/standardsData";
 import { paramFor, ruleFor } from "./standardsOverrides";
 import { pulsationLimits } from "./pulsatorStats";
-import { oemPumpCapacity, vacuumPumpFor, type VacuumPumpModel } from "../reference/standardsData";
-import { vacuumPumpRows } from "../wizard/pumpRows";
+import { type VacuumPumpModel } from "../reference/standardsData";
+import { vacuumPumpSpecFor } from "../reference/oemSpecs";
 import type { PassFailRule } from "./passFail";
 
 // Required Effective Reserve (L/min) by cluster count — manual p42 table (steps of 2 clusters;
@@ -100,16 +100,16 @@ export interface ReadingSection {
  * per-pump family has to be bounded; legacy recorded four pumps, eight is headroom. */
 export const MAX_OEM_PUMPS = 8;
 /** The formula shown on the OEM row - the calculation itself lives in derived.ts. */
-export const OEM_CAPACITY_FORMULA = "8c x the catalogue's L/min per rpm";
+export const OEM_CAPACITY_FORMULA = "8c x the OEM spec's L/min per rpm";
 
-/** What the catalogue says about this pump, and the caveat that it carries no verdict. */
+/** What the pump's OEM spec says, and the caveat that it carries no verdict. */
 function oemHint(pump: VacuumPumpModel, rpm: number | undefined): string {
   const parts = [`${pump.make} ${pump.model}: ${pump.airFlow} L/min per rpm`];
   if (pump.minRpm != null && pump.maxRpm != null) {
     parts.push(
       pump.minRpm === pump.maxRpm
-        ? `catalogue speed ${pump.maxRpm} rpm`
-        : `catalogue ${pump.minRpm}-${pump.maxRpm} rpm`,
+        ? `OEM spec speed ${pump.maxRpm} rpm`
+        : `OEM spec ${pump.minRpm}-${pump.maxRpm} rpm`,
     );
     if (rpm != null && (rpm < pump.minRpm || rpm > pump.maxRpm)) parts.push("8c is outside that range");
   }
@@ -346,18 +346,16 @@ export function testRecordSections(
   // 8 — Vacuum pump test. Capacity/speed limits are OEM-model lookups (manual pp8–30, 60), so
   // capture-only with the atmosphere-correction reminder; measured capacity × factor compares
   // against the OEM curve (manual p31 / ISO 5.3.2).
-// When the pump's make and model are in the legacy catalogue its curve is known, so the spec is
+  // When the pump's make and model have an OEM spec its curve is known, so the spec is
   // worked out beside the tested figure (Jono, 15 Sep 2026: "put the spec there ... and then here
   // we're putting in what we tested"). It carries no verdict: see oemHint.
   const correction = atmosFactor !== 1 ? `× ${atmosFactor} altitude correction, then ` : "";
   const pumpHint = `${correction}compare to OEM curve`;
   const pumpReadings: ReadingDef[] = [];
   const pumps = Math.max(1, config.numberOfVacuumPumps);
-  const pumpDetails = vacuumPumpRows(config);
   for (let i = 1; i <= pumps; i++) {
     const p = pumps > 1 ? ` — pump ${i}` : "";
-    const detail = pumpDetails[i - 1];
-    const oem = i <= MAX_OEM_PUMPS ? vacuumPumpFor(detail?.make, detail?.model) : null;
+    const oem = i <= MAX_OEM_PUMPS ? vacuumPumpSpecFor(config, i - 1) : null;
     pumpReadings.push({
       key: `tr.pumpCapacity${i}`,
       label: `Capacity @ 50 kPa (8a)${p}`,

@@ -23,7 +23,12 @@ const S_RECS = "Recommendations";
 const S_OTHER = "Other";
 const SECTION_ORDER = [S_FARM, S_CONFIG, S_READINGS, S_PULSATORS, S_CLUSTERS, S_VISUAL, S_DATA, S_RECS, S_OTHER];
 
-const CONFIG_LABELS: Record<keyof MachineConfiguration, string> = {
+/** Config fields that aren't the tester's own answers, so never an amendment of their own: the OEM
+ * Specs item id follows the pulsator model (whose change is recorded), and the stamped specs follow
+ * the equipment (reference/oemSpecs.ts). */
+type BookkeepingConfigKey = "pulsatorEquipmentId" | "oemSpecs";
+
+const CONFIG_LABELS: Record<Exclude<keyof MachineConfiguration, BookkeepingConfigKey>, string> = {
   plantType: "Plant type",
   plantSize: "Plant size",
   clusterCount: "Clusters",
@@ -284,7 +289,7 @@ export function computeChangesWithPaths(base: LocalTest, edited: LocalTest): Pat
     changes.push({ section: S_FARM, label: "Farm", from: fmt(base.farmName), to: fmt(edited.farmName), path: "farmName" });
   }
 
-  for (const key of Object.keys(CONFIG_LABELS) as (keyof MachineConfiguration)[]) {
+  for (const key of Object.keys(CONFIG_LABELS) as (keyof typeof CONFIG_LABELS)[]) {
     if (CONFIG_LIST_KEYS.has(key)) continue;
     const from = fmt(base.config[key]);
     const to = fmt(edited.config[key]);

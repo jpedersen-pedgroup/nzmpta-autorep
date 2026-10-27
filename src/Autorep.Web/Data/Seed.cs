@@ -79,6 +79,7 @@ public static class Seed
         await db.SaveChangesAsync();
         await TestStandardsAsync(db);
         await EquipmentAsync(db);
+        await OemSpecsAsync(db, services.GetService<ILoggerFactory>()?.CreateLogger(typeof(Seed)));
         await FaultObservationsAsync(db);
         await PrivacyContentAsync(db);
     }
@@ -202,6 +203,103 @@ public static class Seed
     }
 
     private sealed record BrandedSeed(string Name, string Brand);
+
+    /// <summary>The <see cref="AppliedSeed"/> key of the one-off OEM Specs seed.</summary>
+    public const string OemSpecsSeedKey = "oem-specs-2026-10";
+
+    // Gives the pulsator models and vacuum pumps the OEM specs the device has bundled until now
+    // (Client/reference/pulsatorBands.json and vacuumPumps.json, embedded by the csproj), so that from
+    // here on the SuperAdmin maintains them on the OEM Specs pages. Runs ONCE per database (recorded
+    // in AppliedSeeds): after that the specs are the SuperAdmin's, and a restart must neither
+    // overwrite an edited or cleared spec nor bring back a model they renamed or deleted.
+    // - A spec row joins the existing item of the same name (pulsators; brand breaks a tie) or make
+    //   and model (pumps), ignoring case and spacing — the device's own matching. An item that
+    //   already has a spec keeps it.
+    // - A row that matches nothing becomes a new, deactivated item. On a fresh database every row
+    //   matches, since the catalogs are seeded from the same lists; a miss means an administrator
+    //   renamed or deleted that model, so the spec is kept where they can see it without putting
+    //   the model back in testers' dropdowns.
+    private static async Task OemSpecsAsync(AutorepDbContext db, ILogger? log)
+    {
+        if (await db.AppliedSeeds.AnyAsync(s => s.Key == OemSpecsSeedKey)) return;
+
+        static List<T> Rows<T>(string resource)
+        {
+            using var stream = typeof(Seed).Assembly.GetManifestResourceStream(resource)
+                ?? throw new InvalidOperationException($"Missing embedded resource {resource}");
+            return System.Text.Json.JsonSerializer.Deserialize<List<T>>(stream,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+        }
+        static string Key(string? s) => string.Join(' ', (s ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+
+        var now = DateTimeOffset.UtcNow;
+        var items = await db.EquipmentItems.Where(e => OemSpecs.SpecTypes.Contains(e.Type)).ToListAsync();
+        var used = new HashSet<Guid>();
+        int matched = 0, kept = 0, added = 0;
+
+        void Apply(string type, string name, string brand, object spec, Func<EquipmentItem, bool> isMatch, Func<EquipmentItem, bool> preferred)
+        {
+            var candidates = items.Where(e => e.Type == type && !used.Contains(e.Id) && isMatch(e)).ToList();
+            var item = candidates.FirstOrDefault(preferred) ?? candidates.FirstOrDefault();
+            if (item is null)
+            {
+                db.EquipmentItems.Add(new EquipmentItem
+                {
+                    Type = type, Name = name, Brand = brand, IsActive = false,
+                    SpecJson = OemSpecs.Serialize(spec), UpdatedAt = now,
+                });
+                added++;
+                return;
+            }
+            used.Add(item.Id);
+            if (item.SpecJson is not null) { kept++; return; }
+            item.SpecJson = OemSpecs.Serialize(spec);
+            item.UpdatedAt = now;
+            matched++;
+        }
+
+        foreach (var b in Rows<PulsatorSpecSeed>("Autorep.Web.Data.SeedData.Client.pulsatorBands.json"))
+        {
+            Apply(EquipmentItem.Pulsator, b.Name.Trim(), b.Brand.Trim(), b.ToSpec(),
+                e => Key(e.Name) == Key(b.Name), e => Key(e.Brand) == Key(b.Brand));
+        }
+        foreach (var p in Rows<VacuumPumpSpecSeed>("Autorep.Web.Data.SeedData.Client.vacuumPumps.json"))
+        {
+            Apply(EquipmentItem.VacuumPump, p.Model.Trim(), p.Make.Trim(), p.ToSpec(),
+                e => Key(e.Name) == Key(p.Model) && Key(e.Brand) == Key(p.Make), _ => true);
+        }
+
+        db.AppliedSeeds.Add(new AppliedSeed { Key = OemSpecsSeedKey, AppliedAt = now });
+        await db.SaveChangesAsync();
+        log?.LogInformation(
+            "OEM Specs seed: {Matched} specs added to existing items, {Kept} items kept their own spec, {Added} added as deactivated items",
+            matched, kept, added);
+    }
+
+    private sealed record PulsatorSpecSeed(
+        string Name, string Brand, double? RateMin, double? RateMax, double? RatioMin, double? RatioMax,
+        double? PhaseB, double? PhaseD, double? MaxChamberVacuum, double? RecommendedRate,
+        double? RecommendedRatio, string? MaxClustersPerPulsator)
+    {
+        public PulsatorSpec ToSpec() => new()
+        {
+            RateMin = RateMin, RateMax = RateMax, RatioMin = RatioMin, RatioMax = RatioMax,
+            PhaseB = PhaseB, PhaseD = PhaseD, MaxChamberVacuum = MaxChamberVacuum,
+            RecommendedRate = RecommendedRate, RecommendedRatio = RecommendedRatio,
+            MaxClustersPerPulsator = string.IsNullOrWhiteSpace(MaxClustersPerPulsator) ? null : MaxClustersPerPulsator.Trim(),
+        };
+    }
+
+    private sealed record VacuumPumpSpecSeed(
+        string Make, string Model, double? MinRpm, double? MaxRpm, double? AirFlow,
+        double? MotorSizeFactor, double? WaterFlowRate)
+    {
+        public VacuumPumpSpec ToSpec() => new()
+        {
+            MinRpm = MinRpm, MaxRpm = MaxRpm, AirFlow = AirFlow,
+            MotorSizeFactor = MotorSizeFactor, WaterFlowRate = WaterFlowRate,
+        };
+    }
 
     // Seeds the editable test standards (pass/fail thresholds + formula parameters) with the
     // values verified against the MPNZ Testing Standards Manual + ISO 6690:2007 (see

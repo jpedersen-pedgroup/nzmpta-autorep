@@ -40,6 +40,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<FaultObservation> FaultObservations => Set<FaultObservation>();
     public DbSet<PrivacyContent> PrivacyContent => Set<PrivacyContent>();
     public DbSet<FinalReportBlob> FinalReportBlobs => Set<FinalReportBlob>();
+    public DbSet<AppliedSeed> AppliedSeeds => Set<AppliedSeed>();
     public DbSet<FarmReviewDismissal> FarmReviewDismissals => Set<FarmReviewDismissal>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -264,6 +265,12 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             eq.Property(e => e.Name).HasMaxLength(200).IsRequired();
             eq.Property(e => e.Brand).HasMaxLength(100);
             eq.HasIndex(e => new { e.Type, e.Name, e.Brand }).IsUnique();
+        });
+
+        builder.Entity<AppliedSeed>(seed =>
+        {
+            seed.HasKey(s => s.Key);
+            seed.Property(s => s.Key).HasMaxLength(100);
         });
 
         builder.Entity<TestStandard>(std =>

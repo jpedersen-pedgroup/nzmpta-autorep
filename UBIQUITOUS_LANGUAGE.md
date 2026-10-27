@@ -9,7 +9,7 @@ Source: [NZMPTA AutoRep Rebuild Requirements v1.1](../../../docs/NZMPTA_AutoRep_
 | **MPNZ** | Owner of the platform and governing body for testers. Formerly NZMPTA (renamed October 2026). Always the acronym; never spell it out. | NZMPTA (the old name), NZ MPTA, the association |
 | **Pedersen Group** | Builder and operator of the platform on MPNZ's behalf. | the vendor, the developer |
 | **Testing Company** | An organisation that employs one or more **Testers**. Owns a view of its own testers' work but does not administer the platform. | company (when unqualified), firm, employer |
-| **Equipment Vendor** | A manufacturer of milking-machine equipment whose **Equipment Models** appear in the **Equipment Catalogue**. | vendor (unqualified — collides with prior software vendor), supplier, manufacturer |
+| **Equipment Vendor** | A manufacturer of milking-machine equipment whose **Equipment Models** appear in the **OEM Specs**. | vendor (unqualified — collides with prior software vendor), supplier, manufacturer |
 | **Farmer** | The owner of a **Farm** under test. Optionally a recipient of upcoming-test reminders. | farm owner, client, customer |
 | **Farm** | A dairy operation at a specific location, against which **Machine Tests** are performed. | site, property |
 
@@ -41,9 +41,9 @@ Source: [NZMPTA AutoRep Rebuild Requirements v1.1](../../../docs/NZMPTA_AutoRep_
 |------|-----------|-----------------|
 | **Machine** | The milking machine under test. Typed as **Rotary** or **Herringbone**. | system, plant |
 | **Equipment Model** | A specific make/model of a piece of equipment (e.g. a particular pulsator model). | product, item |
-| **Equipment Catalogue** | The managed master list of **Equipment Models** for a given equipment type (Vacuum Pumps, Pulsators, Liners, Shells, Claws, Jetters, ACRs, Milk Meters, Milk Flow Indicators, Regulators, Releaser Pumps). | catalog, lookup, dropdown |
-| **Vendor Specification** | The numerical pass/fail standards published for an **Equipment Model**, used during a **Machine Test** to compute live pass/fail indicators. | spec, equipment standard, vendor data |
-| **"Other"** | The standard catch-all option on every **Equipment Catalogue** dropdown, allowing the **Tester** to record a model that isn't catalogued. | freeform, custom, manual entry |
+| **OEM Specs** | The managed master list of **Equipment Models** for each equipment type (Vacuum Pumps, Pulsators, Liners, Shells, Claws, Jetters, ACRs, Milk Meters, Milk Flow Indicators, Regulators, Releaser Pumps), together with each model's **OEM Spec**. The MPNZ Super-Administrator maintains it on the OEM Specs pages. Called the equipment catalogues until October 2026. | Equipment Catalogue (the old name), catalog, lookup, dropdown |
+| **OEM Spec** | The figures the **Equipment Vendor** publishes for one **Equipment Model** that a **Machine Test** is judged against: a pulsator model's rate and ratio bands, a vacuum pump's air flow per rpm and speed range. Used during the test for live pass/fail indicators. A signed-off **Machine Test** keeps a copy of the OEM Specs it was judged against, so a later edit doesn't change it. | Vendor Specification (the contract's name), spec, equipment standard, vendor data |
+| **"Other"** | The standard catch-all option on every **OEM Specs** dropdown, allowing the **Tester** to record a model that isn't catalogued. | freeform, custom, manual entry |
 
 Equipment terms-of-art used in the doc and assumed glossary-stable: **ACR** (Automatic Cluster Remover), **BMCC** (Bulk Milk Cell Count), **VSD** (Variable Speed Drive), **Claw**, **Liner**, **Shell**, **Milkline**, **Pulsator**, **Vacuum Pump**, **Releaser Pump**, **Regulator**, **Receiver**, **Jetter**, **Cluster**, **Pulse Tube**, **Bail Area**.
 
@@ -74,7 +74,7 @@ Named reports in the seven-document set: **Test Summary**, **Test Report Results
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Reference Data** | The managed lookups (companies, **Equipment Catalogues**, **Vendor Specifications**, **Standard Recommendation Wording**, **Test Standard Manual**) cached on **Devices** for offline use. | lookups, master data, seed data |
+| **Reference Data** | The managed lookups (companies, **OEM Specs**, **Standard Recommendation Wording**, **Test Standard Manual**) cached on **Devices** for offline use. | lookups, master data, seed data |
 
 ## Identity and access
 
@@ -109,7 +109,7 @@ Named reports in the seven-document set: **Test Summary**, **Test Report Results
 - A **Machine Test** captures zero or more **Faults**; each **Fault** has exactly one **Fault Severity** and zero or one **Recommendation**.
 - A completed **Machine Test** produces a set of **Reports** combined into one **Final Report** when the **Pulsation Data PDF** is uploaded.
 - A post-completion edit of a **Machine Test** produces a new **Test Version**; prior versions are retained for audit.
-- An **Equipment Model** belongs to one **Equipment Catalogue** and has exactly one current **Vendor Specification**.
+- An **Equipment Model** belongs to one equipment type in the **OEM Specs** and has at most one current **OEM Spec**. A signed-off **Machine Test** keeps the **OEM Specs** it was judged against.
 - **Reference Data** lives authoritatively on the server and is cached on every **Device** to enable offline pass/fail calculation.
 - A **Tester Licence** belongs to one **Tester**; the **Licence Expiry Date** is shown, never enforced.
 
@@ -121,8 +121,8 @@ Named reports in the seven-document set: **Test Summary**, **Test Report Results
 > **Dev:** "And if the **Tester** opens that same **Test** the next morning and corrects a **Fault Severity** before syncing?"
 > **Domain expert:** "When it uploads, the server creates a **Test Version** — both states are retained. The latest version becomes the **Authoritative Copy**, but the prior one is still in the audit trail."
 >
-> **Dev:** "What if a **Pulsator** model isn't in the **Equipment Catalogue**?"
-> **Domain expert:** "The **Tester** picks **Other** and types the model name. Their per-Test calculations fall back to defaults because there's no **Vendor Specification** to compare against. Afterwards the **MPNZ Super-Administrator** can add the model with a proper **Vendor Specification** from the **Equipment Vendor**, and the next **Sync** ships it to every **Device**."
+> **Dev:** "What if a **Pulsator** model isn't in the **OEM Specs**?"
+> **Domain expert:** "The **Tester** picks **Other** and types the model name. Their per-Test calculations fall back to defaults because there's no **OEM Spec** to compare against. Afterwards the **MPNZ Super-Administrator** can add the model with its **OEM Spec** from the **Equipment Vendor**, and the next **Sync** ships it to every **Device**."
 >
 > **Dev:** "And if the **Tester**'s **Licence Expiry Date** passes while they're on-farm?"
 > **Domain expert:** "Nothing stops them. They keep testing, adding farms and syncing as before, and can still sign in and reset their password. The app shows a red reminder, and the **Report** for any **Test** done after that date shows the licence as expired until **MPNZ** renews the **Tester Licence**."
@@ -139,7 +139,7 @@ Named reports in the seven-document set: **Test Summary**, **Test Report Results
 - **"Test"** is used freely as shorthand for **Machine Test**, but is also nested inside sub-test names (**Vacuum & Reserve Tests**, **Pulsator Tests**, **Individual Cluster Tests**). Where the surrounding context could resolve to either, write **Machine Test** for the entity and the full sub-test name for the subordinate test.
 - **"Pulsator graph PDF"** (used in scope item O3) and **"Pulsation Data PDF"** (used in Section 9.2) refer to the same artefact. Standardise on **Pulsation Data PDF**.
 - **"User"** vs **"Tester"**: every **Tester** is a **User**, but not every **User** is a **Tester** — administrators are also **Users**. Use **User** when speaking about authentication / identity, **Tester** when speaking about the role that performs tests.
-- **"Standard"** is overloaded: the **Test Standard Manual** is the published rulebook, the **Vendor Specifications** are numerical equipment standards, and **"NZ Safety Standard"** in the compliance disclaimer is external legislation. Always qualify.
+- **"Standard"** is overloaded: the **Test Standard Manual** is the published rulebook, the **OEM Specs** are numerical equipment standards, and **"NZ Safety Standard"** in the compliance disclaimer is external legislation. Always qualify.
 - **"Sign-off"**: Wizard Step 11 is **Review & Sign-Off** (a **Tester** action on a single **Machine Test**), distinct from **UAT sign-off** by MPNZ on the build delivery. Different actors, different scopes — qualify which is meant.
 - **"Session token policy"** in §5.1.1 covers both the **Access Token** and the **Refresh Token**. The bare term **session token** is ambiguous; in code use the specific name.
 - **"Report"** singular sometimes means one named PDF (the **Test Summary**) and sometimes means the combined **Final Report**. Prefer the specific name when accuracy matters.

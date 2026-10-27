@@ -2,6 +2,7 @@
 // (src/Autorep.Web/Domain/Entities/MachineConfiguration.cs + Domain/Wizard/WizardStep.cs).
 // String unions use the .NET enum/step *names* so the shared JSON fixtures in
 // tests/fixtures/wizard deserialize identically on both sides.
+import type { PulsatorSpec, VacuumPumpSpec } from "../reference/standardsData";
 
 export type PlantType =
   | "HerringboneLowline"
@@ -29,6 +30,9 @@ export type WizardStep =
 export type VacuumPumpDetail = {
   make?: string | null;
   model?: string | null;
+  /** The OEM Specs item picked for this make and model, so a later rename of the item still finds
+   * its spec. Absent when the model was typed by hand or picked before ids were recorded. */
+  equipmentId?: string | null;
   /** Motor size as it reads on the plate - free text, usually kW. */
   motorSize?: string | null;
   drivesMilkPump?: boolean;
@@ -43,6 +47,26 @@ export type RegulatorDetail = {
   type?: string | null;
   quantity?: number | null;
 };
+
+/** The OEM spec one piece of equipment on a test was judged against, and which model it was for.
+ * It applies only while the test still records that model (reference/oemSpecs.ts). */
+export interface PinnedSpec<T> {
+  /** The OEM Specs item, when the test recorded one. */
+  equipmentId?: string | null;
+  brand?: string | null;
+  /** The model as the test recorded it. */
+  name: string;
+  /** The figures; null when the model had no spec, so a spec added later gives it no verdict. */
+  spec: T | null;
+}
+
+/** The OEM Specs a signed-off test was judged against - the same idea as the stored 2g/2h readings,
+ * so a later edit to a spec doesn't change a finished test's verdicts. */
+export interface OemSpecSnapshot {
+  pulsator?: PinnedSpec<PulsatorSpec> | null;
+  /** By pump position, like the pump rows. */
+  vacuumPumps?: (PinnedSpec<VacuumPumpSpec> | null)[];
+}
 
 /** One releaser (milk) pump's details. */
 export type ReleaserPumpDetail = {
@@ -64,6 +88,12 @@ export interface MachineConfiguration {
   flushingPulsationSystem: boolean;
   pulsatorBrand?: string | null;
   pulsatorModel?: string | null;
+  /** The OEM Specs item picked as the pulsator model (see VacuumPumpDetail.equipmentId). */
+  pulsatorEquipmentId?: string | null;
+  /** The OEM Specs this test was judged against, stamped at sign-off (reference/oemSpecs.ts). Not
+   * something the tester edits; held here so everything that judges a test from its configuration
+   * sees it. */
+  oemSpecs?: OemSpecSnapshot | null;
   /** Pulsator configuration (legacy PulsatorSize, e.g. "2 X 2", "4 + 0"). */
   pulsatorConfiguration?: string | null;
   pulsatorCount: number;

@@ -167,13 +167,13 @@ describe("airflow tests rules (manual p41 / ISO C.5)", () => {
 describe("vacuum pump OEM capacity (8a)", () => {
   const config = { ...defaultMachineConfiguration(), clusterCount: 20 };
 
-  it("works the spec out beside 8a once the pump is a catalogue model", () => {
+  it("works the spec out beside 8a once the pump has an OEM spec", () => {
     const secs = testRecordSections({ ...config, vacuumPumps: [{ make: "De Laval", model: "DVP1600" }] });
     const pump = secs.find((s) => s.key === "VacuumPumpTest")!;
     expect(pump.readings.map((r) => r.key).slice(0, 2)).toEqual(["tr.pumpCapacity1", "tr.pumpOemCapacity1"]);
     expect(pump.readings.map((r) => r.key).slice(-2)).toEqual(["tr.pumpCapacityTotal", "tr.exhaustPressure"]);
     const oem = reading(secs, "tr.pumpOemCapacity1");
-    expect(oem.derived).toBe("8c x the catalogue's L/min per rpm");
+    expect(oem.derived).toBe("8c x the OEM spec's L/min per rpm");
     expect(oem.rule).toEqual({ kind: "none" });
     expect(oem.hint).toMatch(/1\.15 L\/min per rpm/);
     expect(oem.hint).toMatch(/no verdict/);
@@ -186,10 +186,10 @@ describe("vacuum pump OEM capacity (8a)", () => {
     expect(reading(secs, "tr.pumpCapacity1").hint).toMatch(/compare to OEM curve/);
   });
 
-  it("warns when the speed 8a was measured at is outside the catalogue's range", () => {
+  it("warns when the speed 8a was measured at is outside the OEM spec's range", () => {
     const secs = testRecordSections(
       { ...config, vacuumPumps: [{ make: "De Laval", model: "DVP1600" }] },
-      { "tr.pumpMaxSpeed1": 1600 }, // catalogue tops out at 1400
+      { "tr.pumpMaxSpeed1": 1600 }, // the OEM spec tops out at 1400
     );
     expect(reading(secs, "tr.pumpOemCapacity1").hint).toMatch(/outside that range/);
   });

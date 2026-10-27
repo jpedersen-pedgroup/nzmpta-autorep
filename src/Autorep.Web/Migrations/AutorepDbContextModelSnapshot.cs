@@ -22,6 +22,20 @@ namespace Autorep.Web.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.AppliedSeed", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("AppliedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("AppliedSeeds");
+                });
+
             modelBuilder.Entity("Autorep.Web.Domain.Entities.AuditEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -80,6 +94,9 @@ namespace Autorep.Web.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SpecJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Type")
                         .IsRequired()
