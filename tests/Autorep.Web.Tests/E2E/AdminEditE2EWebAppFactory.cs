@@ -2,6 +2,8 @@ using System.Text.Json.Nodes;
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -22,6 +24,15 @@ public class AdminEditE2EWebAppFactory : OfflineE2EWebAppFactory
     public string CompanyAdminId { get; private set; } = "";
     /// <summary>The Super-Administrator's Base32 authenticator key, for <see cref="Totp"/>.</summary>
     public string AdminAuthenticatorKey { get; private set; } = "";
+
+    /// <summary>When AutoRep Plus stopped taking tests, as the migrated-test banner names it.</summary>
+    public const string MigratedCutoff = "2026-12-01";
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting(MigratedTests.CutoffSetting, MigratedCutoff);
+    }
 
     protected override async Task SeedMoreAsync(IServiceProvider services)
     {

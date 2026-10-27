@@ -22,7 +22,9 @@ public class IndexModel : PageModel
                 c.Name,
                 c.IsActive,
                 c.Testers.Count,
-                _db.MachineTests.Count(t => t.Tester!.TestingCompanyId == c.Id),
+                // Tests done for the company (the stamp on each test), so a tester who has moved
+                // on doesn't take their history with them.
+                _db.MachineTests.Count(t => t.TestingCompanyId == c.Id),
                 c.CreatedAt))
             .ToListAsync();
     }

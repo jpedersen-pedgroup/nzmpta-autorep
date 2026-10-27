@@ -264,10 +264,10 @@ function MilkCompanyLogo({ id, name }: { id: string; name?: string | null }) {
   if (failed) return null;
   return (
     <div style="margin-top:var(--space-3)">
-      <span style="font-size:0.8125rem;color:var(--text-muted)">Milk supply company</span>
+      <span style="font-size:0.8125rem;color:var(--text-muted)">Dairy processing company</span>
       <img
         src={milkCompanyLogoUrl(id)}
-        alt={name ? `${name} logo` : "Milk supply company logo"}
+        alt={name ? `${name} logo` : "Dairy processing company logo"}
         style="display:block;max-height:48px;max-width:160px;margin-top:4px"
         onError={() => setFailed(true)}
       />
@@ -318,7 +318,7 @@ const FIELDS = [
   ["town", "Town / city", "nf-town", false],
   ["postCode", "Post code", "nf-postcode", false],
   ["rapidNumber", "RAPID number", "nf-rapid", false],
-  ["farmerName", "Farmer name", "nf-farmer", false],
+  ["farmerName", "Owner / operator", "nf-farmer", false],
   ["contactPhone", "Phone", "nf-phone", false],
   ["contactEmail", "Email", "nf-email", false],
 ] as const;
@@ -473,7 +473,7 @@ function AddFarmModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
                 <input id="nf-supply" type="text" value={values.supplyNumber ?? ""} onInput={set("supplyNumber")} />
               </div>
               <div class="form-field">
-                <label for="nf-milkco">Milk supply company</label>
+                <label for="nf-milkco">Dairy processing company</label>
                 <select id="nf-milkco" value={values.milkSupplyCompanyId ?? ""} onChange={set("milkSupplyCompanyId")}>
                   <option value="">— Not set —</option>
                   {state.options.milkCompanies.map((c) => (

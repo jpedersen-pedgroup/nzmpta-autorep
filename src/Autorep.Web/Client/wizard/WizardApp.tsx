@@ -22,7 +22,8 @@ import { buildAdminPayload, draftFromPayload, withinScope, type EditScope } from
 import { isReplaced, savedByAdministrator } from "../versioning/chain";
 import { storeAdminVersionReport, type SavedReportState } from "../versioning/adminReport";
 import { deletedOnServer, type Deletion } from "../sync/removals";
-import { AdminEditBar, VersionNotices, type SaveProblem } from "./VersionBanners";
+import { AdminEditBar, MigratedNotice, VersionNotices, type SaveProblem } from "./VersionBanners";
+import { isMigrated } from "./migrated";
 import { AuditPanel } from "./AuditPanel";
 import { deriveReadings } from "../passfail/derived";
 import { stampOemSpecs, withOemSpecsFrom } from "../reference/oemSpecs";
@@ -74,6 +75,9 @@ export interface WizardOptions {
   /** The admin portal's viewer: an administrator may edit the test as its next version, within
    * what the server says their role allows. Never set on a tester page. */
   admin?: boolean;
+  /** When AutoRep Plus stopped taking tests (yyyy-mm-dd), for a migrated test's banner; null while
+   * MPNZ hasn't set it (see migrated.ts). */
+  migratedCutoff?: string | null;
 }
 
 export function mountWizard(root: HTMLElement, opts: WizardOptions): void {
@@ -204,7 +208,7 @@ const SHELLS: Record<WizardLayout, (props: ShellProps) => VNode> = {
   hub: HubShell,
 };
 
-function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: WizardOptions) {
+function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin, migratedCutoff }: WizardOptions) {
   const [test, setTest] = useState<LocalTest | null>(null);
   const [error, setError] = useState<LoadFailure | null>(null);
   const [colleagueName, setColleagueName] = useState<string | null>(null);
@@ -823,6 +827,7 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
         canDelete: serverDto.canDelete,
         canRestore: serverDto.canRestore,
         conflictCount: serverDto.conflictCount,
+        migratedCutoff,
       }}
       editing={editScope}
       reason={editReason}
@@ -858,10 +863,13 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin }: Wiza
 
       {/* Someone else's test is neutral news — nothing is wrong and nothing you expected to do is
           blocked — so it reads as info, not a warning. Your own frozen test keeps the warning. The
-          admin portal says instead what its viewer can do with the version on screen. */}
+          admin portal says instead what its viewer can do with the version on screen. A test migrated
+          from AutoRep Plus says so, whoever is looking at it. */}
       {adminBar ??
         (readonly &&
-          (serverTestId && colleagueName ? (
+          (isMigrated(test) ? (
+            <MigratedNotice cutoff={migratedCutoff} colleagueName={serverTestId ? colleagueName : null} />
+          ) : serverTestId && colleagueName ? (
             <div class="alert alert--info">
               👁 <strong>{colleagueName}'s test</strong> — read-only. You're viewing your company's test
               history; only {colleagueName.split(" ")[0]} can edit this test. Pass/fail is shown as

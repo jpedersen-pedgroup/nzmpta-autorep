@@ -141,9 +141,6 @@ public class FarmsController : ControllerBase
     [Authorize(Roles = Roles.Tester)]
     public async Task<IActionResult> Create([FromBody] NewFarmRequest farm, CancellationToken ct)
     {
-        // A lapsed licence can't start tests, so it has no reason to add farms.
-        if (User.HasClaim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly)) return Forbid();
-
         // Idempotent by the device's id for the new farm. If the connection drops after the farm is
         // saved (the review emails are sent before the answer goes back), the tester can't tell
         // whether it was added; a retry with the same id gets that farm back instead of a duplicate.
@@ -177,7 +174,7 @@ public class FarmsController : ControllerBase
         if (farm.RegionId is { } regionId && !await _db.Regions.AnyAsync(r => r.Id == regionId && r.IsActive, ct))
             return BadRequest(new { error = "That region isn't available any more. Choose another." });
         if (farm.MilkSupplyCompanyId is { } milkId && !await _db.MilkSupplyCompanies.AnyAsync(c => c.Id == milkId && c.IsActive, ct))
-            return BadRequest(new { error = "That milk supply company isn't available any more. Choose another." });
+            return BadRequest(new { error = "That dairy processing company isn't available any more. Choose another." });
 
         var entity = new Farm
         {

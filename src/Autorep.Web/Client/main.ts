@@ -1,5 +1,5 @@
 // Entry point for the AutoRep PWA client bundle (output: wwwroot/js/dist/autorep.js). It runs on
-// the server-rendered tester pages, the lapsed-licence page, the admin read-only test view, and in
+// the server-rendered tester pages, the admin read-only test view, and in
 // the offline shell (wwwroot/app-shell.html) the service worker serves when the server can't
 // answer. In order:
 //  1. Who is signed in: a server-rendered page says so itself; the shell has only the device's
@@ -19,8 +19,8 @@ import { initCalibration } from "./sync/calibrationSync";
 import { initCompanyBranding } from "./sync/companyBrandingSync";
 import { initTesterDetails } from "./sync/testerDetailsSync";
 import { mountWizard } from "./wizard/WizardApp";
+import { migratedCutoffFrom } from "./wizard/migrated";
 import { mountTestList } from "./ui/TestListApp";
-import { mountSyncOnly } from "./ui/SyncOnlyApp";
 import { mountCompanyTestList } from "./ui/CompanyTestListApp";
 import { mountHome } from "./shell/HomePage";
 import { mountNewTest } from "./ui/NewTestApp";
@@ -55,6 +55,8 @@ function mountApps(): void {
       backHref: wizardRoot.getAttribute("data-back") ?? undefined,
       // The admin portal's viewer, where an administrator can edit a test as its next version.
       admin: wizardRoot.hasAttribute("data-admin"),
+      // When AutoRep Plus stopped taking tests, for a migrated test's banner.
+      migratedCutoff: migratedCutoffFrom(wizardRoot),
     });
   }
 
@@ -63,10 +65,6 @@ function mountApps(): void {
 
   const newTestRoot = document.getElementById("new-test-root");
   if (newTestRoot) mountNewTest(newTestRoot);
-
-  // Lapsed licence: the only tester surface still reachable (/Account/FinishSync).
-  const syncOnlyRoot = document.getElementById("sync-only-root");
-  if (syncOnlyRoot) mountSyncOnly(syncOnlyRoot);
 
   const companyListRoot = document.getElementById("company-test-list-root");
   if (companyListRoot) mountCompanyTestList(companyListRoot);
@@ -160,11 +158,6 @@ async function boot(): Promise<void> {
       if (confirmed === "reloading") return;
       accountData = confirmed === "online";
     }
-  } else if (!shell && document.getElementById("sync-only-root")) {
-    // A lapsed licence lands on /Account/FinishSync, not a tester page. Refresh the identity record
-    // here too, so the device knows this session is sync-only and an offline launch can't reopen the
-    // full tester app on the strength of a record written while the licence was current.
-    void enableSessionChecks();
   }
 
   const refreshes: Array<() => Promise<boolean | void>> = [refreshStandards, refreshEquipment, refreshFaultCatalog, refreshPrivacy];

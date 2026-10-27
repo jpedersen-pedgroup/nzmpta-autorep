@@ -1,6 +1,7 @@
 using Autorep.Web.Data;
 using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
+using Autorep.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -49,8 +50,7 @@ public class NewModel : PageModel
         var roles = Input.SelectedRoles.Distinct().ToList();
         if (roles.Count == 0) Errors.Add("Select at least one role.");
         if (roles.Any(r => !Roles.All.Contains(r))) Errors.Add("Role is invalid.");
-        if (roles.Contains(Roles.Tester) && Input.TestingCompanyId is null)
-            Errors.Add("Testers must be assigned to a Testing Company.");
+        if (Roles.CompanyRequiredError(roles, Input.TestingCompanyId) is { } noCompany) Errors.Add(noCompany);
         if (Errors.Any()) return Page();
 
         // Set a temporary random password; user is sent a reset link to set their own.
@@ -74,14 +74,16 @@ public class NewModel : PageModel
         }
         await _users.AddToRolesAsync(user, roles);
 
-        var token = await _users.GeneratePasswordResetTokenAsync(user);
+        // An invitation, not a reset token: a welcome email can wait days to be read (see Invitation).
+        var token = await _users.GenerateUserTokenAsync(user, Invitation.TokenProvider, Invitation.Purpose);
         var resetUrl = Url.Page("/Account/ResetPassword", null,
             new { email = user.Email, token }, Request.Scheme);
         await _email.SendEmailAsync(user.Email!,
             "Welcome to MPNZ AutoRep — set your password",
             $"<p>Hi {user.DisplayName},</p>" +
             $"<p>An MPNZ AutoRep account has been created for you. Click the link below to set your password and sign in.</p>" +
-            $"<p><a href=\"{resetUrl}\">Set your password</a></p>");
+            $"<p><a href=\"{resetUrl}\">Set your password</a></p>" +
+            $"<p>The link works for {Invitation.Lifespan.Days} days. After that, use \"Forgot your password?\" on the sign-in page to get a new one.</p>");
 
         return RedirectToPage("/Admin/Testers/Index");
     }

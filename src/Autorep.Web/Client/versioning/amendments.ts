@@ -9,6 +9,7 @@ import { allReadingSections } from "../passfail/standards";
 import { preStartSections, RUNNING_SECTIONS } from "../wizard/visualChecklist";
 import { recordedRows } from "../ui/measurementRows";
 import { regulatorRows, releaserPumpRows, vacuumPumpRows } from "../wizard/pumpRows";
+import { MACHINE_CHECK_LABELS } from "../faults/buildFaults";
 
 // Report-facing section names, in the order changes are listed.
 const S_FARM = "Farm";
@@ -345,7 +346,7 @@ export function computeChangesWithPaths(base: LocalTest, edited: LocalTest): Pat
       S_RECS,
       base.recommendations,
       edited.recommendations,
-      (k) => visualLabels.get(k) ?? readingLabels.get(k)?.label ?? k,
+      (k) => visualLabels.get(k) ?? readingLabels.get(k)?.label ?? MACHINE_CHECK_LABELS[k] ?? k,
       (k) => `recommendations.${k}`,
     ),
   );

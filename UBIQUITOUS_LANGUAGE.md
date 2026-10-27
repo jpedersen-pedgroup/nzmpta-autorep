@@ -83,7 +83,7 @@ Named reports in the seven-document set: **Test Summary**, **Test Report Results
 | **User** | An authentication identity in the system. Every **Tester**, **Company Administrator** and **MPNZ Super-Administrator** is a **User**; the distinction is the **Role**. | account (overloaded), login |
 | **Role** | The capability set assigned to a **User**: **Tester**, **Company Administrator**, or **MPNZ Super-Administrator**. | permission, group |
 | **Tester Licence** | The active MPNZ registration period for a **Tester**, expressed as a **Licence Expiry Date**. Renewed by updating the date. | certification, registration |
-| **Licence Expiry Date** | The date past which a **Tester** can no longer log in until renewed. Enforced at the next authentication boundary, not instantly. | expiry, end date |
+| **Licence Expiry Date** | The last day of a **Tester Licence**. Passing it blocks nothing: the **Tester** sees a reminder from 60 days before (and after), and a **Report** for a **Machine Test** done after it shows the licence as expired. | expiry, end date |
 | **Access Token** | Short-lived bearer token (one hour for **Testers**, two hours for administrators) authorising calls to the **Sync** endpoints. | session token (ambiguous), JWT |
 | **Refresh Token** | Sliding-window token (seven days for **Testers**, one day for administrators) used to mint new **Access Tokens** without re-authentication. | session refresh, long token |
 | **Force-Logout** | Administrator action that invalidates a **User**'s tokens immediately. | kick, revoke session |
@@ -111,7 +111,7 @@ Named reports in the seven-document set: **Test Summary**, **Test Report Results
 - A post-completion edit of a **Machine Test** produces a new **Test Version**; prior versions are retained for audit.
 - An **Equipment Model** belongs to one equipment type in the **OEM Specs** and has at most one current **OEM Spec**. A signed-off **Machine Test** keeps the **OEM Specs** it was judged against.
 - **Reference Data** lives authoritatively on the server and is cached on every **Device** to enable offline pass/fail calculation.
-- A **Tester Licence** belongs to one **Tester**; the **Licence Expiry Date** gates login but not in-progress offline work.
+- A **Tester Licence** belongs to one **Tester**; the **Licence Expiry Date** is shown, never enforced.
 
 ## Example dialogue
 
@@ -125,7 +125,7 @@ Named reports in the seven-document set: **Test Summary**, **Test Report Results
 > **Domain expert:** "The **Tester** picks **Other** and types the model name. Their per-Test calculations fall back to defaults because there's no **OEM Spec** to compare against. Afterwards the **MPNZ Super-Administrator** can add the model with its **OEM Spec** from the **Equipment Vendor**, and the next **Sync** ships it to every **Device**."
 >
 > **Dev:** "And if the **Tester**'s **Licence Expiry Date** passes while they're on-farm?"
-> **Domain expert:** "They can finish and **Sync** the **Test** they're already inside, because the licence check runs at login — not on each action. But once their **Refresh Token** runs out or they log out, they're locked out until **MPNZ** renews the **Tester Licence**."
+> **Domain expert:** "Nothing stops them. They keep testing, adding farms and syncing as before, and can still sign in and reset their password. The app shows a red reminder, and the **Report** for any **Test** done after that date shows the licence as expired until **MPNZ** renews the **Tester Licence**."
 >
 > **Dev:** "Who sees the **Test** once it's uploaded?"
 > **Domain expert:** "The **Tester** sees their own. Their **Company Administrator** sees all **Tests** by **Testers** in the same **Testing Company**, but can only edit Farm Details and the final summary. The **MPNZ Super-Administrator** sees everything across all **Testing Companies**."

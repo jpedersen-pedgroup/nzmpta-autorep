@@ -209,6 +209,32 @@ namespace Autorep.Web.Migrations
                     b.ToTable("Farms");
                 });
 
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.FarmReviewDismissal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("DismissedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("FarmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FarmId");
+
+                    b.HasIndex("UserId", "FarmId")
+                        .IsUnique();
+
+                    b.ToTable("FarmReviewDismissals");
+                });
+
             modelBuilder.Entity("Autorep.Web.Domain.Entities.FaultObservation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1108,6 +1134,25 @@ namespace Autorep.Web.Migrations
                     b.Navigation("MilkSupplyCompany");
 
                     b.Navigation("Region");
+                });
+
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.FarmReviewDismissal", b =>
+                {
+                    b.HasOne("Autorep.Web.Domain.Entities.Farm", "Farm")
+                        .WithMany()
+                        .HasForeignKey("FarmId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Autorep.Web.Domain.Entities.Tester", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Farm");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.FinalReportBlob", b =>

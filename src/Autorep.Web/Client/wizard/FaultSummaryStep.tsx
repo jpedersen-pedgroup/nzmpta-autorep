@@ -1,4 +1,5 @@
-// Fault Summary & Recommendations step: faults carried from the visual checks + failed readings,
+// Fault Summary & Recommendations step: faults carried from the visual checks, failed readings and
+// the machine checks (regulators, pulsator model bands — see buildFaults.ts),
 // grouped by the Fault Aggregator, each with an editable recommendation — then general comments
 // for anything the farmer should know that no single fault covers.
 import { aggregate } from "../faults/faultAggregator";
@@ -25,7 +26,7 @@ export function FaultSummaryStep({ test, readonly, onSetRecommendation, onSetNot
     <div class="card">
       <div class="card__title">
         Fault Summary &amp; Recommendations{" "}
-        <small class="card__hint">Carried from the visual checks and failed readings — add a recommendation for each.</small>
+        <small class="card__hint">Carried from the visual checks, failed readings and machine checks — add a recommendation for each.</small>
       </div>
 
       <div class="fault-counts">

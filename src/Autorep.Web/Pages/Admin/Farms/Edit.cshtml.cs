@@ -180,8 +180,9 @@ public class EditModel : PageModel
         else
         {
             var companyId = (await _users.GetUserAsync(User))?.TestingCompanyId;
-            TestCount = await _db.MachineTests.CountAsync(t => t.FarmId == farm.Id
-                && _db.Users.Any(u => u.Id == t.TesterId && u.TestingCompanyId == companyId));
+            TestCount = companyId is { } company
+                ? await _db.MachineTests.CountAsync(t => t.FarmId == farm.Id && t.TestingCompanyId == company)
+                : 0;
         }
         CollectionNotice = await _db.PrivacyContent.OrderByDescending(p => p.UpdatedAt)
             .Select(p => p.CollectionNotice).FirstOrDefaultAsync() ?? "";

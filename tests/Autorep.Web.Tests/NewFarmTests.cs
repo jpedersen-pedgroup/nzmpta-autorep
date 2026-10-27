@@ -29,11 +29,10 @@ public class NewFarmTests
             .Options);
 
     private static FarmsController Controller(AutorepDbContext db,
-        CapturingEmailSender? emails = null, string[]? extraRoles = null, IEnumerable<Claim>? extraClaims = null)
+        CapturingEmailSender? emails = null, string[]? extraRoles = null)
     {
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, "tester-1"), new(ClaimTypes.Role, Roles.Tester) };
         claims.AddRange((extraRoles ?? []).Select(r => new Claim(ClaimTypes.Role, r)));
-        claims.AddRange(extraClaims ?? []);
         var user = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
         var notifier = new FarmReviewNotifier(db, emails ?? new CapturingEmailSender(),
             NullLogger<FarmReviewNotifier>.Instance);
@@ -203,20 +202,6 @@ public class NewFarmTests
 
         result.Should().BeOfType<ConflictObjectResult>();
         (await db.Farms.SingleAsync(f => f.Id == theirs.Id)).Name.Should().Be("Not yours");
-    }
-
-    // A lapsed licence can't start tests, so it has no business adding farms either.
-    [Fact]
-    public async Task A_sync_only_session_cannot_add_farms()
-    {
-        using var db = NewDb();
-        await SeedTesterCompanyAsync(db);
-
-        var result = await Controller(db, extraClaims: [new Claim(LicenceScope.ScopeClaim, LicenceScope.SyncOnly)])
-            .Create(Named("Lapsed farm"), default);
-
-        result.Should().BeOfType<ForbidResult>();
-        (await db.Farms.CountAsync()).Should().Be(0);
     }
 
     // The form only offers active rows; a stale form or crafted request gets a clear answer rather

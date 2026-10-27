@@ -41,6 +41,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<PrivacyContent> PrivacyContent => Set<PrivacyContent>();
     public DbSet<FinalReportBlob> FinalReportBlobs => Set<FinalReportBlob>();
     public DbSet<AppliedSeed> AppliedSeeds => Set<AppliedSeed>();
+    public DbSet<FarmReviewDismissal> FarmReviewDismissals => Set<FarmReviewDismissal>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -227,6 +228,25 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             farm.HasMany(f => f.MachineTests)
                 .WithOne(t => t.Farm!)
                 .HasForeignKey(t => t.FarmId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // One row per administrator per farm (dismissing again moves DismissedAt on).
+        builder.Entity<FarmReviewDismissal>(d =>
+        {
+            d.HasIndex(x => new { x.UserId, x.FarmId }).IsUnique();
+
+            // A removed account takes its dismissals with it.
+            d.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Farms are never hard-deleted. Restrict (not Cascade) also keeps SQL Server from
+            // rejecting a second cascade path from users, which already reach farms via SetNull.
+            d.HasOne(x => x.Farm)
+                .WithMany()
+                .HasForeignKey(x => x.FarmId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

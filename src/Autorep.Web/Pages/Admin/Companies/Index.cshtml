@@ -51,7 +51,7 @@ else
                         </td>
                         <td>
                             @if (c.TesterCount > 0)
-                            { <a class="count-link" asp-page="/Admin/Testers/Index" asp-route-companyId="@c.Id" title="View this company's testers">@c.TesterCount</a> }
+                            { <a class="count-link" asp-page="/Admin/Testers/Index" asp-route-companyId="@c.Id" title="View this company's users">@c.TesterCount</a> }
                             else { @c.TesterCount }
                         </td>
                         <td>

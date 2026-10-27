@@ -2,26 +2,40 @@
 @model Autorep.Web.Pages.Admin.Testers.IndexModel
 @using Autorep.Web.Domain
 @{
-    ViewData["Title"] = "Testers";
+    ViewData["Title"] = "Users";
     var today = NzTime.Today;
 }
 
 <div class="page-header">
     <div class="page-header__heading">
-        <h1>Testers</h1>
+        <h1>Users</h1>
         <p>Every user account on the platform.</p>
     </div>
     <div class="page-header__actions">
-        <a class="btn" asp-page="/Admin/Testers/New">+ New tester</a>
+        <a class="btn" asp-page="/Admin/Testers/New">+ New User</a>
     </div>
 </div>
+
+@if (Model.MissingCompany.Any())
+{
+    <div class="alert alert--warning" data-missing-company>
+        <strong>@Model.MissingCompany.Count user@(Model.MissingCompany.Count == 1 ? "" : "s") need@(Model.MissingCompany.Count == 1 ? "s" : "") a Testing Company.</strong>
+        Testers and Company Administrators must belong to one. Open each to assign it:
+        <ul>
+            @foreach (var m in Model.MissingCompany)
+            {
+                <li><a asp-page="/Admin/Testers/Edit" asp-route-id="@m.Id">@m.Email</a> (@m.Roles)</li>
+            }
+        </ul>
+    </div>
+}
 
 @if (!Model.Testers.Any() && Model.CompanyId is null)
 {
     <div class="empty">
-        <div class="empty__title">No testers yet</div>
-        <p class="empty__text">Create your first tester account to start.</p>
-        <a class="btn" asp-page="/Admin/Testers/New">Add a tester</a>
+        <div class="empty__title">No users yet</div>
+        <p class="empty__text">Create the first user account to start.</p>
+        <a class="btn" asp-page="/Admin/Testers/New">Add a user</a>
     </div>
 }
 else
@@ -36,13 +50,13 @@ else
                 }
             </select>
         </form>
-        <input type="search" data-table-filter="testers-table" placeholder="Search testers…" aria-label="Search testers" />
+        <input type="search" data-table-filter="testers-table" placeholder="Search users…" aria-label="Search users" />
     </div>
 
     if (!Model.Testers.Any())
     {
         <div class="empty">
-            <div class="empty__title">No matching testers</div>
+            <div class="empty__title">No matching users</div>
             <p class="empty__text">This company has no user accounts yet.</p>
         </div>
     }
@@ -70,9 +84,10 @@ else
                             <td>@(t.CompanyName ?? "—")</td>
                             <td>@t.RolesDisplay</td>
                             <td>
+                                @* Amber from 60 days out, when the tester's own banner starts. *@
                                 @if (t.LicenceExpiryDate is null) { <span class="badge">—</span> }
                                 else if (t.LicenceExpiryDate < today) { <span class="badge badge--danger">Expired @t.LicenceExpiryDate</span> }
-                                else if (t.LicenceExpiryDate < today.AddMonths(2)) { <span class="badge badge--warning">Expires @t.LicenceExpiryDate</span> }
+                                else if (t.LicenceExpiryDate <= today.AddDays(60)) { <span class="badge badge--warning">Expires @t.LicenceExpiryDate</span> }
                                 else { <span class="badge badge--success">@t.LicenceExpiryDate</span> }
                             </td>
                             <td>
@@ -86,7 +101,7 @@ else
             </table>
         </div>
         <div class="empty" data-table-empty="testers-table" hidden>
-            <div class="empty__title">No matching testers</div>
+            <div class="empty__title">No matching users</div>
             <p class="empty__text">Try a different search term.</p>
         </div>
     }

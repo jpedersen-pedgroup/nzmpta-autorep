@@ -43,9 +43,9 @@ describe("isTesterPath", () => {
     expect(isTesterPath("/App/Tests/Wizard")).toBe(true);
     expect(isTesterPath("/app/tests/company")).toBe(true);
   });
-  it("is not the admin portal, the lapsed-licence page, or a path that merely starts with App", () => {
+  it("is not the admin portal, an account page, or a path that merely starts with App", () => {
     expect(isTesterPath("/Admin/Tests/View/1")).toBe(false);
-    expect(isTesterPath("/Account/FinishSync")).toBe(false);
+    expect(isTesterPath("/Account/Manage")).toBe(false);
     expect(isTesterPath("/Apple")).toBe(false);
     expect(isTesterPath("/")).toBe(false);
   });

@@ -9,6 +9,7 @@ import { authorOf, madeByOther, rivalsOf } from "../versioning/chain";
 import type { EditScope } from "../versioning/adminEdit";
 import type { Deletion } from "../sync/removals";
 import type { SavedReportState } from "../versioning/adminReport";
+import { migratedHeadline } from "./migrated";
 
 /** A date and time as the admin and tester screens show them (en-NZ); "—" when there is none. */
 export function when(iso?: string | null): string {
@@ -79,6 +80,17 @@ export function VersionNotices({ test, others, deletion }: {
   );
 }
 
+/** A test migrated from AutoRep Plus, wherever it's shown: the admin viewer, the tester's own test or
+ * a colleague's. It reprints the results recorded at the time and is never edited here. */
+export function MigratedNotice({ cutoff, colleagueName }: { cutoff?: string | null; colleagueName?: string | null }) {
+  return (
+    <div class="alert alert--info version-note" data-version-note="migrated">
+      📄 <strong>{migratedHeadline(cutoff)}.</strong> {colleagueName ? `${colleagueName}'s test. ` : ""}It's
+      shown as recorded at the time of testing, pass/fail included, so it can't be edited here.
+    </div>
+  );
+}
+
 /** What the admin viewer is told about the version on screen (from /api/tests/{id}). */
 export interface AdminView {
   version: number;
@@ -96,6 +108,8 @@ export interface AdminView {
   canRestore?: boolean;
   /** Sync conflicts in the test's history (its audit panel lists them). */
   conflictCount?: number;
+  /** When AutoRep Plus stopped taking tests (yyyy-mm-dd), for a migrated test's banner; null while unset. */
+  migratedCutoff?: string | null;
 }
 
 /** Why a save didn't happen, as the edit bar words it. */
@@ -282,6 +296,8 @@ export function AdminEditBar(props: AdminEditBarProps) {
             </a>
           )}
         </div>
+      ) : view.editBlocked === "migrated" ? (
+        <MigratedNotice cutoff={view.migratedCutoff} />
       ) : (
         <div class="alert alert--warning">
           📄 <strong>Read-only.</strong> {BLOCKED_TEXT[view.editBlocked ?? ""] ?? "This test can't be edited here."} Pass/fail

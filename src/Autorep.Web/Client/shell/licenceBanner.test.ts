@@ -1,31 +1,34 @@
 import { describe, it, expect } from "vitest";
 import { daysUntil, formatLicenceDate, licenceBanner } from "./licenceBanner";
 
-// Same thresholds and words as Pages/Shared/_Layout.cshtml.
-const today = new Date(2026, 9, 7); // 7 Oct 2026, local
+// Same threshold and words as Pages/Shared/_Layout.cshtml.
+const today = new Date("2026-10-07T00:00:00Z"); // 7 Oct 2026, 1 pm in New Zealand
 
 describe("licenceBanner", () => {
-  it("says nothing without a date or more than 180 days out", () => {
+  it("says nothing without a date or more than 60 days out", () => {
     expect(licenceBanner(null, today)).toBeNull();
-    expect(licenceBanner("2027-06-01", today)).toBeNull();
+    expect(licenceBanner("2026-12-07", today)).toBeNull(); // 61 days
+    expect(licenceBanner("2027-01-15", today)).toBeNull(); // the old 180-day reminder is gone
   });
 
-  it("gives a plain reminder inside 180 days", () => {
-    const b = licenceBanner("2027-01-15", today)!;
-    expect(b.urgent).toBe(false);
-    expect(b.rest).toBe("Your tester licence expires on 15 Jan 2027 (in 100 days). Plan your renewal.");
+  it("warns from 60 days out, with the date and where to send six tests", () => {
+    const b = licenceBanner("2026-12-06", today)!; // 60 days
+    expect(b.lead).toBe("Your Tester licence expires on 06 Dec 2026");
+    expect(b.rest).toBe("— email six tests to info@milkingpumping.co.nz by this date.");
   });
 
-  it("turns urgent inside 60 days, with the date and a singular day", () => {
-    const b = licenceBanner("2026-10-08", today)!;
-    expect(b.urgent).toBe(true);
-    expect(b.lead).toBe("Your tester licence expires in 1 day");
-    expect(b.rest).toBe("(08 Oct 2026). Contact MPNZ to renew.");
+  it("treats the expiry day as still licensed, and the day after as expired", () => {
+    expect(licenceBanner("2026-10-07", today)!.lead).toBe("Your Tester licence expires on 07 Oct 2026");
+    const expired = licenceBanner("2026-10-06", today)!;
+    expect(expired.lead).toBe("Your Tester licence expired on 06 Oct 2026.");
+    expect(expired.rest).toBe("Contact MPNZ at info@milkingpumping.co.nz to renew it.");
   });
 
-  it("says expired on the day and after — and keeps counting while offline", () => {
-    expect(licenceBanner("2026-10-07", today)!.lead).toBe("Your tester licence has expired.");
-    expect(licenceBanner("2026-09-30", today)!.urgent).toBe(true);
+  it("counts on the New Zealand calendar, whatever zone the device is in", () => {
+    // 11:30 pm UTC on 6 Oct is already 7 Oct in New Zealand: a licence ending on the 6th has expired.
+    const lateUtc = new Date("2026-10-06T23:30:00Z");
+    expect(licenceBanner("2026-10-06", lateUtc)!.lead).toBe("Your Tester licence expired on 06 Oct 2026.");
+    expect(licenceBanner("2026-10-06", lateUtc, "UTC")!.lead).toBe("Your Tester licence expires on 06 Oct 2026");
   });
 
   it("ignores a malformed date", () => {
@@ -37,7 +40,8 @@ describe("helpers", () => {
   it("formats like the server's dd MMM yyyy", () => {
     expect(formatLicenceDate("2027-03-01")).toBe("01 Mar 2027");
   });
-  it("counts whole calendar days, unaffected by the time of day", () => {
-    expect(daysUntil("2026-10-10", new Date(2026, 9, 7, 23, 59))).toBe(3);
+  it("counts whole calendar days", () => {
+    expect(daysUntil("2026-10-10", "2026-10-07")).toBe(3);
+    expect(daysUntil("2026-10-06", "2026-10-07")).toBe(-1);
   });
 });
