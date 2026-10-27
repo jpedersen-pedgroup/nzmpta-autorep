@@ -52,6 +52,33 @@ public class EditModel : PageModel
     public bool NeedsCompany { get; private set; }
     /// <summary>Active companies the user could move to (their current one left out).</summary>
     public List<SelectListItem> Companies { get; private set; } = [];
+
+    /// <summary>A test the user started that isn't signed off, on the server.</summary>
+    public record UnfinishedTest(Guid Id, string FarmName, int Version, DateTimeOffset StartedAt);
+
+    /// <summary>What one of the user's devices last said it holds unsent (DeviceOutbox).</summary>
+    public record DeviceReport(Guid Id, string? Device, Guid DeviceId, int UnsentTests, DateTimeOffset ReportedAt)
+    {
+        /// <summary>Its own label plus the end of its id, so two iPads can be told apart.</summary>
+        public string Name => $"{Device ?? "Device"} (…{DeviceId.ToString("N")[^4..]})";
+    }
+
+    public IList<UnfinishedTest> UnfinishedTests { get; private set; } = [];
+    public IList<DeviceReport> Devices { get; private set; } = [];
+
+    /// <summary>
+    /// Whether moving the user to another company has to wait (Josh, 27 Oct: unsynced tests block a
+    /// move). A test first sent after the move is filed under the new company, so anything a device
+    /// still holds unsent must be sent or deleted first; and anything started but not signed off
+    /// must be finished, or deleted, so nothing is left half done across the move. The server knows
+    /// a device's unsent work only from what the device last reported while online.
+    /// </summary>
+    public bool MoveBlocked => UnfinishedTests.Count > 0 || Devices.Any(d => d.UnsentTests > 0);
+
+    /// <summary>The device row "Forget this device" removes.</summary>
+    [BindProperty]
+    public Guid? ForgetDeviceId { get; set; }
+
     public List<string> Errors { get; } = new();
     public string? Message { get; set; }
 
@@ -106,6 +133,39 @@ public class EditModel : PageModel
         return Page();
     }
 
+    private static string Plural(int n, string word) => $"{n} {word}{(n == 1 ? "" : "s")}";
+
+    /// <summary>"2 unsent tests on 1 device and 1 unfinished test on the server".</summary>
+    public string BlockSummary()
+    {
+        var parts = new List<string>();
+        var holding = Devices.Where(d => d.UnsentTests > 0).ToList();
+        if (holding.Count > 0)
+            parts.Add($"{Plural(holding.Sum(d => d.UnsentTests), "unsent test")} on {Plural(holding.Count, "device")}");
+        if (UnfinishedTests.Count > 0)
+            parts.Add($"{Plural(UnfinishedTests.Count, "unfinished test")} on the server");
+        return string.Join(" and ", parts);
+    }
+
+    /// <summary>Forgets what a lost or wiped device last reported, so it no longer holds up a move.
+    /// The tests on it that were never sent can't be recovered anyway; if it does come back online,
+    /// it reports again. Audited (AuditInterceptor), unlike the reports themselves.</summary>
+    public async Task<IActionResult> OnPostForgetDeviceAsync()
+    {
+        if (!await LoadAsync(hydrateForGet: true)) return NotFound();
+        var row = await _db.DeviceOutboxes
+            .FirstOrDefaultAsync(d => d.Id == ForgetDeviceId && d.TesterId == EditingUser!.Id);
+        if (row is not null)
+        {
+            var name = Devices.First(d => d.Id == row.Id).Name;
+            _db.DeviceOutboxes.Remove(row);
+            await _db.SaveChangesAsync();
+            Message = $"Forgot {name}. If it comes back online, it reports again.";
+        }
+        await LoadAsync(hydrateForGet: true);
+        return Page();
+    }
+
     /// <summary>Moves the user to another Testing Company (or, when their roles allow it, out of one).
     /// What they did for the old company stays with it: each test keeps the company stamped when it
     /// was first sent, and farms are in a company's scope through those stamps (FarmScope), so the
@@ -118,6 +178,11 @@ public class EditModel : PageModel
         if (NewCompanyId == EditingUser!.TestingCompanyId)
         {
             Errors.Add(fromName is null ? "They aren't in a company already." : $"They're already with {fromName}.");
+            return Page();
+        }
+        if (MoveBlocked)
+        {
+            Errors.Add($"They can't be moved yet: {BlockSummary()}. Change company lists what to do about each.");
             return Page();
         }
         string? toName = null;
@@ -243,6 +308,17 @@ public class EditModel : PageModel
             Details.CertificateNo = EditingUser.CertificateNo;
             LicenceExpiryDate = EditingUser.LicenceExpiryDate;
         }
+
+        UnfinishedTests = await _db.MachineTests
+            .Where(t => t.TesterId == EditingUser.Id && t.MarkedCompleteAt == null && !t.IsDeleted)
+            .OrderBy(t => t.CreatedAt)
+            .Select(t => new UnfinishedTest(t.Id, t.Farm!.Name, t.Version, t.CreatedAt))
+            .ToListAsync();
+        Devices = await _db.DeviceOutboxes
+            .Where(d => d.TesterId == EditingUser.Id)
+            .OrderByDescending(d => d.ReportedAt)
+            .Select(d => new DeviceReport(d.Id, d.Device, d.DeviceId, d.UnsentTests, d.ReportedAt))
+            .ToListAsync();
 
         var currentCompanyId = EditingUser.TestingCompanyId;
         Companies = await _db.TestingCompanies

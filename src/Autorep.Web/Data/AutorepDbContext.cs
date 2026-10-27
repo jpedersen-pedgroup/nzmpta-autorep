@@ -42,6 +42,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<FinalReportBlob> FinalReportBlobs => Set<FinalReportBlob>();
     public DbSet<AppliedSeed> AppliedSeeds => Set<AppliedSeed>();
     public DbSet<FarmReviewDismissal> FarmReviewDismissals => Set<FarmReviewDismissal>();
+    public DbSet<DeviceOutbox> DeviceOutboxes => Set<DeviceOutbox>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -229,6 +230,17 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
                 .WithOne(t => t.Farm!)
                 .HasForeignKey(t => t.FarmId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // One row per tester per device: the device's latest report replaces its last.
+        builder.Entity<DeviceOutbox>(d =>
+        {
+            d.HasIndex(x => new { x.TesterId, x.DeviceId }).IsUnique();
+            d.Property(x => x.Device).HasMaxLength(60);
+            d.HasOne(x => x.Tester)
+                .WithMany()
+                .HasForeignKey(x => x.TesterId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // One row per administrator per farm (dismissing again moves DismissedAt on).

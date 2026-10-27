@@ -1,4 +1,5 @@
 using Autorep.Web.Data;
+using Autorep.Web.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
@@ -68,6 +69,65 @@ public class ChangeCompanyE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, I
         await page.GetByText($"Moved to {OfflineE2EWebAppFactory.CompanyName}.").WaitForAsync();
         Assert.Equal(_factory.CompanyId, await CompanyOfAsync(_factory.OtherTesterId));
         Assert.Equal(OfflineE2EWebAppFactory.CompanyName, await page.Locator("[data-current-company]").InnerTextAsync());
+    }
+
+    // Unsynced tests block a move (Josh, 27 Oct). The tester's device tells the server what it hasn't
+    // sent whenever the app is open online; an unfinished test on the server blocks the move too.
+    [Fact]
+    public async Task A_testers_device_reports_in_and_unfinished_work_blocks_their_move()
+    {
+        var (testerContext, tester) = await NewTesterPageAsync(_browser, _factory.BaseUrl);
+        await using (testerContext)
+        {
+            await SignInAsync(tester);
+            await tester.GotoAsync("/App/Tests");
+            DeviceOutbox? report = null;
+            for (var i = 0; i < 50 && report is null; i++)
+            {
+                await Task.Delay(200);
+                using var scope = _factory.AppServices.CreateScope();
+                report = await scope.ServiceProvider.GetRequiredService<AutorepDbContext>().DeviceOutboxes
+                    .AsNoTracking().FirstOrDefaultAsync(d => d.TesterId == _factory.TesterId);
+            }
+            Assert.NotNull(report);
+            Assert.Equal(0, report!.UnsentTests);
+            Assert.Contains("Chrome", report.Device);
+        }
+
+        // Something they started and haven't signed off, on the server.
+        using (var scope = _factory.AppServices.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            db.MachineTests.Add(new MachineTest
+            {
+                TesterId = _factory.TesterId, FarmId = _factory.KowhaiFarmId, TestingCompanyId = _factory.CompanyId,
+                ClientId = Guid.NewGuid(),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var (context, page) = await NewTesterPageAsync(_browser, _factory.BaseUrl);
+        await using var _ = context;
+        await SignInAsSuperAdminAsync(page);
+        await page.GotoAsync($"/Admin/Testers/Edit/{_factory.TesterId}");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Change company" }).ClickAsync();
+        var dialog = page.GetByRole(AriaRole.Dialog);
+        await dialog.GetByText("can't be moved yet").WaitForAsync();
+        await dialog.GetByRole(AriaRole.Link, new() { Name = OfflineE2EWebAppFactory.KowhaiFarm }).WaitForAsync();
+        Assert.Equal(0, await dialog.GetByRole(AriaRole.Button, new() { Name = "Change company" }).CountAsync());
+        await ShotAsync(page, "c2-move-blocked");
+    }
+
+    private async Task SignInAsSuperAdminAsync(IPage page)
+    {
+        await page.GotoAsync("/Account/Login");
+        await page.FillAsync("#Input_Email", AdminEditE2EWebAppFactory.AdminEmail);
+        await page.FillAsync("#Input_Password", OfflineE2EWebAppFactory.TesterPassword);
+        await page.ClickAsync("button[type=submit]");
+        await page.WaitForURLAsync(url => url.Contains("/Account/TwoFactorChallenge"));
+        await page.FillAsync("#Input_Code", Totp.Now(_factory.AdminAuthenticatorKey));
+        await page.ClickAsync("button[type=submit]");
+        await page.WaitForURLAsync(url => !url.Contains("/Account/"));
     }
 
     private async Task<Guid?> CompanyOfAsync(string userId)

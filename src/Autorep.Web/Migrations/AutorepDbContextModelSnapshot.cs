@@ -77,6 +77,37 @@ namespace Autorep.Web.Migrations
                     b.ToTable("AuditEntries");
                 });
 
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.DeviceOutbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Device")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ReportedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TesterId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("UnsentTests")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TesterId", "DeviceId")
+                        .IsUnique();
+
+                    b.ToTable("DeviceOutboxes");
+                });
+
             modelBuilder.Entity("Autorep.Web.Domain.Entities.EquipmentItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1110,6 +1141,17 @@ namespace Autorep.Web.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.DeviceOutbox", b =>
+                {
+                    b.HasOne("Autorep.Web.Domain.Entities.Tester", "Tester")
+                        .WithMany()
+                        .HasForeignKey("TesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tester");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.Farm", b =>

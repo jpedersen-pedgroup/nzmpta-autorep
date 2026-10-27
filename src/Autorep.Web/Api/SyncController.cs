@@ -226,6 +226,47 @@ public class SyncController : ControllerBase
     /// <summary>A tester's version that collided, and the device's combine of it with the head.</summary>
     public record MergeRequest(UploadTestRequest Incoming, UploadTestRequest Merged, Guid HeadClientId);
 
+    /// <summary>How many tests a device holds that the server hasn't got, and whose store it counted.</summary>
+    public record OutboxReport(Guid DeviceId, string? TesterId, int UnsentTests, string? Device = null);
+
+    /// <summary>
+    /// A device says how many of the caller's tests it still has to send (Client/sync/outboxReport.ts).
+    /// The tester can't be moved to another company while any device last said more than none
+    /// (DeviceOutbox). Refused unless the count is the caller's own: in the offline shell a device's
+    /// store can still be its previous tester's while the session is someone else's.
+    /// </summary>
+    [HttpPost("outbox")]
+    public async Task<IActionResult> ReportOutbox([FromBody] OutboxReport req, CancellationToken ct)
+    {
+        var testerId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new InvalidOperationException("No NameIdentifier claim on principal.");
+        if (req.DeviceId == Guid.Empty || req.UnsentTests < 0)
+            return BadRequest(new { error = "A device id and a count of zero or more are required." });
+        if (req.TesterId != testerId)
+            return Conflict(new { error = "not-your-store", message = "That count is for someone else's tests on this device." });
+
+        var row = await _db.DeviceOutboxes
+            .FirstOrDefaultAsync(d => d.TesterId == testerId && d.DeviceId == req.DeviceId, ct);
+        if (row is null)
+        {
+            row = new DeviceOutbox { TesterId = testerId, DeviceId = req.DeviceId };
+            _db.DeviceOutboxes.Add(row);
+        }
+        row.UnsentTests = req.UnsentTests;
+        row.Device = string.IsNullOrWhiteSpace(req.Device) ? null : req.Device.Trim()[..Math.Min(req.Device.Trim().Length, 60)];
+        row.ReportedAt = DateTimeOffset.UtcNow;
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException) when (_db.Entry(row).State == EntityState.Added)
+        {
+            // The same device's first two reports raced, and the other made the row. Its count is as
+            // current as this one, and the device reports again on its next change anyway.
+        }
+        return NoContent();
+    }
+
     // Push: upsert by ClientId (idempotent), linking the Farm by id / farm identity within the
     // tester's company scope (see ResolveFarmAsync), creating a company-tagged farm if needed.
     //

@@ -31,6 +31,7 @@ import { cachedIdentity, loadIdentity } from "./db/identity";
 import { purgeOtherTesterLayouts } from "./wizard/layoutPreference";
 import { enableSessionChecks } from "./connectivity";
 import { startAutoSync } from "./sync/autoSync";
+import { startOutboxReports } from "./sync/outboxReport";
 import { isShellDocument, renderShellChrome, renderShellPage } from "./shell/shell";
 import { isTesterPath } from "./shell/routes";
 import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "./appEvents";
@@ -130,6 +131,9 @@ async function boot(): Promise<void> {
 
     // Tests captured offline go up by themselves once the connection is back (sync/autoSync.ts).
     const autoSync = startAutoSync();
+    // And the server hears how much is still waiting here, whenever it's online (a tester can't be
+    // moved to another company while a device holds unsent tests; sync/outboxReport.ts).
+    startOutboxReports();
 
     const session = enableSessionChecks().then(async (connection) => {
       // The shell drew this page for whoever the device's record named. If the server now says

@@ -68,6 +68,10 @@
                         @(Model.CompanyName is null ? "Set company" : "Change company")
                     </button>
                 </div>
+                @if (Model.MoveBlocked)
+                {
+                    <p class="form-field__hint">Can't be moved yet: @Model.BlockSummary(). Change company lists what to do about each.</p>
+                }
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn">Save details</button>
@@ -206,6 +210,51 @@
 <div class="modal-overlay" id="change-company" data-change-company>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="change-company-title">
         <div class="modal__title" id="change-company-title">@(oldCompany is null ? "Set" : "Change") @person's company</div>
+        @if (Model.MoveBlocked)
+        {
+            var holding = Model.Devices.Where(d => d.UnsentTests > 0).ToList();
+            <div class="alert alert--warning" data-move-blocked>
+                <strong>@person can't be moved yet.</strong>
+                Everything they've started has to reach the server and be finished first, so it stays with the company it was done for.
+            </div>
+            @if (holding.Any())
+            {
+                <p><strong>Not sent yet</strong></p>
+                <ul style="list-style:disc;padding-left:1.25rem;margin:0 0 var(--space-2)">
+                    @foreach (var d in holding)
+                    {
+                        <li data-device-report="@d.Id" style="margin-bottom:var(--space-2)">
+                            @d.Name: @d.UnsentTests test@(d.UnsentTests == 1 ? "" : "s"), as of @d.ReportedAt.ToNz().ToString("d MMM yyyy, h:mm tt").
+                            Ask them to open AutoRep on it with a connection and press Sync now, or delete those tests on it.
+                            <form method="post" asp-page-handler="ForgetDevice" style="margin:var(--space-1) 0 0"
+                                  onsubmit="return confirm('Forget this device? Only do this if it is lost or wiped: tests on it that were never sent cannot be recovered.');">
+                                <input type="hidden" name="ForgetDeviceId" value="@d.Id" />
+                                <button type="submit" class="btn btn--secondary btn--sm">Forget this device</button>
+                            </form>
+                        </li>
+                    }
+                </ul>
+                <p class="form-field__hint">Forget a device only if it's lost or wiped. If it does come back online, it reports again.</p>
+            }
+            @if (Model.UnfinishedTests.Any())
+            {
+                <p><strong>Not finished</strong></p>
+                <ul style="list-style:disc;padding-left:1.25rem;margin:0 0 var(--space-4)">
+                    @foreach (var t in Model.UnfinishedTests)
+                    {
+                        <li data-unfinished-test="@t.Id">
+                            <a href="/Admin/Tests/View/@t.Id" style="text-decoration:underline">@t.FarmName</a>, started @t.StartedAt.ToNz().ToString("d MMM yyyy")@(t.Version > 1 ? $" (version {t.Version})" : "").
+                            They need to sign it off, or you can delete it from the test's page.
+                        </li>
+                    }
+                </ul>
+            }
+            <div class="form-actions">
+                <button type="button" class="btn btn--secondary" data-close-change-company>Close</button>
+            </div>
+        }
+        else
+        {
         <form method="post" asp-page-handler="ChangeCompany">
             <div class="form-field">
                 <label for="NewCompanyId">@(oldCompany is null ? "Testing company" : "Move to")</label>
@@ -235,18 +284,31 @@
                     <li>The tests they've done for <strong>@oldCompany</strong> stay with it: @oldCompany's administrators still see them, and the new company's don't.</li>
                     <li>The farms they've tested stay with @oldCompany too. The new company gets one of those farms only once @person tests it for them.</li>
                     <li>From now on their new tests are filed under the new company, and they see its farms and its testers' tests.</li>
-                    <li>Tests on their device that haven't been sent yet are filed under the new company when they're sent, so ask them to sync first.</li>
                 </ul>
             }
             else
             {
                 <p>From now on they see the company's farms and its testers' tests, and their new tests are filed under it.</p>
             }
+            @{
+                var latest = Model.Devices.FirstOrDefault();
+            }
+            <p class="form-field__hint" data-device-note>
+                @if (latest is null)
+                {
+                    <text>None of their devices has reported in yet. A device reports what it hasn't sent whenever AutoRep is open with a connection, so work on a device that hasn't been online since this update can't be seen here.</text>
+                }
+                else
+                {
+                    <text>Their devices last reported nothing waiting to be sent (most recently @latest.ReportedAt.ToNz().ToString("d MMM yyyy, h:mm tt")). Anything done offline since a device last reported can't be seen until it reconnects.</text>
+                }
+            </p>
             <div class="form-actions">
                 <button type="submit" class="btn">@(oldCompany is null ? "Set company" : "Change company")</button>
                 <button type="button" class="btn btn--secondary" data-close-change-company>Cancel</button>
             </div>
         </form>
+        }
     </div>
 </div>
 
@@ -260,7 +322,7 @@
         function close() { overlay.classList.remove('open'); open.focus(); }
         open.addEventListener('click', function () {
             overlay.classList.add('open');
-            overlay.querySelector('select').focus();
+            overlay.querySelector('select, button').focus();
         });
         overlay.querySelector('[data-close-change-company]').addEventListener('click', close);
         overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
