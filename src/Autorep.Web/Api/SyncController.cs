@@ -644,7 +644,10 @@ public class SyncController : ControllerBase
     }
 
     // Links the synced test to a Farm, always within the tester's company scope so a sync push
-    // can never attach a test to (and thereby gain visibility of) another company's farm:
+    // can never attach a test to (and thereby gain visibility of) another company's farm. The one
+    // widening is a farm the tester has personally tested before (FarmScope.LinkableBySync): after a
+    // move to another company their device can still hold the old company's farm ids, and testing
+    // one again must not mint a duplicate.
     // 1. by the device's FarmId (set when the wizard was started from the picker), if in scope;
     // 2. else by farm identity — name + supply number + milk processor — within scope, so two
     //    companies' same-named farms stay separate while retries still find the right farm;
@@ -662,7 +665,7 @@ public class SyncController : ControllerBase
         if (req.FarmId is not null)
         {
             var byId = await _db.Farms.Where(f => f.Id == req.FarmId)
-                .InCompanyScope(_db, companyId, testerId)
+                .LinkableBySync(_db, companyId, testerId)
                 .FirstOrDefaultAsync(ct);
             if (byId is not null) return byId;
         }
@@ -671,7 +674,7 @@ public class SyncController : ControllerBase
         var supply = Clean(req.FarmSupplyNumber);
         var milk = Clean(req.FarmMilkCompanyName);
 
-        var byIdentity = _db.Farms.InCompanyScope(_db, companyId, testerId)
+        var byIdentity = _db.Farms.LinkableBySync(_db, companyId, testerId)
             .Where(f => f.Name == name && f.SupplyNumber == supply);
         byIdentity = milk is null
             ? byIdentity.Where(f => f.MilkSupplyCompanyId == null)

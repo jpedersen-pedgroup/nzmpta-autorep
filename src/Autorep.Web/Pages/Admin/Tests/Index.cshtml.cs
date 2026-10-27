@@ -82,10 +82,12 @@ public class IndexModel : PageModel
         }
         if (Status is not (AdminTestQuery.Complete or AdminTestQuery.InProgress)) Status = null;
 
-        // Tester dropdown, narrowed to the scoped company when one applies.
+        // Tester dropdown, narrowed to the scoped company when one applies: its testers now, and
+        // anyone who has done tests for it and since moved on (their tests stay in this list).
         IQueryable<Tester> testerQuery = _db.Users;
-        if (scopeCompanyId is not null)
-            testerQuery = testerQuery.Where(u => u.TestingCompanyId == scopeCompanyId);
+        if (scopeCompanyId is { } scoped)
+            testerQuery = testerQuery.Where(u => u.TestingCompanyId == scoped
+                || _db.MachineTests.Any(t => t.TesterId == u.Id && t.TestingCompanyId == scoped));
         TesterOptions = await testerQuery
             .OrderBy(u => u.DisplayName).ThenBy(u => u.Email)
             .Select(u => new SelectListItem(

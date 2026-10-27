@@ -61,10 +61,13 @@
                 <p class="form-field__hint">A user can hold more than one role — e.g. a Company Administrator who is also a Tester.</p>
             </div>
             <div class="form-field">
-                <label asp-for="Details.TestingCompanyId">Testing company</label>
-                <select asp-for="Details.TestingCompanyId" asp-items="Model.Companies">
-                    <option value="">— None —</option>
-                </select>
+                <label>Testing company</label>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap">
+                    <strong data-current-company>@(Model.CompanyName ?? "None")</strong>
+                    <button type="button" class="btn btn--secondary btn--sm" data-open-change-company>
+                        @(Model.CompanyName is null ? "Set company" : "Change company")
+                    </button>
+                </div>
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn">Save details</button>
@@ -194,7 +197,78 @@
     </div>
 </div>
 
+@* Change company: its own confirmed step, because moving someone has consequences an admin should
+   read first. Outside the Details form (forms can't nest). *@
+@{
+    var person = string.IsNullOrWhiteSpace(Model.EditingUser.DisplayName) ? Model.EditingUser.Email : Model.EditingUser.DisplayName;
+    var oldCompany = Model.CompanyName;
+}
+<div class="modal-overlay" id="change-company" data-change-company>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="change-company-title">
+        <div class="modal__title" id="change-company-title">@(oldCompany is null ? "Set" : "Change") @person's company</div>
+        <form method="post" asp-page-handler="ChangeCompany">
+            <div class="form-field">
+                <label for="NewCompanyId">@(oldCompany is null ? "Testing company" : "Move to")</label>
+                <select id="NewCompanyId" name="NewCompanyId" required="@Model.NeedsCompany">
+                    @if (Model.NeedsCompany)
+                    {
+                        <option value="">— Choose a company —</option>
+                    }
+                    else
+                    {
+                        <option value="">— No company —</option>
+                    }
+                    @foreach (var c in Model.Companies)
+                    {
+                        <option value="@c.Value">@c.Text</option>
+                    }
+                </select>
+                @if (!Model.NeedsCompany)
+                {
+                    <p class="form-field__hint">Super Administrators can be left without a company.</p>
+                }
+            </div>
+            @if (oldCompany is not null)
+            {
+                <p><strong>What happens when you move them</strong></p>
+                <ul style="list-style:disc;padding-left:1.25rem;margin:0 0 var(--space-4)">
+                    <li>The tests they've done for <strong>@oldCompany</strong> stay with it: @oldCompany's administrators still see them, and the new company's don't.</li>
+                    <li>The farms they've tested stay with @oldCompany too. The new company gets one of those farms only once @person tests it for them.</li>
+                    <li>From now on their new tests are filed under the new company, and they see its farms and its testers' tests.</li>
+                    <li>Tests on their device that haven't been sent yet are filed under the new company when they're sent, so ask them to sync first.</li>
+                </ul>
+            }
+            else
+            {
+                <p>From now on they see the company's farms and its testers' tests, and their new tests are filed under it.</p>
+            }
+            <div class="form-actions">
+                <button type="submit" class="btn">@(oldCompany is null ? "Set company" : "Change company")</button>
+                <button type="button" class="btn btn--secondary" data-close-change-company>Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @section Scripts {
+<script>
+    // The Change company dialog: opened from the Details tab, closed by Cancel, Escape or the backdrop.
+    (function () {
+        var overlay = document.querySelector('[data-change-company]');
+        var open = document.querySelector('[data-open-change-company]');
+        if (!overlay || !open) return;
+        function close() { overlay.classList.remove('open'); open.focus(); }
+        open.addEventListener('click', function () {
+            overlay.classList.add('open');
+            overlay.querySelector('select').focus();
+        });
+        overlay.querySelector('[data-close-change-company]').addEventListener('click', close);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && overlay.classList.contains('open')) close();
+        });
+    })();
+</script>
 <script>
     // Tab switching — each panel holds its own form/handler; the active tab panel
     // scrolls within the card. A validation error reveals its tab.
