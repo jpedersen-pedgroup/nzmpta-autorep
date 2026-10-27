@@ -80,10 +80,10 @@
                         }
                         @if (isSuperAdmin)
                         {
-                            <a asp-page="/Admin/Testers/Index">Testers</a>
+                            <a asp-page="/Admin/Testers/Index">Users</a>
                             <a asp-page="/Admin/Companies/Index">Companies</a>
-                            <a asp-page="/Admin/Regions/Index">Regions</a>
-                            <a asp-page="/Admin/MilkSupplyCompanies/Index">Milk companies</a>
+                            @* No Regions link: farms still pick a region, and /Admin/Regions still works by URL. *@
+                            <a asp-page="/Admin/MilkSupplyCompanies/Index">Dairy processors</a>
                         }
                     }
                     <a asp-page="/Help/Index">Help</a>

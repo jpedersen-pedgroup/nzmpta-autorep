@@ -19,6 +19,7 @@ import { initCalibration } from "./sync/calibrationSync";
 import { initCompanyBranding } from "./sync/companyBrandingSync";
 import { initTesterDetails } from "./sync/testerDetailsSync";
 import { mountWizard } from "./wizard/WizardApp";
+import { migratedCutoffFrom } from "./wizard/migrated";
 import { mountTestList } from "./ui/TestListApp";
 import { mountCompanyTestList } from "./ui/CompanyTestListApp";
 import { mountHome } from "./shell/HomePage";
@@ -54,6 +55,8 @@ function mountApps(): void {
       backHref: wizardRoot.getAttribute("data-back") ?? undefined,
       // The admin portal's viewer, where an administrator can edit a test as its next version.
       admin: wizardRoot.hasAttribute("data-admin"),
+      // When AutoRep Plus stopped taking tests, for a migrated test's banner.
+      migratedCutoff: migratedCutoffFrom(wizardRoot),
     });
   }
 

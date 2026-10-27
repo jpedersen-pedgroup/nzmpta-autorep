@@ -260,6 +260,40 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         await page.Locator("[data-version-note=admin]", new() { HasText = $"made by {AdminEditE2EWebAppFactory.AdminName} (Super Administrator)" }).WaitForAsync();
     }
 
+    // A test migrated from AutoRep Plus says so, with the date AutoRep Plus stopped taking tests (the
+    // LegacyTests:CutoffDate setting): in the admin viewer, and on the tester's own device after a sync.
+    [Fact]
+    public async Task A_migrated_test_says_it_came_from_autorep_plus()
+    {
+        var (testId, clientId) = await _factory.SeedCompletedTestAsync("Kanuka Crossing", p =>
+        {
+            p.Remove("currentStep"); // a raw legacy payload, as the migration tool writes it
+            p["legacy"] = new JsonObject();
+        });
+        const string headline = "Migrated from AutoRep Plus — tests before 1 December 2026";
+
+        var (adminContext, admin) = await SuperAdminAsync();
+        await using (adminContext)
+        {
+            await admin.GotoAsync($"/Admin/Tests/View/{testId}");
+            await admin.Locator("[data-version-note=migrated]", new() { HasText = headline }).WaitForAsync();
+            Assert.Equal(0, await admin.GetByRole(AriaRole.Button, new() { Name = "Edit as a new version" }).CountAsync());
+            await ShotAsync(admin, "c4-migrated-admin-viewer");
+        }
+
+        var (testerContext, tester) = await NewTesterPageAsync(_browser, _factory.BaseUrl);
+        await using (testerContext)
+        {
+            await SignInAsync(tester);
+            await tester.GotoAsync("/App/Tests");
+            await tester.GetByRole(AriaRole.Button, new() { Name = "Sync now" }).ClickAsync();
+            await tester.Locator("tr", new() { HasText = "Kanuka Crossing" }).WaitForAsync();
+            await tester.GotoAsync($"/App/Tests/Wizard?id={clientId}");
+            await tester.Locator("[data-version-note=migrated]", new() { HasText = headline }).WaitForAsync();
+            await ShotAsync(tester, "c4-migrated-tester-device");
+        }
+    }
+
     // PRD story 70: MPNZ deletes a test (with a reason) and it leaves the tester's device at the next
     // sync — said out loud, not silently.
     [Fact]

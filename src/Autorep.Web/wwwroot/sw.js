@@ -13,7 +13,7 @@
 // ignoreSearch, so renaming this cache is the ONLY thing that retires a previous build's assets.
 // The stamper reads APP_SHELL out of this file, and every entry must be a real file under wwwroot
 // so it can be hashed; a served route would build green and then never cache-bust.
-const CACHE_VERSION = 'autorep-3c99e7baafb1';
+const CACHE_VERSION = 'autorep-341c24ac464b';
 const LOGO_CACHE = 'autorep-logos-v1';
 const FA_CACHE = 'autorep-fontawesome-v1';
 // Neither of those is ever renamed by a deploy, so nothing else would ever empty them: cap them.
@@ -45,7 +45,7 @@ const GUIDE_FILES = ['autorep-company-admin-guide.pdf', 'autorep-super-admin-gui
 // copy alone isn't enough, since activating a new build throws the old cache away. The report
 // generator's chunks (~2.4 MB) are left out on purpose; Client/report/generatorChunks.ts warms them
 // after a successful sync instead of making every install wait on them.
-const BUNDLE_FILES = ['/js/dist/autorep.js', '/js/dist/chunks/chunk-CDHOJINR.js', '/js/dist/chunks/chunk-Y6SLVHK3.js', '/js/dist/chunks/toast-X7WBSKIV.js'];
+const BUNDLE_FILES = ['/js/dist/autorep.js', '/js/dist/chunks/chunk-SK6HMZ5B.js', '/js/dist/chunks/chunk-SZYPPOUP.js', '/js/dist/chunks/toast-MKJDFINQ.js'];
 // The offline stand-in for every tester page (see shellNavigation below). Static and identity-free:
 // the bundle renders the page, and the tester's name, from IndexedDB.
 const SHELL_URL = '/app-shell.html';

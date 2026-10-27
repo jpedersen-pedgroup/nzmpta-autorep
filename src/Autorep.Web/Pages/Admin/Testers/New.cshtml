@@ -2,12 +2,12 @@
 @model Autorep.Web.Pages.Admin.Testers.NewModel
 @using Autorep.Web.Domain
 @{
-    ViewData["Title"] = "New tester";
+    ViewData["Title"] = "New user";
 }
 
 <div class="page-header">
     <div class="page-header__heading">
-        <h1>New tester</h1>
+        <h1>New user</h1>
         <p>The user receives an email with a password-reset link to set their own password.</p>
     </div>
 </div>
@@ -41,7 +41,7 @@
             <select asp-for="Input.TestingCompanyId" asp-items="Model.Companies">
                 <option value="">— None —</option>
             </select>
-            <p class="form-field__hint">Testers must belong to a Testing Company; admins may be unassigned.</p>
+            <p class="form-field__hint">Testers and Company Administrators must belong to a Testing Company. Super Administrators can be left without one.</p>
         </div>
         <div class="form-field">
             <label asp-for="Input.LicenceExpiryDate">Licence expiry date</label>
@@ -62,7 +62,7 @@
         }
 
         <div class="form-actions">
-            <button type="submit" class="btn">Create tester</button>
+            <button type="submit" class="btn">Create User</button>
             <a class="btn btn--secondary" asp-page="/Admin/Testers/Index">Cancel</a>
         </div>
     </form>

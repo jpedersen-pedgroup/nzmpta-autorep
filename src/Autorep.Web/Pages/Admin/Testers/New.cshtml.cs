@@ -50,8 +50,7 @@ public class NewModel : PageModel
         var roles = Input.SelectedRoles.Distinct().ToList();
         if (roles.Count == 0) Errors.Add("Select at least one role.");
         if (roles.Any(r => !Roles.All.Contains(r))) Errors.Add("Role is invalid.");
-        if (roles.Contains(Roles.Tester) && Input.TestingCompanyId is null)
-            Errors.Add("Testers must be assigned to a Testing Company.");
+        if (Roles.CompanyRequiredError(roles, Input.TestingCompanyId) is { } noCompany) Errors.Add(noCompany);
         if (Errors.Any()) return Page();
 
         // Set a temporary random password; user is sent a reset link to set their own.

@@ -1,4 +1,6 @@
 @page
+@inject IConfiguration Config
+@using Autorep.Web.Services
 @{
     ViewData["Title"] = "Machine test";
 }
@@ -7,7 +9,7 @@
    client-side over IndexedDB and syncs to the server when online. The bundle is produced by
    `npm run build` in src/Autorep.Web (CI runs build:prod). Reads ?id to resume a test, or
    ?farmId/?farmName to start a new one. *@
-<div id="wizard-root" data-bundle-root></div>
+<div id="wizard-root" data-bundle-root data-migrated-cutoff="@MigratedTests.CutoffAttribute(Config)"></div>
 
 @section Scripts {
     <script type="module" src="~/js/dist/autorep.js"></script>
