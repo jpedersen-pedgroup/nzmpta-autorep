@@ -10,8 +10,18 @@ export interface EquipmentDto {
   /** The OEM spec (Pulsator and VacuumPump items): null when the item has none. Absent - not null -
    * in a set cached from a server that predates specs, which leaves the bundled specs in effect. */
   spec?: Record<string, unknown> | null;
+  /** The spec's dated versions, oldest first (Pulsator and VacuumPump items). Absent in a set cached
+   * from a server that predates effective dates, where `spec` is the only version. */
+  specs?: SpecVersionDto[];
   /** False for a deactivated item: kept for its spec only, never offered in a dropdown. */
   active?: boolean;
+}
+
+/** One version of an item's OEM spec: in effect from `effectiveFrom` (an NZ date, yyyy-mm-dd) until
+ * the next version's date, or from the start when null. `spec` null: no spec from then. */
+export interface SpecVersionDto {
+  effectiveFrom: string | null;
+  spec: Record<string, unknown> | null;
 }
 
 let byType: Map<string, EquipmentDto[]> = new Map();
@@ -55,7 +65,20 @@ export function catalogPulsators(): { name: string; brand: string }[] | null {
  * specs), in which case the bundled specs apply. */
 export function syncedSpecItems(type: string): EquipmentDto[] | null {
   const list = byType.get(type);
-  return list && list.some((i) => i.spec !== undefined) ? list : null;
+  return list && list.some((i) => i.spec !== undefined || i.specs !== undefined) ? list : null;
+}
+
+/** The version of a synced item's spec in effect on `asOf` (yyyy-mm-dd), or - with `asOf` null - the
+ * one in effect from the start. Null when none is in effect then, or the version says "no spec". */
+export function specAsOf(item: EquipmentDto, asOf: string | null): Record<string, unknown> | null {
+  const versions: SpecVersionDto[] = item.specs ?? (item.spec !== undefined ? [{ effectiveFrom: null, spec: item.spec }] : []);
+  let found: SpecVersionDto | undefined;
+  for (const v of versions) {
+    if (v.effectiveFrom == null || (asOf != null && v.effectiveFrom <= asOf)) {
+      if (!found || (found.effectiveFrom ?? "") <= (v.effectiveFrom ?? "")) found = v;
+    }
+  }
+  return found?.spec ?? null;
 }
 
 const collapse = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim().toLowerCase();

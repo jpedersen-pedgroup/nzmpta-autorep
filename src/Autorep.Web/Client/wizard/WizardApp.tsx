@@ -26,7 +26,7 @@ import { AdminEditBar, MigratedNotice, VersionNotices, type SaveProblem } from "
 import { isMigrated } from "./migrated";
 import { AuditPanel } from "./AuditPanel";
 import { deriveReadings } from "../passfail/derived";
-import { stampOemSpecs, withOemSpecsFrom } from "../reference/oemSpecs";
+import { startOemSpecs, stampOemSpecs, withOemSpecsFrom } from "../reference/oemSpecs";
 import { useServerOnline } from "../connectivity";
 import { REFERENCE_REFRESHED_EVENT, type ReferenceRefreshedDetail } from "../appEvents";
 import {
@@ -183,7 +183,8 @@ function newLocalTest(farmId?: string, farmName?: string): LocalTest {
     id: crypto.randomUUID(),
     farmId: farmId ?? null,
     farmName: farmName ?? "",
-    config: defaultMachineConfiguration(),
+    // Started today: judged against the OEM Specs in effect today, whatever changes during the test.
+    config: { ...defaultMachineConfiguration(), oemSpecs: startOemSpecs(now) },
     currentStep: "Setup",
     visualFaults: {},
     attestations: [],

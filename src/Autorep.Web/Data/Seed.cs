@@ -213,8 +213,10 @@ public static class Seed
     // in AppliedSeeds): after that the specs are the SuperAdmin's, and a restart must neither
     // overwrite an edited or cleared spec nor bring back a model they renamed or deleted.
     // - A spec row joins the existing item of the same name (pulsators; brand breaks a tie) or make
-    //   and model (pumps), ignoring case and spacing — the device's own matching. An item that
-    //   already has a spec keeps it.
+    //   and model (pumps), ignoring case and spacing — the device's own matching. The spec goes in
+    //   as the item's version in effect from the start (no date), which is also what every test
+    //   signed off before specs could be edited is judged against. An item that already has a spec
+    //   keeps it.
     // - A row that matches nothing becomes a new, deactivated item. On a fresh database every row
     //   matches, since the catalogs are seeded from the same lists; a miss means an administrator
     //   renamed or deleted that model, so the spec is kept where they can see it without putting
@@ -233,7 +235,7 @@ public static class Seed
         static string Key(string? s) => string.Join(' ', (s ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
 
         var now = DateTimeOffset.UtcNow;
-        var items = await db.EquipmentItems.Where(e => OemSpecs.SpecTypes.Contains(e.Type)).ToListAsync();
+        var items = await db.EquipmentItems.Include(e => e.SpecVersions).Where(e => OemSpecs.SpecTypes.Contains(e.Type)).ToListAsync();
         var used = new HashSet<Guid>();
         int matched = 0, kept = 0, added = 0;
 
@@ -245,15 +247,17 @@ public static class Seed
             {
                 db.EquipmentItems.Add(new EquipmentItem
                 {
-                    Type = type, Name = name, Brand = brand, IsActive = false,
-                    SpecJson = OemSpecs.Serialize(spec), UpdatedAt = now,
+                    Type = type, Name = name, Brand = brand, IsActive = false, UpdatedAt = now,
+                    SpecVersions = [new EquipmentSpecVersion { SpecJson = OemSpecs.Serialize(spec), CreatedAt = now }],
                 });
                 added++;
                 return;
             }
             used.Add(item.Id);
-            if (item.SpecJson is not null) { kept++; return; }
-            item.SpecJson = OemSpecs.Serialize(spec);
+            if (item.SpecVersions.Count > 0) { kept++; return; }
+            // Through the DbSet: a new row with its Guid already set, found only through a tracked
+            // item's collection, would be taken for an existing one.
+            db.EquipmentSpecVersions.Add(new EquipmentSpecVersion { EquipmentItemId = item.Id, SpecJson = OemSpecs.Serialize(spec), CreatedAt = now });
             item.UpdatedAt = now;
             matched++;
         }

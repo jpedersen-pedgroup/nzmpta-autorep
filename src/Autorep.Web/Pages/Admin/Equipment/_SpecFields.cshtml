@@ -2,18 +2,33 @@
 @{
     // Edit passes its item's type to render just that block; New passes none and toggles them.
     var only = ViewData["SpecType"] as string;
+    var today = Autorep.Web.Domain.NzTime.Today.ToString("yyyy-MM-dd");
 }
 
-@* The OEM spec fields for New/Edit, one block per type that carries a spec. New shows the block for
-   the type selected (data-spec-type); Edit renders only its item's type. Every field is optional. *@
+@* The OEM spec fields for New/Edit: the date the figures apply from, then one block per type that
+   carries a spec. New shows the block for the type selected (data-spec-type); Edit renders only its
+   item's type. Every figure is optional. *@
+<div class="spec-fields" data-spec-any style="margin-top:1.5rem">
+<h2 class="card__title">OEM spec</h2>
+<div class="form-grid">
+    <div class="form-field">
+        <label asp-for="EffectiveFrom">Applies to tests started on or after</label>
+        <input asp-for="EffectiveFrom" type="date" min="@today" value="@Model.EffectiveFrom?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="form-field">
+        <div class="form-field__hint">
+            Today, or a later date to enter a change ahead of time: devices get it on their next sync
+            and switch over on the day. A test keeps the spec of the day it was started, and a
+            signed-off test keeps the spec it was judged against.
+        </div>
+    </div>
+</div>
 @if (only is null || only == "Pulsator")
 {
-<div class="spec-fields" data-spec-type="Pulsator" style="margin-top:1.5rem">
-    <h2 class="card__title">OEM spec</h2>
+<div data-spec-type="Pulsator">
     <div class="form-field__hint">
         Every pulsator a tester records is judged against this model's rate and ratio bands. Leave a
-        band blank and the model gets no verdict for it. Tests already signed off keep the spec they
-        were judged against.
+        band blank and the model gets no verdict for it.
     </div>
     <div class="form-grid">
         <div class="form-field">
@@ -66,11 +81,10 @@
 
 @if (only is null || only == "VacuumPump")
 {
-<div class="spec-fields" data-spec-type="VacuumPump" style="margin-top:1.5rem">
-    <h2 class="card__title">OEM spec</h2>
+<div data-spec-type="VacuumPump">
     <div class="form-field__hint">
         The tester sees the OEM capacity beside 8a: air flow per rpm × the speed they measured. It is a
-        guide and carries no verdict. Tests already signed off keep the spec they were worked out from.
+        guide and carries no verdict.
     </div>
     <div class="form-grid">
         <div class="form-field">
@@ -96,3 +110,4 @@
     </div>
 </div>
 }
+</div>

@@ -1,4 +1,5 @@
 using Autorep.Web.Data;
+using Autorep.Web.Domain;
 using Autorep.Web.Domain.Entities;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +11,9 @@ public class IndexModel : PageModel
     private readonly AutorepDbContext _db;
     public IndexModel(AutorepDbContext db) => _db = db;
 
-    /// <summary>One item. <see cref="Spec"/> is its OEM spec in a line, or null when it has none.</summary>
-    public record Row(Guid Id, string Name, string? Brand, bool IsActive, string? Spec);
+    /// <summary>One item. <see cref="Spec"/> is the OEM spec in effect today in a line, or null when it
+    /// has none; <see cref="NextChange"/> the date of the next scheduled version, if any.</summary>
+    public record Row(Guid Id, string Name, string? Brand, bool IsActive, string? Spec, DateOnly? NextChange = null);
     public record BrandGroup(string Title, IList<Row> Rows);
     public record Group(string Type, string Title, IList<Row> Rows, IList<BrandGroup> Brands)
     {
@@ -38,13 +40,17 @@ public class IndexModel : PageModel
     public async Task OnGetAsync()
     {
         var rows = await _db.EquipmentItems
+            .Include(e => e.SpecVersions)
             .OrderBy(e => e.Brand).ThenBy(e => e.Name)
             .ToListAsync();
+        var today = NzTime.Today;
         Groups = EquipmentItem.Types
             .Select(t =>
             {
                 var typeRows = rows.Where(e => e.Type == t)
-                    .Select(e => new Row(e.Id, e.Name, e.Brand, e.IsActive, SpecInput.Summary(e)))
+                    .Select(e => new Row(e.Id, e.Name, e.Brand, e.IsActive,
+                        SpecInput.Summary(e.Type, OemSpecs.InEffect(e.SpecVersions, today)?.SpecJson),
+                        e.SpecVersions.Where(v => v.EffectiveFrom > today).Min(v => v.EffectiveFrom)))
                     .ToList();
                 return new Group(t, TitleFor(t), typeRows, BrandsFor(typeRows));
             })

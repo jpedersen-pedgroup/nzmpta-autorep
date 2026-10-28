@@ -126,9 +126,6 @@ namespace Autorep.Web.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("SpecJson")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -144,6 +141,33 @@ namespace Autorep.Web.Migrations
                         .HasFilter("[Brand] IS NOT NULL");
 
                     b.ToTable("EquipmentItems");
+                });
+
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.EquipmentSpecVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateOnly?>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("EquipmentItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SpecJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EquipmentItemId", "EffectiveFrom")
+                        .IsUnique()
+                        .HasFilter("[EffectiveFrom] IS NOT NULL");
+
+                    b.ToTable("EquipmentSpecVersions");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.Farm", b =>
@@ -1154,6 +1178,15 @@ namespace Autorep.Web.Migrations
                     b.Navigation("Tester");
                 });
 
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.EquipmentSpecVersion", b =>
+                {
+                    b.HasOne("Autorep.Web.Domain.Entities.EquipmentItem", null)
+                        .WithMany("SpecVersions")
+                        .HasForeignKey("EquipmentItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Autorep.Web.Domain.Entities.Farm", b =>
                 {
                     b.HasOne("Autorep.Web.Domain.Entities.Tester", "CreatedByTester")
@@ -1307,6 +1340,11 @@ namespace Autorep.Web.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Autorep.Web.Domain.Entities.EquipmentItem", b =>
+                {
+                    b.Navigation("SpecVersions");
                 });
 
             modelBuilder.Entity("Autorep.Web.Domain.Entities.Farm", b =>
