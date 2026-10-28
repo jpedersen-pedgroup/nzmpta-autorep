@@ -732,7 +732,9 @@ function reportParts(
   const pulsatorTable: Content[] = [];
   const pulsatorRows = recordedRows(test.pulsatorRows);
   if (pulsatorRows.length) {
-    const s = pulsatorSummary(pulsatorRows, test.config.pulsatorModel);
+    // The configuration, not just the model name: a signed-off test reprints the band it was
+    // judged against, not whatever the OEM Specs say today (reference/oemSpecs.ts).
+    const s = pulsatorSummary(pulsatorRows, test.config);
     const body: TableCell[][] = [
       [th("Unit no."), th("Rate (ppm)"), th("Ratio F (%)"), th("Ratio B (%)"), th("Phase b (%)"), th("Phase d (ms)"), th("Max vac (kPa)"), th("Limp (%)")],
       ...pulsatorRows.map((r) => [
