@@ -107,6 +107,18 @@ describe("a farm added with no signal, and the test on it", () => {
     expect((await queuedFarms()).map((q) => q.farm.id)).toEqual(["farm-new"]);
   });
 
+  it("reports a farm the server refused as still waiting, with no test on it", async () => {
+    await queueFarm(farm, null);
+    stubFetch((url, init) => {
+      if (init?.method !== "POST") return jsonResponse(EMPTY_PULL);
+      return jsonResponse({ error: "Your account isn't linked to a Testing Company" }, 400);
+    });
+
+    const result = await syncAll();
+
+    expect(result).toEqual({ pushed: 0, failed: 0, pulled: 0, farmsWaiting: 1 });
+  });
+
   it("stops when the session has lapsed, as the tests would", async () => {
     await queueFarm(farm, null);
     stubFetch((_url, init) => (init?.method === "POST" ? new Response(null, { status: 401 }) : jsonResponse(EMPTY_PULL)));

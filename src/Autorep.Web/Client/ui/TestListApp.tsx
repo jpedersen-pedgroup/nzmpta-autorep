@@ -135,6 +135,13 @@ function TestListApp() {
             "and contact MPNZ if it keeps failing.",
           "error",
         );
+      } else if (r.farmsWaiting) {
+        // The list above says which farm, and what the server said about it.
+        showToast(
+          `Synced ${r.pushed}, pulled ${r.pulled} — but ${r.farmsWaiting === 1 ? "a new farm" : `${r.farmsWaiting} new farms`} ` +
+            "couldn't be sent. It's still saved here and is tried again on every sync.",
+          "error",
+        );
       } else {
         showToast(`Synced — ${r.pushed} pushed, ${r.pulled} pulled.${mergedNote(r)}`, r.merged || r.removed ? "info" : "success");
       }

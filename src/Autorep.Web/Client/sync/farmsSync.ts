@@ -177,11 +177,17 @@ export async function getCachedFarmOptions(): Promise<NewFarmOptions | null> {
   }
 }
 
-/** Farms waiting to go up, oldest first. */
+/** Farms waiting to go up, oldest first. Throws when the queue can't be read: the sync must stop
+ * rather than take an unreadable queue for an empty one, or a test would go up ahead of its farm. */
+export async function readQueuedFarms(): Promise<QueuedFarm[]> {
+  const entries = await referencesWithPrefix(QUEUED_FARM_KEY_PREFIX);
+  return entries.map((e) => e.rows as QueuedFarm).sort((a, b) => a.queuedAt.localeCompare(b.queuedAt));
+}
+
+/** The same, for showing: an unreadable queue shows nothing rather than breaking the page. */
 export async function queuedFarms(): Promise<QueuedFarm[]> {
   try {
-    const entries = await referencesWithPrefix(QUEUED_FARM_KEY_PREFIX);
-    return entries.map((e) => e.rows as QueuedFarm).sort((a, b) => a.queuedAt.localeCompare(b.queuedAt));
+    return await readQueuedFarms();
   } catch {
     return [];
   }
@@ -218,7 +224,7 @@ export async function queueFarm(request: NewFarmRequest, options: NewFarmOptions
  * the run quietly: the farms stay queued, and so do the tests waiting on them.
  */
 export async function flushQueuedFarms(): Promise<boolean> {
-  for (const queued of await queuedFarms()) {
+  for (const queued of await readQueuedFarms()) {
     let res: Response;
     try {
       res = await fetchWithTimeout(

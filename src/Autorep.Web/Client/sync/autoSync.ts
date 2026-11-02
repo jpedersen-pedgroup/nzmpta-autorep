@@ -90,7 +90,9 @@ export function createAutoSync(deps: AutoSyncDeps): AutoSync {
         return;
       }
       const result = await deps.sync();
-      if (result.failed > 0) {
+      // A farm the server won't take is a failure too, test or no test on it: without the backoff
+      // it would be sent again every few seconds for as long as the app is open.
+      if (result.failed > 0 || (result.farmsWaiting ?? 0) > 0) {
         scheduleRetry();
       } else {
         failures = 0;
