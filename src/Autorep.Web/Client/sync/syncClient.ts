@@ -19,6 +19,7 @@ import { deletedOnServer, forgetDeletedOnServer, noteDeletedOnServer, noteRemove
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
+import { flushQueuedFarms, readQueuedFarms } from "./farmsSync";
 import { initCompanyBranding } from "./companyBrandingSync";
 import { initTesterDetails } from "./testerDetailsSync";
 import { warmReportGenerator } from "../report/generatorChunks";
@@ -75,6 +76,9 @@ export interface SyncResult {
   merged?: number;
   /** Tests removed from this device because MPNZ deleted them. Present only when there were some. */
   removed?: number;
+  /** Farms added on this device that are still waiting after the sync (refused, or not reached).
+   * A failure like `failed`, for retrying and for saying so. Present only when there are some. */
+  farmsWaiting?: number;
 }
 
 /** The server's answer to a version that arrived second (SyncController.CollisionResponse). */
@@ -476,12 +480,22 @@ async function runSync(): Promise<SyncResult> {
   await flushCalibration();
   await initCompanyBranding();
   await initTesterDetails();
+  // Farms added with no signal go first, so the tests on them find them there. An unreadable queue
+  // ends the sync here (readQueuedFarms throws): read as empty, it would let those tests through.
+  if (!(await flushQueuedFarms())) throw new SessionExpiredError();
+  const farmsWaiting = new Set((await readQueuedFarms()).map((q) => q.farm.id));
   const locals = await allTests();
   let pushed = 0;
   let failed = 0;
   let merged = 0;
   for (const t of locals) {
     if (t.syncState !== "local-only") continue;
+    if (t.farmId && farmsWaiting.has(t.farmId)) {
+      // Sent now it would mint a second copy of the farm, with no address (farmsSync.ts). It's
+      // still saved here, and goes once its farm has.
+      failed++;
+      continue;
+    }
     try {
       if (await pushTest(t)) merged++;
       pushed++;
@@ -518,5 +532,6 @@ async function runSync(): Promise<SyncResult> {
   const result: SyncResult = { pushed, failed, pulled };
   if (merged > 0) result.merged = merged;
   if (removed > 0) result.removed = removed;
+  if (farmsWaiting.size > 0) result.farmsWaiting = farmsWaiting.size;
   return result;
 }

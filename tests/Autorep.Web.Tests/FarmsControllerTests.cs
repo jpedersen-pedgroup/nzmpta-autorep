@@ -267,6 +267,79 @@ public class FarmsControllerTests : IClassFixture<AuthedWebAppFactory>
 
     // The page used to inline the company's whole farm book. Now it's drawn on the device, and the
     // HTML the server sends — the kind of document a device might cache — names no farm at all.
+    private async Task<(string TesterId, Guid RetiredRegion, Guid RetiredMilkCompany)> TesterAndRetiredListRowsAsync()
+    {
+        var testerId = "tester-queued-" + Guid.NewGuid();
+        await SeedCompanyTesterAsync(testerId);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var region = new Region { Name = "Retired region " + Guid.NewGuid(), Island = "North Island", IsActive = false };
+        var milk = new MilkSupplyCompany { Name = "Retired dairy " + Guid.NewGuid(), IsActive = false };
+        db.Regions.Add(region);
+        db.MilkSupplyCompanies.Add(milk);
+        await db.SaveChangesAsync();
+        return (testerId, region.Id, milk.Id);
+    }
+
+    // The add-a-farm form can be put right on the spot, so a stale pick is refused there.
+    [Fact]
+    public async Task Create_refuses_a_retired_region_or_dairy_company_from_the_open_form()
+    {
+        var (testerId, region, milk) = await TesterAndRetiredListRowsAsync();
+        var client = _factory.CreateClientAs(Roles.Tester, testerId);
+
+        (await client.PostAsJsonAsync("/api/farms", new { name = "Stale form", regionId = region }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await client.PostAsJsonAsync("/api/farms", new { name = "Stale form", milkSupplyCompanyId = milk }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    // A farm queued on a device has no form left to go back to, and a test may be waiting on it. The
+    // list row may have been retired since it was picked offline: it goes in without that value, and
+    // the Company Administrator's review puts it right.
+    [Fact]
+    public async Task Create_takes_a_queued_farm_without_a_list_row_retired_since_it_was_picked()
+    {
+        var (testerId, region, milk) = await TesterAndRetiredListRowsAsync();
+        var client = _factory.CreateClientAs(Roles.Tester, testerId);
+        var id = Guid.NewGuid();
+
+        var res = await client.PostAsJsonAsync("/api/farms", new
+        {
+            id,
+            name = "Queued Valley",
+            addressLine1 = "12 Paddock Road",
+            regionId = region,
+            milkSupplyCompanyId = milk,
+            queued = true,
+        });
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var farm = await db.Farms.FindAsync(id);
+        farm!.RegionId.Should().BeNull();
+        farm.MilkSupplyCompanyId.Should().BeNull();
+        farm.AddressLine1.Should().Be("12 Paddock Road");
+        farm.PendingReviewSince.Should().NotBeNull();
+    }
+
+    // The answer to a queued send can be lost, so the device sends it again.
+    [Fact]
+    public async Task Create_is_idempotent_for_a_queued_farm_sent_twice()
+    {
+        var (testerId, _, _) = await TesterAndRetiredListRowsAsync();
+        var client = _factory.CreateClientAs(Roles.Tester, testerId);
+        var request = new { id = Guid.NewGuid(), name = "Sent Twice " + Guid.NewGuid(), queued = true };
+
+        (await client.PostAsJsonAsync("/api/farms", request)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync("/api/farms", request)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        db.Farms.Count(f => f.Name == request.name).Should().Be(1);
+    }
+
     [Fact]
     public async Task The_New_test_page_carries_no_farm_data()
     {

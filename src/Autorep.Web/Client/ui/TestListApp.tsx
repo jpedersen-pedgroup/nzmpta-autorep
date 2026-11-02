@@ -8,6 +8,7 @@ import { useEffect, useState } from "preact/hooks";
 import { allTests, deleteTest, putTest, TESTS_CHANGED_EVENT, type LocalTest } from "../db/testStore";
 import { describeStorage, storageReport } from "../storage/durability";
 import { syncAll, SessionExpiredError, type SyncResult } from "../sync/syncClient";
+import { queuedFarms, type QueuedFarm } from "../sync/farmsSync";
 import { madeByOther, replacedIds, rivalsOf } from "../versioning/chain";
 import { clearRemoved, deletedOnServer, removedTests, type Deletion, type RemovedTest } from "../sync/removals";
 import { CalibrationPanel } from "./CalibrationPanel";
@@ -91,6 +92,8 @@ function TestListApp() {
   // still here because they hold unsent edits.
   const [removed, setRemoved] = useState<RemovedTest[]>([]);
   const [deletions, setDeletions] = useState<Record<string, Deletion>>({});
+  // Farms added with no signal and not sent yet.
+  const [farmsWaiting, setFarmsWaiting] = useState<QueuedFarm[]>([]);
 
   const [storageLine, setStorageLine] = useState<string | null>(null);
 
@@ -98,6 +101,7 @@ function TestListApp() {
     setTests((await allTests()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     setRemoved(await removedTests());
     setDeletions(await deletedOnServer());
+    setFarmsWaiting(await queuedFarms());
   };
   const refreshStorage = () => void storageReport().then((r) => setStorageLine(describeStorage(r)));
 
@@ -129,6 +133,13 @@ function TestListApp() {
           `Synced ${r.pushed}, pulled ${r.pulled} — but ${r.failed} test${r.failed === 1 ? "" : "s"} ` +
             `couldn't be sent. ${r.failed === 1 ? "It's" : "They're"} still saved here; try again, ` +
             "and contact MPNZ if it keeps failing.",
+          "error",
+        );
+      } else if (r.farmsWaiting) {
+        // The list above says which farm, and what the server said about it.
+        showToast(
+          `Synced ${r.pushed}, pulled ${r.pulled} — but ${r.farmsWaiting === 1 ? "a new farm" : `${r.farmsWaiting} new farms`} ` +
+            "couldn't be sent. It's still saved here and is tried again on every sync.",
           "error",
         );
       } else {
@@ -207,6 +218,21 @@ function TestListApp() {
           >
             OK
           </button>
+        </div>
+      )}
+
+      {farmsWaiting.length > 0 && (
+        <div class="alert alert--info" role="status" data-queued-farms>
+          🏡 <strong>{farmsWaiting.length === 1 ? "A new farm is" : `${farmsWaiting.length} new farms are`} waiting to be sent</strong>,
+          ahead of any tests on {farmsWaiting.length === 1 ? "it" : "them"}:
+          <ul class="removed-tests">
+            {farmsWaiting.map((q) => (
+              <li key={q.farm.id}>
+                {q.farm.name}
+                {q.problem ? <> — the server wouldn't take it: “{q.problem}”</> : ""}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

@@ -2,7 +2,7 @@
 // fetch fails) falls back to the farm book cached on-device at app load, so a test started
 // offline still gets its farm details. Offline resumes use the snapshot already on the test.
 import type { FarmSnapshot } from "./db/testStore";
-import { getCachedFarm, type CachedFarm } from "./sync/farmsSync";
+import { getCachedFarm, queuedFarms, type CachedFarm } from "./sync/farmsSync";
 
 function toSnapshot(f: CachedFarm | (FarmSnapshot & { id: string })): FarmSnapshot {
   return {
@@ -31,6 +31,10 @@ async function cached(id: string): Promise<FarmSnapshot | null> {
 }
 
 export async function fetchFarm(id: string): Promise<FarmSnapshot | null> {
+  // Added on this device and still to go up: the server would answer 404, and mean nothing by it.
+  const waiting = (await queuedFarms()).find((q) => q.farm.id === id);
+  if (waiting) return toSnapshot(waiting.farm);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
