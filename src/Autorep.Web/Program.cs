@@ -82,6 +82,14 @@ builder.Services
     // The welcome email's set-your-password link, which outlasts a reset link (see Invitation).
     .AddTokenProvider<InvitationTokenProvider<Tester>>(Invitation.TokenProvider);
 
+// The roles that must use two-factor - none at present (see MfaOptions). Checked at start-up: a
+// misspelt role would otherwise turn the requirement off without a word.
+builder.Services.AddOptions<MfaOptions>()
+    .Bind(builder.Configuration.GetSection(MfaOptions.Section))
+    .Validate(o => o.RequiredRoles.All(Roles.All.Contains),
+        $"{MfaOptions.Section}:RequiredRoles may only list {string.Join(", ", Roles.All)}.")
+    .ValidateOnStart();
+
 // Reset links last an hour, as the reset emails and the admin page say. Identity's default is a
 // day. The same provider signs the terms-acceptance link, which is used straight after sign-in.
 builder.Services.Configure<DataProtectionTokenProviderOptions>(o => o.TokenLifespan = Invitation.ResetLinkLifespan);
@@ -302,7 +310,8 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.UseAuthentication();
-// A Super-Administrator without two-factor goes to set-up and nowhere else (403 on /api/*).
+// An account whose role requires two-factor (Mfa:RequiredRoles - none at present) goes to set-up
+// and nowhere else until it has it (403 on /api/*).
 app.UseMiddleware<MfaEnrolmentMiddleware>();
 app.UseAuthorization();
 

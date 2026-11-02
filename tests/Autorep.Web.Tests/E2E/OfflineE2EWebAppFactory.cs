@@ -52,7 +52,7 @@ public class OfflineE2EWebAppFactory : WebApplicationFactory<Program>
     public const string LapsedTesterEmail = "e2e-lapsed-tester@local";
 
     /// <summary>A Company Administrator at the first tester's company — the admin side of a test
-    /// (no two-factor: that is required of Super-Administrators only).</summary>
+    /// (no two-factor).</summary>
     public const string CompanyAdminEmail = "e2e-company-admin@local";
 
     /// <summary>

@@ -33,9 +33,9 @@ public class E2EWebAppFactory : WebApplicationFactory<Program>
     public Guid FarmId { get; private set; }
     public const string AdminEmail = "e2e-admin@local";
     public const string AdminPassword = "E2EPassword123!";
-    /// <summary>The seeded admin's Base32 authenticator key: two-factor is required for a
-    /// Super-Administrator, so every E2E sign-in goes through the real challenge with a code
-    /// the test computes (see <see cref="Totp"/>).</summary>
+    /// <summary>The seeded admin's Base32 authenticator key: the admin is enrolled in two-factor
+    /// (no longer required of the role, but kept so the challenge stays covered), so every E2E
+    /// sign-in goes through the real challenge with a code the test computes (see <see cref="Totp"/>).</summary>
     public string AdminAuthenticatorKey { get; private set; } = "";
     public const string FarmName = "E2E Test Farm";
 

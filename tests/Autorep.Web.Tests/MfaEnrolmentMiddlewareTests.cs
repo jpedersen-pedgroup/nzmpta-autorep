@@ -5,11 +5,12 @@ using FluentAssertions;
 namespace Autorep.Web.Tests;
 
 /// <summary>The middleware on its own, behind the header scheme: it acts on the claim and
-/// nothing else, so a principal without it (any other sign-in path) is untouched.</summary>
-public class MfaEnrolmentMiddlewareTests : IClassFixture<AuthedWebAppFactory>
+/// nothing else, so a principal without it (any other sign-in path) is untouched. Runs with
+/// Super-Administrators required to use two-factor, which they are not by default.</summary>
+public class MfaEnrolmentMiddlewareTests : IClassFixture<MfaRequiredAuthedWebAppFactory>
 {
     private readonly AuthedWebAppFactory _factory;
-    public MfaEnrolmentMiddlewareTests(AuthedWebAppFactory factory) => _factory = factory;
+    public MfaEnrolmentMiddlewareTests(MfaRequiredAuthedWebAppFactory factory) => _factory = factory;
 
     private const string MustEnrol = MfaPolicy.ClaimType + "=" + MfaPolicy.EnrolmentRequired;
 

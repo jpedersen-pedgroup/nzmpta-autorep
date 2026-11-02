@@ -6,6 +6,7 @@ using Autorep.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 using QRCoder;
 
 namespace Autorep.Web.Pages.Account;
@@ -26,18 +27,21 @@ public class SetupAuthenticatorModel : PageModel
     private readonly TesterSignInManager _signIn;
     private readonly UrlEncoder _urlEncoder;
     private readonly LoginAudit _audit;
+    private readonly MfaOptions _mfa;
     private const string AuthenticatorUriFormat = "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6";
 
     public SetupAuthenticatorModel(
         UserManager<Tester> users,
         TesterSignInManager signIn,
         UrlEncoder urlEncoder,
-        LoginAudit audit)
+        LoginAudit audit,
+        IOptions<MfaOptions> mfa)
     {
         _users = users;
         _signIn = signIn;
         _urlEncoder = urlEncoder;
         _audit = audit;
+        _mfa = mfa.Value;
     }
 
     public string SharedKey { get; set; } = string.Empty;
@@ -124,7 +128,7 @@ public class SetupAuthenticatorModel : PageModel
 
     private async Task LoadAsync(Tester user)
     {
-        Required = MfaPolicy.IsRequiredFor(await _users.GetRolesAsync(user));
+        Required = _mfa.IsRequiredFor(await _users.GetRolesAsync(user));
         Enrolled = user.TwoFactorEnabled;
         if (Enrolled) return; // confirmation only - the working key is not shown or touched
 

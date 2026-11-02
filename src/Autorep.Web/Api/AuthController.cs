@@ -4,6 +4,7 @@ using Autorep.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Autorep.Web.Api;
 
@@ -19,17 +20,20 @@ public class AuthController : ControllerBase
     private readonly UserManager<Tester> _users;
     private readonly JwtTokenService _jwt;
     private readonly RefreshTokenService _refresh;
+    private readonly MfaOptions _mfa;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         UserManager<Tester> users,
         JwtTokenService jwt,
         RefreshTokenService refresh,
+        IOptions<MfaOptions> mfa,
         ILogger<AuthController> logger)
     {
         _users = users;
         _jwt = jwt;
         _refresh = refresh;
+        _mfa = mfa.Value;
         _logger = logger;
     }
 
@@ -65,7 +69,7 @@ public class AuthController : ControllerBase
         // This endpoint has no second step, so a password alone must never mint a token for an
         // account that has (or must have) two-factor. The PWA signs in through the cookie
         // pipeline, which does the challenge; this path is for devices with nothing to protect.
-        if (user.TwoFactorEnabled || MfaPolicy.IsRequiredFor(roles))
+        if (user.TwoFactorEnabled || _mfa.IsRequiredFor(roles))
         {
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { error = "two-factor-required" });
@@ -103,7 +107,7 @@ public class AuthController : ControllerBase
 
         // Two-factor turned on (or the role now requires it) since the token was issued: the
         // token line ends here, the same as at login.
-        if (user.TwoFactorEnabled || MfaPolicy.IsRequiredFor(roles))
+        if (user.TwoFactorEnabled || _mfa.IsRequiredFor(roles))
         {
             await _refresh.RevokeAllAsync(user.Id, "two-factor-required");
             return StatusCode(StatusCodes.Status403Forbidden,

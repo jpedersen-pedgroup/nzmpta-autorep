@@ -11,7 +11,7 @@ namespace Autorep.Web.Tests.E2E;
 
 // The offline tester factory's world — a tester with a device, their company and its farms, and a
 // Company Administrator at that company (CompanyAdminEmail) — plus a Super-Administrator, two-factor
-// enrolled as the role requires: the two people who edit tests from the admin portal. Each case seeds
+// enrolled: the two people who edit tests from the admin portal. Each case seeds
 // the completed test it works on, so cases don't depend on each other's edits.
 public class AdminEditE2EWebAppFactory : OfflineE2EWebAppFactory
 {

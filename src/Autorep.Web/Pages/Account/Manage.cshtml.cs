@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 
 namespace Autorep.Web.Pages.Account;
 
@@ -14,12 +15,14 @@ public class ManageModel : PageModel
     private readonly UserManager<Tester> _users;
     private readonly SignInManager<Tester> _signIn;
     private readonly LoginAudit _audit;
+    private readonly MfaOptions _mfa;
 
-    public ManageModel(UserManager<Tester> users, SignInManager<Tester> signIn, LoginAudit audit)
+    public ManageModel(UserManager<Tester> users, SignInManager<Tester> signIn, LoginAudit audit, IOptions<MfaOptions> mfa)
     {
         _users = users;
         _signIn = signIn;
         _audit = audit;
+        _mfa = mfa.Value;
     }
 
     public Tester? Account { get; private set; }
@@ -49,10 +52,10 @@ public class ManageModel : PageModel
         var account = await _users.GetUserAsync(User);
         if (account is null) return Forbid();
 
-        if (MfaPolicy.IsRequiredFor(await _users.GetRolesAsync(account)))
+        if (_mfa.IsRequiredFor(await _users.GetRolesAsync(account)))
         {
             // The button isn't rendered for these roles; this covers a stale page or a crafted POST.
-            Error = "Two-factor authentication is required for Super Administrator accounts and can't be switched off. To move to a new phone, set up a new authenticator instead.";
+            Error = "Two-factor authentication is required for your account and can't be switched off. To move to a new phone, set up a new authenticator instead.";
             return RedirectToPage();
         }
 
@@ -68,7 +71,7 @@ public class ManageModel : PageModel
     private async Task LoadAsync(Tester account)
     {
         TwoFactorEnabled = await _users.GetTwoFactorEnabledAsync(account);
-        TwoFactorRequired = MfaPolicy.IsRequiredFor(await _users.GetRolesAsync(account));
+        TwoFactorRequired = _mfa.IsRequiredFor(await _users.GetRolesAsync(account));
         RecoveryCodesLeft = TwoFactorEnabled ? await _users.CountRecoveryCodesAsync(account) : 0;
     }
 }
