@@ -96,11 +96,13 @@ export function machineCheckFaults(test: LocalTest): FaultInput[] {
   }
 
   // Every pulsator must run inside its model's rate and ratio bands (the legacy catalogue's
-  // tick/cross); judged on the recorded units, as the report's pulsator table prints it.
+  // tick/cross); judged on the recorded units, as the report's pulsator table prints it. Judged on
+  // the configuration, not the model name, so a signed-off test keeps the spec it was judged
+  // against (reference/oemSpecs.ts).
   const pulsators = recordedRows(test.pulsatorRows);
   const span = (lo: number | null, hi: number | null) => (lo === hi ? `${lo}` : `${lo}–${hi}`);
   if (pulsators.length > 0) {
-    const s = pulsatorSummary(pulsators, config.pulsatorModel);
+    const s = pulsatorSummary(pulsators, config);
     if (s.rateBand && s.rateBandOk === false) {
       inputs.push({
         key: RATE_BAND_FAULT_KEY,
