@@ -98,7 +98,8 @@ public static class WizardStepResolver
     }
 
     // Additional Tests: the unnumbered per-ancillary consumption/leakage checks that follow the
-    // ISO flowchart — MPNZ's "Additional Tests" flowchart, so this step must hold nothing else.
+    // ISO flowchart — MPNZ's "Additional Tests" flowchart — then the final check (16a/16b), which
+    // closes the testing off. This step must hold nothing else.
     private static IReadOnlyList<string> AdditionalSections(MachineConfiguration c)
     {
         var s = new List<string>();
@@ -107,6 +108,7 @@ public static class WizardStepResolver
         if (c.HasBailGates || c.HasBackingGate) s.Add("GateCylinder");
         if (c.HasReleaserPump) s.Add("ReleaserPumpHeads");
         s.Add("RegulatorLoad");
+        s.Add("FinalCheck");
         return s;
     }
 }

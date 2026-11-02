@@ -112,6 +112,14 @@ describe("automatic sync", () => {
     expect(pending()).toHaveLength(1);
   });
 
+  // A new farm the server keeps refusing, with no test waiting on it, must not be resent every few
+  // seconds: it backs off like any other failure.
+  it("backs off when a new farm is still waiting after the sync, even with every test sent", async () => {
+    const { auto, pending } = harness({ sync: vi.fn(async () => ({ pushed: 0, failed: 0, pulled: 0, farmsWaiting: 1 })) });
+    await auto.trigger("online");
+    expect(pending().map((t) => t.ms)).toEqual([BACKOFF_MS[0]]);
+  });
+
   it("waits for the tester to sign in again rather than retrying a lapsed session", async () => {
     const { deps, auto, pending } = harness({ sync: vi.fn(async () => Promise.reject(new SessionExpiredError())) });
 

@@ -70,14 +70,15 @@ function airflowSections(c: MachineConfiguration): string[] {
 }
 
 // Additional Tests: the unnumbered per-ancillary consumption/leakage checks that follow the ISO
-// flowchart — MPNZ's "Additional Tests" flowchart, so this step must hold nothing else.
+// flowchart — MPNZ's "Additional Tests" flowchart — then the final check (16a/16b), which closes the
+// testing off. This step must hold nothing else.
 function additionalSections(c: MachineConfiguration): string[] {
   const s: string[] = [];
   if (c.hasMilkMeters) s.push("MilkMeter");
   if (c.hasTeatSprayer) s.push("TeatSpray");
   if (c.hasBailGates || c.hasBackingGate) s.push("GateCylinder");
   if (c.hasReleaserPump) s.push("ReleaserPumpHeads");
-  s.push("RegulatorLoad");
+  s.push("RegulatorLoad", "FinalCheck");
   return s;
 }
 

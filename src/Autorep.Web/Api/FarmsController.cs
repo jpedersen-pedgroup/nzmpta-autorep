@@ -15,8 +15,8 @@ namespace Autorep.Web.Api;
 // The tester's farm book. Testers pick farms on the device, from a copy of this list cached in
 // their IndexedDB (Client/sync/farmsSync.ts) — so starting a test works with no signal — and the
 // wizard snapshots the chosen farm's details for offline display. Farm EDITING stays in the admin
-// portal; the only write here is a tester adding a new farm from the New-test page, which is
-// online-only by decision (plans/offline-tester-app.md, Phase 5 cut).
+// portal; the only write here is a tester adding a new farm from the New-test page, straight away
+// or, when it was added with no signal, from the device's queue once the signal is back.
 [ApiController]
 [Route("api/farms")]
 [Authorize]
@@ -108,8 +108,8 @@ public class FarmsController : ControllerBase
     public record MilkCompanyOption(Guid Id, string Name);
     public record NewFarmOptions(IReadOnlyList<RegionOption> Regions, IReadOnlyList<MilkCompanyOption> MilkCompanies);
 
-    // The add-a-farm form's two pick lists. Fetched when the form opens — it only works online, so
-    // the device never needs its own copy. Reference data, not PII.
+    // The add-a-farm form's two pick lists. The device keeps a copy, so the form works with no
+    // signal. Reference data, not PII.
     [HttpGet("new-farm-options")]
     [Authorize(Roles = Roles.Tester)]
     public async Task<IActionResult> NewFarmOptionsList(CancellationToken ct)
@@ -127,16 +127,18 @@ public class FarmsController : ControllerBase
 
     /// <param name="Id">The device's id for the farm it is adding — one per farm, reused on every
     /// retry, so adding a farm is idempotent (see Create). Optional: without one the server mints it.</param>
+    /// <param name="Queued">Sent from the device's queue rather than from the open form, so there's
+    /// no one to send back to it (see Create).</param>
     public record NewFarmRequest(
         string? Name, string? SupplyNumber, Guid? MilkSupplyCompanyId, Guid? RegionId,
         string? AddressLine1, string? AddressLine2, string? Town, string? PostCode, string? RapidNumber,
-        string? FarmerName, string? ContactPhone, string? ContactEmail, Guid? Id = null);
+        string? FarmerName, string? ContactPhone, string? ContactEmail, Guid? Id = null, bool Queued = false);
 
     // A tester adds a farm from the New-test page. Was a Razor handler on that page, posting with an
     // antiforgery token borrowed from the layout's sign-out form; the page is now drawn by the
     // bundle (the same page the offline shell shows) and has no token, and API controllers take a
-    // JSON body without one — the same footing as the sync push. Online-only by decision: the device
-    // never creates farms of its own.
+    // JSON body without one — the same footing as the sync push. A farm added with no signal comes
+    // here too, from the device's queue, ahead of the tests on it.
     [HttpPost]
     [Authorize(Roles = Roles.Tester)]
     public async Task<IActionResult> Create([FromBody] NewFarmRequest farm, CancellationToken ct)
@@ -170,11 +172,21 @@ public class FarmsController : ControllerBase
             return BadRequest(new { error = "Your account isn't linked to a Testing Company, so it can't add farms. Ask your administrator." });
 
         // The form only offers active rows; anything else is a stale form or a crafted request,
-        // and would otherwise surface as a foreign-key failure.
-        if (farm.RegionId is { } regionId && !await _db.Regions.AnyAsync(r => r.Id == regionId && r.IsActive, ct))
-            return BadRequest(new { error = "That region isn't available any more. Choose another." });
-        if (farm.MilkSupplyCompanyId is { } milkId && !await _db.MilkSupplyCompanies.AnyAsync(c => c.Id == milkId && c.IsActive, ct))
-            return BadRequest(new { error = "That dairy processing company isn't available any more. Choose another." });
+        // and would otherwise surface as a foreign-key failure. A queued farm may have been picked
+        // days ago, from the device's copy of the lists, and there's no form left to fix it in: it
+        // goes in without that value (a test may be waiting on it), and the review picks it up.
+        var regionId = farm.RegionId;
+        if (regionId is { } rid && !await _db.Regions.AnyAsync(r => r.Id == rid && r.IsActive, ct))
+        {
+            if (!farm.Queued) return BadRequest(new { error = "That region isn't available any more. Choose another." });
+            regionId = null;
+        }
+        var milkCompanyId = farm.MilkSupplyCompanyId;
+        if (milkCompanyId is { } mid && !await _db.MilkSupplyCompanies.AnyAsync(c => c.Id == mid && c.IsActive, ct))
+        {
+            if (!farm.Queued) return BadRequest(new { error = "That dairy processing company isn't available any more. Choose another." });
+            milkCompanyId = null;
+        }
 
         var entity = new Farm
         {
@@ -189,8 +201,8 @@ public class FarmsController : ControllerBase
             // is usable for testing immediately.
             PendingReviewSince = IsAdministrator() ? null : DateTimeOffset.UtcNow,
             SupplyNumber = Clean(farm.SupplyNumber),
-            MilkSupplyCompanyId = farm.MilkSupplyCompanyId,
-            RegionId = farm.RegionId,
+            MilkSupplyCompanyId = milkCompanyId,
+            RegionId = regionId,
             AddressLine1 = Clean(farm.AddressLine1),
             AddressLine2 = Clean(farm.AddressLine2),
             Town = Clean(farm.Town),

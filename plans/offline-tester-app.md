@@ -21,7 +21,7 @@ The **data layer is done. The shell layer is not.** That gap is why offline feel
 | Wizard step navigation, pass/fail, fault rollup, PDF doc build | ✅ | `WizardApp.tsx`, `Client/report/testSummaryPdf.ts` |
 | **Any page navigation offline** | ✅ (Phase 2, Oct 2026) | `sw.js` `shellNavigation`: tester routes are server-first, then the cached identity-free `wwwroot/app-shell.html` (offline, or no answer within 8 s); everything else keeps the offline card |
 | **Cold PWA launch offline** | ✅ (Phase 2, Oct 2026) | `start_url` unchanged (`/`); the shell answers `/` and makes the role decision from the device's identity record (`Client/db/identity.ts`, `shell/shell.tsx`) |
-| **Starting a test offline** | ✅ (Phase 3, Oct 2026) | `/App/Tests/New` is drawn on the device (`Client/ui/NewTestApp.tsx`) from the cached farm book and opens the wizard directly; adding a farm is `POST /api/farms`, online-only and says so |
+| **Starting a test offline** | ✅ (Phase 3, Oct 2026) | `/App/Tests/New` is drawn on the device (`Client/ui/NewTestApp.tsx`) from the cached farm book and opens the wizard directly; adding a farm is `POST /api/farms`, queued on the device with no signal (Phase 5, Nov 2026) |
 | **Printing offline on a device that never printed online** | ⬜ | PDF chunks only cached on first fetch (`sw.js:133-148`); `chunks/pdfmake-EIRMY33F.js` is 2.85 MB and is never fetched until a report is generated |
 | Precache list actually serving | ⬜ | `sw.js:13,14,19` precache bare URLs; pages request `?v=` (`_Layout.cshtml:33,120`, `_BrandHead.cshtml:37`) and `sw.js:135` matches with no `ignoreSearch` — those three entries are **dead** |
 
@@ -44,7 +44,7 @@ Explicitly out of scope for this chunk. If any of these come back, they are a va
 - **Offline sign-out.** It is a POST to an `[Authorize]` page. Offline it is disabled, not faked.
 - **Offline address autocomplete.** `Api/AddressController.cs` is `[Authorize(Policy = "AdminArea")]` and only used by `Pages/Admin/Farms/Edit.cshtml`. The tester add-farm modal has plain text inputs. Nothing to make offline — recorded so nobody budgets for it.
 - **Background Sync / periodic sync.** Not supported on iPad Safari, which is the target device. Any use is enhancement-only and must not be load-bearing.
-- **Offline creation of a *brand-new* farm** — conditionally out of scope. See Phase 5 and Decision (f); this is still an open MPNZ question (`plans/build-checklist.md:175`).
+- **Offline creation of a *brand-new* farm** — was out of scope; built 2 Nov 2026, see Phase 5.
 
 ---
 
@@ -380,7 +380,21 @@ and are fixed on `claude/offline-codex-followups`; one didn't.
 
 ---
 
-### Phase 5 — Offline farm creation — ~~CONDITIONAL~~ **CUT (22 Jul 2026)**
+### Phase 5 — Offline farm creation — ~~CONDITIONAL~~ ~~CUT (22 Jul 2026)~~ **BUILT (2 Nov 2026)**
+
+> **Reversed 2 Nov 2026.** Jono asked for it after a plant check, and Josh chose to build it. It came
+> in far smaller than the 6–10 days below, because `POST /api/farms` was already idempotent by the
+> device's id and the reference store takes a queue with no schema change: **no `DB_VERSION` bump and
+> no new store**, one `queuedFarm:<id>` reference entry per farm, as the Final Report queue does.
+> - The add-a-farm form always opens, on a device copy of its pick lists (`/api/farms/new-farm-options`,
+>   refreshed with the rest of the tester's data). No signal, or a send that fails, queues the farm.
+> - A queued farm is offered in the picker straight away, and the wizard takes its snapshot from it.
+> - `syncAll` sends queued farms first (`queued: true`). A test on a farm still queued waits for it:
+>   sent first, it would reach `ResolveFarmAsync`'s safety net, which mints a second farm with no address.
+> - The server takes a queued farm without a list row retired since it was picked; the review puts it right.
+> - Auto-sync counts queued farms as work to send, and the purge guard keeps a database holding one.
+>
+> Everything below is the July reasoning, kept for the record; it no longer holds.
 
 **Decided: farm creation stays online-only.** Josh confirmed with a tester that farms are not set
 up on-farm without signal, which closes the open question at `plans/build-checklist.md:175`. This

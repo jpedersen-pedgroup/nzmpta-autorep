@@ -1,7 +1,7 @@
 // The New-test page (/App/Tests/New): choose a farm from the farm book cached on this device and
 // open the wizard, which creates the test on the device. Works with no signal — the offline shell
-// serves this same page — because nothing here needs the server except ADDING a farm, which is
-// online-only by decision (plans/offline-tester-app.md, Phase 5 cut) and says so plainly.
+// serves this same page. A new farm can be added here with no signal too: it's kept on the device,
+// offered like any other, and sent ahead of its tests (sync/farmsSync.ts).
 //
 // Used to be a Razor page that inlined the company's whole farm book and POSTed the choice to the
 // server for a redirect. The scope check that POST did still happens where data crosses: the
@@ -9,10 +9,21 @@
 // already-scoped book.
 import { render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { addFarmToCache, getCachedFarms, milkCompanyLogoUrl, type CachedFarm } from "../sync/farmsSync";
+import {
+  addFarmToCache,
+  getCachedFarmOptions,
+  getCachedFarms,
+  initFarmOptions,
+  milkCompanyLogoUrl,
+  queueFarm,
+  type CachedFarm,
+  type NewFarmOptions,
+  type NewFarmRequest,
+} from "../sync/farmsSync";
 import { REFERENCE_REFRESHED_EVENT } from "../appEvents";
 import { fetchWithTimeout, isServerReachable, reportSignedOut } from "../connectivity";
 import { getPrivacyContent } from "../config/privacyContent";
+import { showToast } from "./toast";
 
 export function mountNewTest(root: HTMLElement): void {
   render(<NewTestApp />, root);
@@ -41,7 +52,9 @@ export function exactFarm(farms: readonly CachedFarm[], typed: string): CachedFa
 
 /** What tells two same-named farms apart in the list. */
 export function farmDetail(f: CachedFarm): string {
-  return [f.supplyNumber ? `Supply ${f.supplyNumber}` : null, f.town, f.milkCompanyName].filter(Boolean).join(" · ");
+  return [f.supplyNumber ? `Supply ${f.supplyNumber}` : null, f.town, f.milkCompanyName, f.notSent ? "Not sent yet" : null]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 const byName = (a: CachedFarm, b: CachedFarm) => a.name.localeCompare(b.name);
@@ -113,7 +126,7 @@ function NewTestApp() {
             />
             <p class="form-field__hint">
               {empty
-                ? "No farms on this device yet. Connect once and your company's farm book downloads, or add a new farm (needs signal)."
+                ? "No farms on this device yet. Connect once and your company's farm book downloads, or add a new farm."
                 : "Your company's farms, saved on this device — this works with no signal. Not listed? Add a new one."}
             </p>
             <div style="margin-top:var(--space-3)">
@@ -275,43 +288,6 @@ function MilkCompanyLogo({ id, name }: { id: string; name?: string | null }) {
   );
 }
 
-interface RegionOption {
-  id: string;
-  name: string;
-  island: string;
-}
-interface MilkCompanyOption {
-  id: string;
-  name: string;
-}
-interface NewFarmOptions {
-  regions: RegionOption[];
-  milkCompanies: MilkCompanyOption[];
-}
-
-type OptionsResult = { kind: "ok"; options: NewFarmOptions } | { kind: "offline" } | { kind: "signed-out" };
-
-async function loadNewFarmOptions(): Promise<OptionsResult> {
-  if (!(await isServerReachable())) return { kind: "offline" };
-  try {
-    const res = await fetchWithTimeout("/api/farms/new-farm-options", {
-      headers: { Accept: "application/json" },
-      redirect: "manual",
-    });
-    if (res.status === 401 || res.status === 403 || res.type === "opaqueredirect") {
-      reportSignedOut();
-      return { kind: "signed-out" };
-    }
-    if (!res.ok) return { kind: "offline" };
-    const options = (await res.json()) as NewFarmOptions;
-    return Array.isArray(options?.regions) && Array.isArray(options?.milkCompanies)
-      ? { kind: "ok", options }
-      : { kind: "offline" };
-  } catch {
-    return { kind: "offline" };
-  }
-}
-
 const FIELDS = [
   ["addressLine1", "Address line 1", "nf-addr1", true],
   ["addressLine2", "Address line 2", "nf-addr2", true],
@@ -324,30 +300,69 @@ const FIELDS = [
 ] as const;
 
 function AddFarmModal({ onClose, onCreated }: { onClose: () => void; onCreated: (farm: CachedFarm) => void }) {
-  // One id for the farm this form adds, sent with every attempt: if an answer is lost, trying
-  // again returns the farm already saved rather than adding it twice (FarmsController.Create).
+  // One id for the farm this form adds, sent with every attempt and kept if it's queued: if an
+  // answer is lost, sending again returns the farm already saved rather than adding it twice
+  // (FarmsController.Create).
   const [farmId] = useState(() => crypto.randomUUID());
-  const [state, setState] = useState<OptionsResult | { kind: "checking" }>({ kind: "checking" });
-  const [attempt, setAttempt] = useState(0);
+  const [options, setOptions] = useState<NewFarmOptions | null>(null);
+  const [offline, setOffline] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // The form opens at once, on the pick lists the device holds, whatever the signal. With a
+  // connection they're brought up to date behind it.
   useEffect(() => {
     let active = true;
-    setState({ kind: "checking" });
-    void loadNewFarmOptions().then((result) => {
-      if (active) setState(result);
+    const read = () =>
+      getCachedFarmOptions().then((held) => {
+        if (active && held) setOptions(held);
+      });
+    void read();
+    void isServerReachable().then(async (reachable) => {
+      if (!active) return;
+      setOffline(!reachable);
+      if (reachable) {
+        await initFarmOptions();
+        await read();
+      }
     });
     return () => {
       active = false;
     };
-  }, [attempt]);
+  }, []);
 
   const set = (key: string) => (e: Event) => setValues((v) => ({ ...v, [key]: (e.currentTarget as HTMLInputElement).value }));
   const value = (key: string) => {
     const v = (values[key] ?? "").trim();
     return v === "" ? null : v;
+  };
+
+  const request = (): NewFarmRequest => ({
+    id: farmId,
+    name: value("name"),
+    supplyNumber: value("supplyNumber"),
+    milkSupplyCompanyId: value("milkSupplyCompanyId"),
+    regionId: value("regionId"),
+    addressLine1: value("addressLine1"),
+    addressLine2: value("addressLine2"),
+    town: value("town"),
+    postCode: value("postCode"),
+    rapidNumber: value("rapidNumber"),
+    farmerName: value("farmerName"),
+    contactPhone: value("contactPhone"),
+    contactEmail: value("contactEmail"),
+  });
+
+  // No signal, or it dropped before the server answered (the farm may already be saved there, which
+  // the id makes harmless): the farm stays on the device and goes up with the next sync.
+  const saveForLater = async () => {
+    try {
+      onCreated(await queueFarm(request(), options));
+      showToast("Saved on this device. It's sent to the office when you're back in range.", "info");
+    } catch {
+      setError("This device couldn't save the farm. Check its storage, then try again.");
+    }
   };
 
   const create = async () => {
@@ -358,33 +373,23 @@ function AddFarmModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     }
     setSaving(true);
     try {
+      if (offline) {
+        await saveForLater();
+        return;
+      }
       const res = await fetchWithTimeout(
         "/api/farms",
         {
           method: "POST",
           redirect: "manual",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({
-            id: farmId,
-            name: value("name"),
-            supplyNumber: value("supplyNumber"),
-            milkSupplyCompanyId: value("milkSupplyCompanyId"),
-            regionId: value("regionId"),
-            addressLine1: value("addressLine1"),
-            addressLine2: value("addressLine2"),
-            town: value("town"),
-            postCode: value("postCode"),
-            rapidNumber: value("rapidNumber"),
-            farmerName: value("farmerName"),
-            contactPhone: value("contactPhone"),
-            contactEmail: value("contactEmail"),
-          }),
+          body: JSON.stringify(request()),
         },
         15_000,
       );
       if (res.status === 401 || res.type === "opaqueredirect") {
         reportSignedOut();
-        setError("You've been signed out, so the farm wasn't added. Sign in again, then add it.");
+        await saveForLater();
         return;
       }
       if (!res.ok) {
@@ -396,21 +401,16 @@ function AddFarmModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       await addFarmToCache(farm).catch(() => undefined);
       onCreated(farm);
     } catch {
-      // The request may have reached the server and been saved before the answer was lost, so
-      // don't claim nothing was saved. Trying again is safe either way: same farm id.
-      setError(
-        navigator.onLine === false
-          ? "You're offline — adding a farm needs signal. Try again when you're back in range."
-          : "The connection dropped before the server answered, so the farm may or may not have been added. " +
-              "Try again — it won't be added twice.",
-      );
+      await saveForLater();
     } finally {
       setSaving(false);
     }
   };
 
   const notice = getPrivacyContent().collectionNotice;
-  const islands = state.kind === "ok" ? [...new Set(state.options.regions.map((r) => r.island || "Other"))] : [];
+  const regions = options?.regions ?? [];
+  const milkCompanies = options?.milkCompanies ?? [];
+  const islands = [...new Set(regions.map((r) => r.island || "Other"))];
 
   return (
     <div
@@ -421,110 +421,82 @@ function AddFarmModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       }}
     >
       <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="farm-modal-title">
-        {state.kind === "checking" && (
-          <>
-            <div class="modal__title" id="farm-modal-title">
-              Add a new farm
-            </div>
-            <p class="td-muted">Checking the connection…</p>
-          </>
+        <div class="modal__title" id="farm-modal-title">
+          Add a new farm
+        </div>
+        {offline && (
+          <div class="alert alert--info" data-farm-offline>
+            No signal: this farm is saved on this device and sent to the office when you're back in range.
+            You can start testing on it now.
+          </div>
         )}
-
-        {(state.kind === "offline" || state.kind === "signed-out") && (
-          <>
-            <div class="modal__title" id="farm-modal-title">
-              {state.kind === "offline" ? "Adding a farm needs a connection" : "Sign in again to add a farm"}
-            </div>
-            <p>
-              {state.kind === "offline"
-                ? "New farms are set up online, so the office knows about them straight away. You can start a test on any farm already on this device — or add this one when you're back in range."
-                : "Your sign-in has expired. Your tests are safe on this device; sign in again, then add the farm."}
-            </p>
-            <div class="form-actions">
-              {state.kind === "offline" ? (
-                <button type="button" class="btn" onClick={() => setAttempt((n) => n + 1)}>
-                  Try again
-                </button>
-              ) : (
-                <a class="btn" href={`/Account/Login?ReturnUrl=${encodeURIComponent("/App/Tests/New")}`}>
-                  Sign in
-                </a>
-              )}
-              <button type="button" class="btn btn--secondary" onClick={onClose}>
-                Close
-              </button>
-            </div>
-          </>
-        )}
-
-        {state.kind === "ok" && (
-          <>
-            <div class="modal__title" id="farm-modal-title">
-              Add a new farm
-            </div>
-            <div id="farm-modal-errors">{error && <div class="alert alert--danger">{error}</div>}</div>
-            <div class="form-grid">
-              <div class="form-field form-field--full">
-                <label for="nf-name">Farm name</label>
-                <input id="nf-name" type="text" value={values.name ?? ""} onInput={set("name")} />
-              </div>
-              <div class="form-field">
-                <label for="nf-supply">Supply number</label>
-                <input id="nf-supply" type="text" value={values.supplyNumber ?? ""} onInput={set("supplyNumber")} />
-              </div>
-              <div class="form-field">
-                <label for="nf-milkco">Dairy processing company</label>
-                <select id="nf-milkco" value={values.milkSupplyCompanyId ?? ""} onChange={set("milkSupplyCompanyId")}>
-                  <option value="">— Not set —</option>
-                  {state.options.milkCompanies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div class="form-field form-field--full">
-                <label for="nf-region">Region</label>
-                <select id="nf-region" value={values.regionId ?? ""} onChange={set("regionId")}>
-                  <option value="">— Not set —</option>
-                  {islands.map((island) => (
-                    <optgroup key={island} label={island}>
-                      {state.options.regions
-                        .filter((r) => (r.island || "Other") === island)
-                        .map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-              {FIELDS.map(([key, label, id, full]) => (
-                <div key={key} class={`form-field${full ? " form-field--full" : ""}`}>
-                  <label for={id}>{label}</label>
-                  <input id={id} type={key === "contactEmail" ? "email" : "text"} value={values[key] ?? ""} onInput={set(key)} />
-                </div>
+        <div id="farm-modal-errors">{error && <div class="alert alert--danger">{error}</div>}</div>
+        <div class="form-grid">
+          <div class="form-field form-field--full">
+            <label for="nf-name">Farm name</label>
+            <input id="nf-name" type="text" value={values.name ?? ""} onInput={set("name")} />
+          </div>
+          <div class="form-field">
+            <label for="nf-supply">Supply number</label>
+            <input id="nf-supply" type="text" value={values.supplyNumber ?? ""} onInput={set("supplyNumber")} />
+          </div>
+          <div class="form-field">
+            <label for="nf-milkco">Dairy processing company</label>
+            <select id="nf-milkco" value={values.milkSupplyCompanyId ?? ""} onChange={set("milkSupplyCompanyId")}>
+              <option value="">— Not set —</option>
+              {milkCompanies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
-            </div>
-            {notice && (
-              <p class="privacy-notice">
-                <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> {notice}
+            </select>
+          </div>
+          <div class="form-field form-field--full">
+            <label for="nf-region">Region</label>
+            <select id="nf-region" value={values.regionId ?? ""} onChange={set("regionId")}>
+              <option value="">— Not set —</option>
+              {islands.map((island) => (
+                <optgroup key={island} label={island}>
+                  {regions
+                    .filter((r) => (r.island || "Other") === island)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+            {offline && !options && (
+              <p class="form-field__hint">
+                These two lists haven't reached this device yet. Leave them blank: your Company Administrator can set them
+                when they review the farm.
               </p>
             )}
-            <p class="form-field__hint">
-              New farms are flagged for your Company Administrator to review — you can start testing straight away.
-            </p>
-            <div class="form-actions">
-              <button type="button" class="btn" id="nf-create" disabled={saving} onClick={() => void create()}>
-                {saving ? "Adding…" : "Add farm"}
-              </button>
-              <button type="button" class="btn btn--secondary" onClick={onClose}>
-                Cancel
-              </button>
+          </div>
+          {FIELDS.map(([key, label, id, full]) => (
+            <div key={key} class={`form-field${full ? " form-field--full" : ""}`}>
+              <label for={id}>{label}</label>
+              <input id={id} type={key === "contactEmail" ? "email" : "text"} value={values[key] ?? ""} onInput={set(key)} />
             </div>
-          </>
+          ))}
+        </div>
+        {notice && (
+          <p class="privacy-notice">
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> {notice}
+          </p>
         )}
+        <p class="form-field__hint">
+          New farms are flagged for your Company Administrator to review — you can start testing straight away.
+        </p>
+        <div class="form-actions">
+          <button type="button" class="btn" id="nf-create" disabled={saving} onClick={() => void create()}>
+            {saving ? "Adding…" : "Add farm"}
+          </button>
+          <button type="button" class="btn btn--secondary" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );

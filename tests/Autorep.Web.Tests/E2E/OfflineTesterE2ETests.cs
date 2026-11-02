@@ -222,22 +222,14 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         Assert.Equal("local-only", stored.GetProperty("syncState").GetString());
     }
 
-    // Adding a farm stays online-only (Phase 5 was cut). Offline it must say so plainly instead of
-    // failing silently; online it adds the farm and the device can pick it from then on.
+    // Online, a new farm goes straight to the server and into the device's book.
     [Fact]
-    public async Task Adding_a_farm_needs_a_connection_and_then_lands_in_the_farm_book()
+    public async Task A_farm_added_online_lands_in_the_farm_book()
     {
         var (context, page) = await OnlineAndReadyAsync();
         await using var _ = context;
         await WaitForFarmBookAsync(page, OfflineE2EWebAppFactory.RimuFarm);
 
-        await GoOfflineAsync(context);
-        await page.GotoAsync("/App/Tests/New");
-        await page.GetByRole(AriaRole.Button, new() { Name = "＋ Add a new farm" }).ClickAsync();
-        await page.GetByText("Adding a farm needs a connection").WaitForAsync();
-        await page.GetByRole(AriaRole.Button, new() { Name = "Close" }).ClickAsync();
-
-        await GoOnlineAsync(context);
         await page.GotoAsync("/App/Tests/New");
         Assert.False(await IsShellAsync(page));
         await page.GetByRole(AriaRole.Button, new() { Name = "＋ Add a new farm" }).ClickAsync();
@@ -250,6 +242,142 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         await WaitForFarmBookAsync(page, "Totara Valley E2E");
         await page.GetByRole(AriaRole.Button, new() { Name = "Start test" }).ClickAsync();
         await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal));
+    }
+
+    // Jono, 2 Nov 2026: a farm has to be addable on the spot, signal or not. It's picked and tested
+    // straight away, and when the signal returns it reaches the server ahead of its test, with
+    // everything typed into the form: one farm, the test on it, and a review for the administrator.
+    [Fact]
+    public async Task A_farm_added_offline_is_tested_at_once_and_goes_up_ahead_of_its_test()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        await WaitForFarmBookAsync(page, OfflineE2EWebAppFactory.RimuFarm);
+
+        await GoOfflineAsync(context);
+        await page.GotoAsync("/App/Tests/New");
+        Assert.True(await IsShellAsync(page));
+        await page.GetByRole(AriaRole.Button, new() { Name = "＋ Add a new farm" }).ClickAsync();
+        await page.Locator("[data-farm-offline]").WaitForAsync();
+        await page.FillAsync("#nf-name", "Offline Valley E2E");
+        await page.FillAsync("#nf-addr1", "12 Paddock Road");
+        await page.FillAsync("#nf-town", "Te Kuiti");
+        await page.ClickAsync("#nf-create");
+
+        await Assertions.Expect(page.Locator("#farm-search")).ToHaveValueAsync("Offline Valley E2E");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Start test" }).ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal));
+        var testId = new Uri(page.Url).Query.Split("id=")[1];
+        // The Setup step shows what was typed: the wizard took it from the device's queue.
+        await page.GetByText("12 Paddock Road, Te Kuiti").WaitForAsync();
+        await Step(page, "Machine Configuration & Ancillary").ClickAsync();
+        await page.FillAsync("input[placeholder='e.g. 30 a-side']", "12 a-side");
+        await page.Locator(".app-status[data-connection=offline]", new() { HasText = "1 unsent" }).WaitForAsync();
+
+        await page.GotoAsync("/App/Tests");
+        await page.Locator("[data-queued-farms]", new() { HasText = "Offline Valley E2E" }).WaitForAsync();
+
+        await GoOnlineAsync(context);
+
+        Assert.True(await PollAsync(page, @"async ([testerId, testId]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    const get = db.transaction('tests').objectStore('tests').get(testId);
+                    get.onsuccess = () => { db.close(); resolve(get.result?.syncState === 'uploaded'); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })", new[] { _factory.TesterId, testId }), "the test never synced after the farm went up");
+
+        using var scope = _factory.AppServices.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var farm = await db.Farms.SingleAsync(f => f.Name == "Offline Valley E2E");
+        Assert.Equal("12 Paddock Road", farm.AddressLine1);
+        Assert.Equal("Te Kuiti", farm.Town);
+        Assert.NotNull(farm.PendingReviewSince);
+        var stored = await db.MachineTests.SingleAsync(t => t.ClientId == Guid.Parse(testId));
+        Assert.Equal(farm.Id, stored.FarmId);
+    }
+
+    // Editing a signed-off test starts from the test itself, not the list, and it works offline: the
+    // new version is made on the device.
+    [Fact]
+    public async Task A_signed_off_test_is_edited_from_the_test_itself_even_offline()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        await SyncNowAsync(page);
+        var row = page.Locator("tr", new() { HasText = OfflineE2EWebAppFactory.KowhaiFarm });
+        Assert.Equal(0, await row.GetByRole(AriaRole.Button, new() { Name = "Edit" }).CountAsync());
+
+        await GoOfflineAsync(context);
+        await page.GotoAsync("/App/Tests");
+        await row.GetByRole(AriaRole.Link, new() { Name = "View" }).ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal));
+        var originalId = new Uri(page.Url).Query.Split("id=")[1];
+
+        await page.Locator("[data-reopen-offer]").GetByRole(AriaRole.Button, new() { Name = "Edit as a new version" }).ClickAsync();
+
+        await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal) && !url.Contains(originalId, StringComparison.Ordinal));
+        await page.Locator(".page-header--wizard .badge", new() { HasText = "Version 2" }).WaitForAsync();
+        Assert.Equal(0, await page.Locator("[data-reopen-offer]").CountAsync());
+    }
+
+    // Jono, 2 Nov 2026: Next walks the step's tabs before it leaves the step, and Back walks them
+    // the other way, landing on the previous step's last tab.
+    [Fact]
+    public async Task Next_and_Back_walk_a_steps_tabs_before_leaving_the_step()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        await page.GotoAsync($"/App/Tests/Wizard?farmId={_factory.RimuFarmId}&farmName={Uri.EscapeDataString(OfflineE2EWebAppFactory.RimuFarm)}");
+        await page.WaitForURLAsync(url => url.Contains("?id=", StringComparison.Ordinal));
+
+        var tab = page.Locator(".tab.is-active");
+        var next = page.GetByRole(AriaRole.Button, new() { Name = "Next ›" });
+        var back = page.GetByRole(AriaRole.Button, new() { Name = "‹ Back" });
+
+        await Step(page, "Additional Tests").ClickAsync();
+        await Assertions.Expect(tab).ToHaveTextAsync("Peak regulator load");
+        await next.ClickAsync();
+        await Assertions.Expect(tab).ToHaveTextAsync("Final check");
+        Assert.Equal(1, await Step(page, "Additional Tests").Locator("xpath=self::*[contains(@class,'is-current')]").CountAsync());
+
+        await next.ClickAsync();
+        await Assertions.Expect(page.Locator(".wizard__step.is-current")).ToContainTextAsync("Fault Summary");
+
+        await back.ClickAsync();
+        await Assertions.Expect(page.Locator(".wizard__step.is-current")).ToContainTextAsync("Additional Tests");
+        await Assertions.Expect(tab).ToHaveTextAsync("Final check");
+
+        await back.ClickAsync();
+        await Assertions.Expect(tab).ToHaveTextAsync("Peak regulator load");
+        await back.ClickAsync();
+        await Assertions.Expect(page.Locator(".wizard__step.is-current")).ToContainTextAsync("Pulsation");
+        await Assertions.Expect(tab).ToHaveTextAsync("Stability");
+    }
+
+    // The task hub's Next button says where it goes, so it has to name the tab while there is one.
+    [Fact]
+    public async Task The_hub_layouts_Next_names_the_tab_it_opens_before_the_next_step()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        await page.GotoAsync($"/App/Tests/Wizard?farmId={_factory.RimuFarmId}&farmName={Uri.EscapeDataString(OfflineE2EWebAppFactory.RimuFarm)}");
+        await page.WaitForURLAsync(url => url.Contains("?id=", StringComparison.Ordinal));
+        await page.EvaluateAsync("key => localStorage.setItem(key, 'hub')", $"autorep:wizardLayout:{_factory.TesterId}");
+        await page.ReloadAsync();
+
+        await page.Locator(".hubw__card", new() { HasText = "Additional Tests" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Next: Final check ›" }).ClickAsync();
+        await Assertions.Expect(page.Locator(".tab.is-active")).ToHaveTextAsync("Final check");
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Next: Fault Summary & Recommendations ›" }).ClickAsync();
+        await Assertions.Expect(page.Locator(".hubw__focus-step")).ToHaveTextAsync("Fault Summary & Recommendations");
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "‹ Previous" }).ClickAsync();
+        await Assertions.Expect(page.Locator(".tab.is-active")).ToHaveTextAsync("Final check");
     }
 
     // PRD story 34: a test captured with no signal goes up by itself once the signal is back —

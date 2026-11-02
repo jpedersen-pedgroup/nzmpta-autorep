@@ -232,3 +232,11 @@ export function releaserRequirement(
   if (!Number.isFinite(minSpeed) || !Number.isFinite(power)) return null;
   return { minSpeed, power };
 }
+
+/** The head counts the table has a row for at this cluster count, lowest first. */
+export function releaserHeadCounts(clusters: number): number[] {
+  return (releaserJson as ReleaserRow[])
+    .filter((r) => Number(r.clusters) === clusters)
+    .map((r) => Number(r.heads))
+    .sort((a, b) => a - b);
+}
