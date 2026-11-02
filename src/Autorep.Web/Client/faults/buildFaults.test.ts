@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { buildFaultInputs, RATE_BAND_FAULT_KEY, RATIO_BAND_FAULT_KEY, REGULATOR_FAULT_KEY } from "./buildFaults";
+import { applyEquipmentOverrides, clearEquipmentOverrides } from "../reference/catalogOverrides";
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import type { LocalTest, MeasurementRow } from "../db/testStore";
 
@@ -29,6 +30,8 @@ const row = (unit: string, rate: string, ratioFront: string, ratioBack = ""): Me
   ({ id: unit, unit, values: { rate, ratioFront, ratioBack } });
 
 describe("buildFaultInputs · machine checks", () => {
+  afterEach(() => clearEquipmentOverrides());
+
   it("lists regulators the tester judged not correct or not big enough, as a Major fault", () => {
     const fault = buildFaultInputs(makeTest({ regulatorsSuitable: false })).find((f) => f.key === REGULATOR_FAULT_KEY);
     expect(fault).toMatchObject({ component: "Regulator", severity: "Major" });
@@ -71,6 +74,27 @@ describe("buildFaultInputs · machine checks", () => {
     expect(buildFaultInputs(t).find((f) => f.key === RATE_BAND_FAULT_KEY)).toBeUndefined();
     // Without the pin, the same unit is outside today's band.
     expect(buildFaultInputs({ ...t, config: { ...t.config, oemSpecs: null } }).find((f) => f.key === RATE_BAND_FAULT_KEY)).toBeDefined();
+  });
+
+  it("judges an unsigned test by the band in effect on the day it was started", () => {
+    // The legacy band is 59–61 ppm; a wider one is entered to apply from 1 December.
+    applyEquipmentOverrides([
+      {
+        id: "p-1", type: "Pulsator", name: BANDED_MODEL, brand: "Dairymaster",
+        specs: [
+          { effectiveFrom: null, spec: { rateMin: 59, rateMax: 61, ratioMin: 59, ratioMax: 69 } },
+          { effectiveFrom: "2026-12-01", spec: { rateMin: 55, rateMax: 65, ratioMin: 59, ratioMax: 69 } },
+        ],
+      },
+    ]);
+    const rateFault = (oemSpecs: MachineConfiguration["oemSpecs"]) =>
+      buildFaultInputs(makeTest({ pulsatorModel: BANDED_MODEL, pulsatorBrand: "Dairymaster", oemSpecs }, [row("3", "58", "62")]))
+        .find((f) => f.key === RATE_BAND_FAULT_KEY);
+
+    expect(rateFault({ asOf: "2026-11-30" })).toBeDefined();
+    expect(rateFault({ asOf: "2026-12-01" })).toBeUndefined();
+    // A test from before dated specs stays on the legacy band, however far on it is reprinted.
+    expect(rateFault(undefined)).toBeDefined();
   });
 
   it("keeps the tester's own recommendation for a machine check", () => {
