@@ -54,10 +54,17 @@
         var type = document.getElementById('eq-type');
         var brand = document.getElementById('eq-brand-field');
         var specs = document.querySelectorAll('[data-spec-type]');
+        var specBox = document.querySelector('[data-spec-any]');
         var branded = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Autorep.Web.Domain.Entities.EquipmentItem.BrandedTypes));
         function refresh() {
             brand.style.display = branded.indexOf(type.value) >= 0 ? '' : 'none';
-            specs.forEach(function (s) { s.style.display = s.getAttribute('data-spec-type') === type.value ? '' : 'none'; });
+            var shown = false;
+            specs.forEach(function (s) {
+                var match = s.getAttribute('data-spec-type') === type.value;
+                s.style.display = match ? '' : 'none';
+                shown = shown || match;
+            });
+            specBox.style.display = shown ? '' : 'none';
         }
         type.addEventListener('change', refresh);
         refresh();

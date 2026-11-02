@@ -46,7 +46,8 @@ public sealed record VacuumPumpSpec
     public double? WaterFlowRate { get; init; }
 }
 
-/// <summary>Reads and writes <see cref="EquipmentItem.SpecJson"/>.</summary>
+/// <summary>Reads and writes OEM specs (<see cref="EquipmentSpecVersion.SpecJson"/>) and picks the
+/// version in effect on a date.</summary>
 public static class OemSpecs
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -60,17 +61,25 @@ public static class OemSpecs
 
     public static bool HasSpec(string type) => SpecTypes.Contains(type);
 
-    public static PulsatorSpec? Pulsator(EquipmentItem item) =>
-        item.Type == EquipmentItem.Pulsator ? Parse<PulsatorSpec>(item.SpecJson) : null;
+    /// <summary>The versions oldest first; the one in effect from the start leads.</summary>
+    public static IEnumerable<EquipmentSpecVersion> InOrder(IEnumerable<EquipmentSpecVersion> versions) =>
+        versions.OrderBy(v => v.EffectiveFrom ?? DateOnly.MinValue);
 
-    public static VacuumPumpSpec? VacuumPump(EquipmentItem item) =>
-        item.Type == EquipmentItem.VacuumPump ? Parse<VacuumPumpSpec>(item.SpecJson) : null;
+    /// <summary>The version in effect on <paramref name="date"/> (an NZ date), or null when none is yet.</summary>
+    public static EquipmentSpecVersion? InEffect(IEnumerable<EquipmentSpecVersion> versions, DateOnly date) =>
+        InOrder(versions).LastOrDefault(v => v.EffectiveFrom is null || v.EffectiveFrom <= date);
 
-    /// <summary>The item's spec as its typed record, or null when it has none.</summary>
-    public static object? For(EquipmentItem item) => item.Type switch
+    public static PulsatorSpec? Pulsator(EquipmentItem item, DateOnly date) =>
+        item.Type == EquipmentItem.Pulsator ? Parse<PulsatorSpec>(InEffect(item.SpecVersions, date)?.SpecJson) : null;
+
+    public static VacuumPumpSpec? VacuumPump(EquipmentItem item, DateOnly date) =>
+        item.Type == EquipmentItem.VacuumPump ? Parse<VacuumPumpSpec>(InEffect(item.SpecVersions, date)?.SpecJson) : null;
+
+    /// <summary>A stored spec as the typed record for <paramref name="type"/>, or null for none.</summary>
+    public static object? Parse(string type, string? json) => type switch
     {
-        EquipmentItem.Pulsator => Pulsator(item),
-        EquipmentItem.VacuumPump => VacuumPump(item),
+        EquipmentItem.Pulsator => Parse<PulsatorSpec>(json),
+        EquipmentItem.VacuumPump => Parse<VacuumPumpSpec>(json),
         _ => null,
     };
 

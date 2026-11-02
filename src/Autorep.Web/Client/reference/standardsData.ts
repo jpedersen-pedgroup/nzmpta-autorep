@@ -13,7 +13,8 @@ import vacuumPumpsJson from "./vacuumPumps.json";
 import milkPumpsJson from "./milkPumps.json";
 import releaserJson from "./releaserSpeedPower.json";
 import reserveReceiverJson from "./reserveReceiver.json";
-import { syncedSpecItems, type EquipmentDto } from "./catalogOverrides";
+import { specAsOf, syncedSpecItems, type EquipmentDto } from "./catalogOverrides";
+import { nzDate } from "../wizard/nextTestDate";
 
 /** A pulsator model's OEM spec (legacy `Pulsator`): rate in ppm, ratios and phases in %. Only the
  * rate and ratio bands are judged; the rest is held for reference. A synced spec can leave any figure
@@ -149,21 +150,27 @@ const bandsByName = new Map<string, PulsatorBand>(
   (pulsatorBandsJson as PulsatorBand[]).map((b) => [collapse(b.name), b]),
 );
 
-/** The current OEM spec for a pulsator model, or null when the model is unknown/unset or its spec has
- * no band (see hasPulsatorBand). The synced OEM Specs answer when they have the model - by id, then
- * name - even when its spec is empty; otherwise the bundled legacy band for that name. A test that was
- * signed off against a spec reads it through oemSpecs.ts instead. */
+/** Today in New Zealand, yyyy-mm-dd: the date OEM spec versions are compared against. */
+export const nzToday = (): string => nzDate(new Date().toISOString());
+
+/** The OEM spec for a pulsator model in effect on `asOf` (yyyy-mm-dd; null for the one in effect from
+ * the start, the legacy spec), or null when the model is unknown/unset or its spec has no band (see
+ * hasPulsatorBand). The synced OEM Specs answer when they have the model - by id, then name - even
+ * when its spec is empty; otherwise the bundled legacy band for that name, which is the spec from the
+ * start. A test reads its spec through oemSpecs.ts, which knows the test's date and pins. */
 export function pulsatorBandFor(
   model: string | null | undefined,
   brand?: string | null,
   equipmentId?: string | null,
+  asOf: string | null = nzToday(),
 ): PulsatorBand | null {
   if (!model) return null;
   const synced = syncedSpecItems("Pulsator");
   const item = synced ? syncedItem(synced, equipmentId, brand, model, false) : null;
+  const spec = item ? specAsOf(item, asOf) : null;
   const band: PulsatorBand | null = item
-    ? item.spec
-      ? { name: item.name, brand: item.brand ?? "", ...pulsatorSpecOf(item.spec) }
+    ? spec
+      ? { name: item.name, brand: item.brand ?? "", ...pulsatorSpecOf(spec) }
       : null
     : (bandsByName.get(collapse(model)) ?? null);
   return band && hasPulsatorBand(band) ? band : null;
@@ -174,21 +181,23 @@ const pumpsByMakeModel = new Map<string, VacuumPumpModel>(
   VACUUM_PUMPS.map((p) => [pumpKey(p.make, p.model), p]),
 );
 
-/** The current OEM spec for a vacuum pump, or null when the make/model isn't in the OEM Specs (a pump
- * typed in by hand) or carries no usable airflow figure. The synced OEM Specs answer first, as for
- * pulsators; then the bundled legacy curve. Matched case- and spacing-insensitively: the make may
- * have been typed rather than picked. */
+/** The OEM spec for a vacuum pump in effect on `asOf` (as pulsatorBandFor), or null when the make/model
+ * isn't in the OEM Specs (a pump typed in by hand) or carries no usable airflow figure. The synced OEM
+ * Specs answer first, as for pulsators; then the bundled legacy curve. Matched case- and
+ * spacing-insensitively: the make may have been typed rather than picked. */
 export function vacuumPumpFor(
   make: string | null | undefined,
   model: string | null | undefined,
   equipmentId?: string | null,
+  asOf: string | null = nzToday(),
 ): VacuumPumpModel | null {
   if (!make || !model) return null;
   const synced = syncedSpecItems("VacuumPump");
   const item = synced ? syncedItem(synced, equipmentId, make, model, true) : null;
+  const spec = item ? specAsOf(item, asOf) : null;
   const pump: VacuumPumpModel | null = item
-    ? item.spec
-      ? { make: item.brand ?? make, model: item.name, ...vacuumPumpSpecOf(item.spec) }
+    ? spec
+      ? { make: item.brand ?? make, model: item.name, ...vacuumPumpSpecOf(spec) }
       : null
     : (pumpsByMakeModel.get(pumpKey(make, model)) ?? null);
   return pump && hasPumpCurve(pump) ? pump : null;

@@ -55,3 +55,55 @@
         </div>
     </form>
 </div>
+
+@if (hasSpec)
+{
+    <div class="card" style="max-width:760px; margin-top:1.5rem">
+        <h2 class="card__title">Spec history</h2>
+        <div class="form-field__hint">
+            A test is judged against the spec in effect on the day it was started. Specs already in effect
+            don't change; a scheduled one can be changed or removed until its day.
+        </div>
+        @if (Model.History.Count == 0)
+        {
+            <p class="td-muted">No spec yet: tests of this model get no spec verdict.</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Applies from</th><th>Spec</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var v in Model.History)
+                        {
+                            <tr>
+                                <td>@(v.EffectiveFrom?.ToString("d MMM yyyy") ?? "The start (legacy AutoRep)")</td>
+                                <td>@(v.Summary ?? "No spec")</td>
+                                <td>
+                                    @if (v.InEffect) { <span class="badge badge--success">In effect</span> }
+                                    else if (v.Scheduled) { <span class="badge badge--info">Scheduled</span> }
+                                    else { <span class="badge">Earlier</span> }
+                                </td>
+                                <td>
+                                    @if (v.Scheduled || v.EffectiveFrom == Model.Today)
+                                    {
+                                        <a class="btn btn--secondary" asp-page="/Admin/Equipment/Edit" asp-route-id="@Model.Id"
+                                           asp-route-from="@v.EffectiveFrom?.ToString("yyyy-MM-dd")">Change</a>
+                                    }
+                                    @if (v.Scheduled)
+                                    {
+                                        <form method="post" asp-page-handler="DeleteVersion" asp-route-id="@Model.Id" style="display:inline"
+                                              onsubmit="return confirm('Remove the spec scheduled for @v.EffectiveFrom?.ToString("d MMM yyyy")?');">
+                                            <input type="hidden" name="versionId" value="@v.Id" />
+                                            <button type="submit" class="btn btn--danger-soft">Remove</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}

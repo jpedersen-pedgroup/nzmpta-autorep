@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { applyEquipmentOverrides, clearEquipmentOverrides, type EquipmentDto } from "./catalogOverrides";
+import { applyEquipmentOverrides, clearEquipmentOverrides, specAsOf, type EquipmentDto } from "./catalogOverrides";
 import {
   pulsatorEquipmentId,
+  startOemSpecs,
   pulsatorSpecFor,
   stampOemSpecs,
   vacuumPumpEquipmentId,
@@ -191,5 +192,96 @@ describe("the OEM specs a test was signed off against", () => {
     expect(shown.pulsatorEquipmentId).toBe("p-1");
     expect(withOemSpecsFrom(undefined, columns)).toEqual(columns);
     expect(Object.keys(withOemSpecsFrom(cfg(), columns))).not.toContain("oemSpecs");
+  });
+});
+
+describe("dated OEM spec versions", () => {
+  // The legacy band from the start, and a change Maria has entered to apply from 1 December.
+  const dated = (over: Partial<EquipmentDto> = {}): EquipmentDto =>
+    pulsator({
+      spec: { rateMin: 58, rateMax: 62 },
+      specs: [
+        { effectiveFrom: null, spec: { rateMin: 58, rateMax: 62 } },
+        { effectiveFrom: "2026-12-01", spec: { rateMin: 55, rateMax: 65 } },
+      ],
+      ...over,
+    });
+  const p1 = (oemSpecs?: MachineConfiguration["oemSpecs"]) =>
+    cfg({ pulsatorBrand: "NewCo", pulsatorModel: "NewCo P1", pulsatorEquipmentId: "p-1", oemSpecs });
+
+  it("dates a new test by the New Zealand day it was started", () => {
+    expect(startOemSpecs("2026-11-30T12:00:00.000Z")).toEqual({ asOf: "2026-12-01" }); // 1 am NZDT
+    expect(startOemSpecs("2026-11-30T10:00:00.000Z")).toEqual({ asOf: "2026-11-30" });
+  });
+
+  it("judges a test against the version in effect on the day it was started", () => {
+    applyEquipmentOverrides([dated()]);
+    expect(pulsatorSpecFor(p1(startOemSpecs("2026-11-30T10:00:00.000Z")))).toMatchObject({ rateMin: 58, rateMax: 62 });
+    expect(pulsatorSpecFor(p1(startOemSpecs("2026-11-30T12:00:00.000Z")))).toMatchObject({ rateMin: 55, rateMax: 65 });
+    expect(pulsatorSpecFor(p1({ asOf: "2027-03-01" }))).toMatchObject({ rateMin: 55 });
+  });
+
+  it("doesn't change spec part-way through a test when the change comes into effect", () => {
+    applyEquipmentOverrides([dated()]);
+    const started = p1({ asOf: "2026-11-30" });
+    const atSignOff = { ...started, oemSpecs: stampOemSpecs(started) }; // signed off on 2 December
+    expect(atSignOff.oemSpecs.asOf).toBe("2026-11-30");
+    expect(atSignOff.oemSpecs.pulsator?.spec).toMatchObject({ rateMin: 58, rateMax: 62 });
+    expect(pulsatorSummary(rows(64), atSignOff).rateBandOk).toBe(false);
+  });
+
+  it("keeps a test from before dated specs on the legacy spec, whatever is entered later", () => {
+    // In progress or signed off before this release: no date and no pins.
+    applyEquipmentOverrides([dated()]);
+    const old = p1(undefined);
+    expect(pulsatorSpecFor(old)).toMatchObject({ rateMin: 58, rateMax: 62 });
+    expect(pulsatorSummary(rows(64), old).rateBandOk).toBe(false);
+    // Signed off now, it pins the legacy spec too.
+    expect(stampOemSpecs(old)).toEqual({
+      pulsator: { equipmentId: "p-1", brand: "NewCo", name: "NewCo P1", spec: expect.objectContaining({ rateMin: 58 }) },
+      vacuumPumps: [null],
+    });
+  });
+
+  it("gives an older test no verdict for a model whose first spec is dated later", () => {
+    // Added on the OEM Specs pages with a spec from 1 December: nothing applied before.
+    applyEquipmentOverrides([pulsator({ specs: [{ effectiveFrom: "2026-12-01", spec: { rateMin: 55, rateMax: 65 } }] })]);
+    expect(pulsatorSpecFor(p1(undefined))).toBeNull();
+    expect(pulsatorSpecFor(p1({ asOf: "2026-11-30" }))).toBeNull();
+    expect(pulsatorSpecFor(p1({ asOf: "2026-12-01" }))).toMatchObject({ rateMin: 55 });
+  });
+
+  it("reads a version that says the model has no spec from a date", () => {
+    applyEquipmentOverrides([dated({ specs: [{ effectiveFrom: null, spec: { rateMin: 58, rateMax: 62 } }, { effectiveFrom: "2026-12-01", spec: null }] })]);
+    expect(pulsatorSpecFor(p1({ asOf: "2026-11-30" }))).toMatchObject({ rateMin: 58 });
+    expect(pulsatorSpecFor(p1({ asOf: "2026-12-05" }))).toBeNull();
+  });
+
+  it("picks the latest version on or before the date, and reads an older cache as one version from the start", () => {
+    const item = dated({
+      specs: [
+        { effectiveFrom: null, spec: { rateMin: 1 } },
+        { effectiveFrom: "2026-12-01", spec: { rateMin: 2 } },
+        { effectiveFrom: "2027-01-01", spec: { rateMin: 3 } },
+      ],
+    });
+    expect(specAsOf(item, null)).toEqual({ rateMin: 1 });
+    expect(specAsOf(item, "2026-11-30")).toEqual({ rateMin: 1 });
+    expect(specAsOf(item, "2026-12-01")).toEqual({ rateMin: 2 });
+    expect(specAsOf(item, "2027-06-30")).toEqual({ rateMin: 3 });
+    // Cached before effective dates: `spec` alone, which was the spec from the start.
+    expect(specAsOf({ type: "Pulsator", name: "X", spec: { rateMin: 9 } }, "2027-01-01")).toEqual({ rateMin: 9 });
+  });
+
+  it("dates vacuum pump specs the same way", () => {
+    applyEquipmentOverrides([
+      {
+        id: "v-1", type: "VacuumPump", name: "DVP1600", brand: "De Laval",
+        specs: [{ effectiveFrom: null, spec: { airFlow: 1.15 } }, { effectiveFrom: "2026-12-01", spec: { airFlow: 1.2 } }],
+      },
+    ]);
+    const pump = (asOf: string) => cfg({ vacuumPumps: [{ make: "De Laval", model: "DVP1600" }], oemSpecs: { asOf } });
+    expect(deriveReadings(pump("2026-11-30"), { "tr.pumpMaxSpeed1": 1400 })["tr.pumpOemCapacity1"]).toBe(1610);
+    expect(deriveReadings(pump("2026-12-01"), { "tr.pumpMaxSpeed1": 1400 })["tr.pumpOemCapacity1"]).toBe(1680);
   });
 });

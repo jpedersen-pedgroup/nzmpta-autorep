@@ -18,6 +18,7 @@
                                 <td>
                                     @if (r.Spec is not null) { @r.Spec }
                                     else { <span class="badge badge--warning">No spec</span> }
+                                    @if (r.NextChange is { } next) { <span class="badge badge--info">Changes @next.ToString("d MMM yyyy")</span> }
                                 </td>
                             }
                             <td>
@@ -40,8 +41,9 @@
             The equipment behind the Machine Configuration dropdowns — shells, liners, pulsator models,
             vacuum and releaser pumps, regulator types, milkline sizes and pulsator configurations — and
             the OEM specs tests are judged against: each pulsator model's rate and ratio bands, and each
-            vacuum pump's air flow. Changes sync to testers' devices the next time they're online. A test
-            keeps the specs it was signed off against, so editing a spec doesn't change finished tests.
+            vacuum pump's air flow. Changes sync to testers' devices the next time they're online. A spec
+            change applies from a date you choose: tests started on or after it are judged against it,
+            and devices switch over on the day. Finished tests keep the specs they were judged against.
             Deactivate an item to hide it from new tests without affecting historical tests.
         </p>
     </div>

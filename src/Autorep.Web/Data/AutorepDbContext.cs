@@ -37,6 +37,7 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<TestStandard> TestStandards => Set<TestStandard>();
     public DbSet<EquipmentItem> EquipmentItems => Set<EquipmentItem>();
+    public DbSet<EquipmentSpecVersion> EquipmentSpecVersions => Set<EquipmentSpecVersion>();
     public DbSet<FaultObservation> FaultObservations => Set<FaultObservation>();
     public DbSet<PrivacyContent> PrivacyContent => Set<PrivacyContent>();
     public DbSet<FinalReportBlob> FinalReportBlobs => Set<FinalReportBlob>();
@@ -277,7 +278,12 @@ public class AutorepDbContext : IdentityDbContext<Tester, IdentityRole, string>
             eq.Property(e => e.Name).HasMaxLength(200).IsRequired();
             eq.Property(e => e.Brand).HasMaxLength(100);
             eq.HasIndex(e => new { e.Type, e.Name, e.Brand }).IsUnique();
+            eq.HasMany(e => e.SpecVersions).WithOne().HasForeignKey(v => v.EquipmentItemId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        // One version per date per item. (EF filters out the undated, from-the-start version; only
+        // the one-off seed writes those.)
+        builder.Entity<EquipmentSpecVersion>(v => v.HasIndex(x => new { x.EquipmentItemId, x.EffectiveFrom }).IsUnique());
 
         builder.Entity<AppliedSeed>(seed =>
         {

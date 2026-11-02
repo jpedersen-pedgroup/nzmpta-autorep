@@ -7,7 +7,8 @@ namespace Autorep.Web.Pages.Admin.Equipment;
 /// The OEM spec fields on the New/Edit pages (shared partial _SpecFields), for the types that carry
 /// a spec (<see cref="OemSpecs.HasSpec"/>). Every figure is optional: a model with no rate band
 /// simply gets no rate verdict on the device. What is entered must make sense, though, because the
-/// device judges every pulsator a test records against it.
+/// device judges every pulsator a test records against it. Saving writes a version dated
+/// <see cref="EffectiveFrom"/> (see <see cref="EquipmentSpecVersion"/>).
 /// </summary>
 public class SpecInput
 {
@@ -30,12 +31,18 @@ public class SpecInput
     public double? MotorSizeFactor { get; set; }
     public double? WaterFlowRate { get; set; }
 
-    public static SpecInput From(EquipmentItem item)
+    /// <summary>The New Zealand date the figures apply from: tests started on or after it are judged
+    /// against them. Today or later, so a finished test can't be judged differently afterwards.</summary>
+    public DateOnly? EffectiveFrom { get; set; }
+
+    /// <summary>The form filled from a stored spec (null for none), to apply from <paramref name="effectiveFrom"/>.</summary>
+    public static SpecInput From(string type, string? specJson, DateOnly effectiveFrom)
     {
-        var p = OemSpecs.Pulsator(item);
-        var v = OemSpecs.VacuumPump(item);
+        var p = OemSpecs.Parse(type, specJson) as PulsatorSpec;
+        var v = OemSpecs.Parse(type, specJson) as VacuumPumpSpec;
         return new SpecInput
         {
+            EffectiveFrom = effectiveFrom,
             RateMin = p?.RateMin, RateMax = p?.RateMax, RatioMin = p?.RatioMin, RatioMax = p?.RatioMax,
             PhaseB = p?.PhaseB, PhaseD = p?.PhaseD, MaxChamberVacuum = p?.MaxChamberVacuum,
             RecommendedRate = p?.RecommendedRate, RecommendedRatio = p?.RecommendedRatio,
@@ -45,8 +52,8 @@ public class SpecInput
         };
     }
 
-    /// <summary>The <see cref="EquipmentItem.SpecJson"/> for an item of <paramref name="type"/>: null
-    /// for a type without specs, or when nothing is entered.</summary>
+    /// <summary>The <see cref="EquipmentSpecVersion.SpecJson"/> for an item of <paramref name="type"/>:
+    /// null for a type without specs, or when nothing is entered.</summary>
     public string? ToSpecJson(string type) => type switch
     {
         EquipmentItem.Pulsator => OemSpecs.Serialize(new PulsatorSpec
@@ -95,6 +102,16 @@ public class SpecInput
         return errors.Count == before;
     }
 
+    /// <summary>Adds a message when the effective date is missing or before <paramref name="today"/>
+    /// (an NZ date); true when it is fine.</summary>
+    public bool ValidateEffectiveFrom(DateOnly today, ICollection<string> errors)
+    {
+        if (EffectiveFrom is null) errors.Add("Enter the date the spec applies from.");
+        else if (EffectiveFrom < today) errors.Add("The spec can't apply from a date before today: a test already done is judged against the spec of its day.");
+        else return true;
+        return false;
+    }
+
     // A pulsator band is a pair: the device needs both ends to judge against it.
     private static void Band(string label, double? min, double? max, double ceiling, string unit, ICollection<string> errors)
     {
@@ -124,20 +141,35 @@ public class SpecInput
 
     private static string N(double d) => d.ToString("0.###", CultureInfo.InvariantCulture);
 
-    /// <summary>A one-line summary for the OEM Specs list ("Rate 57–63 ppm · Ratio 60–70%"), or null
-    /// when the item has no spec.</summary>
-    public static string? Summary(EquipmentItem item)
+    /// <summary>A one-line summary of a stored spec ("Rate 57–63 ppm · Ratio 60–70%"), or null when
+    /// there is none.</summary>
+    /// <param name="detailed">Every figure, for the history table, where two versions may differ only
+    /// in one the short form leaves out.</param>
+    public static string? Summary(string type, string? specJson, bool detailed = false)
     {
         var parts = new List<string>();
-        if (OemSpecs.Pulsator(item) is { } p)
+        var spec = OemSpecs.Parse(type, specJson);
+        void Add(string label, double? value, string unit = "")
+        {
+            if (detailed && value is not null) parts.Add($"{label} {N(value.Value)}{unit}");
+        }
+        if (spec is PulsatorSpec p)
         {
             if (p.RateMin is not null && p.RateMax is not null) parts.Add($"Rate {N(p.RateMin.Value)}–{N(p.RateMax.Value)} ppm");
             if (p.RatioMin is not null && p.RatioMax is not null) parts.Add($"Ratio {N(p.RatioMin.Value)}–{N(p.RatioMax.Value)}%");
+            Add("recommended rate", p.RecommendedRate, " ppm");
+            Add("recommended ratio", p.RecommendedRatio, "%");
+            Add("phase b", p.PhaseB, "%");
+            Add("phase d", p.PhaseD, "%");
+            Add("max chamber vacuum", p.MaxChamberVacuum);
+            if (detailed && p.MaxClustersPerPulsator is { } clusters) parts.Add($"max clusters {clusters}");
         }
-        else if (OemSpecs.VacuumPump(item) is { } v)
+        else if (spec is VacuumPumpSpec v)
         {
             if (v.AirFlow is not null) parts.Add($"{N(v.AirFlow.Value)} L/min per rpm");
             if (v.MinRpm is not null && v.MaxRpm is not null) parts.Add($"{N(v.MinRpm.Value)}–{N(v.MaxRpm.Value)} rpm");
+            Add("motor size factor", v.MotorSizeFactor);
+            Add("water flow rate", v.WaterFlowRate);
         }
         else
         {

@@ -60,9 +60,13 @@ export interface PinnedSpec<T> {
   spec: T | null;
 }
 
-/** The OEM Specs a signed-off test was judged against - the same idea as the stored 2g/2h readings,
- * so a later edit to a spec doesn't change a finished test's verdicts. */
+/** Which OEM Specs a test is judged against: the day it was started, set when it is created, and - from
+ * sign-off - the figures themselves, the same idea as the stored 2g/2h readings, so a later edit to a
+ * spec doesn't change a finished test's verdicts. */
 export interface OemSpecSnapshot {
+  /** The NZ day the test was started (yyyy-mm-dd): it is judged against the spec versions in effect
+   * then. Absent on a test from before dated specs, which is judged against the spec from the start. */
+  asOf?: string | null;
   pulsator?: PinnedSpec<PulsatorSpec> | null;
   /** By pump position, like the pump rows. */
   vacuumPumps?: (PinnedSpec<VacuumPumpSpec> | null)[];
@@ -90,9 +94,9 @@ export interface MachineConfiguration {
   pulsatorModel?: string | null;
   /** The OEM Specs item picked as the pulsator model (see VacuumPumpDetail.equipmentId). */
   pulsatorEquipmentId?: string | null;
-  /** The OEM Specs this test was judged against, stamped at sign-off (reference/oemSpecs.ts). Not
-   * something the tester edits; held here so everything that judges a test from its configuration
-   * sees it. */
+  /** The OEM Specs this test is judged against: dated when the test is created, stamped at sign-off
+   * (reference/oemSpecs.ts). Not something the tester edits; held here so everything that judges a
+   * test from its configuration sees it. */
   oemSpecs?: OemSpecSnapshot | null;
   /** Pulsator configuration (legacy PulsatorSize, e.g. "2 X 2", "4 + 0"). */
   pulsatorConfiguration?: string | null;
