@@ -102,6 +102,29 @@ public class UserAdminPageTests : IClassFixture<AuthedWebAppFactory>
         (await users.GetRolesAsync((await users.FindByIdAsync(userId))!)).Should().Equal(Roles.SuperAdministrator);
     }
 
+    // ---- Two-factor -----------------------------------------------------------------------------
+
+    // No role must use two-factor by default (MfaOptions), so the reset doesn't promise a set-up
+    // that won't happen.
+    [Fact]
+    public async Task Resetting_two_factor_turns_it_off_and_says_the_next_sign_in_is_password_only()
+    {
+        var userId = await SeedUserAsync(null, Roles.SuperAdministrator);
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<Tester>>();
+            (await users.SetTwoFactorEnabledAsync((await users.FindByIdAsync(userId))!, true)).Succeeded.Should().BeTrue();
+        }
+
+        var res = await PostAsync($"/Admin/Testers/Edit/{userId}?handler=ResetTwoFactor", []);
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        WebUtility.HtmlDecode(await res.Content.ReadAsStringAsync())
+            .Should().Contain("their next sign-in needs the password only.")
+            .And.NotContain("set up a new authenticator straight away");
+        (await FindUserByIdAsync(userId))!.TwoFactorEnabled.Should().BeFalse();
+    }
+
     // ---- Change company -------------------------------------------------------------------------
 
     [Fact]

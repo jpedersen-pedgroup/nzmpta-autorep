@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Autorep.Web.Pages.Admin.Testers;
 
@@ -17,17 +18,20 @@ public class EditModel : PageModel
     private readonly AutorepDbContext _db;
     private readonly IEmailSender _email;
     private readonly RefreshTokenService _refresh;
+    private readonly MfaOptions _mfa;
 
     public EditModel(
         UserManager<Tester> users,
         AutorepDbContext db,
         IEmailSender email,
-        RefreshTokenService refresh)
+        RefreshTokenService refresh,
+        IOptions<MfaOptions> mfa)
     {
         _users = users;
         _db = db;
         _email = email;
         _refresh = refresh;
+        _mfa = mfa.Value;
     }
 
     [BindProperty(SupportsGet = true)]
@@ -266,7 +270,9 @@ public class EditModel : PageModel
         // Invalidates auth cookies AND the "trust this device" cookies, which carry the stamp too.
         await _users.UpdateSecurityStampAsync(EditingUser!);
         await _refresh.RevokeAllAsync(EditingUser!.Id, "two-factor-reset");
-        Message = "Two-factor reset. Open sessions end within a minute; their next sign-in needs the password only, and a Super Administrator will be asked to set up a new authenticator straight away.";
+        Message = "Two-factor reset. Open sessions end within a minute; their next sign-in needs the password only.";
+        if (_mfa.IsRequiredFor(await _users.GetRolesAsync(EditingUser!)))
+            Message += " Their role requires two-factor, so they'll be asked to set up a new authenticator straight away.";
         await LoadAsync(hydrateForGet: true);
         return Page();
     }
