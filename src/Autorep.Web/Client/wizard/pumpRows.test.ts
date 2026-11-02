@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isBlankPumpRow, isBlankRegulatorRow, regulatorRows, releaserPumpRows, vacuumPumpRows, withRow } from "./pumpRows";
+import { hasDiaphragmReleaser, isBlankPumpRow, isBlankRegulatorRow, regulatorRows, releaserPumpRows, vacuumPumpRows, withRow } from "./pumpRows";
 import { defaultMachineConfiguration, type MachineConfiguration, type VacuumPumpDetail } from "./types";
 
 const cfg = (over: Partial<MachineConfiguration> = {}): MachineConfiguration => ({
@@ -46,6 +46,26 @@ describe("releaserPumpRows", () => {
     expect(
       releaserPumpRows(cfg({ hasReleaserPump: true, releaserPumps: [{ make: "READ" }, { make: "GEA" }] })),
     ).toHaveLength(2);
+  });
+});
+
+describe("hasDiaphragmReleaser", () => {
+  const with_ = (make?: string) => cfg({ hasReleaserPump: true, releaserPumps: [{ make }] });
+
+  it("is an Effco / Flynn, picked from the catalogue or typed", () => {
+    expect(hasDiaphragmReleaser(with_("EFFCO / FLYNN"))).toBe(true);
+    expect(hasDiaphragmReleaser(with_("Flynn"))).toBe(true);
+    expect(hasDiaphragmReleaser(with_("effco"))).toBe(true);
+  });
+
+  it("looks at every releaser on the plant", () => {
+    expect(hasDiaphragmReleaser(cfg({ hasReleaserPump: true, releaserPumps: [{ make: "READ" }, { make: "EFFCO / FLYNN" }] }))).toBe(true);
+  });
+
+  it("is nothing else: another make, no make, or no releaser ticked", () => {
+    expect(hasDiaphragmReleaser(with_("READ"))).toBe(false);
+    expect(hasDiaphragmReleaser(with_(undefined))).toBe(false);
+    expect(hasDiaphragmReleaser(cfg({ hasReleaserPump: false, releaserPumps: [{ make: "EFFCO / FLYNN" }] }))).toBe(false);
   });
 });
 

@@ -122,7 +122,7 @@ describe("airflow tests rules (manual p41 / ISO C.5)", () => {
     const airflow = airflowSections(config).map((s) => s.key);
     expect(airflow).toEqual(["AirlineMilkSystemLeakage", "AcrConsumption", "ClusterAirAdmission"]);
     const additional = additionalTestSections({ ...config, hasMilkMeters: true }).map((s) => s.key);
-    expect(additional).toEqual(["MilkMeter", "RegulatorLoad"]);
+    expect(additional).toEqual(["MilkMeter", "RegulatorLoad", "FinalCheck"]);
   });
 
   it("folds the pump exhaust (9) into the vacuum-pump section, after the per-pump rows", () => {
@@ -234,31 +234,118 @@ describe("admin-managed standard overrides", () => {
 });
 
 describe("releaser pump minimum speed/power (legacy MinSpeedPowerCal)", () => {
+  const diaphragm = (clusterCount: number) => ({
+    ...defaultMachineConfiguration(),
+    clusterCount,
+    hasReleaserPump: true,
+    releaserPumps: [{ make: "EFFCO / FLYNN", model: "DIAPHRAGM" }],
+  });
+
   it("stays capture-only until the head count is entered", () => {
-    const config = { ...defaultMachineConfiguration(), clusterCount: 20, hasReleaserPump: true };
-    const secs = additionalTestSections(config);
+    const secs = additionalTestSections(diaphragm(20));
     expect(reading(secs, "add.releaserHeads").rule).toEqual({ kind: "none" });
     expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "none" });
     expect(reading(secs, "add.releaserPower").rule).toEqual({ kind: "none" });
   });
 
-  it("applies the table row for the cluster count × heads (20 × 2 → ≥44 rpm, ≥0.6 kW)", () => {
-    const config = { ...defaultMachineConfiguration(), clusterCount: 20, hasReleaserPump: true };
-    const secs = additionalTestSections(config, { "add.releaserHeads": 2 });
+  it("applies the table row for the cluster count × heads (20 × 2 → ≥44 spm, ≥0.6 kW)", () => {
+    const secs = additionalTestSections(diaphragm(20), { "add.releaserHeads": 2 });
     expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "atLeast", min: 44 });
     expect(reading(secs, "add.releaserPower").rule).toEqual({ kind: "atLeast", min: 0.6 });
   });
 
-  it("more heads lowers the minimum speed (20 × 4 → ≥22 rpm)", () => {
-    const config = { ...defaultMachineConfiguration(), clusterCount: 20, hasReleaserPump: true };
-    const secs = additionalTestSections(config, { "add.releaserHeads": 4 });
+  it("more heads lowers the minimum speed (20 × 4 → ≥22 spm)", () => {
+    const secs = additionalTestSections(diaphragm(20), { "add.releaserHeads": 4 });
     expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "atLeast", min: 22 });
   });
 
+  it("reads a diaphragm pump's speed in strokes per minute", () => {
+    const speed = reading(additionalTestSections(diaphragm(12), { "add.releaserHeads": 2 }), "add.releaserSpeed");
+    expect(speed.unit).toBe("spm");
+    expect(speed.hint).toContain("≥ 26 spm");
+  });
+
   it("has no standard outside the table (44 clusters), matching legacy", () => {
-    const config = { ...defaultMachineConfiguration(), clusterCount: 44, hasReleaserPump: true };
-    const secs = additionalTestSections(config, { "add.releaserHeads": 2 });
+    const secs = additionalTestSections(diaphragm(44), { "add.releaserHeads": 2 });
     expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "none" });
     expect(reading(secs, "add.releaserSpeed").hint).toMatch(/no standard/i);
+  });
+
+  // Jono, 2 Nov 2026: 12 clusters and no verdict. The table has no 1-head row at that size, so the
+  // tester has to be told what it does have.
+  it("names the head counts the table has when the one entered isn't there", () => {
+    const secs = additionalTestSections(diaphragm(12), { "add.releaserHeads": 1 });
+    expect(reading(secs, "add.releaserSpeed").rule).toEqual({ kind: "none" });
+    expect(reading(secs, "add.releaserSpeed").hint).toBe("no standard for 1 head · the table has 2 or 3 heads for 12 clusters");
+    expect(reading(secs, "add.releaserHeads").hint).toContain("2 or 3 heads for 12 clusters");
+  });
+
+  it("judges only a diaphragm pump: any other releaser has no heads, reads in rpm, and has no verdict", () => {
+    const config = { ...diaphragm(20), releaserPumps: [{ make: "DELAVAL", model: "FMP220 CENTRIFUGAL" }] };
+    const secs = additionalTestSections(config, { "add.releaserHeads": 2 });
+    expect(secs.find((s) => s.key === "ReleaserPumpHeads")!.readings.map((r) => r.key)).toEqual(["add.releaserSpeed", "add.releaserPower"]);
+    expect(reading(secs, "add.releaserSpeed")).toMatchObject({ unit: "rpm", rule: { kind: "none" } });
+    expect(reading(secs, "add.releaserSpeed").hint).toBeUndefined();
+    expect(reading(secs, "add.releaserPower").rule).toEqual({ kind: "none" });
+  });
+
+  it("points at Machine Configuration when no pump has been chosen", () => {
+    const config = { ...diaphragm(20), releaserPumps: [] };
+    expect(reading(additionalTestSections(config), "add.releaserSpeed").hint).toMatch(/Machine Configuration/);
+  });
+});
+
+describe("peak regulator load (manual p61)", () => {
+  const config = { ...defaultMachineConfiguration(), clusterCount: 20 };
+
+  it("takes the actual reading and calculates the increase on 1a, judged at ≤ 2 kPa", () => {
+    const secs = additionalTestSections(config, { "tr.workingVacuum": 46 });
+    expect(reading(secs, "add.peakRegulatorReading")).toMatchObject({ unit: "kPa", rule: { kind: "none" } });
+    expect(reading(secs, "add.peakRegulatorReading").derived).toBeUndefined();
+    const load = reading(secs, "add.regulatorLoad");
+    expect(load.derived).toBe("reading − 1a");
+    expect(load.rule).toEqual({ kind: "atMost", limit: 2 });
+    expect(load.hint).toBe("≤ 2 kPa above working vacuum (46)");
+  });
+
+  it("asks for 1a first", () => {
+    expect(reading(additionalTestSections(config), "add.regulatorLoad").hint).toContain("enter 1a first");
+  });
+
+  it("is still the admin-managed add.regulatorLoad row", () => {
+    applyStandardsOverrides([{ key: "add.regulatorLoad", kind: "atMost", limit: 3, version: 1 }] as never);
+    expect(reading(additionalTestSections(config), "add.regulatorLoad").rule).toEqual({ kind: "atMost", limit: 3 });
+  });
+});
+
+describe("final check (16a/16b)", () => {
+  const config = { ...defaultMachineConfiguration(), clusterCount: 20 };
+
+  it("is the last section of Additional Tests, on every machine", () => {
+    expect(additionalTestSections(config).at(-1)?.key).toBe("FinalCheck");
+  });
+
+  it("records the two figures and their change, with no verdict until MPNZ sets limits", () => {
+    const secs = additionalTestSections(config, { "tr.workingVacuum": 46, "tr.effectiveReserve": 700 });
+    const final = secs.find((s) => s.key === "FinalCheck")!;
+    expect(final.readings.map((r) => r.key)).toEqual([
+      "add.finalWorkingVacuum", "add.finalVacuumChange", "add.finalEffectiveReserve", "add.finalReserveChange",
+    ]);
+    expect(final.readings.every((r) => r.rule.kind === "none")).toBe(true);
+    expect(reading(secs, "add.finalWorkingVacuum").hint).toBe("46 at 1a");
+    expect(reading(secs, "add.finalEffectiveReserve").hint).toBe("700 at 2a");
+  });
+});
+
+describe("pulsator readings Jono asked to be worded", () => {
+  const secs = pulsatorSections({ ...defaultMachineConfiguration(), clusterCount: 20 });
+
+  it("calls 14a and 14e ancillary equipment", () => {
+    expect(reading(secs, "puls.airflowMilkSystem").label).toBe("Airflow — milk system ancillary equipment (14a)");
+    expect(reading(secs, "puls.airflowVacuumSystem").label).toBe("Airflow — vacuum system ancillary equipment (14e)");
+  });
+
+  it("shows the airline stability limit beside the reading", () => {
+    expect(reading(secs, "puls.airlineStability").hint).toBe("≤ 4 kPa");
   });
 });

@@ -33,6 +33,6 @@
       "VacuumGaugeAccuracy", "VacuumPumpTest"
     ],
     "AirflowTests": ["AirlineMilkSystemLeakage", "ClusterAirAdmission"],
-    "AdditionalTests": ["RegulatorLoad"]
+    "AdditionalTests": ["RegulatorLoad", "FinalCheck"]
   }
 }

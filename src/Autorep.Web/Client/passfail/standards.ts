@@ -4,7 +4,8 @@
 // Later phases move these standards to admin-managed reference data synced into IndexedDB.
 import type { MachineConfiguration } from "../wizard/types";
 import { correctionFactorFor } from "../reference/lookups";
-import { releaserRequirement } from "../reference/standardsData";
+import { releaserHeadCounts, releaserRequirement } from "../reference/standardsData";
+import { hasDiaphragmReleaser, isBlankPumpRow, releaserPumpRows } from "../wizard/pumpRows";
 import { paramFor, ruleFor } from "./standardsOverrides";
 import { pulsationLimits } from "./pulsatorStats";
 import { type VacuumPumpModel } from "../reference/standardsData";
@@ -487,14 +488,79 @@ export function airflowSections(
   return sections;
 }
 
+/** "2 or 3", "2, 3 or 4". */
+const orList = (values: number[]): string =>
+  values.length > 1 ? `${values.slice(0, -1).join(", ")} or ${values[values.length - 1]}` : values.join("");
+
+/** An Effco / Flynn diaphragm releaser: minimum speed/power by cluster count × heads from the legacy
+ * MinSpeedPowerCal table — the check the legacy app recorded as SpeedO/PowerO ticks. The table's
+ * speeds are strokes per minute. It covers 6–40 clusters and only some head counts at each size (12
+ * clusters has 2 or 3 heads); anything else stays capture-only, as it was in legacy, and the hint
+ * says what the table does have. */
+function diaphragmReleaserSection(config: MachineConfiguration, readings: Record<string, number>): ReadingSection {
+  const clusters = config.clusterCount;
+  const heads = readings["add.releaserHeads"];
+  const required = heads != null ? releaserRequirement(clusters, heads) : null;
+  const offered = releaserHeadCounts(clusters);
+  const table = offered.length > 0 ? `the table has ${orList(offered)} heads for ${clusters} clusters` : `the table has nothing for ${clusters} clusters`;
+  const requiredFor = (what: "minSpeed" | "power", unit: string) =>
+    required != null
+      ? `≥ ${required[what]} ${unit} (${clusters} clusters, ${heads} head${heads === 1 ? "" : "s"})`
+      : heads == null
+        ? "enter the number of heads for the standard"
+        : `no standard for ${heads} head${heads === 1 ? "" : "s"} · ${table}`;
+  return {
+    key: "ReleaserPumpHeads",
+    title: "Releaser pump",
+    readings: [
+      { key: "add.releaserHeads", label: "Number of heads", unit: "", hint: `needed for the pass/fail · ${table}`, rule: { kind: "none" } },
+      {
+        key: "add.releaserSpeed",
+        label: "Releaser pump speed",
+        unit: "spm",
+        hint: requiredFor("minSpeed", "spm"),
+        rule: required != null ? { kind: "atLeast", min: required.minSpeed } : { kind: "none" },
+      },
+      {
+        key: "add.releaserPower",
+        label: "Releaser pump power",
+        unit: "kW",
+        hint: requiredFor("power", "kW"),
+        rule: required != null ? { kind: "atLeast", min: required.power } : { kind: "none" },
+      },
+    ],
+  };
+}
+
+/** Any other releaser: the table is for diaphragm pumps only (Josh, 2 Nov 2026), so there are no heads
+ * to count and no standard to judge. Its speed and power are recorded as they are. */
+function plainReleaserSection(config: MachineConfiguration): ReadingSection {
+  const named = releaserPumpRows(config).some((p) => !isBlankPumpRow(p));
+  return {
+    key: "ReleaserPumpHeads",
+    title: "Releaser pump",
+    readings: [
+      {
+        key: "add.releaserSpeed",
+        label: "Releaser pump speed",
+        unit: "rpm",
+        hint: named ? undefined : "choose the pump in Machine Configuration: an Effco / Flynn diaphragm is judged in spm",
+        rule: { kind: "none" },
+      },
+      { key: "add.releaserPower", label: "Releaser pump power", unit: "kW", rule: { kind: "none" } },
+    ],
+  };
+}
+
 /** Additional Tests — the unnumbered per-ancillary checks that follow the ISO flowchart (MPNZ's
  * separate "Additional Tests" flowchart), gated by the machine's ancillaries, mirroring the
- * resolver. Limits verified against manual p41 / p61. */
+ * resolver, then the final check. Limits verified against manual p41 / p61. */
 export function additionalTestSections(
   config: MachineConfiguration,
   readings: Record<string, number> = {},
 ): ReadingSection[] {
   const sections: ReadingSection[] = [];
+  const workingVacuum = readings["tr.workingVacuum"];
   // ACR / milk-meter allowance: 7.5 L/min per unit, min 30, rounded up to 10s; doubled with
   // bail-gate rams (manual p41). Component count assumed = cluster count.
   const acrLimit = ancillaryAllowance(config.clusterCount, config.hasBailGates);
@@ -536,37 +602,31 @@ export function additionalTestSections(
     ] });
   }
   if (config.hasReleaserPump) {
-    // Minimum speed/power by cluster count × heads from the legacy MinSpeedPowerCal table — the
-    // check the legacy app recorded as SpeedO/PowerO ticks. The table covers 6–40 clusters; a
-    // plant outside it (or an un-entered head count) stays capture-only, as it was in legacy.
-    const heads = readings["add.releaserHeads"];
-    const releaserReq = heads != null ? releaserRequirement(config.clusterCount, heads) : null;
-    const releaserFor = (what: "minSpeed" | "power", unit: string) =>
-      releaserReq != null
-        ? `≥ ${releaserReq[what]} ${unit} (${config.clusterCount} clusters, ${heads} head${heads === 1 ? "" : "s"})`
-        : heads == null
-          ? "enter the number of heads for the standard"
-          : "no standard for this cluster count / head count";
-    sections.push({ key: "ReleaserPumpHeads", title: "Releaser pump", readings: [
-      { key: "add.releaserHeads", label: "Number of heads", unit: "", rule: { kind: "none" } },
-      {
-        key: "add.releaserSpeed",
-        label: "Releaser pump speed",
-        unit: "rpm",
-        hint: releaserFor("minSpeed", "rpm"),
-        rule: releaserReq != null ? { kind: "atLeast", min: releaserReq.minSpeed } : { kind: "none" },
-      },
-      {
-        key: "add.releaserPower",
-        label: "Releaser pump power",
-        unit: "kW",
-        hint: releaserFor("power", "kW"),
-        rule: releaserReq != null ? { kind: "atLeast", min: releaserReq.power } : { kind: "none" },
-      },
-    ] });
+    sections.push(hasDiaphragmReleaser(config) ? diaphragmReleaserSection(config, readings) : plainReleaserSection(config));
   }
+  // The tester enters the actual reading and the increase above the working vacuum is worked out,
+  // judged at manual p61's ≤ 2 kPa (Jono, 2 Nov 2026: 46 working, 49 peak is 3 and a fail).
+  const regulatorLoadRule = ruleFor("add.regulatorLoad", { kind: "atMost", limit: 2 });
   sections.push({ key: "RegulatorLoad", title: "Peak regulator load", readings: [
-    { key: "add.regulatorLoad", label: "Peak regulator load", unit: "kPa", rule: ruleFor("add.regulatorLoad", { kind: "atMost", limit: 2 }) },
+    { key: "add.peakRegulatorReading", label: "Peak regulator reading", unit: "kPa", hint: "the actual reading, not the difference", rule: { kind: "none" } },
+    {
+      key: "add.regulatorLoad",
+      label: "Peak regulator load",
+      unit: "kPa",
+      derived: "reading − 1a",
+      hint: `${describeLimit(regulatorLoadRule)} kPa above working vacuum${workingVacuum != null ? ` (${workingVacuum})` : " — enter 1a first"}`,
+      rule: regulatorLoadRule,
+    },
+  ] });
+  // 16 — Final check: the two headline figures taken again at the end, to show the work done on the
+  // machine hasn't made it worse (Jono, 2 Nov 2026) — not a step of the ISO workflow. No verdict yet:
+  // MPNZ hasn't set limits, so the change is shown for the tester to judge.
+  const firstReserve = readings["tr.effectiveReserve"];
+  sections.push({ key: "FinalCheck", title: "Final check", readings: [
+    { key: "add.finalWorkingVacuum", label: "Working vacuum (16a)", unit: "kPa", hint: workingVacuum != null ? `${workingVacuum} at 1a` : undefined, rule: { kind: "none" } },
+    { key: "add.finalVacuumChange", label: "Change from 1a", unit: "kPa", derived: "16a − 1a", rule: { kind: "none" } },
+    { key: "add.finalEffectiveReserve", label: "Effective reserve (16b)", unit: "L/min", hint: firstReserve != null ? `${firstReserve} at 2a` : undefined, rule: { kind: "none" } },
+    { key: "add.finalReserveChange", label: "Change from 2a", unit: "L/min", derived: "16b − 2a", rule: { kind: "none" } },
   ] });
   return sections;
 }
@@ -601,12 +661,13 @@ export function pulsatorSections(
   const limits = pulsationLimits();
   const rateSpreadRule = ruleFor("puls.rateSpread", { kind: "atMost", limit: limits.rateSpreadMax });
   const ratioSpreadRule = ruleFor("puls.ratioSpread", { kind: "atMost", limit: limits.ratioSpreadMax });
+  const stabilityRule = ruleFor("puls.airlineStability", { kind: "atMost", limit: 4 });
   return [
     {
       key: "PulsatorAncillary",
       title: "14 · Pulsator & ancillary",
       readings: [
-        { key: "puls.airflowMilkSystem", label: "Airflow — milk system (14a)", unit: "L/min", rule: { kind: "none" } },
+        { key: "puls.airflowMilkSystem", label: "Airflow — milk system ancillary equipment (14a)", unit: "L/min", rule: { kind: "none" } },
         { key: "puls.milkSystemAncillary", label: "Milk-system ancillary consumption (14b)", unit: "L/min", derived: "12a − 14a", rule: { kind: "none" } },
         { key: "puls.airflowPulsators", label: "Airflow — pulsators (14c)", unit: "L/min", rule: { kind: "none" } },
         {
@@ -617,7 +678,7 @@ export function pulsatorSections(
           hint: consumptionHint,
           rule: consumptionRule,
         },
-        { key: "puls.airflowVacuumSystem", label: "Airflow — vacuum system (14e)", unit: "L/min", rule: { kind: "none" } },
+        { key: "puls.airflowVacuumSystem", label: "Airflow — vacuum system ancillary equipment (14e)", unit: "L/min", rule: { kind: "none" } },
         { key: "puls.vacuumSystemAncillary", label: "Vacuum-system ancillary consumption (14f)", unit: "L/min", derived: "14c − 14e", rule: { kind: "none" } },
       ],
     },
@@ -673,7 +734,7 @@ export function pulsatorSections(
       title: "Stability",
       readings: [
         // Manual p40: pulsator airline vacuum dips must not exceed 4 kPa.
-        { key: "puls.airlineStability", label: "Pulsator airline stability", unit: "kPa", rule: ruleFor("puls.airlineStability", { kind: "atMost", limit: 4 }) },
+        { key: "puls.airlineStability", label: "Pulsator airline stability", unit: "kPa", hint: `${describeLimit(stabilityRule)} kPa`, rule: stabilityRule },
       ],
     },
   ];

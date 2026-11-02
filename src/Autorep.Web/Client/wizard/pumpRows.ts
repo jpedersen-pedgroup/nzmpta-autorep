@@ -22,6 +22,12 @@ export function releaserPumpRows(config: MachineConfiguration): ReleaserPumpDeta
   return padded(stored, Math.max(1, stored.length));
 }
 
+/** True when a listed releaser is an Effco / Flynn: the plants with a diaphragm pump, which has heads
+ * and runs in strokes per minute. The make may have been typed rather than picked. */
+export function hasDiaphragmReleaser(config: MachineConfiguration): boolean {
+  return releaserPumpRows(config).some((p) => /effco|flynn/i.test(p.make ?? ""));
+}
+
 export function regulatorRows(config: MachineConfiguration): RegulatorDetail[] {
   if (config.regulators?.length) return config.regulators;
   const counts = new Map<string, number>();

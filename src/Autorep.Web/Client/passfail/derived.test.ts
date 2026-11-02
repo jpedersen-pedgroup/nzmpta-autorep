@@ -148,6 +148,40 @@ describe("deriveReadings", () => {
   });
 });
 
+describe("peak regulator load", () => {
+  // Jono's example, 2 Nov 2026: working vacuum 46, peak regulator 49.
+  it("works the increase out from the actual reading, and judges that", () => {
+    const fails = deriveReadings(cfg(), { "tr.workingVacuum": 46, "add.peakRegulatorReading": 49 });
+    expect(fails["add.regulatorLoad"]).toBe(3);
+    expect(verdictOf(cfg(), fails, "add.regulatorLoad")).toBe("fail");
+
+    const passes = deriveReadings(cfg(), { "tr.workingVacuum": 46, "add.peakRegulatorReading": 48 });
+    expect(passes["add.regulatorLoad"]).toBe(2);
+    expect(verdictOf(cfg(), passes, "add.regulatorLoad")).toBe("pass");
+  });
+
+  it("is blank, with no verdict, until both figures are in", () => {
+    const r = deriveReadings(cfg(), { "add.peakRegulatorReading": 49 });
+    expect(r["add.regulatorLoad"]).toBeUndefined();
+    expect(verdictOf(cfg(), r, "add.regulatorLoad")).not.toBe("fail");
+  });
+
+  it("drops a figure an older build had typed into the box, rather than judge it", () => {
+    expect(deriveReadings(cfg(), { "tr.workingVacuum": 46, "add.regulatorLoad": 49 })["add.regulatorLoad"]).toBeUndefined();
+  });
+});
+
+describe("final check", () => {
+  it("shows how far 16a and 16b have moved from 1a and 2a, signed", () => {
+    const r = deriveReadings(cfg(), {
+      "tr.workingVacuum": 46, "add.finalWorkingVacuum": 45.5,
+      "tr.effectiveReserve": 700, "add.finalEffectiveReserve": 760,
+    });
+    expect(r["add.finalVacuumChange"]).toBe(-0.5);
+    expect(r["add.finalReserveChange"]).toBe(60);
+  });
+});
+
 describe("derived readings and the reading definitions agree", () => {
   it("every derived key is defined as calculated in the sections, with the same formula, and nothing else is", () => {
     // A config with everything fitted so every conditional section is present.

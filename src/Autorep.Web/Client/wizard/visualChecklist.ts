@@ -294,7 +294,7 @@ export const RUNNING_SECTIONS: Record<string, ChecklistSection> = {
     items: [
       { key: "vpr.interceptorMovement", label: "Interceptor movement", lookup: "VPOWInterceptorMovement" },
       { key: "vpr.noise", label: "Noise", lookup: "VPOWNoise" },
-      { key: "vpr.waterFlowRate", label: "Water flow rate", lookup: "VPOWWaterFlowRate" },
+      { key: "vpr.waterFlowRate", label: "Water/oil flow rate", lookup: "VPOWWaterFlowRate" },
       { key: "vpr.waterTemperature", label: "Water temperature", lookup: "VPOWWaterTemperature" },
     ],
   },
