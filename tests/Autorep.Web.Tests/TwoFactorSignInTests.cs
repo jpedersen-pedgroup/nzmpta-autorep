@@ -10,14 +10,15 @@ namespace Autorep.Web.Tests;
 /// Two-factor authentication end to end through the real cookie pipeline: enrolment is forced
 /// on Super-Administrators, the code is demanded at sign-in, a trusted device holds for 30 days
 /// and no longer than the security stamp, recovery codes get in once, and the post-sign-in
-/// gates run after the code as they do after the password.
+/// gates run after the code as they do after the password. Runs with the requirement on, which
+/// it is not by default (see <see cref="MfaNotRequiredTests"/>).
 /// </summary>
-public class TwoFactorSignInTests : IClassFixture<CookieAuthWebAppFactory>
+public class TwoFactorSignInTests : IClassFixture<MfaRequiredCookieAuthWebAppFactory>
 {
     private const string Password = "Correct-Horse-Battery-1";
     private readonly CookieAuthWebAppFactory _factory;
 
-    public TwoFactorSignInTests(CookieAuthWebAppFactory factory) => _factory = factory;
+    public TwoFactorSignInTests(MfaRequiredCookieAuthWebAppFactory factory) => _factory = factory;
 
     private static string Email(string tag) => $"{tag}-{Guid.NewGuid():N}@example.test";
 
@@ -45,7 +46,7 @@ public class TwoFactorSignInTests : IClassFixture<CookieAuthWebAppFactory>
         var setup = await browser.GetAsync("/Account/SetupAuthenticator");
         setup.StatusCode.Should().Be(HttpStatusCode.OK);
         var setupHtml = await setup.Content.ReadAsStringAsync();
-        setupHtml.Should().Contain("required for Super Administrator accounts");
+        setupHtml.Should().Contain("required for your account");
         setupHtml.Should().Contain("<svg");
         setupHtml.Should().NotContain(">Cancel<");
 
@@ -190,7 +191,7 @@ public class TwoFactorSignInTests : IClassFixture<CookieAuthWebAppFactory>
         (await _factory.WithUserAsync(sa.Id, (u, t) => u.GetTwoFactorEnabledAsync(t))).Should().BeTrue();
         // Razor HTML-encodes the apostrophe in "can't", so match up to it.
         (await (await saBrowser.GetAsync(refused.Location()!)).Content.ReadAsStringAsync())
-            .Should().Contain("Two-factor authentication is required for Super Administrator accounts and can");
+            .Should().Contain("Two-factor authentication is required for your account and can");
 
         var testerEmail = Email("tester-optional");
         var (tester, testerKey) = await _factory.CreateUserAsync(testerEmail, Password, [Roles.Tester], twoFactor: true);

@@ -18,12 +18,16 @@ namespace Autorep.Web.Services;
 /// </summary>
 public class TesterClaimsPrincipalFactory : UserClaimsPrincipalFactory<Tester, IdentityRole>
 {
+    private readonly MfaOptions _mfa;
+
     public TesterClaimsPrincipalFactory(
         UserManager<Tester> userManager,
         RoleManager<IdentityRole> roleManager,
-        IOptions<IdentityOptions> options)
+        IOptions<IdentityOptions> options,
+        IOptions<MfaOptions> mfa)
         : base(userManager, roleManager, options)
     {
+        _mfa = mfa.Value;
     }
 
     protected override async Task<ClaimsIdentity> GenerateClaimsAsync(Tester user)
@@ -33,7 +37,7 @@ public class TesterClaimsPrincipalFactory : UserClaimsPrincipalFactory<Tester, I
         // Read straight off the entity, not GetTwoFactorEnabledAsync: the store's answer is this
         // column, and the factory already holds the row.
         var roles = await UserManager.GetRolesAsync(user);
-        if (MfaPolicy.IsRequiredFor(roles) && !user.TwoFactorEnabled)
+        if (_mfa.IsRequiredFor(roles) && !user.TwoFactorEnabled)
         {
             identity.AddClaim(new Claim(MfaPolicy.ClaimType, MfaPolicy.EnrolmentRequired));
         }

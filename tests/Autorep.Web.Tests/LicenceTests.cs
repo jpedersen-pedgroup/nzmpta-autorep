@@ -204,7 +204,7 @@ public class LicenceTests : IClassFixture<CookieAuthWebAppFactory>
     [Fact]
     public async Task A_welcome_email_link_sets_the_first_password_once()
     {
-        // A Super-Administrator (two-factor is required of them) creates the account.
+        // A Super-Administrator, signed in through two-factor, creates the account.
         var adminEmail = Email("sa-invites");
         var (_, key) = await _factory.CreateUserAsync(adminEmail, Password, [Roles.SuperAdministrator],
             twoFactor: true, configure: u => u.TermsAcceptedVersion = TermsVersion);

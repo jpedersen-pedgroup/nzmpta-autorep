@@ -1,11 +1,12 @@
 using Autorep.Web.Domain;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 
 namespace Autorep.Web.Services;
 
 /// <summary>
-/// Two-factor enforcement for the roles that need it. Runs after authentication (it needs the
+/// Two-factor enforcement for the roles that need it (<see cref="MfaOptions"/>). Runs after authentication (it needs the
 /// principal and the ticket) and before authorization, so it applies to pages and API controllers
 /// alike: pages are redirected, <c>/api/*</c> answers with a status and a reason, because a
 /// redirect to HTML is exactly what <c>fetch</c> mishandles.
@@ -16,7 +17,7 @@ namespace Autorep.Web.Services;
 ///    application cookie slides, so without this an administrator who never signed out would
 ///    never be challenged again.
 /// </summary>
-public class MfaEnrolmentMiddleware(RequestDelegate next)
+public class MfaEnrolmentMiddleware(RequestDelegate next, IOptions<MfaOptions> mfa)
 {
     public const string SetupPath = "/Account/SetupAuthenticator";
     public const string ExpiredReason = "mfa-expired";
@@ -46,7 +47,7 @@ public class MfaEnrolmentMiddleware(RequestDelegate next)
                 return;
             }
 
-            if (MfaPolicy.IsRequiredFor(ctx.User) && SessionIsPastItsProof(ctx))
+            if (mfa.Value.IsRequiredFor(ctx.User) && SessionIsPastItsProof(ctx))
             {
                 await ctx.SignOutAsync(IdentityConstants.ApplicationScheme);
                 if (ctx.Request.Path.StartsWithSegments("/api"))
