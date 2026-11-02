@@ -19,6 +19,7 @@ import { deletedOnServer, forgetDeletedOnServer, noteDeletedOnServer, noteRemove
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import { adaptLegacyReadings } from "../report/legacyAdapter";
 import { flushCalibration } from "./calibrationSync";
+import { flushQueuedFarms, queuedFarms } from "./farmsSync";
 import { initCompanyBranding } from "./companyBrandingSync";
 import { initTesterDetails } from "./testerDetailsSync";
 import { warmReportGenerator } from "../report/generatorChunks";
@@ -476,12 +477,21 @@ async function runSync(): Promise<SyncResult> {
   await flushCalibration();
   await initCompanyBranding();
   await initTesterDetails();
+  // Farms added with no signal go first, so the tests on them find them there.
+  if (!(await flushQueuedFarms())) throw new SessionExpiredError();
+  const farmsWaiting = new Set((await queuedFarms()).map((q) => q.farm.id));
   const locals = await allTests();
   let pushed = 0;
   let failed = 0;
   let merged = 0;
   for (const t of locals) {
     if (t.syncState !== "local-only") continue;
+    if (t.farmId && farmsWaiting.has(t.farmId)) {
+      // Sent now it would mint a second copy of the farm, with no address (farmsSync.ts). It's
+      // still saved here, and goes once its farm has.
+      failed++;
+      continue;
+    }
     try {
       if (await pushTest(t)) merged++;
       pushed++;

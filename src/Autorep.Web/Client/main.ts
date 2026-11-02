@@ -14,7 +14,7 @@ import { applyCachedStandards, refreshStandards } from "./standards/standardsSyn
 import { applyCachedEquipment, refreshEquipment } from "./standards/equipmentSync";
 import { applyCachedFaultCatalog, refreshFaultCatalog } from "./standards/faultCatalogSync";
 import { applyCachedPrivacy, refreshPrivacy } from "./standards/privacySync";
-import { initFarms } from "./sync/farmsSync";
+import { initFarmOptions, initFarms } from "./sync/farmsSync";
 import { initCalibration } from "./sync/calibrationSync";
 import { initCompanyBranding } from "./sync/companyBrandingSync";
 import { initTesterDetails } from "./sync/testerDetailsSync";
@@ -79,10 +79,12 @@ async function warnAboutRetainedWork(): Promise<void> {
   const known = purge.retained.filter((r) => r.unsyncedCount !== null);
   const total = known.reduce((sum, r) => sum + (r.unsyncedCount ?? 0), 0);
   const reports = purge.retained.reduce((sum, r) => sum + (r.pendingReports ?? 0), 0);
+  const farms = purge.retained.reduce((sum, r) => sum + (r.pendingFarms ?? 0), 0);
   const unreadable = purge.retained.length - known.length;
   const parts: string[] = [];
   if (total > 0) parts.push(`${total} unsynced test${total === 1 ? "" : "s"}`);
   if (reports > 0) parts.push(`${reports} signed-off report${reports === 1 ? "" : "s"} waiting to be sent`);
+  if (farms > 0) parts.push(`${farms} new farm${farms === 1 ? "" : "s"} waiting to be sent`);
   if (unreadable > 0) parts.push(`data that couldn't be read`);
   const { showToast } = await import("./ui/toast");
   showToast(
@@ -165,7 +167,7 @@ async function boot(): Promise<void> {
   }
 
   const refreshes: Array<() => Promise<boolean | void>> = [refreshStandards, refreshEquipment, refreshFaultCatalog, refreshPrivacy];
-  if (accountData) refreshes.push(initFarms, initCalibration, initCompanyBranding, initTesterDetails);
+  if (accountData) refreshes.push(initFarms, initFarmOptions, initCalibration, initCompanyBranding, initTesterDetails);
   const results = await Promise.allSettled(refreshes.map((refresh) => refresh()));
   const changed = results.some((r) => r.status === "fulfilled" && r.value !== false);
   dispatchEvent(new CustomEvent<ReferenceRefreshedDetail>(REFERENCE_REFRESHED_EVENT, { detail: { changed } }));

@@ -14,6 +14,7 @@
 import { countUnsynced } from "../db/testStore";
 import { currentConnection, onConnectionChange } from "../connectivity";
 import { SessionExpiredError, StoreOwnerChangedError, syncAll, type SyncResult } from "./syncClient";
+import { queuedFarms } from "./farmsSync";
 import { flushFinalReports, keepRetryingFinalReports } from "./finalReportUpload";
 
 export const BACKOFF_MS = [30_000, 60_000, 120_000, 300_000, 600_000, 900_000];
@@ -23,7 +24,7 @@ export const FOLLOW_UP_MS = 15_000;
 
 export interface AutoSyncDeps {
   sync: () => Promise<SyncResult>;
-  /** Tests on the device the server hasn't got. */
+  /** Tests and new farms on the device the server hasn't got. */
   unsynced: () => Promise<number>;
   /** Whether it's worth trying at all right now. */
   canTry: () => boolean;
@@ -131,7 +132,8 @@ export function startAutoSync(): AutoSync {
   const clearTimer = (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>);
   const auto = createAutoSync({
     sync: syncAll,
-    unsynced: countUnsynced,
+    // A farm added offline with no test on it yet still has to go up.
+    unsynced: async () => (await countUnsynced()) + (await queuedFarms()).length,
     canTry,
     setTimer,
     clearTimer,

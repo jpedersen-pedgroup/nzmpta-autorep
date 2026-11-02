@@ -267,23 +267,29 @@ export interface RetainedTester {
   /** Final Reports signed off and still waiting to be sent (their tests are on the server, but the
    * copy as signed off exists only here). Absent when there are none. */
   pendingReports?: number;
+  /** Farms added with no signal and still waiting to be sent. Absent when there are none. */
+  pendingFarms?: number;
 }
 
 /** Key prefix of the Final Report upload queue's entries in the `reference` store
  * (sync/finalReportUpload.ts). Here because the purge guard counts them too. */
 export const FINAL_REPORT_KEY_PREFIX = "finalReport:";
 
+/** Key prefix of the farms waiting to go up, one entry per farm (sync/farmsSync.ts). Here for the
+ * same reason. */
+export const QUEUED_FARM_KEY_PREFIX = "queuedFarm:";
+
 export interface PurgeResult {
   /** Previous testers whose databases were kept because they may still hold unsynced tests. */
   retained?: RetainedTester[];
 }
 
-/** Unsynced tests, and Final Reports still to be sent, in a named database. Returns null when that
- * cannot be determined — callers must treat null as "may hold work", never as zero. This count is
- * the only thing standing between a transient IndexedDB failure (storage pressure, a blocked
- * versionchange, a half-finished upgrade) and deleting a tester's only copy of a day's captures, so
- * it must fail closed. */
-async function countUnsyncedIn(name: string): Promise<{ tests: number; reports: number } | null> {
+/** Unsynced tests, Final Reports still to be sent and farms still to be added, in a named database.
+ * Returns null when that cannot be determined — callers must treat null as "may hold work", never as
+ * zero. This count is the only thing standing between a transient IndexedDB failure (storage
+ * pressure, a blocked versionchange, a half-finished upgrade) and deleting a tester's only copy of a
+ * day's captures, so it must fail closed. */
+async function countUnsyncedIn(name: string): Promise<{ tests: number; reports: number; farms: number } | null> {
   try {
     // No version argument: open whatever is there rather than triggering an upgrade.
     const database = await openDB<AutorepDB>(name);
@@ -291,10 +297,14 @@ async function countUnsyncedIn(name: string): Promise<{ tests: number; reports: 
       const tests = database.objectStoreNames.contains("tests")
         ? (await database.getAll("tests")).filter((t) => t?.syncState === "local-only").length
         : 0;
-      const reports = database.objectStoreNames.contains("reference")
+      const hasReference = database.objectStoreNames.contains("reference");
+      const reports = hasReference
         ? (await database.getAllKeys("reference", IDBKeyRange.bound(FINAL_REPORT_KEY_PREFIX, `${FINAL_REPORT_KEY_PREFIX}￿`))).length
         : 0;
-      return { tests, reports };
+      const farms = hasReference
+        ? (await database.getAllKeys("reference", IDBKeyRange.bound(QUEUED_FARM_KEY_PREFIX, `${QUEUED_FARM_KEY_PREFIX}￿`))).length
+        : 0;
+      return { tests, reports, farms };
     } finally {
       database.close();
     }
@@ -343,10 +353,10 @@ async function previousTesterIds(current: string): Promise<string[]> {
  *  - Purge when the current tester is unknown. Identity arrives from the server, so "unknown"
  *    means "not established yet", not "nobody" — deleting on that basis would wipe a tester's
  *    queued work every time the page rendered without it.
- *  - Delete a database holding unsynced tests, or Final Reports signed off and not yet sent. That
- *    work exists nowhere else, so it outranks the cache hygiene this function exists for; the
- *    outgoing tester's cached data stays on disk under a name the incoming session never opens.
- *    The caller is told so it can warn someone. */
+ *  - Delete a database holding unsynced tests, Final Reports signed off and not yet sent, or farms
+ *    added and not yet sent. That work exists nowhere else, so it outranks the cache hygiene this
+ *    function exists for; the outgoing tester's cached data stays on disk under a name the incoming
+ *    session never opens. The caller is told so it can warn someone. */
 export async function purgeStaleLocalData(): Promise<PurgeResult> {
   try {
     const current = currentTesterId();
@@ -354,17 +364,18 @@ export async function purgeStaleLocalData(): Promise<PurgeResult> {
 
     // The legacy unnamespaced database predates per-tester naming, so guard it the same way.
     const legacy = await countUnsyncedIn(DB_PREFIX);
-    if (legacy !== null && legacy.tests === 0 && legacy.reports === 0) await deleteDatabase(DB_PREFIX);
+    if (legacy !== null && legacy.tests === 0 && legacy.reports === 0 && legacy.farms === 0) await deleteDatabase(DB_PREFIX);
 
     const retained: RetainedTester[] = [];
     const stillKnown = [current];
     for (const testerId of await previousTesterIds(current)) {
       const pending = await countUnsyncedIn(`${DB_PREFIX}_${testerId}`);
-      if (pending === null || pending.tests > 0 || pending.reports > 0) {
+      if (pending === null || pending.tests > 0 || pending.reports > 0 || pending.farms > 0) {
         retained.push({
           testerId,
           unsyncedCount: pending?.tests ?? null,
           ...(pending && pending.reports > 0 ? { pendingReports: pending.reports } : {}),
+          ...(pending && pending.farms > 0 ? { pendingFarms: pending.farms } : {}),
         });
         stillKnown.push(testerId); // keep checking it until that work is synced
         continue;

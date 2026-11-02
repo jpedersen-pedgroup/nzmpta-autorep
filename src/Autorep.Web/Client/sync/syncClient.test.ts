@@ -1,7 +1,8 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { allTests, deleteTest, getTest, putTest, type LocalTest } from "../db/testStore";
+import { allTests, deleteReference, deleteTest, getTest, putTest, QUEUED_FARM_KEY_PREFIX, referencesWithPrefix, type LocalTest } from "../db/testStore";
 import { syncAll, SessionExpiredError } from "./syncClient";
+import { queuedFarms, queueFarm, type NewFarmRequest } from "./farmsSync";
 import { defaultMachineConfiguration } from "../wizard/types";
 
 function sample(id: string, farmName = "Sunny Acres"): LocalTest {
@@ -43,10 +44,75 @@ function stubFetch(handler: (url: string, init?: RequestInit) => Response | Prom
 
 beforeEach(async () => {
   for (const t of await allTests()) await deleteTest(t.id);
+  for (const e of await referencesWithPrefix(QUEUED_FARM_KEY_PREFIX)) await deleteReference(e.key);
 });
 
 afterEach(() => {
   globalThis.fetch = realFetch;
+});
+
+describe("a farm added with no signal, and the test on it", () => {
+  const farm: NewFarmRequest = {
+    id: "farm-new",
+    name: "Totara Valley",
+    supplyNumber: null,
+    milkSupplyCompanyId: null,
+    regionId: null,
+    addressLine1: "12 Valley Road",
+    addressLine2: null,
+    town: null,
+    postCode: null,
+    rapidNumber: null,
+    farmerName: null,
+    contactPhone: null,
+    contactEmail: null,
+  };
+
+  it("sends the farm first, so the test finds it on the server", async () => {
+    await queueFarm(farm, null);
+    await putTest({ ...sample("t-1", "Totara Valley"), farmId: "farm-new" });
+    const order: string[] = [];
+    stubFetch((url, init) => {
+      if (init?.method !== "POST") return jsonResponse(EMPTY_PULL);
+      order.push(url);
+      return url === "/api/farms" ? jsonResponse({ id: "farm-new", name: "Totara Valley" }) : jsonResponse({ id: "s", status: "created" }, 201);
+    });
+
+    const result = await syncAll();
+
+    expect(order).toEqual(["/api/farms", "/api/sync/tests"]);
+    expect(result).toMatchObject({ pushed: 1, failed: 0 });
+    expect((await getTest("t-1"))?.syncState).toBe("uploaded");
+  });
+
+  // Sent regardless, the test would reach the sync's safety net, which mints a farm of its own with
+  // none of the address and contact details the tester typed in.
+  it("holds the test back while its farm can't be sent, without holding up anything else", async () => {
+    await queueFarm(farm, null);
+    await putTest({ ...sample("t-held", "Totara Valley"), farmId: "farm-new" });
+    await putTest({ ...sample("t-other", "Rimu Ridge"), farmId: "farm-other" });
+    const pushed: string[] = [];
+    stubFetch((url, init) => {
+      if (init?.method !== "POST") return jsonResponse(EMPTY_PULL);
+      if (url === "/api/farms") return jsonResponse({ error: "down for a moment" }, 500);
+      pushed.push(String((JSON.parse(String(init.body)) as { clientId: string }).clientId));
+      return jsonResponse({ id: "s", status: "created" }, 201);
+    });
+
+    const result = await syncAll();
+
+    expect(pushed).toEqual(["t-other"]);
+    expect(result).toMatchObject({ pushed: 1, failed: 1 });
+    expect((await getTest("t-held"))?.syncState).toBe("local-only");
+    expect((await queuedFarms()).map((q) => q.farm.id)).toEqual(["farm-new"]);
+  });
+
+  it("stops when the session has lapsed, as the tests would", async () => {
+    await queueFarm(farm, null);
+    stubFetch((_url, init) => (init?.method === "POST" ? new Response(null, { status: 401 }) : jsonResponse(EMPTY_PULL)));
+
+    await expect(syncAll()).rejects.toBeInstanceOf(SessionExpiredError);
+  });
 });
 
 describe("syncAll", () => {

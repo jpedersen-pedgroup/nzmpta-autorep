@@ -109,6 +109,21 @@ describe("purgeStaleLocalData", () => {
     expect(await remainingTests("autorep_tester-r")).toBe(1);
   });
 
+  // A farm added with no signal exists nowhere but this database's queue (sync/farmsSync.ts).
+  it("keeps a previous tester's database while a new farm is still waiting to be sent", async () => {
+    await seedTesterDb("tester-f", "uploaded");
+    const db = await openDB("autorep_tester-f");
+    await db.put("reference", { key: "queuedFarm:f1", rows: { request: { id: "f1" }, farm: { id: "f1", name: "New Farm" }, queuedAt: "2026-11-02T00:00:00Z" } });
+    db.close();
+    localStorage.setItem(LAST_TESTER_KEY, "tester-f");
+    setCurrentTester("tester-g");
+
+    const result = await purgeStaleLocalData();
+
+    expect(result.retained).toEqual([{ testerId: "tester-f", unsyncedCount: 0, pendingFarms: 1 }]);
+    expect(await remainingTests("autorep_tester-f")).toBe(1);
+  });
+
   it("deletes a previous tester's database once everything has synced", async () => {
     await seedTesterDb("tester-c", "uploaded");
     localStorage.setItem(LAST_TESTER_KEY, "tester-c");

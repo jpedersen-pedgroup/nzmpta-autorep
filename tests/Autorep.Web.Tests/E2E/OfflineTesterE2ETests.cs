@@ -222,22 +222,14 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         Assert.Equal("local-only", stored.GetProperty("syncState").GetString());
     }
 
-    // Adding a farm stays online-only (Phase 5 was cut). Offline it must say so plainly instead of
-    // failing silently; online it adds the farm and the device can pick it from then on.
+    // Online, a new farm goes straight to the server and into the device's book.
     [Fact]
-    public async Task Adding_a_farm_needs_a_connection_and_then_lands_in_the_farm_book()
+    public async Task A_farm_added_online_lands_in_the_farm_book()
     {
         var (context, page) = await OnlineAndReadyAsync();
         await using var _ = context;
         await WaitForFarmBookAsync(page, OfflineE2EWebAppFactory.RimuFarm);
 
-        await GoOfflineAsync(context);
-        await page.GotoAsync("/App/Tests/New");
-        await page.GetByRole(AriaRole.Button, new() { Name = "＋ Add a new farm" }).ClickAsync();
-        await page.GetByText("Adding a farm needs a connection").WaitForAsync();
-        await page.GetByRole(AriaRole.Button, new() { Name = "Close" }).ClickAsync();
-
-        await GoOnlineAsync(context);
         await page.GotoAsync("/App/Tests/New");
         Assert.False(await IsShellAsync(page));
         await page.GetByRole(AriaRole.Button, new() { Name = "＋ Add a new farm" }).ClickAsync();
@@ -250,6 +242,62 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
         await WaitForFarmBookAsync(page, "Totara Valley E2E");
         await page.GetByRole(AriaRole.Button, new() { Name = "Start test" }).ClickAsync();
         await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal));
+    }
+
+    // Jono, 2 Nov 2026: a farm has to be addable on the spot, signal or not. It's picked and tested
+    // straight away, and when the signal returns it reaches the server ahead of its test, with
+    // everything typed into the form: one farm, the test on it, and a review for the administrator.
+    [Fact]
+    public async Task A_farm_added_offline_is_tested_at_once_and_goes_up_ahead_of_its_test()
+    {
+        var (context, page) = await OnlineAndReadyAsync();
+        await using var _ = context;
+        await WaitForFarmBookAsync(page, OfflineE2EWebAppFactory.RimuFarm);
+
+        await GoOfflineAsync(context);
+        await page.GotoAsync("/App/Tests/New");
+        Assert.True(await IsShellAsync(page));
+        await page.GetByRole(AriaRole.Button, new() { Name = "＋ Add a new farm" }).ClickAsync();
+        await page.Locator("[data-farm-offline]").WaitForAsync();
+        await page.FillAsync("#nf-name", "Offline Valley E2E");
+        await page.FillAsync("#nf-addr1", "12 Paddock Road");
+        await page.FillAsync("#nf-town", "Te Kuiti");
+        await page.ClickAsync("#nf-create");
+
+        await Assertions.Expect(page.Locator("#farm-search")).ToHaveValueAsync("Offline Valley E2E");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Start test" }).ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("/App/Tests/Wizard?id=", StringComparison.Ordinal));
+        var testId = new Uri(page.Url).Query.Split("id=")[1];
+        // The Setup step shows what was typed: the wizard took it from the device's queue.
+        await page.GetByText("12 Paddock Road, Te Kuiti").WaitForAsync();
+        await Step(page, "Machine Configuration & Ancillary").ClickAsync();
+        await page.FillAsync("input[placeholder='e.g. 30 a-side']", "12 a-side");
+        await page.Locator(".app-status[data-connection=offline]", new() { HasText = "1 unsent" }).WaitForAsync();
+
+        await page.GotoAsync("/App/Tests");
+        await page.Locator("[data-queued-farms]", new() { HasText = "Offline Valley E2E" }).WaitForAsync();
+
+        await GoOnlineAsync(context);
+
+        Assert.True(await PollAsync(page, @"async ([testerId, testId]) => new Promise((resolve) => {
+                const req = indexedDB.open('autorep_' + testerId);
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                    const db = req.result;
+                    const get = db.transaction('tests').objectStore('tests').get(testId);
+                    get.onsuccess = () => { db.close(); resolve(get.result?.syncState === 'uploaded'); };
+                    get.onerror = () => { db.close(); resolve(false); };
+                };
+            })", new[] { _factory.TesterId, testId }), "the test never synced after the farm went up");
+
+        using var scope = _factory.AppServices.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+        var farm = await db.Farms.SingleAsync(f => f.Name == "Offline Valley E2E");
+        Assert.Equal("12 Paddock Road", farm.AddressLine1);
+        Assert.Equal("Te Kuiti", farm.Town);
+        Assert.NotNull(farm.PendingReviewSince);
+        var stored = await db.MachineTests.SingleAsync(t => t.ClientId == Guid.Parse(testId));
+        Assert.Equal(farm.Id, stored.FarmId);
     }
 
     // Editing a signed-off test starts from the test itself, not the list, and it works offline: the
