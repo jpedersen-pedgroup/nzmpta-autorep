@@ -8,7 +8,7 @@ import { useEffect, useState } from "preact/hooks";
 import { allTests, deleteTest, putTest, TESTS_CHANGED_EVENT, type LocalTest } from "../db/testStore";
 import { describeStorage, storageReport } from "../storage/durability";
 import { syncAll, SessionExpiredError, type SyncResult } from "../sync/syncClient";
-import { hasUnfinishedSibling, madeByOther, replacedIds, rivalsOf } from "../versioning/chain";
+import { madeByOther, replacedIds, rivalsOf } from "../versioning/chain";
 import { clearRemoved, deletedOnServer, removedTests, type Deletion, type RemovedTest } from "../sync/removals";
 import { CalibrationPanel } from "./CalibrationPanel";
 import { GuideLink } from "./GuideLink";
@@ -164,37 +164,6 @@ function TestListApp() {
     showToast(`Deleted "${t.farmName || "Untitled test"}" from this device.`, "info");
   };
 
-  // Reopen a completed test as a new editable version. The original is kept as history and locked
-  // (read-only). The new version starts from the original's data but with a FRESH completion record
-  // — its attestations + sign-off are re-done, not inherited. (Two devices editing the same
-  // completed test each spawn a version; there's no cross-device merge — consistent with the rest
-  // of the offline-first model, where the Sync Reconciliation Engine is a later phase.)
-  const editAsNewVersion = async (orig: LocalTest) => {
-    const now = new Date().toISOString();
-    const copy: LocalTest = {
-      ...orig,
-      id: crypto.randomUUID(),
-      // An attachment this device has let go of lives in the ORIGINAL's server copy — say so, or
-      // the new version's pointer would name a test the server has never seen.
-      pulsationPdf:
-        orig.pulsationPdf && !orig.pulsationPdf.base64
-          ? { ...orig.pulsationPdf, serverTestId: orig.pulsationPdf.serverTestId ?? orig.id }
-          : orig.pulsationPdf,
-      version: (orig.version ?? 1) + 1,
-      supersedesId: orig.id,
-      attestations: [],
-      markedCompleteAt: null,
-      syncState: "local-only",
-      everUploaded: false,
-      readonly: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await putTest(copy);
-    await putTest({ ...orig, readonly: true, syncState: "local-only", updatedAt: now });
-    location.href = `/App/Tests/Wizard?id=${copy.id}`;
-  };
-
   if (!tests) return <p class="td-muted">Loading…</p>;
   // Replaced by a later version — the tester's own, an administrator's, or an automatic merge.
   const supersededIds = replacedIds(tests);
@@ -288,16 +257,11 @@ function TestListApp() {
                         Delete
                       </button>
                     )}
+                    {/* Editing a completed test is offered from the test itself, once it's open
+                        (WizardApp): changing a signed-off record should be a deliberate step. */}
                     <a class="btn btn--secondary btn--sm" href={`/App/Tests/Wizard?id=${t.id}`}>
                       {t.markedCompleteAt ? "View" : "Continue"}
                     </a>
-                    {/* Not while an unfinished edit of the same test is on the device: a second edit
-                        would only fork the test again (finish that one — it's combined on sign-off). */}
-                    {t.markedCompleteAt && !supersededIds.has(t.id) && !t.readonly && !hasUnfinishedSibling(t, tests) && (
-                      <button class="btn btn--secondary btn--sm" onClick={() => void editAsNewVersion(t)}>
-                        Edit
-                      </button>
-                    )}
                   </td>
                 </tr>
               ))}

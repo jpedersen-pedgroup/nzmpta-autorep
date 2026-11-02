@@ -3,6 +3,7 @@
 // overview, the sticky step bar in focus — sits inside the app's standard header and column.
 import { useState } from "preact/hooks";
 import { renderStep } from "../WizardSteps";
+import { TabNavProvider, useTabNav } from "../../ui/Tabs";
 import {
   STEP_DESCRIPTIONS,
   faultSummary,
@@ -33,6 +34,7 @@ export function HubShell({
   // The hub is the landing view; tapping a card drops into focus on that step. Kept in component
   // state, not on the test — which step you're looking at is navigation, not part of the record.
   const [focused, setFocused] = useState(false);
+  const tabs = useTabNav(current);
 
   const progress = overallProgress(test);
   const faults = faultSummary(test);
@@ -252,7 +254,7 @@ export function HubShell({
       <div class="hubw__focus-main">
         {banners}
         <div class="hubw__panel" key={current}>
-          {renderStep(ctx, current)}
+          <TabNavProvider value={tabs.link}>{renderStep(ctx, current)}</TabNavProvider>
         </div>
       </div>
 
@@ -261,8 +263,8 @@ export function HubShell({
           <button
             type="button"
             class="hubw__nav hubw__nav--prev"
-            disabled={!prev}
-            onClick={() => prev && openStep(prev.step)}
+            disabled={!prev && !tabs.hasPrevTab}
+            onClick={() => tabs.back(() => prev && openStep(prev.step))}
           >
             ‹ Previous
           </button>
@@ -270,9 +272,13 @@ export function HubShell({
           <button
             type="button"
             class="hubw__nav hubw__nav--next"
-            onClick={() => (next ? openStep(next.step) : setFocused(false))}
+            onClick={() => tabs.next(() => (next ? openStep(next.step) : setFocused(false)))}
           >
-            {next ? `Next: ${next.title.split(" (")[0].split(" — ")[0]} ›` : "Back to overview"}
+            {tabs.nextTab
+              ? `Next: ${tabs.nextTab} ›`
+              : next
+                ? `Next: ${next.title.split(" (")[0].split(" — ")[0]} ›`
+                : "Back to overview"}
           </button>
         </div>
       </div>

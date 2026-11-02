@@ -226,7 +226,8 @@ public static class DerivedReadings
         "tr.gaugeError2", "tr.gaugeError3", "add.vacuumSystemLeakage", "add.milkSystemLeakage",
         "add.acrConsumption", "add.clusterAirAdmission", "puls.milkSystemAncillary",
         "puls.pulsatorConsumption", "puls.vacuumSystemAncillary", "puls.testPulsationReading",
-        "puls.rateSpread", "puls.ratioSpread",
+        "puls.rateSpread", "puls.ratioSpread", "add.regulatorLoad", "add.finalVacuumChange",
+        "add.finalReserveChange",
     };
 
     public static bool IsDerived(string key) =>

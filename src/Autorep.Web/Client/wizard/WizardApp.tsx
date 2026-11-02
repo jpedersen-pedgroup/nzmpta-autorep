@@ -19,7 +19,7 @@ import { allTests, currentTesterName, getTest, putTest, type LocalTest, type Tes
 import { fetchFarm } from "../farms";
 import { buildAmendmentRecord, computeChanges, computeChangesWithPaths } from "../versioning/amendments";
 import { buildAdminPayload, draftFromPayload, withinScope, type EditScope } from "../versioning/adminEdit";
-import { isReplaced, savedByAdministrator } from "../versioning/chain";
+import { canReopen, isReplaced, reopenedVersion, savedByAdministrator } from "../versioning/chain";
 import { storeAdminVersionReport, type SavedReportState } from "../versioning/adminReport";
 import { deletedOnServer, type Deletion } from "../sync/removals";
 import { AdminEditBar, MigratedNotice, VersionNotices, type SaveProblem } from "./VersionBanners";
@@ -810,6 +810,16 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin, migrat
     },
   };
 
+  // Reopen this completed test as a new editable version: the original is kept as history and locked.
+  const editAsNewVersion = async () => {
+    const orig = (await getTest(test.id)) ?? test;
+    const now = new Date().toISOString();
+    const copy = reopenedVersion(orig, crypto.randomUUID(), now);
+    await putTest(copy);
+    await putTest({ ...orig, readonly: true, syncState: "local-only", updatedAt: now });
+    location.href = `/App/Tests/Wizard?id=${copy.id}`;
+  };
+
   // The admin portal's view of this version: what its viewer may do with it.
   const savedVersion = admin && serverTestId ? new URLSearchParams(location.search).get("saved") : null;
   const adminBar = admin && serverDto ? (
@@ -874,6 +884,15 @@ function WizardApp({ id, farmId, farmName, serverTestId, backHref, admin, migrat
               👁 <strong>{colleagueName}'s test</strong> — read-only. You're viewing your company's test
               history; only {colleagueName.split(" ")[0]} can edit this test. Pass/fail is shown as
               recorded at the time of testing.
+            </div>
+          ) : !serverTestId && !deletion && canReopen(test, others) ? (
+            <div class="alert alert--info" data-reopen-offer>
+              📄 <strong>Completed</strong> — this version is signed off and stays on record as it is.
+              Pass/fail is shown as recorded at the time of testing. To change anything, edit it as
+              version {(test.version ?? 1) + 1}.{" "}
+              <button class="btn btn--sm" onClick={() => void editAsNewVersion()}>
+                Edit as a new version
+              </button>
             </div>
           ) : (
             <div class="alert alert--warning">

@@ -36,6 +36,42 @@ export function hasUnfinishedSibling(test: LocalTest, tests: readonly LocalTest[
   return tests.some((x) => x.id !== test.id && x.supersedesId === test.supersedesId && !x.markedCompleteAt);
 }
 
+/** Whether this version can be reopened as a new one: signed off and still the current version. Not
+ * while an unfinished edit of the same test is on the device — a second edit would only fork the test
+ * again (finish that one; it's combined on sign-off). */
+export function canReopen(test: LocalTest, tests: readonly LocalTest[]): boolean {
+  return Boolean(test.markedCompleteAt) && !test.readonly && !isReplaced(test, tests) && !hasUnfinishedSibling(test, tests);
+}
+
+/**
+ * A completed test reopened as a new editable version. The new version starts from the original's
+ * data but with a FRESH completion record — its attestations + sign-off are re-done, not inherited.
+ * (Two devices editing the same completed test each spawn a version; there's no cross-device merge —
+ * consistent with the rest of the offline-first model, where the Sync Reconciliation Engine is a
+ * later phase.)
+ */
+export function reopenedVersion(orig: LocalTest, id: string, now: string): LocalTest {
+  return {
+    ...orig,
+    id,
+    // An attachment this device has let go of lives in the ORIGINAL's server copy — say so, or the
+    // new version's pointer would name a test the server has never seen.
+    pulsationPdf:
+      orig.pulsationPdf && !orig.pulsationPdf.base64
+        ? { ...orig.pulsationPdf, serverTestId: orig.pulsationPdf.serverTestId ?? orig.id }
+        : orig.pulsationPdf,
+    version: (orig.version ?? 1) + 1,
+    supersedesId: orig.id,
+    attestations: [],
+    markedCompleteAt: null,
+    syncState: "local-only",
+    everUploaded: false,
+    readonly: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 /** The amendment record this version's own sign-off wrote (not one it carries from earlier). */
 export function ownAmendment(test: LocalTest): AmendmentRecord | undefined {
   const last = test.amendments?.at(-1);

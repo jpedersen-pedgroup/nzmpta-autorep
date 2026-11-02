@@ -913,7 +913,7 @@ main {
 
 /* ----- Tabs (within a wizard step card) ------------------------------------ */
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 0 0 var(--space-3); overflow-x: auto; }
-.tab { padding: var(--space-2) var(--space-3); border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-muted); font-size: 0.9rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.tab { scroll-margin-top: calc(var(--app-header-h) + 5rem); padding: var(--space-2) var(--space-3); border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-muted); font-size: 0.9rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .tab:hover { color: var(--text); }
 .tab.is-active { color: var(--brand); border-bottom-color: var(--brand); }
 .tab-panel { animation: wizard-fade 0.15s ease; }

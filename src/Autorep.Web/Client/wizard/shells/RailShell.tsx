@@ -2,6 +2,7 @@
 // foot. This is the original wizard chrome and stays the default; it keeps the standard app header
 // rather than supplying its own.
 import { renderStep } from "../WizardSteps";
+import { TabNavProvider, useTabNav } from "../../ui/Tabs";
 import type { ShellProps } from "./types";
 
 export function RailShell({
@@ -19,6 +20,7 @@ export function RailShell({
   const idx = plan.steps.findIndex((s) => s.step === current);
   const prev = idx > 0 ? plan.steps[idx - 1].step : null;
   const next = idx >= 0 && idx < plan.steps.length - 1 ? plan.steps[idx + 1].step : null;
+  const tabs = useTabNav(current);
 
   return (
     <div>
@@ -72,12 +74,20 @@ export function RailShell({
 
         <div class="wizard__content">
           <div class="wizard__panel" key={current}>
-            {renderStep(ctx, current)}
+            <TabNavProvider value={tabs.link}>{renderStep(ctx, current)}</TabNavProvider>
           </div>
 
           <div class="wizard__nav">
-            <div>{prev && <button class="btn btn--secondary" onClick={() => onGo(prev)}>‹ Back</button>}</div>
-            <div>{next && <button class="btn" onClick={() => onGo(next)}>Next ›</button>}</div>
+            <div>
+              {(prev || tabs.hasPrevTab) && (
+                <button class="btn btn--secondary" onClick={() => tabs.back(() => prev && onGo(prev))}>‹ Back</button>
+              )}
+            </div>
+            <div>
+              {(next || tabs.nextTab) && (
+                <button class="btn" onClick={() => tabs.next(() => next && onGo(next))}>Next ›</button>
+              )}
+            </div>
           </div>
         </div>
       </div>

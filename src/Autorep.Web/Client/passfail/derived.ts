@@ -88,6 +88,11 @@ export const DERIVED_READINGS: DerivedReading[] = [
   { key: "puls.testPulsationReading", inputs: ["tr.workingVacuum", "puls.maxChamberVacuum"], formula: "1a − 15a", calc: minus("tr.workingVacuum", "puls.maxChamberVacuum") },
   { key: "puls.rateSpread", inputs: ["puls.rateFastest", "puls.rateSlowest"], formula: "fastest − slowest", calc: gap("puls.rateFastest", "puls.rateSlowest") },
   { key: "puls.ratioSpread", inputs: ["puls.ratioHighest", "puls.ratioLowest"], formula: "highest − lowest", calc: gap("puls.ratioHighest", "puls.ratioLowest") },
+  // Additional tests — the increase the peak regulator reading makes on the working vacuum (signed:
+  // the standard is an increase), and the final check's two figures against the first ones.
+  { key: "add.regulatorLoad", inputs: ["add.peakRegulatorReading", "tr.workingVacuum"], formula: "reading − 1a", calc: minus("add.peakRegulatorReading", "tr.workingVacuum") },
+  { key: "add.finalVacuumChange", inputs: ["add.finalWorkingVacuum", "tr.workingVacuum"], formula: "16a − 1a", calc: minus("add.finalWorkingVacuum", "tr.workingVacuum") },
+  { key: "add.finalReserveChange", inputs: ["add.finalEffectiveReserve", "tr.effectiveReserve"], formula: "16b − 2a", calc: minus("add.finalEffectiveReserve", "tr.effectiveReserve") },
 ];
 
 const BY_KEY = new Map(DERIVED_READINGS.map((d) => [d.key, d]));

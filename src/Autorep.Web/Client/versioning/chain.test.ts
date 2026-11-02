@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { authorOf, hasUnfinishedSibling, isReplaced, madeByOther, replacedIds, rivalsOf } from "./chain";
+import { authorOf, canReopen, hasUnfinishedSibling, isReplaced, madeByOther, reopenedVersion, replacedIds, rivalsOf } from "./chain";
 import { defaultMachineConfiguration } from "../wizard/types";
 import type { LocalTest } from "../db/testStore";
 
@@ -28,6 +28,49 @@ const adminV2 = version("admin-v2", {
   version: 2,
   supersedesId: "v1",
   amendments: [{ version: 2, amendedAt: "2026-10-06T00:00:00.000Z", amendedBy: "sam@milkingpumping.co.nz", amendedByName: "Sam Superadmin", amendedByRole: "Super Administrator", baseVersion: 1, changes: [] }],
+});
+
+describe("reopening a completed test as a new version", () => {
+  it("is offered on the current, signed-off version", () => {
+    expect(canReopen(version("v1"), [])).toBe(true);
+  });
+
+  it("isn't offered on an unfinished, locked or replaced version, or while an edit of it is unfinished", () => {
+    expect(canReopen(version("v1", { markedCompleteAt: null }), [])).toBe(false);
+    expect(canReopen(version("v1", { readonly: true }), [])).toBe(false);
+    expect(canReopen(version("v1"), [version("v2", { supersedesId: "v1" })])).toBe(false);
+
+    const mine = version("v2", { supersedesId: "v1", version: 2 });
+    const unfinished = version("v2b", { supersedesId: "v1", version: 2, markedCompleteAt: null });
+    expect(canReopen(mine, [mine, unfinished])).toBe(false);
+  });
+
+  it("starts from the original's data, with a fresh completion record", () => {
+    const orig = version("v1", {
+      readings: { "tr.workingVacuum": 46 },
+      attestations: [{ step: "Setup", at: "2026-09-01T00:00:00.000Z" }] as never,
+      everUploaded: true,
+      version: 2,
+    });
+    const copy = reopenedVersion(orig, "v3", "2026-11-02T00:00:00.000Z");
+    expect(copy).toMatchObject({
+      id: "v3",
+      version: 3,
+      supersedesId: "v1",
+      readings: { "tr.workingVacuum": 46 },
+      attestations: [],
+      markedCompleteAt: null,
+      syncState: "local-only",
+      everUploaded: false,
+      readonly: false,
+      createdAt: "2026-11-02T00:00:00.000Z",
+    });
+  });
+
+  it("points an attachment this device has let go of at the original's server copy", () => {
+    const orig = version("v1", { pulsationPdf: { fileName: "a.pdf", sizeBytes: 1 } as never });
+    expect(reopenedVersion(orig, "v2", "2026-11-02T00:00:00.000Z").pulsationPdf?.serverTestId).toBe("v1");
+  });
 });
 
 describe("a test's versions on the device", () => {

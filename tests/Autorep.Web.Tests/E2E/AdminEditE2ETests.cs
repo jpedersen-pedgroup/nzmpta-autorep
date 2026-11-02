@@ -235,7 +235,8 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         await page.GotoAsync("/App/Tests");
         await page.GetByRole(AriaRole.Button, new() { Name = "Sync now" }).ClickAsync();
         var rows = page.Locator("tr", new() { HasText = "Kahu Corner" });
-        await rows.GetByRole(AriaRole.Button, new() { Name = "Edit" }).WaitForAsync();
+        await rows.GetByRole(AriaRole.Link, new() { Name = "View" }).WaitForAsync();
+        Assert.Equal(0, await rows.GetByRole(AriaRole.Button, new() { Name = "Edit" }).CountAsync());
 
         // An administrator edits the test online meanwhile.
         var adminVersion = await SaveAdminVersionAsync(testId, p => p["notes"] = "Comment corrected by MPNZ");
@@ -245,19 +246,20 @@ public class AdminEditE2ETests : IClassFixture<AdminEditE2EWebAppFactory>, IAsyn
         var current = rows.Filter(new() { HasText = "edited by admin" });
         await current.WaitForAsync();
         Assert.Equal(1, await original.CountAsync());
-        Assert.Equal(0, await original.GetByRole(AriaRole.Button, new() { Name = "Edit" }).CountAsync());
-        Assert.Equal(1, await current.GetByRole(AriaRole.Button, new() { Name = "Edit" }).CountAsync());
         await ShotAsync(page, "o2-tester-list-after-admin-edit");
 
         var stored = JsonDocument.Parse((await LocalTestJsonAsync(page, _factory.TesterId, adminVersion.ToString()))!).RootElement;
         Assert.Equal(clientId.ToString(), stored.GetProperty("supersedesId").GetString());
         Assert.Equal("Comment corrected by MPNZ", stored.GetProperty("notes").GetString());
 
-        // The original opens read-only; the new version says who made it and why.
+        // The original opens read-only; the new version says who made it and why, and it's the one
+        // the tester can edit from here.
         await page.GotoAsync($"/App/Tests/Wizard?id={clientId}");
         await page.GetByText("Read-only").First.WaitForAsync();
+        Assert.Equal(0, await page.GetByRole(AriaRole.Button, new() { Name = "Edit as a new version" }).CountAsync());
         await page.GotoAsync($"/App/Tests/Wizard?id={adminVersion}");
         await page.Locator("[data-version-note=admin]", new() { HasText = $"made by {AdminEditE2EWebAppFactory.AdminName} (Super Administrator)" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Edit as a new version" }).WaitForAsync();
     }
 
     // A test migrated from AutoRep Plus says so, with the date AutoRep Plus stopped taking tests (the
