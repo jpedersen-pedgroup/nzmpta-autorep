@@ -81,6 +81,7 @@ public static class Seed
         await EquipmentAsync(db);
         await OemSpecsAsync(db, services.GetService<ILoggerFactory>()?.CreateLogger(typeof(Seed)));
         await FaultObservationsAsync(db);
+        await WaterOilFlowRateAsync(db);
         await PrivacyContentAsync(db);
     }
 
@@ -136,6 +137,29 @@ public static class Seed
     }
 
     private sealed record FaultObservationSeed(string Category, string Name, string Severity, string? Recommendation);
+
+    /// <summary>The <see cref="AppliedSeed"/> key of the one-off "Water/Oil Flow Rate Poor" rename.</summary>
+    public const string WaterOilFlowRateSeedKey = "water-oil-flow-rate-2026-11";
+
+    // The vac pump running check reads "Water/oil flow rate" since Jono's 2 Nov 2026 email, and its
+    // first fault said water only. A fresh database gets the new wording from faultObservations.json;
+    // this renames the row in a database seeded before then. Runs ONCE (recorded in AppliedSeeds), and
+    // only touches the row if it still has the old wording: one the SuperAdmin has reworded is theirs.
+    // Tests already saved keep the wording they were saved with.
+    private static async Task WaterOilFlowRateAsync(AutorepDbContext db)
+    {
+        if (await db.AppliedSeeds.AnyAsync(s => s.Key == WaterOilFlowRateSeedKey)) return;
+
+        const string category = "VPOWWaterFlowRate", from = "Water Flow Rate Poor", to = "Water/Oil Flow Rate Poor";
+        var row = await db.FaultObservations.SingleOrDefaultAsync(f => f.Category == category && f.Name == from);
+        if (row is not null && !await db.FaultObservations.AnyAsync(f => f.Category == category && f.Name == to))
+        {
+            row.Name = to;
+            row.UpdatedAt = DateTimeOffset.UtcNow; // devices re-fetch the catalog when its latest change moves
+        }
+        db.AppliedSeeds.Add(new AppliedSeed { Key = WaterOilFlowRateSeedKey, AppliedAt = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync();
+    }
 
     // Seeds the equipment catalogs (shells / liners / pulsator models from the legacy DB, embedded
     // as JSON resources, plus the small fixed lists). Seed-if-type-empty so SuperAdmin renames,
