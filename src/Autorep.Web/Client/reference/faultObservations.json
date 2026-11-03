@@ -88,7 +88,7 @@
   "RECEIVERRestrictions": ["Restrictions In Mal/Ral Combination"],
   "VPOWInterceptorMovement": ["Interceptor Support Is Poor", "Interceptor Not Bracketted"],
   "VPOWNoise": ["Vacuum Pump Noise Is Excessive"],
-  "VPOWWaterFlowRate": ["Water Flow Rate Poor", "Restriction Inside Vacuum Pump", "Restriction Inside Exhaust"],
+  "VPOWWaterFlowRate": ["Water/Oil Flow Rate Poor", "Restriction Inside Vacuum Pump", "Restriction Inside Exhaust"],
   "VPOWWaterTemperature": ["Vacuum Pump Water Temp Is Excessive"],
   "CSJetterType": ["Incompatible Jetter Type"],
   "CSJetterCondition": ["Condition Poor – Servicing Required"]

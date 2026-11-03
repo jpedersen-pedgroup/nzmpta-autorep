@@ -83,7 +83,7 @@ const MINOR_FAULTS = new Set<string>([
   // VP running oil/water
   "Interceptor Support Is Poor",
   "Interceptor Not Bracketted",
-  "Water Flow Rate Poor",
+  "Water/Oil Flow Rate Poor",
   "Restriction Inside Vacuum Pump",
   "Restriction Inside Exhaust",
   // Jetters
