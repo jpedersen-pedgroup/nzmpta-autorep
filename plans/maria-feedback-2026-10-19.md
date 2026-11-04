@@ -62,7 +62,7 @@
 | E2 | Shell stays under Shell | ✅ no change. Closes F4 / 3.5 | — |
 | E2 | Oil pump wording "Top up oil" | 🔨 Oil/water split (tester-feedback 4.1) | D |
 | E2 | Cleaning reserve (2h): π? | 💬 **Not π.** ❓ which vacuum. See D5 | D |
-| E2 | ISO 16a/16b final checks: include | 🔨 ❓ limits | D |
+| E2 | ISO 16a/16b final checks: include | ✅ built 2 Nov; limits from Jono 4 Nov (16a = 1a exactly, 16b ≥ 2a) | D |
 | E2 | "Airline bends size" → main airline diameter and length | 🔨 | D |
 | E2 | Next Test Due less prominent | 🔨 | A |
 | E2 | Remove Completed date/time | 🔨 | A |
@@ -343,7 +343,7 @@ All in `Client/report/testSummaryPdf.ts` unless noted. Tests: `testSummaryPdf.te
 2. Nitro Pro: version, the exact error, and which file failed. Does "universal" mean archival PDF/A?
 3. Ratio spread: front vs back ±5%, or pooled highest − lowest (Jono's view)?
 4. Cleaning reserve: which vacuum is the "cleaning vacuum"? (Not π. See D5.)
-5. ISO 16a / 16b: the pass limits.
+5. ~~ISO 16a / 16b: the pass limits.~~ Answered by Jono, 4 Nov 2026: 16a the same as 1a, 16b at least 2a.
 6. Test ports in place: which section, shown only with ISO ports, and the rating for "No".
 7. Regulator not correct / not big enough: the rating and recommendation for the summary page.
 8. Short test without ISO ports: what should be skipped?

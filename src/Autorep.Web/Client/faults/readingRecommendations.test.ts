@@ -5,6 +5,7 @@ import { allReadingSections, type ReadingDef } from "../passfail/standards";
 import { defaultMachineConfiguration, type MachineConfiguration } from "../wizard/types";
 import type { LocalTest } from "../db/testStore";
 import { computeCompleted, stepProgress } from "../wizard/wizardProgress";
+import { deriveReadings } from "../passfail/derived";
 
 // Every optional section switched on, with the readings the cross-reading standards depend on, so
 // every reading that can carry a pass/fail rule is in the list.
@@ -85,6 +86,24 @@ describe("buildFaultInputs · failed readings", () => {
     const t = makeTest({ "tr.airlineDropRR": 2 });
     expect(stepProgress(t, "FaultSummary")).toBe(1);
     expect(computeCompleted(t).has("FaultSummary")).toBe(true);
+  });
+
+  it("lists a final check that has got worse, with what to do about it", () => {
+    const readings = deriveReadings(makeTest({}).config, {
+      "tr.workingVacuum": 46, "add.finalWorkingVacuum": 47,
+      "tr.effectiveReserve": 700, "add.finalEffectiveReserve": 660,
+    });
+    const faults = buildFaultInputs(makeTest(readings));
+    expect(faults.find((f) => f.key === "add.finalVacuumChange")).toMatchObject({
+      component: "Final check",
+      description: "Change from 1a: 1 kPa",
+      recommendation: expect.stringMatching(/^The working vacuum has changed since 1a/),
+    });
+    expect(faults.find((f) => f.key === "add.finalReserveChange")).toMatchObject({
+      component: "Final check",
+      description: "Change from 2a: -40 L/min",
+      recommendation: expect.stringMatching(/^The effective reserve has dropped since 2a/),
+    });
   });
 
   it("keeps what the tester wrote over the default", () => {

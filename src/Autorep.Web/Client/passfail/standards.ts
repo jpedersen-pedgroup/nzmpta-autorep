@@ -605,7 +605,9 @@ export function additionalTestSections(
     sections.push(hasDiaphragmReleaser(config) ? diaphragmReleaserSection(config, readings) : plainReleaserSection(config));
   }
   // The tester enters the actual reading and the increase above the working vacuum is worked out,
-  // judged at manual p61's ≤ 2 kPa (Jono, 2 Nov 2026: 46 working, 49 peak is 3 and a fail).
+  // judged at manual p61's ≤ 2 kPa (Jono, 2 Nov 2026: 46 working, 49 peak is 3 and a fail). Rise
+  // only: the test is for the most vacuum the regulator lets through, and a low regulator would
+  // already have failed elsewhere, so a reading below 1a passes (Jono, 4 Nov 2026).
   const regulatorLoadRule = ruleFor("add.regulatorLoad", { kind: "atMost", limit: 2 });
   sections.push({ key: "RegulatorLoad", title: "Peak regulator load", readings: [
     { key: "add.peakRegulatorReading", label: "Peak regulator reading", unit: "kPa", hint: "the actual reading, not the difference", rule: { kind: "none" } },
@@ -619,14 +621,32 @@ export function additionalTestSections(
     },
   ] });
   // 16 — Final check: the two headline figures taken again at the end, to show the work done on the
-  // machine hasn't made it worse (Jono, 2 Nov 2026) — not a step of the ISO workflow. No verdict yet:
-  // MPNZ hasn't set limits, so the change is shown for the tester to judge.
+  // machine hasn't made it worse (Jono, 2 Nov 2026) — not a step of the ISO workflow. Judged on the
+  // change (Jono, 4 Nov 2026): 16a must be the same as 1a, any move is a fail; 16b must be at least
+  // 2a, and a rise is good (leaks fixed during the test). A fail means something has changed for the
+  // worse, for the tester to investigate and put right.
   const firstReserve = readings["tr.effectiveReserve"];
+  const finalVacuumRule = ruleFor("add.finalVacuumChange", { kind: "tolerance", target: 0, tolerance: 0 });
+  const finalReserveRule = ruleFor("add.finalReserveChange", { kind: "atLeast", min: 0 });
   sections.push({ key: "FinalCheck", title: "Final check", readings: [
     { key: "add.finalWorkingVacuum", label: "Working vacuum (16a)", unit: "kPa", hint: workingVacuum != null ? `${workingVacuum} at 1a` : undefined, rule: { kind: "none" } },
-    { key: "add.finalVacuumChange", label: "Change from 1a", unit: "kPa", derived: "16a − 1a", rule: { kind: "none" } },
+    {
+      key: "add.finalVacuumChange",
+      label: "Change from 1a",
+      unit: "kPa",
+      derived: "16a − 1a",
+      hint: finalVacuumRule.kind === "tolerance" && finalVacuumRule.tolerance ? `± ${finalVacuumRule.tolerance} kPa` : "must be 0: 16a the same as 1a",
+      rule: finalVacuumRule,
+    },
     { key: "add.finalEffectiveReserve", label: "Effective reserve (16b)", unit: "L/min", hint: firstReserve != null ? `${firstReserve} at 2a` : undefined, rule: { kind: "none" } },
-    { key: "add.finalReserveChange", label: "Change from 2a", unit: "L/min", derived: "16b − 2a", rule: { kind: "none" } },
+    {
+      key: "add.finalReserveChange",
+      label: "Change from 2a",
+      unit: "L/min",
+      derived: "16b − 2a",
+      hint: finalReserveRule.kind === "atLeast" && finalReserveRule.min ? describeLimit(finalReserveRule) : "≥ 0: 16b no lower than 2a",
+      rule: finalReserveRule,
+    },
   ] });
   return sections;
 }

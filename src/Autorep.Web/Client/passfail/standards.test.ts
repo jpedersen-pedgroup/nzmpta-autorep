@@ -325,15 +325,30 @@ describe("final check (16a/16b)", () => {
     expect(additionalTestSections(config).at(-1)?.key).toBe("FinalCheck");
   });
 
-  it("records the two figures and their change, with no verdict until MPNZ sets limits", () => {
+  it("records the two figures and judges their change: 16a the same as 1a, 16b no lower than 2a", () => {
     const secs = additionalTestSections(config, { "tr.workingVacuum": 46, "tr.effectiveReserve": 700 });
     const final = secs.find((s) => s.key === "FinalCheck")!;
     expect(final.readings.map((r) => r.key)).toEqual([
       "add.finalWorkingVacuum", "add.finalVacuumChange", "add.finalEffectiveReserve", "add.finalReserveChange",
     ]);
-    expect(final.readings.every((r) => r.rule.kind === "none")).toBe(true);
+    expect(reading(secs, "add.finalWorkingVacuum").rule).toEqual({ kind: "none" });
+    expect(reading(secs, "add.finalEffectiveReserve").rule).toEqual({ kind: "none" });
+    expect(reading(secs, "add.finalVacuumChange").rule).toEqual({ kind: "tolerance", target: 0, tolerance: 0 });
+    expect(reading(secs, "add.finalReserveChange").rule).toEqual({ kind: "atLeast", min: 0 });
     expect(reading(secs, "add.finalWorkingVacuum").hint).toBe("46 at 1a");
     expect(reading(secs, "add.finalEffectiveReserve").hint).toBe("700 at 2a");
+    expect(reading(secs, "add.finalVacuumChange").hint).toBe("must be 0: 16a the same as 1a");
+    expect(reading(secs, "add.finalReserveChange").hint).toBe("≥ 0: 16b no lower than 2a");
+  });
+
+  it("takes the admin-managed rows, and the hints follow them", () => {
+    applyStandardsOverrides([
+      { key: "add.finalVacuumChange", kind: "tolerance", target: 0, tolerance: 0.5, version: 1 },
+      { key: "add.finalReserveChange", kind: "atLeast", min: -20, version: 1 },
+    ] as never);
+    const secs = additionalTestSections(config);
+    expect(reading(secs, "add.finalVacuumChange")).toMatchObject({ rule: { kind: "tolerance", target: 0, tolerance: 0.5 }, hint: "± 0.5 kPa" });
+    expect(reading(secs, "add.finalReserveChange")).toMatchObject({ rule: { kind: "atLeast", min: -20 }, hint: "≥ -20" });
   });
 });
 

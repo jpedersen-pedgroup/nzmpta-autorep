@@ -41,6 +41,15 @@
     ]
   },
   {
+    "name": "tolerance 0 — final check 16a the same as 1a",
+    "rule": { "kind": "tolerance", "target": 0, "tolerance": 0 },
+    "cases": [
+      { "value": 0, "expected": "pass" },
+      { "value": 0.1, "expected": "fail" },
+      { "value": -0.1, "expected": "fail" }
+    ]
+  },
+  {
     "name": "none — no standard available",
     "rule": { "kind": "none" },
     "cases": [
