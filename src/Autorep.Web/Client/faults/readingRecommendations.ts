@@ -76,6 +76,9 @@ const RECOMMENDATIONS: Record<string, Recommend> = {
   "add.teatSpray": "Service the teat sprayer to bring air use within the allowance",
   "add.gateCylinder": "Service the gate cylinders to bring air use within the allowance",
   "add.regulatorLoad": "Service or replace the Vacuum Regulator", // CMM
+  // Final check (Jono, 4 Nov 2026: something has changed or been made worse during the test)
+  "add.finalVacuumChange": "The working vacuum has changed since 1a. Find out what has changed and correct it",
+  "add.finalReserveChange": "The effective reserve has dropped since 2a. Find out what has been made worse and put it right",
 };
 
 /** True when the reading has its own wording rather than the generic fallback. */

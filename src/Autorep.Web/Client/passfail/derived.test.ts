@@ -169,16 +169,45 @@ describe("peak regulator load", () => {
   it("drops a figure an older build had typed into the box, rather than judge it", () => {
     expect(deriveReadings(cfg(), { "tr.workingVacuum": 46, "add.regulatorLoad": 49 })["add.regulatorLoad"]).toBeUndefined();
   });
+
+  it("passes a reading below 1a: the test is for the most the regulator lets through (Jono, 4 Nov 2026)", () => {
+    const r = deriveReadings(cfg(), { "tr.workingVacuum": 46, "add.peakRegulatorReading": 42 });
+    expect(r["add.regulatorLoad"]).toBe(-4);
+    expect(verdictOf(cfg(), r, "add.regulatorLoad")).toBe("pass");
+  });
 });
 
 describe("final check", () => {
-  it("shows how far 16a and 16b have moved from 1a and 2a, signed", () => {
-    const r = deriveReadings(cfg(), {
-      "tr.workingVacuum": 46, "add.finalWorkingVacuum": 45.5,
-      "tr.effectiveReserve": 700, "add.finalEffectiveReserve": 760,
+  const final = (vacuum: number, reserve: number) =>
+    deriveReadings(cfg(), {
+      "tr.workingVacuum": 46, "add.finalWorkingVacuum": vacuum,
+      "tr.effectiveReserve": 700, "add.finalEffectiveReserve": reserve,
     });
+
+  it("shows how far 16a and 16b have moved from 1a and 2a, signed", () => {
+    const r = final(45.5, 760);
     expect(r["add.finalVacuumChange"]).toBe(-0.5);
     expect(r["add.finalReserveChange"]).toBe(60);
+  });
+
+  // Jono, 4 Nov 2026: any change in working vacuum means something has changed; a lower reserve
+  // means something has been made worse; a higher one is good (leaks fixed during the test).
+  it("passes 16a only when it is the same as 1a, either way", () => {
+    expect(verdictOf(cfg(), final(46, 700), "add.finalVacuumChange")).toBe("pass");
+    expect(verdictOf(cfg(), final(45.5, 700), "add.finalVacuumChange")).toBe("fail");
+    expect(verdictOf(cfg(), final(46.5, 700), "add.finalVacuumChange")).toBe("fail");
+  });
+
+  it("passes 16b at or above 2a and fails it below", () => {
+    expect(verdictOf(cfg(), final(46, 700), "add.finalReserveChange")).toBe("pass");
+    expect(verdictOf(cfg(), final(46, 760), "add.finalReserveChange")).toBe("pass");
+    expect(verdictOf(cfg(), final(46, 690), "add.finalReserveChange")).toBe("fail");
+  });
+
+  it("has no verdict until both figures of a pair are in", () => {
+    const r = deriveReadings(cfg(), { "add.finalWorkingVacuum": 45, "add.finalEffectiveReserve": 600 });
+    expect(verdictOf(cfg(), r, "add.finalVacuumChange")).toBe("noStandard");
+    expect(verdictOf(cfg(), r, "add.finalReserveChange")).toBe("noStandard");
   });
 });
 

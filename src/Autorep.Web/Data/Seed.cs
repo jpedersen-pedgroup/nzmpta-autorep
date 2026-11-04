@@ -394,6 +394,10 @@ public static class Seed
             Rule("puls.row.phaseDms", "Pulsation phase d — minimum duration", "Pulsation", "atLeast", "ms", "ISO Table D.5 / Manual p68", min: 150),
             Param("param.chamberVac.maxDelta", "Max chamber vacuum — max drop below working vacuum", "Pulsation", 2, "kPa", "Manual p40 / ISO D.2.17"),
             Rule("puls.airlineStability", "Pulsator airline vacuum dips — max", "Pulsation", "atMost", "kPa", "Manual p40", limit: 4),
+
+            // — Final check (ISO 16): the end-of-visit readings against the first ones —
+            Rule("add.finalVacuumChange", "Working vacuum 16a — change from 1a", "Final check", "tolerance", "kPa", "MPNZ (J. Rowlands, Nov 2026)", target: 0, tolerance: 0),
+            Rule("add.finalReserveChange", "Effective reserve 16b — change from 2a, min", "Final check", "atLeast", "L/min", "MPNZ (J. Rowlands, Nov 2026)", min: 0),
         ];
 
         var existingKeys = await db.TestStandards.Select(s => s.Key).ToListAsync();
