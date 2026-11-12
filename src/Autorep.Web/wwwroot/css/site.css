@@ -204,6 +204,56 @@ h1, h2, h3, h4, h5, h6,
   color: white;
   white-space: nowrap;
 }
+/* A menu-bar item that opens a list of links (the Super Administrator's "Manage"). */
+.app-header__dropdown { position: relative; }
+.app-header__dropdown > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  white-space: nowrap;
+  color: rgba(255,255,255,0.75);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: all 0.12s ease;
+}
+.app-header__dropdown > summary::-webkit-details-marker { display: none; }
+.app-header__dropdown > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+.app-header__dropdown[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+.app-header__dropdown > summary:hover,
+.app-header__dropdown[open] > summary {
+  background: rgba(255,255,255,0.1);
+  color: white;
+}
+.app-header__dropdown > summary:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+.app-header__dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.app-header__nav .app-header__dropdown-menu a { color: var(--text); }
+.app-header__nav .app-header__dropdown-menu a:hover { background: var(--surface-alt); color: var(--text); }
+.app-header__dropdown-menu hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-1) 0; }
 .app-header__user {
   display: flex;
   align-items: center;
@@ -883,6 +933,20 @@ main {
     border-radius: 0;
     color: var(--brand);
     font-weight: 600;
+  }
+  /* In the burger menu "Manage" opens in place, its links indented under it. */
+  .app-header__dropdown > summary { color: var(--text); padding: var(--space-3); justify-content: space-between; }
+  .app-header__dropdown > summary:hover,
+  .app-header__dropdown[open] > summary { background: var(--surface-alt); color: var(--text); }
+  .app-header__dropdown > summary:focus-visible { outline-color: var(--brand); }
+  .app-header__dropdown-menu {
+    position: static;
+    min-width: 0;
+    padding: 0 0 0 var(--space-4);
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
   .app-header__user {
     flex-direction: row;
