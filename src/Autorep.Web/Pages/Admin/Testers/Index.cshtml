@@ -84,11 +84,12 @@ else
                             <td>@(t.CompanyName ?? "—")</td>
                             <td>@t.RolesDisplay</td>
                             <td>
-                                @* Amber from 60 days out, when the tester's own banner starts. *@
-                                @if (t.LicenceExpiryDate is null) { <span class="badge">—</span> }
-                                else if (t.LicenceExpiryDate < today) { <span class="badge badge--danger">Expired @t.LicenceExpiryDate</span> }
-                                else if (t.LicenceExpiryDate <= today.AddDays(60)) { <span class="badge badge--warning">Expires @t.LicenceExpiryDate</span> }
-                                else { <span class="badge badge--success">@t.LicenceExpiryDate</span> }
+                                @* Amber from 60 days out, when the tester's own banner starts. Formatted like every
+                                   other date in the portal: left raw, staging's invariant culture showed mm/dd/yyyy. *@
+                                @if (t.LicenceExpiryDate is not { } expiry) { <span class="badge">—</span> }
+                                else if (expiry < today) { <span class="badge badge--danger">Expired @expiry.ToString("dd MMM yyyy")</span> }
+                                else if (expiry <= today.AddDays(60)) { <span class="badge badge--warning">Expires @expiry.ToString("dd MMM yyyy")</span> }
+                                else { <span class="badge badge--success">@expiry.ToString("dd MMM yyyy")</span> }
                             </td>
                             <td>
                                 @if (t.IsActive) { <span class="badge badge--success">Active</span> }

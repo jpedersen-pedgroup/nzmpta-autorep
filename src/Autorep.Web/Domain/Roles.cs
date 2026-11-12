@@ -23,6 +23,18 @@ public static class Roles
         };
     }
 
+    /// <summary>The roles in a fixed order for display: Super Administrator, Company Administrator,
+    /// Tester, then anything else by name. Identity hands them back in no particular order, so a
+    /// user with two roles could show them either way round.</summary>
+    public static IEnumerable<string> InDisplayOrder(IEnumerable<string> roles) =>
+        roles.OrderBy(r => r switch
+        {
+            SuperAdministrator => 0,
+            CompanyAdministrator => 1,
+            Tester => 2,
+            _ => 3,
+        }).ThenBy(r => r, StringComparer.Ordinal);
+
     /// <summary>Human-friendly label for a role key (e.g. "CompanyAdministrator" → "Company Administrator").</summary>
     public static string Label(string role) => role switch
     {

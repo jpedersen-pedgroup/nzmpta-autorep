@@ -60,7 +60,8 @@ public class IndexModel : PageModel
         foreach (var u in users)
         {
             var roles = await _users.GetRolesAsync(u);
-            var rolesDisplay = roles.Count == 0 ? "—" : string.Join(", ", roles.Select(Roles.Label));
+            // Every role on the one row ("Company Administrator, Tester"), always in the same order.
+            var rolesDisplay = roles.Count == 0 ? "—" : string.Join(", ", Roles.InDisplayOrder(roles).Select(Roles.Label));
             var isActive = !u.LockoutEnd.HasValue || u.LockoutEnd < DateTimeOffset.UtcNow;
             rows.Add(new TesterRow(
                 u.Id,
@@ -85,7 +86,7 @@ public class IndexModel : PageModel
             .GroupBy(m => (m.Id, m.Email))
             .OrderBy(g => g.Key.Email)
             .Select(g => new MissingCompanyRow(g.Key.Id, g.Key.Email ?? "",
-                string.Join(", ", g.Select(m => m.Role).Order().Select(Roles.Label))))
+                string.Join(", ", Roles.InDisplayOrder(g.Select(m => m.Role)).Select(Roles.Label))))
             .ToList();
     }
 }

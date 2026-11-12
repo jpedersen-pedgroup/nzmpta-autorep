@@ -183,6 +183,20 @@ WHERE s.[{col}] IS NOT NULL
             }
             catch (Exception ex) { Warn(ex); }
 
+            try
+            {
+                // Mapping/LegacyRoles: UserType 2 with a certificate number or a real expiry (the
+                // migration drops the 1900/2030 sentinels) becomes Company Administrator + Tester.
+                var adminTesters = await ScalarLong(conn, @"
+SELECT COUNT(*) FROM dbo.Users
+WHERE UserType = 2
+  AND (LEN(LTRIM(RTRIM(ISNULL(CertificateNo, '')))) > 0
+       OR (ExpiryDate IS NOT NULL AND YEAR(ExpiryDate) > 1901 AND YEAR(ExpiryDate) < 2030));");
+                Stat("Company admins who also test", adminTesters,
+                    "21 on MPNZ's 11 Nov 2026 licence list — migrated as Company Administrator + Tester");
+            }
+            catch (Exception ex) { Warn(ex); }
+
             Console.WriteLine("  UserType distribution (1=Tester, 2=CompanyAdministrator, 3=SuperAdministrator):");
             await using var cmd = new SqlCommand(
                 "SELECT UserType, COUNT(*) AS n FROM dbo.Users GROUP BY UserType ORDER BY UserType;", conn)

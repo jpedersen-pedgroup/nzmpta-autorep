@@ -24,6 +24,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Autorep.Web\Autorep.Web.csproj" />
+    <!-- The migration tool's pure mapping rules (Mapping/LegacyRoles). Its top-level Program is
+         internal, so it doesn't clash with the web app's public Program. -->
+    <ProjectReference Include="..\..\tools\Migration\Mpnz.AutoRep.Migration.csproj" />
   </ItemGroup>
 
   <ItemGroup>
