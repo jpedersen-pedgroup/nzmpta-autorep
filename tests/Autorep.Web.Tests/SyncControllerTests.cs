@@ -560,10 +560,11 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         await db.SaveChangesAsync();
     }
 
-    // A farm minted by an offline sync push goes under review (matching the New-test modal)
-    // and the company's administrators are emailed — but only on the push that created it.
+    // A farm minted by an offline sync push goes under review (matching the New-test modal). Nobody
+    // is emailed (Josh, 12 Nov 2026): the admin portal shows it, and FarmReviewEmails writes to the
+    // reviewers only if it's still under review a week later.
     [Fact]
-    public async Task Upload_creating_a_farm_flags_it_for_review_and_notifies_once()
+    public async Task Upload_creating_a_farm_flags_it_for_review_without_emailing()
     {
         var companyId = await SeedTesterInCompanyAsync("tester-review-1", "Review Co");
         var adminEmail = $"review-admin-{Guid.NewGuid()}@example.test";
@@ -576,15 +577,12 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
 
         var farm = await WithDbAsync(db => db.Farms.SingleAsync(f => f.Name == farmName));
         farm.PendingReviewSince.Should().NotBeNull();
+        farm.ReviewEmailSentAt.Should().BeNull();
         farm.CreatedByTesterId.Should().Be("tester-review-1");
-
-        var mail = _factory.Emails.All.Should()
-            .ContainSingle(m => m.Subject.Contains(farmName)).Which;
-        mail.Email.Should().Be(adminEmail);
-        mail.HtmlMessage.Should().Contain($"/Admin/Farms/Edit/{farm.Id}");
+        _factory.Emails.All.Should().NotContain(m => m.Email == adminEmail || m.Subject.Contains(farmName));
 
         // A second push against the same farm identity links the existing farm: no re-flag
-        // of an approved farm, no second notification.
+        // of an approved farm.
         await WithDbAsync(async db =>
         {
             var f = await db.Farms.SingleAsync(x => x.Name == farmName);
@@ -597,14 +595,14 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
 
         (await WithDbAsync(db => db.Farms.SingleAsync(f => f.Name == farmName)))
             .PendingReviewSince.Should().BeNull("linking an existing farm must not re-flag it");
-        _factory.Emails.All.Should().ContainSingle(m => m.Subject.Contains(farmName));
+        _factory.Emails.All.Should().NotContain(m => m.Subject.Contains(farmName));
     }
 
     // A farm set up by a tester with no Testing Company matches neither arm of FarmScope, so no
-    // Company Administrator can ever see it in the review queue. It must escalate to the
-    // Super-Administrators rather than sit flagged with nobody told.
+    // Company Administrator can ever see it in the review queue. It's still flagged; its reviewers are
+    // the Super-Administrators (the banner and FarmReviewEmails), and nobody is emailed now.
     [Fact]
-    public async Task Upload_by_a_companyless_tester_escalates_the_review_to_super_administrators()
+    public async Task Upload_by_a_companyless_tester_flags_the_farm_without_emailing()
     {
         var superEmail = $"super-{Guid.NewGuid()}@example.test";
         await SeedAdminAsync(Roles.SuperAdministrator, superEmail, companyId: null);
@@ -618,12 +616,7 @@ public class SyncControllerTests : IClassFixture<AuthedWebAppFactory>
         var farm = await WithDbAsync(db => db.Farms.SingleAsync(f => f.Name == farmName));
         farm.PendingReviewSince.Should().NotBeNull();
         farm.CreatedByTestingCompanyId.Should().BeNull();
-
-        var mail = _factory.Emails.All.Should()
-            .ContainSingle(m => m.Subject.Contains(farmName)).Which;
-        mail.Email.Should().Be(superEmail);
-        mail.HtmlMessage.Should().Contain("MPNZ administrator",
-            "the Super-Admin should be told why this one reached them");
+        _factory.Emails.All.Should().NotContain(m => m.Email == superEmail || m.Subject.Contains(farmName));
     }
 
     // A tester who also holds an administrator role reviews their own farms by definition.

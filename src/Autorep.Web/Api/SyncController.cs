@@ -25,17 +25,15 @@ namespace Autorep.Web.Api;
 public class SyncController : ControllerBase
 {
     private readonly AutorepDbContext _db;
-    private readonly FarmReviewNotifier _reviewNotifier;
     private readonly Reconciliation _reconciliation;
     private readonly PulsationAttachments _attachments;
     private readonly ILogger<SyncController> _log;
 
     public SyncController(
-        AutorepDbContext db, FarmReviewNotifier reviewNotifier, Reconciliation reconciliation,
+        AutorepDbContext db, Reconciliation reconciliation,
         PulsationAttachments attachments, ILogger<SyncController> log)
     {
         _db = db;
-        _reviewNotifier = reviewNotifier;
         _reconciliation = reconciliation;
         _attachments = attachments;
         _log = log;
@@ -338,9 +336,9 @@ public class SyncController : ControllerBase
                 new { error = "This test changed on the server at the same moment — it will be sent again." });
         }
 
-        if (stored.NewFarm is { PendingReviewSince: not null } farm)
-            await _reviewNotifier.NotifyPendingFarmAsync(farm,
-                $"{Request.Scheme}://{Request.Host}/Admin/Farms/Edit/{farm.Id}", ct);
+        // A farm this push set up is under review (unless an administrator sent it), but nobody is
+        // emailed now: the admin portal shows it straight away, and FarmReviewEmails writes to the
+        // reviewers only if it's still waiting a week later (Josh, 12 Nov 2026).
 
         if (deleted is not null)
             return Ok(new { id = stored.Test.Id, status = "deleted", deletedAt = deleted.DeletedAt, reason = deleted.DeletedReason });
@@ -569,10 +567,9 @@ public class SyncController : ControllerBase
             .FirstOrDefaultAsync(ct);
     }
 
-    /// <summary>What a push stored: the row, whether it was new, a farm it had to create, the version it
-    /// was made from (as read for this write), and versions that had arrived before it and now take
-    /// its root.</summary>
-    private sealed record Stored(MachineTest Test, bool Created, Farm? NewFarm, MachineTest? Parent, IReadOnlyList<MachineTest> Adopted);
+    /// <summary>What a push stored: the row, whether it was new, the version it was made from (as read
+    /// for this write), and versions that had arrived before it and now take its root.</summary>
+    private sealed record Stored(MachineTest Test, bool Created, MachineTest? Parent, IReadOnlyList<MachineTest> Adopted);
 
     /// <summary>
     /// Upserts a pushed test (not yet saved). A new VERSION of a test already on the server stays
@@ -616,7 +613,7 @@ public class SyncController : ControllerBase
             // done for. Re-deriving it here would drag a tester's old tests into their new company
             // the first time they re-synced after a transfer.
             ApplyConfig(existing, req.Config);
-            return new Stored(existing, false, null, parent, []);
+            return new Stored(existing, false, parent, []);
         }
 
         Farm? newFarm = null;
@@ -631,8 +628,7 @@ public class SyncController : ControllerBase
         {
             companyId = await CompanyOfAsync(testerId, ct);
             var farm = await ResolveFarmAsync(req, testerId, companyId, ct);
-            // Whether ResolveFarmAsync minted a new farm row (vs linking an existing one) — checked
-            // before SaveChanges flips the state, so the review notification fires exactly once.
+            // Whether ResolveFarmAsync minted a new farm row (vs linking an existing one).
             if (_db.Entry(farm).State == EntityState.Added) newFarm = farm;
             farmId = farm.Id;
         }
@@ -659,7 +655,7 @@ public class SyncController : ControllerBase
         };
         ApplyConfig(test, req.Config);
         _db.MachineTests.Add(test);
-        return new Stored(test, true, newFarm, parent, adopted);
+        return new Stored(test, true, parent, adopted);
     }
 
     [HttpGet("tests/{id:guid}")]

@@ -23,12 +23,10 @@ namespace Autorep.Web.Api;
 public class FarmsController : ControllerBase
 {
     private readonly AutorepDbContext _db;
-    private readonly FarmReviewNotifier _reviewNotifier;
 
-    public FarmsController(AutorepDbContext db, FarmReviewNotifier reviewNotifier)
+    public FarmsController(AutorepDbContext db)
     {
         _db = db;
-        _reviewNotifier = reviewNotifier;
     }
 
     public record FarmDto(
@@ -144,8 +142,8 @@ public class FarmsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] NewFarmRequest farm, CancellationToken ct)
     {
         // Idempotent by the device's id for the new farm. If the connection drops after the farm is
-        // saved (the review emails are sent before the answer goes back), the tester can't tell
-        // whether it was added; a retry with the same id gets that farm back instead of a duplicate.
+        // saved, the tester can't tell whether it was added; a retry with the same id gets that farm
+        // back instead of a duplicate.
         if (farm.Id is { } requestedId)
         {
             var already = await _db.Farms
@@ -214,11 +212,8 @@ public class FarmsController : ControllerBase
         };
         _db.Farms.Add(entity);
         await _db.SaveChangesAsync(ct);
-
-        // Not tied to the request's cancellation: the farm is saved, so the administrators must hear
-        // about it even if the tester's connection drops before the answer gets back to them.
-        if (entity.PendingReviewSince is not null)
-            await _reviewNotifier.NotifyPendingFarmAsync(entity, $"{Request.Scheme}://{Request.Host}/Admin/Farms/Edit/{entity.Id}");
+        // Nobody is emailed now: the admin portal shows a farm under review straight away, and
+        // FarmReviewEmails writes to the reviewers only if it's still waiting a week later.
 
         // The full row, as the farm book carries it, so the device can add it to its cached book
         // and offer it offline from now on without waiting for the next sync.

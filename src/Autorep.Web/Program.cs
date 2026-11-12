@@ -143,8 +143,10 @@ else
         "No email transport configured: set Graph:SendingMailbox (via Key Vault) in Production.");
 }
 
-// Emails Company Administrators when a tester sets up a farm in the field (review flow).
-builder.Services.AddScoped<FarmReviewNotifier>();
+// Emails a farm's reviewers if it's still under review a week after a tester set it up in the
+// field, checked hourly. Nothing is emailed when the farm is added; the admin portal shows it.
+builder.Services.AddScoped<FarmReviewEmails>();
+builder.Services.AddHostedService<FarmReviewEmailService>();
 
 // Versions of a test: an administrator's edit saved as a new version, and the reconciliation of two
 // versions that both replaced the same one (a tester's offline edit and an administrator's).

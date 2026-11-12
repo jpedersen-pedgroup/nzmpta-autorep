@@ -9,7 +9,7 @@ namespace Autorep.Web.Services;
 /// <summary>
 /// The admin portal's reminder about farms still under review 48 hours after a tester set them up
 /// in the field (Josh, 19 Oct). It goes to whoever reviews the farm, the same people
-/// <see cref="FarmReviewNotifier"/> emails: the creating company's Company Administrators, or the
+/// <see cref="FarmReviewEmails"/> emails a week in: the creating company's Company Administrators, or the
 /// Super Administrators for a farm whose creator had no Testing Company. Each of them can dismiss a
 /// farm for themselves (<see cref="FarmReviewDismissal"/>); approving the farm ends it for everyone.
 /// The review itself is unchanged, and so are the farms list's alert and the home tile's badge.
