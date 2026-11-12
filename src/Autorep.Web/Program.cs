@@ -314,6 +314,8 @@ app.UseAuthentication();
 // and nowhere else until it has it (403 on /api/*).
 app.UseMiddleware<MfaEnrolmentMiddleware>();
 app.UseAuthorization();
+// A Tester who is also an administrator works on one side at a time (Domain/SignInRole.cs).
+app.Use(SignInRoles.RememberFromPageAsync);
 
 app.MapRazorPages();
 app.MapControllers();

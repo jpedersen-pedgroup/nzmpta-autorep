@@ -5,8 +5,13 @@
     {
         userInitials = name.Substring(0, 1).ToUpperInvariant();
     }
-    var isTester = User.IsInRole("Tester");
-    var isAdmin = User.IsInRole("SuperAdministrator") || User.IsInRole("CompanyAdministrator");
+    // A Tester who is also an administrator sees one side at a time: the menu, licence reminder
+    // and connection status follow the side they signed in as, or the page's own side
+    // (Domain/SignInRole.cs). Everyone else has one side, so nothing changes for them.
+    var signedInAs = Autorep.Web.Domain.SignInRoles.Current(Context);
+    var hasBothRoles = Autorep.Web.Domain.SignInRoles.HasBoth(User);
+    var isTester = User.IsInRole("Tester") && signedInAs == Autorep.Web.Domain.SignInRole.Tester;
+    var isAdmin = Autorep.Web.Domain.SignInRoles.IsAdmin(User) && signedInAs == Autorep.Web.Domain.SignInRole.Admin;
     var isSuperAdmin = User.IsInRole("SuperAdministrator");
 
     // Licence reminder banner: Testers from 60 days before expiry, and after it. Only a reminder:
@@ -87,6 +92,12 @@
                         }
                     }
                     <a asp-page="/Help/Index">Help</a>
+                    @if (hasBothRoles)
+                    {
+                        @* A plain link: landing on the other side is what switches (SignInRoles.RememberFromPageAsync). *@
+                        <a class="app-header__switch" data-role-switch
+                           href="@(isTester ? "/Admin" : "/App")">Switch to @(isTester ? Autorep.Web.Domain.SignInRoles.AdminShortLabel(User) : "Tester")</a>
+                    }
                 </nav>
                 <div class="app-header__user">
                     <a class="app-header__user-name" asp-page="/Account/Manage" style="text-decoration:none">

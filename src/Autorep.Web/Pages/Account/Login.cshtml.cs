@@ -48,6 +48,8 @@ public class LoginModel : PageModel
         ReturnUrl = returnUrl;
         Reason = reason;
         await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+        // A new sign-in asks a Tester-and-administrator which role again (Domain/SignInRole.cs).
+        SignInRoles.Forget(Response);
     }
 
     public async Task<IActionResult> OnPostAsync(string? returnUrl = null)

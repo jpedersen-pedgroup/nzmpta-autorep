@@ -1,0 +1,43 @@
+@page
+@model Autorep.Web.Pages.Account.ChooseRoleModel
+@{
+    ViewData["Title"] = "Choose a role";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Choose a role · MPNZ AutoRep</title>
+    <partial name="_BrandHead" />
+</head>
+<body class="auth-layout">
+    <div class="auth-card">
+        <div class="auth-card__logo">
+            <img class="auth-card__logo-img auth-card__logo-img--lockup" src="~/img/logo-mpnz-lockup.svg" alt="MPNZ — Milking & Pumping since 1932" />
+        </div>
+        <h1 class="auth-card__title">Which role are you signing in as?</h1>
+        <p class="auth-card__subtitle">You're a Tester and a @Model.AdminLabel.</p>
+
+        <nav class="role-choice" aria-label="Sign in as">
+            <a class="role-choice__option" href="/App" data-role-choice="tester">
+                <span class="role-choice__title">Tester</span>
+                <span class="role-choice__text">Start and sync machine tests, and see your own and your company's tests.</span>
+            </a>
+            <a class="role-choice__option" href="/Admin" data-role-choice="admin">
+                <span class="role-choice__title">@Model.AdminLabel</span>
+                <span class="role-choice__text">
+                    @(Model.IsSuperAdmin
+                        ? "Manage tests, farms, users, companies and test standards."
+                        : "Review your company's tests and farms, and approve new farms.")
+                </span>
+            </a>
+        </nav>
+
+        <p class="role-choice__note">You can switch at any time from the menu bar.</p>
+    </div>
+    @* Versioned for the same reason as the sign-in page: it sits outside the service worker. *@
+    <script src="~/js/pwa-register.js" asp-append-version="true"></script>
+</body>
+</html>
