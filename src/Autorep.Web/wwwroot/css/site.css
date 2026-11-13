@@ -197,13 +197,31 @@ h1, h2, h3, h4, h5, h6,
   background: rgba(255,255,255,0.1);
   color: white;
 }
-/* Tester-and-administrator accounts: a link to the other side, set apart from the pages. */
-.app-header__nav a.app-header__switch {
+/* Tester-and-administrator accounts: a two-way Admin | Tester toggle next to Help. The lit half is
+   the side they're on; the other half is a link across. */
+.role-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   margin-left: var(--space-2);
+  padding: 2px;
   border: 1px solid rgba(255,255,255,0.35);
-  color: white;
-  white-space: nowrap;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.15);
 }
+.role-toggle__option,
+.app-header__nav a.role-toggle__option {
+  padding: 4px var(--space-3);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: rgba(255,255,255,0.8);
+}
+.app-header__nav a.role-toggle__option:hover { background: rgba(255,255,255,0.15); color: white; }
+.app-header__nav a.role-toggle__option:focus-visible { outline: 2px solid white; outline-offset: 1px; }
+.role-toggle__option--on { background: white; color: var(--brand); }
 /* A menu-bar item that opens a list of links (the Super Administrator's "Manage"). */
 .app-header__dropdown { position: relative; }
 .app-header__dropdown > summary {
@@ -265,6 +283,20 @@ h1, h2, h3, h4, h5, h6,
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+/* The account shows as its initial, on the menu bar and in the burger menu alike (Josh, 13 Nov 2026);
+   the address is the link's tooltip and is still read out by screen readers. A full email address
+   left no room for a long menu and the Admin | Tester toggle on one row. */
+.app-header__user-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 .app-header__user-avatar {
   width: 28px;
@@ -926,14 +958,24 @@ main {
   .app-header__nav { flex: none; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; margin: 0; }
   .app-header__nav a { color: var(--text); padding: var(--space-3); }
   .app-header__nav a:hover { background: var(--surface-alt); color: var(--text); }
-  .app-header__nav a.app-header__switch {
+  /* In the burger menu the toggle spans the card, under the pages. */
+  .role-toggle {
+    display: flex;
     margin: var(--space-2) 0 0;
-    border: none;
-    border-top: 1px solid var(--border);
-    border-radius: 0;
-    color: var(--brand);
-    font-weight: 600;
+    border-color: var(--border-strong);
+    background: var(--surface-alt);
   }
+  .role-toggle__option,
+  .app-header__nav a.role-toggle__option {
+    flex: 1;
+    text-align: center;
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.9375rem;
+    color: var(--text);
+  }
+  .app-header__nav a.role-toggle__option:hover { background: var(--surface); color: var(--text); }
+  .app-header__nav a.role-toggle__option:focus-visible { outline-color: var(--brand); }
+  .role-toggle__option--on { background: var(--brand); color: white; }
   /* In the burger menu "Manage" opens in place, its links indented under it. */
   .app-header__dropdown > summary { color: var(--text); padding: var(--space-3); justify-content: space-between; }
   .app-header__dropdown > summary:hover,
