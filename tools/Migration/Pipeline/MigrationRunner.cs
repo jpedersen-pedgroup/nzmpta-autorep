@@ -257,13 +257,11 @@ public sealed class MigrationRunner
             addUsers.Add(u);
             migrated++;
 
-            var role = (Row.Int(r, "UserType")) switch
-            {
-                2 => Roles.CompanyAdministrator,
-                3 => Roles.SuperAdministrator,
-                _ => Roles.Tester,
-            };
-            addRoles.Add(new IdentityUserRole<string> { UserId = id, RoleId = roleMap[role] });
+            // A Company Administrator with a licence also tests, so gets both roles (LegacyRoles).
+            var roles = LegacyRoles.For(Row.Int(r, "UserType"), cert, licence);
+            if (roles.Count > 1) q.Add("Users", uid.ToString(), "Tester", "company_admin_also_tester", "info");
+            foreach (var role in roles)
+                addRoles.Add(new IdentityUserRole<string> { UserId = id, RoleId = roleMap[role] });
         }
 
         ctx.Users.AddRange(addUsers);

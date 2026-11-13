@@ -208,6 +208,60 @@ public class UserAdminPageTests : IClassFixture<AuthedWebAppFactory>
         (await FindUserByIdAsync(orphanId))!.TestingCompanyId.Should().BeNull("the page only reports it");
     }
 
+    // Maria, 11 Nov 2026: the list showed licence dates as mm/dd/yyyy. Left raw, a DateOnly takes
+    // the server's culture, and staging's is invariant (US order).
+    [Fact]
+    public async Task Users_list_shows_licence_dates_as_day_month_year()
+    {
+        var companyId = await SeedCompanyAsync();
+        var current = await SeedUserAsync(companyId, Roles.Tester);
+        var soon = await SeedUserAsync(companyId, Roles.Tester);
+        var expired = await SeedUserAsync(companyId, Roles.Tester);
+        var soonDate = NzTime.Today.AddDays(30);
+        await SetLicenceAsync(current, new DateOnly(2031, 3, 14));
+        await SetLicenceAsync(soon, soonDate);
+        await SetLicenceAsync(expired, new DateOnly(2026, 2, 3));
+
+        var html = WebUtility.HtmlDecode(await SuperAdminClient().GetStringAsync("/Admin/Testers"));
+
+        RowFor(html, current).Should().Contain(">14 Mar 2031</span>").And.NotContain("03/14/2031");
+        RowFor(html, soon).Should().Contain($">Expires {soonDate:dd MMM yyyy}</span>");
+        RowFor(html, expired).Should().Contain(">Expired 03 Feb 2026</span>").And.NotContain("02/03/2026");
+
+        async Task SetLicenceAsync(string userId, DateOnly expiry)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
+            (await db.Users.SingleAsync(u => u.Id == userId)).LicenceExpiryDate = expiry;
+            await db.SaveChangesAsync();
+        }
+    }
+
+    // Josh, 12 Nov 2026: someone who is both a Company Administrator and a Tester shows both roles.
+    // One row per account, so the count, the search and the Edit link aren't doubled.
+    [Fact]
+    public async Task Users_list_shows_every_role_on_one_row_in_a_fixed_order()
+    {
+        var companyId = await SeedCompanyAsync();
+        var adminTester = await SeedUserAsync(companyId, Roles.Tester, Roles.CompanyAdministrator);
+        var allThree = await SeedUserAsync(companyId, Roles.Tester, Roles.SuperAdministrator, Roles.CompanyAdministrator);
+
+        var html = WebUtility.HtmlDecode(await SuperAdminClient().GetStringAsync("/Admin/Testers"));
+
+        RowFor(html, adminTester).Should().Contain("<td>Company Administrator, Tester</td>");
+        RowFor(html, allThree).Should().Contain("<td>Super Administrator, Company Administrator, Tester</td>");
+        Regex.Matches(html, $"/Admin/Testers/Edit/{adminTester}\"").Count.Should().Be(1, "one row per account");
+    }
+
+    /// <summary>The Users list's table row for this user, found by its Edit link.</summary>
+    private static string RowFor(string html, string userId)
+    {
+        var at = html.IndexOf($"/Admin/Testers/Edit/{userId}\"", StringComparison.Ordinal);
+        at.Should().BeGreaterThan(-1, "the user is listed");
+        var start = html.LastIndexOf("<tr", at, StringComparison.Ordinal);
+        return html[start..html.IndexOf("</tr>", at, StringComparison.Ordinal)];
+    }
+
     [Fact]
     public async Task Users_pages_say_users_not_testers()
     {
