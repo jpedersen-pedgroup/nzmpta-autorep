@@ -9,6 +9,16 @@ internal static class OfflineBrowser
     public const int WaitMs = 30_000;
 
     /// <summary>
+    /// How long a case waits for work to go up by itself after the signal comes back. Back online,
+    /// the app sends as soon as its session check confirms the connection — but that check gives up
+    /// after 5 s, and a failed send backs off 30 s. When either happens the next chance is the 30 s
+    /// reachability check or the retry, which lands just as a 30 s wait gives up. A busy CI runner
+    /// hit exactly that (13 Nov 2026; reproduced locally with one 6 s session check). This allows one
+    /// round of the app's own retry; work that never goes up still fails.
+    /// </summary>
+    public const int ReconnectSyncWaitMs = 75_000;
+
+    /// <summary>
     /// Re-evaluates an ASYNC page check until it returns true or the time runs out. Not
     /// WaitForFunctionAsync: an async function returns a Promise, which is always truthy, so that
     /// would resolve at once without waiting (see ServiceWorkerCacheE2ETests). Each evaluation is
@@ -79,10 +89,22 @@ internal static class OfflineBrowser
     /// </summary>
     public static async Task WaitUntilReadyForOfflineAsync(IPage page)
     {
+        // Activated, not just active: sw.js's activate step claims the open pages before it settles.
         Assert.True(await PollAsync(page, @"async () => {
                 const reg = await navigator.serviceWorker.getRegistration();
-                return !!(reg && reg.active && navigator.serviceWorker.controller);
-            }"), "the service worker never took control of the page");
+                return reg?.active?.state === 'activated';
+            }"), "the service worker never activated");
+
+        // The worker starts installing on the sign-in page. On a slow runner it can finish while the
+        // browser is still loading the page the sign-in redirected to, and clients.claim() skips a page
+        // that hasn't finished starting up: that page stays uncontrolled for good, while every later
+        // navigation is controlled. A tester never notices (their next tap is a navigation), but a case
+        // that waited here sat out its 30 s on CI (13 Nov 2026, reproduced locally by slowing the
+        // install and the redirect). So do what the next tap would: load the page again.
+        if (!await page.EvaluateAsync<bool>("() => !!navigator.serviceWorker.controller"))
+            await page.ReloadAsync();
+        Assert.True(await PollAsync(page, "async () => !!navigator.serviceWorker.controller"),
+            "the service worker never took control of the page");
 
         Assert.True(await PollAsync(page, @"async () => {
                 const name = (await caches.keys()).find((k) => /^autorep-[0-9a-f]{12}$/.test(k));

@@ -288,7 +288,7 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
                     get.onsuccess = () => { db.close(); resolve(get.result?.syncState === 'uploaded'); };
                     get.onerror = () => { db.close(); resolve(false); };
                 };
-            })", new[] { _factory.TesterId, testId }), "the test never synced after the farm went up");
+            })", new[] { _factory.TesterId, testId }, ReconnectSyncWaitMs), "the test never synced after the farm went up");
 
         using var scope = _factory.AppServices.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
@@ -408,7 +408,7 @@ public class OfflineTesterE2ETests : IClassFixture<OfflineE2EWebAppFactory>, IAs
                     get.onsuccess = () => { db.close(); resolve(get.result?.syncState === 'uploaded'); };
                     get.onerror = () => { db.close(); resolve(false); };
                 };
-            })", new[] { _factory.TesterId, testId }), "the test never synced by itself after reconnecting");
+            })", new[] { _factory.TesterId, testId }, ReconnectSyncWaitMs), "the test never synced by itself after reconnecting");
 
         using var scope = _factory.AppServices.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AutorepDbContext>();
