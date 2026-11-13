@@ -166,6 +166,9 @@ h1, h2, h3, h4, h5, h6,
   font-weight: 600;
   font-size: 1.0625rem;
   color: white;
+  /* A long menu squeezed the brand until "AutoRep App" ran into the first link. */
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .app-header__brand-logo {
   height: 30px;
@@ -175,11 +178,14 @@ h1, h2, h3, h4, h5, h6,
 .app-header__nav {
   display: flex;
   align-items: center;
+  /* Links stay whole; a menu too long for one row (the Super Administrator's) takes a second. */
+  flex-wrap: wrap;
   gap: var(--space-1);
   flex: 1;
   margin-left: var(--space-6);
 }
 .app-header__nav a {
+  white-space: nowrap;
   color: rgba(255,255,255,0.75);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius);
@@ -191,6 +197,63 @@ h1, h2, h3, h4, h5, h6,
   background: rgba(255,255,255,0.1);
   color: white;
 }
+/* Tester-and-administrator accounts: a link to the other side, set apart from the pages. */
+.app-header__nav a.app-header__switch {
+  margin-left: var(--space-2);
+  border: 1px solid rgba(255,255,255,0.35);
+  color: white;
+  white-space: nowrap;
+}
+/* A menu-bar item that opens a list of links (the Super Administrator's "Manage"). */
+.app-header__dropdown { position: relative; }
+.app-header__dropdown > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  white-space: nowrap;
+  color: rgba(255,255,255,0.75);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: all 0.12s ease;
+}
+.app-header__dropdown > summary::-webkit-details-marker { display: none; }
+.app-header__dropdown > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+.app-header__dropdown[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+.app-header__dropdown > summary:hover,
+.app-header__dropdown[open] > summary {
+  background: rgba(255,255,255,0.1);
+  color: white;
+}
+.app-header__dropdown > summary:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+.app-header__dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.app-header__nav .app-header__dropdown-menu a { color: var(--text); }
+.app-header__nav .app-header__dropdown-menu a:hover { background: var(--surface-alt); color: var(--text); }
+.app-header__dropdown-menu hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-1) 0; }
 .app-header__user {
   display: flex;
   align-items: center;
@@ -637,6 +700,24 @@ main {
   font-size: 0.9375rem;
 }
 
+/* /Account/ChooseRole: the two sides a Tester who is also an administrator can sign in as. */
+.role-choice { display: grid; gap: var(--space-3); }
+.role-choice__option {
+  display: block;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.role-choice__option:hover,
+.role-choice__option:focus-visible { border-color: var(--brand); background: var(--surface-alt); }
+.role-choice__title { display: block; font-weight: 600; font-size: 1.0625rem; color: var(--brand); }
+.role-choice__text { display: block; margin-top: var(--space-1); font-size: 0.875rem; color: var(--text-muted); }
+.role-choice__note { margin-top: var(--space-6); text-align: center; font-size: 0.8125rem; color: var(--text-muted); }
+
 /* ----- Welcome / dashboard --------------------------------------------------- */
 /* A page heading, not a brand-blue panel. The app header directly above is already a full-width
    band of --brand and the licence banner often sits between the two, so a gradient block here made
@@ -842,9 +923,31 @@ main {
     z-index: 50;
   }
   .app-header--open .app-header__menu { display: flex; }
-  .app-header__nav { flex: none; flex-direction: column; align-items: stretch; gap: 2px; margin: 0; }
+  .app-header__nav { flex: none; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; margin: 0; }
   .app-header__nav a { color: var(--text); padding: var(--space-3); }
   .app-header__nav a:hover { background: var(--surface-alt); color: var(--text); }
+  .app-header__nav a.app-header__switch {
+    margin: var(--space-2) 0 0;
+    border: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    color: var(--brand);
+    font-weight: 600;
+  }
+  /* In the burger menu "Manage" opens in place, its links indented under it. */
+  .app-header__dropdown > summary { color: var(--text); padding: var(--space-3); justify-content: space-between; }
+  .app-header__dropdown > summary:hover,
+  .app-header__dropdown[open] > summary { background: var(--surface-alt); color: var(--text); }
+  .app-header__dropdown > summary:focus-visible { outline-color: var(--brand); }
+  .app-header__dropdown-menu {
+    position: static;
+    min-width: 0;
+    padding: 0 0 0 var(--space-4);
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
   .app-header__user {
     flex-direction: row;
     justify-content: space-between;

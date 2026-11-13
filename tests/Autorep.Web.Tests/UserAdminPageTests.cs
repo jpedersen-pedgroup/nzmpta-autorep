@@ -233,6 +233,40 @@ public class UserAdminPageTests : IClassFixture<AuthedWebAppFactory>
             .Should().Be(HttpStatusCode.OK, "the page is still reachable by URL");
     }
 
+    [Fact]
+    public async Task Super_admin_set_up_pages_sit_under_manage_in_the_menu_bar()
+    {
+        var html = WebUtility.HtmlDecode(await SuperAdminClient().GetStringAsync("/Admin/Testers"));
+        var nav = Regex.Match(html, "<nav[^>]*class=\"app-header__nav\"[^>]*>(.*?)</nav>", RegexOptions.Singleline).Groups[1].Value;
+        var manage = Regex.Match(nav, "<details[^>]*data-nav-dropdown[^>]*>(.*?)</details>", RegexOptions.Singleline).Groups[1].Value;
+
+        manage.Should().MatchRegex("<summary[^>]*>Manage</summary>");
+        foreach (var (href, label) in new[]
+        {
+            ("/Admin/Testers", "Users"), ("/Admin/Companies", "Companies"), ("/Admin/MilkSupplyCompanies", "Dairy processors"),
+            ("/Admin/Standards", "Test standards"), ("/Admin/Equipment", "OEM Specs"), ("/Admin/FaultObservations", "Fault observations"),
+        })
+        {
+            manage.Should().MatchRegex($"<a[^>]*href=\"{href}\"[^>]*>{label}</a>");
+        }
+
+        var bar = nav.Replace(manage, "");
+        bar.Should().Contain(">All tests</a>").And.Contain(">Farms</a>").And.Contain(">Help</a>")
+            .And.NotContain(">Users</a>", "it's under Manage, not on the bar itself");
+    }
+
+    [Fact]
+    public async Task Company_admin_menu_has_no_manage_item()
+    {
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
+        client.DefaultRequestHeaders.Add(TestAuthHandler.RoleHeader, Roles.CompanyAdministrator);
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, "users-page-company-admin");
+
+        var html = WebUtility.HtmlDecode(await client.GetStringAsync("/Help"));
+        var nav = Regex.Match(html, "<nav[^>]*class=\"app-header__nav\"[^>]*>(.*?)</nav>", RegexOptions.Singleline).Groups[1].Value;
+        nav.Should().Contain(">My company</a>").And.NotContain("data-nav-dropdown").And.NotContain(">Users</a>");
+    }
+
     // --- helpers ---------------------------------------------------------------------------------
 
     private HttpClient SuperAdminClient()

@@ -20,6 +20,7 @@ public class LogoutModel : PageModel
     public async Task<IActionResult> OnPostAsync()
     {
         await _signIn.SignOutAsync();
+        Autorep.Web.Domain.SignInRoles.Forget(Response);
         return RedirectToPage("/Account/Login");
     }
 }
