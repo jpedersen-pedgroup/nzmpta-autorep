@@ -58,6 +58,11 @@ public class Farm
     /// review". Review gates data quality only — a pending farm is fully usable for testing.</summary>
     public DateTimeOffset? PendingReviewSince { get; set; }
 
+    /// <summary>When the reviewers were emailed that this farm is still under review a week on
+    /// (Services/FarmReviewEmails). It covers the review under way when it was set: one older than
+    /// <see cref="PendingReviewSince"/> belongs to an earlier review, so a later one is emailed again.</summary>
+    public DateTimeOffset? ReviewEmailSentAt { get; set; }
+
     /// <summary>Soft enable/disable so retired farms drop out of pickers without losing history.</summary>
     public bool IsActive { get; set; } = true;
 

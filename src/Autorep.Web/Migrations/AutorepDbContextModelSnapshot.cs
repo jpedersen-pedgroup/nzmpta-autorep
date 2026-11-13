@@ -234,6 +234,9 @@ namespace Autorep.Web.Migrations
                     b.Property<Guid?>("RegionId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("ReviewEmailSentAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("SupplyNumber")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
