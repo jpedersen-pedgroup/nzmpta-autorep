@@ -1,0 +1,14 @@
+[
+  { "name": "first and last name", "displayName": "Fern Fieldtester", "userName": "fern@example.test", "expected": "FF" },
+  { "name": "middle names are skipped", "displayName": "Mary Anne Smith", "userName": "mary@example.test", "expected": "MS" },
+  { "name": "one word gives one letter", "displayName": "Cher", "userName": "cher@example.test", "expected": "C" },
+  { "name": "lower case and extra spaces", "displayName": "  ana   lee  ", "userName": "ana@example.test", "expected": "AL" },
+  { "name": "apostrophe", "displayName": "Sam O'Brien", "userName": "sam@example.test", "expected": "SO" },
+  { "name": "bracketed nickname", "displayName": "(Kit) Rowe", "userName": "kit@example.test", "expected": "KR" },
+  { "name": "hyphenated surname", "displayName": "Ana Smith-Jones", "userName": "ana.sj@example.test", "expected": "AS" },
+  { "name": "macrons", "displayName": "Ōrewa Tānemahuta", "userName": "orewa@example.test", "expected": "ŌT" },
+  { "name": "no name: the email's first letter", "displayName": "", "userName": "admin@local", "expected": "A" },
+  { "name": "blank name: the email's first letter", "displayName": "   ", "userName": "zed@example.test", "expected": "Z" },
+  { "name": "a name with no letters: the email's first letter", "displayName": "-", "userName": "pat@example.test", "expected": "P" },
+  { "name": "nothing at all", "displayName": null, "userName": null, "expected": "" }
+]

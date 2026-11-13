@@ -8,6 +8,7 @@
 // the right empty root in place first.
 import { render, type ComponentChildren, type JSX } from "preact";
 import { homeFor, type IdentityRecord } from "../db/identity";
+import { userInitials } from "./initials";
 import { licenceBanner, MPNZ_EMAIL } from "./licenceBanner";
 import { shellRouteFor, type ShellRoute } from "./routes";
 
@@ -16,14 +17,15 @@ export function isShellDocument(): boolean {
 }
 
 /** Fills the header's user block and the licence banner. The server-rendered header gets these
- * from Razor (Pages/Shared/_Layout.cshtml) — same initials rule, same banner threshold and words. */
+ * from Razor (Pages/Shared/_Layout.cshtml) — same initials rule (Domain/UserInitials.cs), same
+ * banner threshold and words. */
 export function renderShellChrome(identity: IdentityRecord | null): void {
   const user = document.getElementById("shell-user");
   if (identity && user) {
     const name = identity.userName ?? identity.displayName;
     const initials = document.getElementById("shell-user-initials");
     const nameEl = document.getElementById("shell-user-name");
-    if (initials) initials.textContent = name.slice(0, 1).toUpperCase();
+    if (initials) initials.textContent = userInitials(identity.displayName, identity.userName);
     if (nameEl) {
       nameEl.textContent = name;
       // The header shows only the initial; the address is the tooltip, as on the server's header.

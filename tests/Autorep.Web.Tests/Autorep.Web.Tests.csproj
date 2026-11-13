@@ -34,6 +34,7 @@
     <None Include="..\fixtures\wizard\*.json" Link="Fixtures\Wizard\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\fixtures\passfail\*.json" Link="Fixtures\PassFail\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\fixtures\faults\*.json" Link="Fixtures\Faults\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\initials\*.json" Link="Fixtures\Initials\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
