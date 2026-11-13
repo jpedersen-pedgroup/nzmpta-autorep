@@ -1,10 +1,7 @@
 @inject Microsoft.AspNetCore.Identity.UserManager<Autorep.Web.Domain.Entities.Tester> UserManager
 @{
-    var userInitials = "";
-    if (User.Identity?.Name is { } name && name.Length > 0)
-    {
-        userInitials = name.Substring(0, 1).ToUpperInvariant();
-    }
+    var userInitials = Autorep.Web.Domain.UserInitials.For(
+        User.FindFirst(Autorep.Web.Domain.UserInitials.DisplayNameClaim)?.Value, User.Identity?.Name);
     // A Tester who is also an administrator sees one side at a time: the menu, licence reminder
     // and connection status follow the side they signed in as, or the page's own side
     // (Domain/SignInRole.cs). Everyone else has one side, so nothing changes for them.

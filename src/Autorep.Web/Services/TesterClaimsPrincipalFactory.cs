@@ -42,6 +42,13 @@ public class TesterClaimsPrincipalFactory : UserClaimsPrincipalFactory<Tester, I
             identity.AddClaim(new Claim(MfaPolicy.ClaimType, MfaPolicy.EnrolmentRequired));
         }
 
+        // The person's name, for the header's initials (Domain/UserInitials). Refreshed with the
+        // rest of the principal, so a name edited on the Users page shows within a minute.
+        if (!string.IsNullOrWhiteSpace(user.DisplayName))
+        {
+            identity.AddClaim(new Claim(UserInitials.DisplayNameClaim, user.DisplayName.Trim()));
+        }
+
         return identity;
     }
 }
