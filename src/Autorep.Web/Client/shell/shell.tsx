@@ -24,7 +24,11 @@ export function renderShellChrome(identity: IdentityRecord | null): void {
     const initials = document.getElementById("shell-user-initials");
     const nameEl = document.getElementById("shell-user-name");
     if (initials) initials.textContent = name.slice(0, 1).toUpperCase();
-    if (nameEl) nameEl.textContent = name;
+    if (nameEl) {
+      nameEl.textContent = name;
+      // The header shows only the initial; the address is the tooltip, as on the server's header.
+      nameEl.closest("a")?.setAttribute("title", name);
+    }
     user.hidden = false;
   }
 

@@ -106,15 +106,32 @@
                     <a asp-page="/Help/Index">Help</a>
                     @if (hasBothRoles)
                     {
-                        @* A plain link: landing on the other side is what switches (SignInRoles.RememberFromPageAsync). *@
-                        <a class="app-header__switch" data-role-switch
-                           href="@(isTester ? "/Admin" : "/App")">Switch to @(isTester ? Autorep.Web.Domain.SignInRoles.AdminShortLabel(User) : "Tester")</a>
+                        var adminLabel = Autorep.Web.Domain.SignInRoles.AdminShortLabel(User);
+                        @* Tester-and-administrator accounts: a two-way toggle next to Help showing which side
+                           they're on (Josh, 13 Nov 2026). The lit half is where they are; the other half is a
+                           plain link, because landing on the other side is what switches
+                           (SignInRoles.RememberFromPageAsync). *@
+                        <div class="role-toggle" role="group" aria-label="Signed in as" data-role-switch>
+                            @if (isTester)
+                            {
+                                <a class="role-toggle__option" href="/Admin" aria-label="Switch to @adminLabel" title="Switch to @adminLabel">Admin</a>
+                                <span class="role-toggle__option role-toggle__option--on" aria-current="true">Tester</span>
+                            }
+                            else
+                            {
+                                <span class="role-toggle__option role-toggle__option--on" aria-current="true">Admin</span>
+                                <a class="role-toggle__option" href="/App" aria-label="Switch to Tester" title="Switch to Tester">Tester</a>
+                            }
+                        </div>
                     }
                 </nav>
                 <div class="app-header__user">
-                    <a class="app-header__user-name" asp-page="/Account/Manage" style="text-decoration:none">
-                        <span class="app-header__user-avatar">@userInitials</span>
-                        <span>@User.Identity?.Name</span>
+                    @* Only the initial shows, on the menu bar and in the burger menu (the address is the
+                       tooltip, and what a screen reader reads), leaving room for a long menu and the
+                       Admin | Tester toggle on one row. wwwroot/app-shell.html mirrors this. *@
+                    <a class="app-header__user-name" asp-page="/Account/Manage" title="@User.Identity?.Name" style="text-decoration:none">
+                        <span class="app-header__user-avatar" aria-hidden="true">@userInitials</span>
+                        <span class="app-header__user-label">@User.Identity?.Name</span>
                     </a>
                     <form method="post" asp-page="/Account/Logout" style="margin:0">
                         <button type="submit" class="btn btn--ghost">Sign out</button>

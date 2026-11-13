@@ -63,6 +63,16 @@ public class SignInRoleTests : IClassFixture<CookieAuthWebAppFactory>
         return html[start..html.IndexOf("</nav>", start, StringComparison.Ordinal)];
     }
 
+    // The Admin | Tester toggle (Josh, 13 Nov 2026): in the menu bar, straight after Help.
+    private static string Toggle(string html)
+    {
+        var menu = Menu(html);
+        System.Text.RegularExpressions.Regex.IsMatch(menu, ">Help</a>\\s*<div[^>]*class=\"role-toggle\"")
+            .Should().BeTrue("the toggle sits next to Help");
+        var start = menu.IndexOf("class=\"role-toggle\"", StringComparison.Ordinal);
+        return menu[start..menu.IndexOf("</div>", start, StringComparison.Ordinal)];
+    }
+
     private static void ShowsTesterMenuOnly(string html)
     {
         var menu = Menu(html);
@@ -100,7 +110,9 @@ public class SignInRoleTests : IClassFixture<CookieAuthWebAppFactory>
         app.SetCookie(SignInRoles.CookieName).Should().StartWith($"{SignInRoles.CookieName}=tester");
         var html = await app.Content.ReadAsStringAsync();
         ShowsTesterMenuOnly(html);
-        html.Should().Contain(">Switch to Super Admin</a>").And.Contain("id=\"app-status-root\"");
+        Toggle(html).Should().Contain("aria-current=\"true\">Tester</span>", "the tester half is lit")
+            .And.Contain("href=\"/Admin\" aria-label=\"Switch to Super Admin\"");
+        html.Should().Contain("id=\"app-status-root\"");
 
         // The installed app opens "/" every time it starts: straight back to the tester side.
         (await browser.GetAsync("/")).Location().Should().Be("/App");
@@ -115,7 +127,8 @@ public class SignInRoleTests : IClassFixture<CookieAuthWebAppFactory>
 
         var admin = await PageAsync(browser, "/Admin");
         ShowsAdminMenuOnly(admin);
-        Menu(admin).Should().Contain("href=\"/App\">Switch to Tester</a>");
+        Toggle(admin).Should().Contain("aria-current=\"true\">Admin</span>", "the admin half is lit")
+            .And.Contain("href=\"/App\" aria-label=\"Switch to Tester\"");
         admin.Should().NotContain("id=\"app-status-root\"", "the connection status is the tester app's");
         (await browser.GetAsync("/")).Location().Should().Be("/Admin");
         ShowsAdminMenuOnly(await PageAsync(browser, "/Help"));
@@ -147,7 +160,7 @@ public class SignInRoleTests : IClassFixture<CookieAuthWebAppFactory>
         html.Should().Contain("You're a Tester and a Company Administrator.")
             .And.Contain("Review your company's tests and farms, and approve new farms.")
             .And.NotContain("Super Administrator");
-        (await PageAsync(browser, "/App")).Should().Contain(">Switch to Company Admin</a>");
+        Toggle(await PageAsync(browser, "/App")).Should().Contain("aria-label=\"Switch to Company Admin\"");
     }
 
     [Fact]
