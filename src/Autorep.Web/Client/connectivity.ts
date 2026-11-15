@@ -7,8 +7,10 @@
 //
 // One shared monitor per page (not one poll per component): /health every 30 s for reachability,
 // which never touches the session, plus GET /api/session — the authenticated check — on start-up,
-// when the network comes back and when the tab regains focus. The session check is deliberately
-// NOT on the 30 s timer: it would renew the sliding sign-in cookie for ever on an idle open tab.
+// when the network comes back (with up to three quick re-checks if the server can't be confirmed
+// straight away, see RECONNECT_RECHECKS_MS) and when the tab regains focus. The session check is
+// deliberately NOT on the 30 s timer: it would renew the sliding sign-in cookie for ever on an idle
+// open tab.
 import { useEffect, useState } from "preact/hooks";
 import { identityFromSession, saveIdentity } from "./db/identity";
 
@@ -126,15 +128,92 @@ export async function checkSession(): Promise<Connection> {
   return connection;
 }
 
+// ---- quick re-checks after a reconnect ---------------------------------------------------------
+
+/**
+ * When the browser says the network is back but the first check can't confirm the server, check
+ * again after these waits instead of leaving it to the 30 s poll (Josh, 13 Nov 2026). Signal on a
+ * farm comes back weak: that first check often times out, and the tester would see "Offline", with
+ * their work unsent, for up to half a minute after the bars returned. Three tries over about 20 s,
+ * then the 30 s poll carries on as before. Bounded, because each one is a session check, which
+ * renews the sign-in cookie (see the note at the top).
+ */
+export const RECONNECT_RECHECKS_MS = [3_000, 6_000, 12_000];
+
+export interface ReconnectDeps {
+  /** One check (the session check on tester pages, the reachability probe elsewhere). */
+  recheck: () => Promise<Connection>;
+  /** The current state, so a re-check that something else has already settled is skipped. */
+  current: () => Connection;
+  /** Whether the browser still thinks it has a network. */
+  browserOnline: () => boolean;
+  setTimer: (fn: () => void, ms: number) => unknown;
+  clearTimer: (handle: unknown) => void;
+}
+
+export interface ReconnectChecks {
+  /** The browser's "online" event: check now, and again shortly while the server can't be confirmed. */
+  reconnected: () => Promise<void>;
+  /** The browser's "offline" event: stop re-checking. */
+  disconnected: () => void;
+}
+
+export function createReconnectChecks(deps: ReconnectDeps): ReconnectChecks {
+  let pending: unknown = null;
+  // Bumped by every reconnect and disconnect, so the answer to an older check can't schedule more.
+  let run = 0;
+
+  const cancel = () => {
+    if (pending !== null) deps.clearTimer(pending);
+    pending = null;
+  };
+
+  const attempt = async (thisRun: number, tries: number): Promise<void> => {
+    const result = await deps.recheck();
+    if (thisRun !== run || result !== "offline" || !deps.browserOnline()) return;
+    if (tries >= RECONNECT_RECHECKS_MS.length) return; // the 30 s poll takes it from here
+    pending = deps.setTimer(() => {
+      pending = null;
+      if (thisRun !== run || !deps.browserOnline() || deps.current() !== "offline") return;
+      void attempt(thisRun, tries + 1);
+    }, RECONNECT_RECHECKS_MS[tries]);
+  };
+
+  return {
+    reconnected: () => {
+      cancel();
+      return attempt(++run, 0);
+    },
+    disconnected: () => {
+      cancel();
+      run++;
+    },
+  };
+}
+
 function startMonitoring(): void {
   if (monitoring || typeof window === "undefined") return;
   monitoring = true;
   const probe = () => void isServerReachable().then(reportReachable);
   const recheck = () => (sessionChecks ? void checkSession() : probe());
+  const reconnect = createReconnectChecks({
+    recheck: async () => {
+      if (sessionChecks) return checkSession();
+      reportReachable(await isServerReachable());
+      return connection;
+    },
+    current: currentConnection,
+    browserOnline: () => navigator.onLine !== false,
+    setTimer: (fn, ms) => setTimeout(fn, ms),
+    clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  });
   probe();
   setInterval(probe, POLL_MS);
-  addEventListener("online", recheck);
-  addEventListener("offline", () => set("offline"));
+  addEventListener("online", () => void reconnect.reconnected());
+  addEventListener("offline", () => {
+    reconnect.disconnected();
+    set("offline");
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") recheck();
   });
